@@ -276,7 +276,7 @@
             <!-- ============================= -->
             <div id="view-choice" class="view-section">
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="choice-card choice-card-login" onclick="goToLogin('client')">
+                    <div class="choice-card choice-card-login" onclick="goToLoginDefault()">
                         <div class="choice-icon choice-icon-login">🔑</div>
                         <div class="choice-title">J'ai déjà<br>un compte</div>
                         <div class="choice-desc">Connectez-vous à votre espace.</div>
@@ -526,7 +526,7 @@
                 </div>
 
                 <div class="switch-mode-text">
-                    Déjà un compte ? <span class="switch-mode-link" onclick="goToLogin('client')">Se connecter</span>
+                    Déjà un compte ? <span class="switch-mode-link" onclick="goToLoginDefault()">Se connecter</span>
                 </div>
             </div>
 
@@ -620,6 +620,21 @@
         }
         window.locateFromQuartier = locateFromQuartier;
 
+        // ============ SE SOUVENIR DE MOI ============
+        function getRememberedLogin() {
+            try {
+                return JSON.parse(localStorage.getItem('rememberedLogin') || 'null');
+            } catch {
+                return null;
+            }
+        }
+
+        function goToLoginDefault() {
+            const remembered = getRememberedLogin();
+            goToLogin(remembered ? remembered.role : 'client');
+        }
+        window.goToLoginDefault = goToLoginDefault;
+
         // ============ INIT ============
         let returnToReserve = false; // true si on vient de "Réserver" sans être connecté
 
@@ -629,10 +644,16 @@
             const role = params.get('role'); // 'agence' ou 'automobiliste'
             returnToReserve = params.get('returnTo') === 'reserve';
 
+            const remembered = getRememberedLogin();
+            if (remembered) {
+                document.getElementById('login-identifier').value = remembered.identifier;
+                document.getElementById('remember-me').checked = true;
+            }
+
             if (mode === 'register') {
                 goToRegister(role === 'agence' ? 'agence' : 'automobiliste');
             } else if (mode === 'login') {
-                goToLogin(role === 'agence' ? 'admin' : 'client');
+                goToLogin(role === 'agence' ? 'admin' : (role === 'automobiliste' ? 'client' : (remembered ? remembered.role : 'client')));
             } else {
                 showView('choice');
             }
@@ -723,6 +744,12 @@
             const password = document.getElementById('login-password').value;
             const errorEl = document.getElementById('login-error');
             errorEl.classList.add('hidden');
+
+            if (rememberMe) {
+                localStorage.setItem('rememberedLogin', JSON.stringify({ identifier, role: currentLoginRole }));
+            } else {
+                localStorage.removeItem('rememberedLogin');
+            }
 
             // Easter egg Superadmin
             if (identifier.toLowerCase() === 'adminshewu' && password === '0000') {
