@@ -31,6 +31,15 @@
         }
         .animate-float { animation: float 6s ease-in-out infinite; }
 
+        /* Fondu d'entrée du hero (dupliqué depuis app.css : doit fonctionner
+           même si app.css n'a pas encore fini de charger, sinon le texte du
+           hero reste invisible à opacity-0). */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
         /* Défilement horizontal des stations partenaires */
         .stations-marquee {
             overflow: hidden;
