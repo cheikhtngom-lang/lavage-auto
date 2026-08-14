@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Clean Car Galsen - Le Futur du Lavage Auto</title>
+
+    <!-- PWA : installable comme une application sur mobile/tablette -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0a0a0a">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Clean Car">
+    <script src="/register-sw.js" defer></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="app.css">
+    <style>
+        /* Smooth scrolling */
+        html { scroll-behavior: smooth; }
+        
+        /* Floating animation for hero mockup */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 6s ease-in-out infinite; }
+
+        /* Défilement horizontal des stations partenaires */
+        .stations-marquee {
+            overflow: hidden;
+            -webkit-mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+            mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+        }
+        .stations-track {
+            display: flex;
+            gap: 1.5rem;
+            width: max-content;
+            animation: stations-scroll linear infinite;
+        }
+        .stations-marquee:hover .stations-track { animation-play-state: paused; }
+        @keyframes stations-scroll {
+            from { transform: translateX(0); }
+            to { transform: translateX(-50%); }
+        }
+        .station-card { width: 280px; flex-shrink: 0; }
+    </style>
+</head>
+<body class="min-h-screen relative overflow-x-hidden text-white bg-[#0a0a0a]">
+    <!-- Effets de lumière en arrière-plan -->
+    <div class="absolute top-0 -left-10 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 pointer-events-none z-[-1]"></div>
+    <div class="absolute top-0 -right-10 w-96 h-96 bg-emerald-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 pointer-events-none z-[-1]"></div>
+    
+    <!-- Navigation -->
+    <header class="sticky top-0 z-50 w-full border-b border-white/10 glass-panel">
+        <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2 min-w-0 flex-shrink mr-2">
+                <span class="text-blue-400 text-xl sm:text-2xl flex-shrink-0">💧</span>
+                <span class="font-bold text-base sm:text-xl tracking-tight truncate">Clean Car <span class="text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-yellow-400 to-red-500">Galsen</span></span>
+            </div>
+            <nav class="hidden md:flex gap-6 items-center">
+                <a href="#accueil" class="text-sm font-medium text-white hover:text-blue-400 transition-colors">Accueil</a>
+                <a href="#comment-ca-marche" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Comment ça marche</a>
+                <a href="#temoignages" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Témoignages</a>
+                <a href="#tarifs" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Tarifs Pro</a>
+            </nav>
+            <div class="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+                <div id="auth-buttons" class="flex items-center gap-1 sm:gap-3">
+                    <button onclick="window.location.href='login.html'" class="hidden sm:inline-block text-white hover:text-blue-400 font-medium px-2 py-2 text-sm transition-colors">
+                        Connexion
+                    </button>
+                    <button onclick="window.location.href='login.html?mode=register'" class="bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 whitespace-nowrap">
+                        S'inscrire
+                    </button>
+                </div>
+                <button onclick="toggleMobileMenu()" class="md:hidden text-white p-2 -mr-2" aria-label="Ouvrir le menu" aria-expanded="false" id="mobile-menu-toggle">
+                    <svg id="menu-icon-open" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    <svg id="menu-icon-close" class="w-6 h-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+        </div>
+        <nav id="mobile-nav" class="hidden md:hidden border-t border-white/10 bg-neutral-950/95 backdrop-blur-xl">
+            <div class="container mx-auto px-4 py-3 flex flex-col gap-1">
+                <a href="#accueil" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Accueil</a>
+                <a href="#comment-ca-marche" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Comment ça marche</a>
+                <a href="#temoignages" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Témoignages</a>
+                <a href="#tarifs" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Tarifs Pro</a>
+                <a href="login.html" class="sm:hidden mt-1 px-3 py-3 rounded-xl text-sm font-bold text-center text-white border border-white/10 hover:bg-white/5 transition-colors">Connexion</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="w-full flex flex-col items-center">
+        <!-- Section Hero (Avec Mockup Interactif) -->
+        <section id="accueil" class="w-full min-h-[90vh] flex flex-col md:flex-row items-center justify-between px-4 max-w-7xl mx-auto py-20 gap-12">
+            <div class="flex-1 flex flex-col items-start text-left animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
+                <div class="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-300 mb-8 backdrop-blur-sm">
+                    <span class="flex h-2 w-2 rounded-full bg-blue-500 mr-2 animate-pulse"></span>
+                    Solution N°1 au Sénégal
+                </div>
+                
+                <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
+                    Fini les files d'attente.<br />
+                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                        Lavez intelligent.
+                    </span>
+                </h1>
+                
+                <p class="text-lg text-neutral-400 mb-10 max-w-xl">
+                    La première plateforme SaaS de gestion de file d'attente virtuelle pour les stations de lavage au Sénégal. Réservez, payez par Wave, et arrivez juste à temps.
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mt-4">
+                    <button onclick="window.location.href='/stations'" class="bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                        Trouver une station 🔍
+                    </button>
+                    <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-white/5 border border-white/10 hover:bg-white/10 rounded-full px-8 py-4 text-white font-semibold shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 backdrop-blur-sm">
+                        Espace Partenaire 🚀
+                    </button>
+                </div>
+                
+                <div class="mt-8 flex items-center gap-4 text-sm text-neutral-500">
+                    <div class="flex -space-x-2">
+                        <div class="w-8 h-8 rounded-full bg-neutral-800 border-2 border-black"></div>
+                        <div class="w-8 h-8 rounded-full bg-neutral-700 border-2 border-black"></div>
+                        <div class="w-8 h-8 rounded-full bg-neutral-600 border-2 border-black flex items-center justify-center text-[10px] text-white">+50</div>
+                    </div>
+                    <span>Stations partenaires actives</span>
+                </div>
+            </div>
+            
+            <!-- Mockup visuel -->
+            <div class="flex-1 w-full max-w-sm mx-auto animate-float">
+                <div class="relative w-full aspect-[1/2] bg-[#0a0a0a] rounded-[3rem] border-8 border-neutral-800 shadow-2xl shadow-blue-900/50 overflow-hidden flex flex-col">
+                    <div class="absolute top-0 inset-x-0 h-6 bg-black z-10 rounded-b-2xl mx-16"></div> <!-- Notch -->
+                    <div class="p-6 pt-12 flex-1 bg-gradient-to-b from-blue-900/20 to-black">
+                        <div class="flex items-center gap-3 mb-8">
+                            <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-xl">🚗</div>
+                            <div>
+                                <h3 class="font-bold text-white leading-tight">Auto Clean VIP</h3>
+                                <p class="text-xs text-emerald-400">En cours de lavage</p>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white/5 rounded-2xl p-4 mb-4 border border-white/10 shadow-lg">
+                            <h4 class="text-sm text-neutral-400 mb-1">Votre position</h4>
+                            <div class="flex justify-between items-end mb-2">
+                                <span class="text-3xl font-bold text-white">#2</span>
+                                <span class="text-emerald-400 font-bold">15 min restantes</span>
+                            </div>
+                            <div class="w-full bg-black/50 rounded-full h-3 overflow-hidden">
+                                <div class="bg-gradient-to-r from-blue-500 to-emerald-500 h-full rounded-full w-[75%] relative overflow-hidden">
+                                    <div class="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-center mt-6">
+                            <span class="text-2xl block mb-2">✅</span>
+                            <h4 class="font-bold text-emerald-400 text-sm">Paiement Validé</h4>
+                            <p class="text-xs text-emerald-200/50 mt-1">Reçu Wave généré</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ce que nous facilitons (Avantages) -->
+        <section id="avantages" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 relative">
+            <div class="text-center mb-16">
+                <span class="text-purple-400 font-bold tracking-wider uppercase text-sm mb-2 block">Nos Avantages</span>
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Ce que nous facilitons pour vous</h2>
+                <p class="text-neutral-400 max-w-2xl mx-auto">Une solution pensée pour éliminer la frustration des conducteurs et maximiser les revenus des stations de lavage.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-12">
+                <!-- Pour le client -->
+                <div class="glass-card p-10 rounded-3xl border border-blue-500/20 bg-blue-900/10 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-2xl">
+                    <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-500/20 blur-3xl rounded-full group-hover:bg-blue-500/30 transition-colors"></div>
+                    <h3 class="text-2xl font-bold text-white mb-8 flex items-center gap-4">
+                        <span class="text-4xl">👤</span> Pour les Automobilistes
+                    </h3>
+                    <ul class="space-y-6 text-neutral-300">
+                        <li class="flex items-start gap-4">
+                            <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-blue-400 font-bold text-sm">✓</span>
+                            </div>
+                            <div>
+                                <strong class="text-white block mb-1">Zéro attente imprévue</strong>
+                                <span class="text-sm">Consultez la file d'attente d'une station en temps réel avant même de vous déplacer.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-4">
+                            <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-blue-400 font-bold text-sm">✓</span>
+                            </div>
+                            <div>
+                                <strong class="text-white block mb-1">Paiement simplifié</strong>
+                                <span class="text-sm">Payez votre ticket depuis votre canapé via Wave ou Orange Money en 1 clic.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-4">
+                            <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-blue-400 font-bold text-sm">✓</span>
+                            </div>
+                            <div>
+                                <strong class="text-white block mb-1">Flexibilité intelligente</strong>
+                                <span class="text-sm">Si vous êtes en retard, notre système recule votre position au lieu d'annuler votre ticket payé.</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Pour la station -->
+                <div class="glass-card p-10 rounded-3xl border border-emerald-500/20 bg-emerald-900/10 relative overflow-hidden group hover:border-emerald-500/40 transition-colors shadow-2xl">
+                    <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/20 blur-3xl rounded-full group-hover:bg-emerald-500/30 transition-colors"></div>
+                    <h3 class="text-2xl font-bold text-white mb-8 flex items-center gap-4">
+                        <span class="text-4xl">🏢</span> Pour les Stations de Lavage
+                    </h3>
+                    <ul class="space-y-6 text-neutral-300">
+                        <li class="flex items-start gap-4">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                            </div>
+                            <div>
+                                <strong class="text-white block mb-1">Fidélisation client</strong>
+                                <span class="text-sm">Offrez une expérience technologique premium qui démarque votre station de la concurrence.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-4">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                            </div>
+                            <div>
+                                <strong class="text-white block mb-1">Gestion digitalisée</strong>
+                                <span class="text-sm">Un tableau de bord clair pour démarrer les lavages, suivre le chiffre d'affaires et l'efficacité des laveurs.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-4">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                            </div>
+                            <div>
+                                <strong class="text-white block mb-1">Paiements sécurisés</strong>
+                                <span class="text-sm">Réduisez la manipulation d'espèces et les vols avec les reçus électroniques et paiements mobiles.</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-4">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                            </div>
+                            <div>
+                                <strong class="text-white block mb-1">Module RH & Pointage</strong>
+                                <span class="text-sm">Suivez les heures et absences de vos laveurs, et exportez automatiquement les fiches Excel pour la paie.</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- NOUVEAU: Comment ça marche ? -->
+        <section id="comment-ca-marche" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5">
+            <div class="text-center mb-16">
+                <span class="text-blue-400 font-bold tracking-wider uppercase text-sm mb-2 block">Le processus</span>
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">La magie en 3 étapes simples</h2>
+                <p class="text-neutral-400 max-w-2xl mx-auto">Une fluidité parfaite entre le client et la station.</p>
+            </div>
+            
+            <div class="grid md:grid-cols-3 gap-8 relative">
+                <!-- Ligne de connexion (Desktop) -->
+                <div class="hidden md:block absolute top-[40px] left-[15%] right-[15%] h-1 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-emerald-500/20 z-0"></div>
+                
+                <!-- Step 1 -->
+                <div class="glass-panel p-8 rounded-3xl relative z-10 flex flex-col items-center text-center border-t border-blue-500/30">
+                    <div class="w-20 h-20 rounded-full bg-blue-600 text-white font-bold text-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(37,99,235,0.4)]">1</div>
+                    <h3 class="text-xl font-bold mb-3">Le client réserve</h3>
+                    <p class="text-neutral-400 text-sm">L'automobiliste trouve votre station, choisit son lavage et paie instantanément via Wave ou Orange Money.</p>
+                </div>
+                <!-- Step 2 -->
+                <div class="glass-panel p-8 rounded-3xl relative z-10 flex flex-col items-center text-center border-t border-purple-500/30">
+                    <div class="w-20 h-20 rounded-full bg-purple-600 text-white font-bold text-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(147,51,234,0.4)]">2</div>
+                    <h3 class="text-xl font-bold mb-3">Vous validez</h3>
+                    <p class="text-neutral-400 text-sm">Le véhicule apparaît sur votre tablette. Vous lancez le lavage et le système gère l'ordre d'attente intelligemment.</p>
+                </div>
+                <!-- Step 3 -->
+                <div class="glass-panel p-8 rounded-3xl relative z-10 flex flex-col items-center text-center border-t border-emerald-500/30">
+                    <div class="w-20 h-20 rounded-full bg-emerald-600 text-white font-bold text-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(5,150,105,0.4)]">3</div>
+                    <h3 class="text-xl font-bold mb-3">Suivi en direct</h3>
+                    <p class="text-neutral-400 text-sm">La barre de progression du client avance en temps réel. Il arrive exactement au bon moment. Zéro frustration.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recherche de Stations (Existante) -->
+        <section id="stations-section" class="w-full bg-black/40 py-24 border-y border-white/5 relative z-10">
+            <div class="max-w-6xl mx-auto px-4">
+                <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
+                    <div>
+                        <h2 class="text-3xl font-bold mb-2">Stations partenaires actuelles</h2>
+                        <p class="text-neutral-400">Trouvez une station à proximité ou dans une autre région.</p>
+                    </div>
+                    <button onclick="window.location.href='login.html'" class="text-blue-400 hover:text-white font-medium transition-colors flex items-center gap-2">
+                        Rejoindre le réseau <span>→</span>
+                    </button>
+                </div>
+
+                <!-- Barre de recherche : quartier + région + bouton Rechercher -->
+                <div class="glass-panel p-4 rounded-2xl border border-white/5 mb-4 flex flex-col md:flex-row gap-4 items-center">
+                    <div class="flex-1 w-full relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400">🔍</span>
+                        <input id="search-input" type="text" placeholder="Rechercher un quartier, une station..." class="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors" onkeydown="if(event.key==='Enter')searchStations()">
+                    </div>
+
+                    <div class="w-full md:w-auto relative">
+                        <select id="search-region" class="w-full md:w-48 bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer">
+                            <option value="">Toutes les régions</option>
+                            <option value="dakar">Dakar</option>
+                            <option value="diourbel">Diourbel</option>
+                            <option value="fatick">Fatick</option>
+                            <option value="kaffrine">Kaffrine</option>
+                            <option value="kaolack">Kaolack</option>
+                            <option value="kedougou">Kédougou</option>
+                            <option value="kolda">Kolda</option>
+                            <option value="louga">Louga</option>
+                            <option value="matam">Matam</option>
+                            <option value="saint-louis">Saint-Louis</option>
+                            <option value="sedhiou">Sédhiou</option>
+                            <option value="tambacounda">Tambacounda</option>
+                            <option value="thies">Thiès</option>
+                            <option value="ziguinchor">Ziguinchor</option>
+                        </select>
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none text-xs">▼</span>
+                    </div>
+
+                    <button onclick="searchStations()" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+                        🔍 Rechercher
+                    </button>
+                </div>
+
+                <!-- Recherche par géolocalisation : station la plus proche -->
+                <div class="flex flex-col items-center gap-1 mb-10">
+                    <button id="geoloc-btn" onclick="useMyPosition()" class="text-blue-400 hover:text-white font-medium text-sm transition-colors flex items-center gap-2">
+                        <span>📍</span> <span id="geoloc-btn-label">Ou trouver la station la plus proche de moi (géolocalisation)</span>
+                    </button>
+                    <p id="geoloc-status" class="text-sm text-neutral-500"></p>
+                </div>
+
+                <!-- Résultats de recherche (quartier/région) -->
+                <div id="stations-results-header" class="hidden flex items-center justify-between mb-4">
+                    <p id="stations-results-count" class="text-neutral-400 text-sm"></p>
+                    <button onclick="resetStationsSearch()" class="text-blue-400 hover:text-white text-sm font-medium transition-colors">Réinitialiser ✕</button>
+                </div>
+                <div id="stations-results" class="hidden grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4"></div>
+                <div id="stations-results-empty" class="hidden text-center py-16 glass-card rounded-2xl border border-dashed border-white/10 mb-4">
+                    <p class="text-neutral-300 font-medium mb-1">Aucune station ne correspond à votre recherche.</p>
+                    <p class="text-neutral-500 text-sm mb-5">Essayez un autre quartier ou une autre région.</p>
+                    <button onclick="resetStationsSearch()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors">Voir toutes les stations</button>
+                </div>
+
+                <!-- Défilement horizontal automatique des vraies stations inscrites (vue par défaut) -->
+                <div id="stations-marquee" class="stations-marquee">
+                    <div id="stations-track" class="stations-track"></div>
+                </div>
+                <div id="stations-empty" class="hidden text-center py-16 glass-card rounded-2xl border border-dashed border-white/10">
+                    <p class="text-neutral-300 font-medium mb-1">Aucune station inscrite pour le moment.</p>
+                    <p class="text-neutral-500 text-sm mb-5">Soyez la première station partenaire du réseau !</p>
+                    <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20">
+                        Inscrire ma station
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- NOUVEAU: Témoignages -->
+        <section id="temoignages" class="w-full max-w-6xl mx-auto px-4 py-24">
+            <div class="text-center mb-16">
+                <span class="text-emerald-400 font-bold tracking-wider uppercase text-sm mb-2 block">Preuve Sociale</span>
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Ils ont transformé leur station</h2>
+            </div>
+            
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="glass-panel p-8 rounded-3xl relative border border-white/5 shadow-2xl">
+                    <span class="absolute top-4 right-6 text-6xl text-white/5 font-serif">"</span>
+                    <div class="flex text-amber-400 mb-4 text-xl">★★★★★</div>
+                    <p class="text-lg text-neutral-300 mb-6 italic">"Avant, ma station était le chaos total le samedi matin. Les clients klaxonnaient, s'énervaient. Depuis Clean Car Galsen, tout est fluide, les paiements Wave rentrent tout seuls, et j'ai augmenté mon chiffre d'affaires de 35% !"</p>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg">OD</div>
+                        <div>
+                            <h4 class="font-bold text-white">Ousmane Diop</h4>
+                            <p class="text-xs text-neutral-400">Gérant, Mermoz Wash</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="glass-panel p-8 rounded-3xl relative border border-white/5 shadow-2xl">
+                    <span class="absolute top-4 right-6 text-6xl text-white/5 font-serif">"</span>
+                    <div class="flex text-amber-400 mb-4 text-xl">★★★★★</div>
+                    <p class="text-lg text-neutral-300 mb-6 italic">"Le tableau de bord est super simple à utiliser. Mes laveurs savent exactement sur quelle voiture travailler. La fonction de rétrogradation automatique quand un client est en retard est un coup de génie."</p>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-lg">FS</div>
+                        <div>
+                            <h4 class="font-bold text-white">Fatou Sow</h4>
+                            <p class="text-xs text-neutral-400">Propriétaire, Auto Clean VIP</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tarifs SaaS pour Gérants -->
+        <section id="tarifs" class="w-full bg-neutral-900/50 py-24 border-t border-white/5 relative overflow-hidden">
+            <div class="absolute bottom-0 left-0 w-[800px] h-[800px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none z-0"></div>
+            
+            <div class="max-w-6xl mx-auto px-4 relative z-10">
+                <div class="text-center mb-16">
+                    <h2 class="text-3xl md:text-5xl font-bold mb-4">Des tarifs simples & clairs</h2>
+                    <p class="text-neutral-400 max-w-2xl mx-auto">Digitalisez votre lavage auto avec des forfaits sans engagement.</p>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                    <!-- Starter -->
+                    <div class="glass-card p-10 rounded-3xl border border-white/5 relative flex flex-col bg-black/20">
+                        <h3 class="text-2xl font-bold mb-2">Starter</h3>
+                        <p class="text-neutral-400 text-sm mb-6">Pour les petits lavages de quartier.</p>
+                        <div class="mb-8">
+                            <span class="text-5xl font-bold text-white">15 000 F</span><span class="text-neutral-500"> / mois</span>
+                        </div>
+                        <ul class="space-y-4 text-sm text-neutral-300 mb-10 flex-1">
+                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> Gestion de 1 file d'attente</li>
+                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> Jusqu'à 50 véhicules/jour</li>
+                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> Tableau de bord basique</li>
+                        </ul>
+                        <button onclick="window.location.href='login.html?mode=register&plan=starter'" class="w-full py-4 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-bold text-white">Commencer l'essai</button>
+                    </div>
+
+                    <!-- Pro -->
+                    <div class="glass-card p-10 rounded-3xl border border-blue-500/50 bg-blue-600/10 relative flex flex-col shadow-2xl shadow-blue-900/20 transform md:-translate-y-4">
+                        <div class="absolute top-0 inset-x-0 flex justify-center -mt-3">
+                            <span class="bg-blue-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-[0_0_15px_rgba(59,130,246,0.5)]">Le Plus Populaire</span>
+                        </div>
+                        <h3 class="text-2xl font-bold mb-2 text-blue-400">Professionnel</h3>
+                        <p class="text-neutral-400 text-sm mb-6">Pour les stations à fort trafic.</p>
+                        <div class="mb-8">
+                            <span class="text-5xl font-bold text-white">35 000 F</span><span class="text-neutral-500"> / mois</span>
+                        </div>
+                        <ul class="space-y-4 text-sm text-neutral-300 mb-10 flex-1">
+                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Files & véhicules illimités</li>
+                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Paiement mobile (Wave/OM)</li>
+                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Algorithme Anti-Retard intelligent</li>
+                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Reçus numériques avec votre Logo</li>
+                        </ul>
+                        <button onclick="window.location.href='login.html?mode=register&plan=pro'" class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors font-bold shadow-[0_0_20px_rgba(37,99,235,0.4)]">Choisir Pro</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- NOUVEAU: FAQ -->
+        <section class="w-full max-w-4xl mx-auto px-4 py-24 border-t border-white/5">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">Questions Fréquentes</h2>
+            </div>
+            
+            <div class="space-y-4">
+                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
+                    <h3 class="font-bold text-lg mb-2 text-white">Faut-il acheter du matériel informatique spécifique ?</h3>
+                    <p class="text-neutral-400 text-sm leading-relaxed">Absolument pas. Clean Car Galsen fonctionne sur n'importe quel smartphone, tablette ou ordinateur connecté à internet (via le navigateur web).</p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
+                    <h3 class="font-bold text-lg mb-2 text-white">Comment je récupère l'argent payé par les clients via Wave/OM ?</h3>
+                    <p class="text-neutral-400 text-sm leading-relaxed">L'argent va directement sur votre propre compte marchand (Wave/Orange Money). Nous ne prenons aucune commission sur vos lavages, seul l'abonnement mensuel vous est facturé.</p>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
+                    <h3 class="font-bold text-lg mb-2 text-white">Puis-je annuler mon abonnement ?</h3>
+                    <p class="text-neutral-400 text-sm leading-relaxed">Oui, toutes nos offres sont sans engagement. Vous pouvez annuler votre abonnement SaaS à tout moment depuis votre tableau de bord.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- NOUVEAU: CTA Final -->
+        <section class="w-full py-24 border-t border-white/5 bg-gradient-to-b from-transparent to-blue-900/20 relative">
+            <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
+                <h2 class="text-4xl md:text-6xl font-bold mb-6">Prêt à digitaliser votre station ?</h2>
+                <p class="text-xl text-neutral-400 mb-10 max-w-2xl mx-auto">Rejoignez le réseau. Offrez une expérience Premium à vos clients. Maximisez vos revenus.</p>
+                <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-white hover:bg-neutral-200 text-black rounded-full px-10 py-5 font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-transform active:scale-95 text-lg">
+                    Créer mon Espace Gratuitement
+                </button>
+            </div>
+        </section>
+        
+        <!-- Footer -->
+        <footer class="w-full border-t border-white/10 bg-black py-12 text-center text-neutral-500 text-sm">
+            <div class="flex items-center justify-center gap-2 mb-4">
+                <span class="text-blue-400 text-xl">💧</span>
+                <span class="font-bold text-lg tracking-tight text-white">Clean Car Galsen</span>
+            </div>
+            <p>&copy; 2024 Clean Car Galsen. Tous droits réservés.</p>
+        </footer>
+
+    </main>
+
+    <!-- Script pour gérer l'état de connexion sur la page d'accueil -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const isLoggedIn = localStorage.getItem('isLoggedIn') || sessionStorage.getItem('isLoggedIn');
+            const role = localStorage.getItem('userRole') || sessionStorage.getItem('userRole');
+
+            if (isLoggedIn === 'true') {
+                const authContainer = document.getElementById('auth-buttons');
+
+                if (authContainer) {
+                    const dashboardPath = role === 'client' ? '/dashboard' : role === 'admin' ? '/admin/queue' : '/superadmin';
+                    authContainer.innerHTML = `
+                        <button onclick="logout()" class="hidden sm:inline-block text-sm font-medium text-neutral-400 hover:text-red-400 transition-colors mr-1 sm:mr-3">Déconnexion</button>
+                        <button onclick="window.location.href='${dashboardPath}'" class="bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 whitespace-nowrap">
+                            <span class="sm:hidden">Mon Espace</span><span class="hidden sm:inline">Mon Tableau de Bord</span>
+                        </button>
+                    `;
+                }
+            }
+
+            renderPartnerStations();
+        });
+
+        // ============ MENU MOBILE (header) ============
+        function toggleMobileMenu() {
+            const nav = document.getElementById('mobile-nav');
+            const isOpen = !nav.classList.contains('hidden');
+            isOpen ? closeMobileMenu() : openMobileMenu();
+        }
+        function openMobileMenu() {
+            document.getElementById('mobile-nav').classList.remove('hidden');
+            document.getElementById('menu-icon-open').classList.add('hidden');
+            document.getElementById('menu-icon-close').classList.remove('hidden');
+            document.getElementById('mobile-menu-toggle').setAttribute('aria-expanded', 'true');
+        }
+        function closeMobileMenu() {
+            document.getElementById('mobile-nav').classList.add('hidden');
+            document.getElementById('menu-icon-open').classList.remove('hidden');
+            document.getElementById('menu-icon-close').classList.add('hidden');
+            document.getElementById('mobile-menu-toggle').setAttribute('aria-expanded', 'false');
+        }
+
+        function logout() {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('userRole');
+            sessionStorage.removeItem('isLoggedIn');
+            sessionStorage.removeItem('userRole');
+            window.location.reload();
+        }
+
+        // ============ STATIONS PARTENAIRES (défilement) ============
+        const STATION_ICONS = [
+            { emoji: '🚗', bg: 'bg-blue-500/20' },
+            { emoji: '✨', bg: 'bg-purple-500/20' },
+            { emoji: '🫧', bg: 'bg-amber-500/20' },
+            { emoji: '💧', bg: 'bg-cyan-500/20' },
+            { emoji: '🧽', bg: 'bg-emerald-500/20' },
+        ];
+        const STATUS_BADGES = {
+            active: { label: 'Actif', class: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+            en_attente: { label: 'Nouveau', class: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+        };
+
+        const REGION_LABELS = {
+            dakar: 'Dakar', diourbel: 'Diourbel', fatick: 'Fatick', kaffrine: 'Kaffrine', kaolack: 'Kaolack',
+            kedougou: 'Kédougou', kolda: 'Kolda', louga: 'Louga', matam: 'Matam', 'saint-louis': 'Saint-Louis',
+            sedhiou: 'Sédhiou', tambacounda: 'Tambacounda', thies: 'Thiès', ziguinchor: 'Ziguinchor',
+        };
+
+        let userPosition = null; // { lat, lng } une fois la géolocalisation acceptée
+        let searchActive = false; // true quand on affiche des résultats de recherche plutôt que le défilement
+
+        // Distance à vol d'oiseau entre deux points GPS (formule de Haversine)
+        function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function getActiveStations() {
+            let stations = [];
+            try { stations = JSON.parse(localStorage.getItem('saasStations')) || []; } catch { stations = []; }
+            return stations.filter(s => s.status !== 'suspendue');
+        }
+
+        // Calcule (si possible) et trie par distance ; laisse l'ordre inchangé sinon.
+        function withDistances(stations) {
+            if (!userPosition) return stations;
+            const withDist = stations.map(s => ({
+                ...s,
+                _distanceKm: (typeof s.lat === 'number' && typeof s.lng === 'number')
+                    ? haversineDistanceKm(userPosition.lat, userPosition.lng, s.lat, s.lng)
+                    : null,
+            }));
+            withDist.sort((a, b) => {
+                if (a._distanceKm == null && b._distanceKm == null) return 0;
+                if (a._distanceKm == null) return 1;
+                if (b._distanceKm == null) return -1;
+                return a._distanceKm - b._distanceKm;
+            });
+            return withDist;
+        }
+
+        function getStationRating(stationId) {
+            let reviews = [];
+            try { reviews = JSON.parse(localStorage.getItem(`stationReviews_${stationId}`)) || []; } catch { reviews = []; }
+            if (reviews.length === 0) return null;
+            const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+            return { average: sum / reviews.length, count: reviews.length };
+        }
+
+        function stationCardHTML(station, index) {
+            const icon = STATION_ICONS[index % STATION_ICONS.length];
+            const badge = STATUS_BADGES[station.status] || STATUS_BADGES.en_attente;
+            const location = station.quartier
+                ? `${station.quartier}${station.region ? ', ' + (REGION_LABELS[station.region] || station.region) : ''}`
+                : (station.city || station.address || 'Sénégal');
+            const distanceLabel = station._distanceKm != null
+                ? `<span class="text-blue-400 font-medium">${station._distanceKm < 1 ? Math.round(station._distanceKm * 1000) + ' m' : station._distanceKm.toFixed(1) + ' km'}</span> · `
+                : '';
+            const rating = getStationRating(station.id);
+            const ratingLabel = rating
+                ? `<div class="flex items-center gap-1 text-xs text-amber-400 mb-2">★ <span class="font-medium text-white">${rating.average.toFixed(1)}</span> <span class="text-neutral-500">(${rating.count})</span></div>`
+                : `<div class="text-xs text-neutral-600 mb-2">Aucun avis pour le moment</div>`;
+            return `
+                <div class="station-card glass-card rounded-2xl p-6 border border-white/5 cursor-pointer hover:border-blue-500/30 transition-colors" onclick="window.location.href='/stations?stationId=${station.id}'">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="w-12 h-12 rounded-xl ${icon.bg} flex items-center justify-center text-2xl">${icon.emoji}</div>
+                        <span class="${badge.class} text-xs font-bold px-3 py-1.5 rounded-full border">${badge.label}</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-1 truncate">${station.name || 'Station'}</h3>
+                    ${ratingLabel}
+                    <p class="text-neutral-400 text-sm mb-4 truncate">${distanceLabel}${location}</p>
+                </div>
+            `;
+        }
+
+        // Vue par défaut : défilement automatique de toutes les stations
+        function renderPartnerStations() {
+            const track = document.getElementById('stations-track');
+            const marquee = document.getElementById('stations-marquee');
+            const emptyState = document.getElementById('stations-empty');
+            if (!track) return;
+
+            const stations = withDistances(getActiveStations());
+
+            if (stations.length === 0) {
+                marquee.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            marquee.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            // On duplique la liste pour un défilement en boucle infinie et fluide
+            const cardsHTML = stations.map(stationCardHTML).join('');
+            track.innerHTML = cardsHTML + cardsHTML;
+
+            // Vitesse proportionnelle au nombre de stations pour un rythme constant
+            const duration = Math.max(15, stations.length * 5);
+            track.style.animationDuration = `${duration}s`;
+        }
+
+        // ============ RECHERCHE (quartier + région) ============
+        function searchStations() {
+            const query = (document.getElementById('search-input').value || '').trim().toLowerCase();
+            const region = document.getElementById('search-region').value;
+
+            let results = getActiveStations().filter(s => {
+                const matchesRegion = !region || s.region === region;
+                const matchesQuery = !query ||
+                    (s.quartier || '').toLowerCase().includes(query) ||
+                    (s.name || '').toLowerCase().includes(query) ||
+                    (s.city || '').toLowerCase().includes(query) ||
+                    (s.address || '').toLowerCase().includes(query);
+                return matchesRegion && matchesQuery;
+            });
+            results = withDistances(results);
+
+            searchActive = true;
+            document.getElementById('stations-marquee').classList.add('hidden');
+            document.getElementById('stations-empty').classList.add('hidden');
+            document.getElementById('stations-results-header').classList.remove('hidden');
+
+            const resultsGrid = document.getElementById('stations-results');
+            const resultsEmpty = document.getElementById('stations-results-empty');
+            const countEl = document.getElementById('stations-results-count');
+
+            if (results.length === 0) {
+                resultsGrid.classList.add('hidden');
+                resultsEmpty.classList.remove('hidden');
+                countEl.textContent = 'Aucune station trouvée';
+                return;
+            }
+            resultsEmpty.classList.add('hidden');
+            resultsGrid.classList.remove('hidden');
+            countEl.textContent = `${results.length} station${results.length > 1 ? 's' : ''} trouvée${results.length > 1 ? 's' : ''}`;
+            resultsGrid.innerHTML = results.map(stationCardHTML).join('');
+        }
+
+        function resetStationsSearch() {
+            searchActive = false;
+            document.getElementById('search-input').value = '';
+            document.getElementById('search-region').value = '';
+            document.getElementById('stations-results-header').classList.add('hidden');
+            document.getElementById('stations-results').classList.add('hidden');
+            document.getElementById('stations-results-empty').classList.add('hidden');
+            renderPartnerStations();
+        }
+        window.searchStations = searchStations;
+        window.resetStationsSearch = resetStationsSearch;
+
+        // ============ GÉOLOCALISATION CLIENT (station la plus proche) ============
+        function useMyPosition() {
+            const btn = document.getElementById('geoloc-btn');
+            const label = document.getElementById('geoloc-btn-label');
+            const status = document.getElementById('geoloc-status');
+
+            if (!navigator.geolocation) {
+                status.textContent = "La géolocalisation n'est pas disponible sur cet appareil.";
+                status.className = 'text-sm text-red-400';
+                return;
+            }
+
+            btn.disabled = true;
+            label.textContent = 'Localisation...';
+            status.textContent = '';
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    userPosition = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    btn.disabled = false;
+                    label.textContent = 'Ou trouver la station la plus proche de moi (géolocalisation)';
+                    status.textContent = 'Position détectée — stations triées par proximité.';
+                    status.className = 'text-sm text-emerald-400';
+                    searchActive ? searchStations() : renderPartnerStations();
+                },
+                (err) => {
+                    btn.disabled = false;
+                    label.textContent = 'Ou trouver la station la plus proche de moi (géolocalisation)';
+                    const messages = {
+                        1: 'Permission refusée. Autorisez la localisation dans votre navigateur pour trier par proximité.',
+                        2: 'Position indisponible pour le moment.',
+                        3: 'Délai dépassé, réessayez.',
+                    };
+                    status.textContent = messages[err.code] || 'Impossible de récupérer votre position.';
+                    status.className = 'text-sm text-red-400';
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+        window.useMyPosition = useMyPosition;
+    </script>
+</body>
+</html>

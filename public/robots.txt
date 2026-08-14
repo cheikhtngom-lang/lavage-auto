@@ -1,0 +1,20 @@
+# robots.txt — O'Wash SaaS (gestionimmo.site)
+# Mis à jour : Août 2026
+
+# Autoriser tous les robots à explorer le site public
+User-agent: *
+Allow: /
+Allow: /stations
+Allow: /dashboard
+Allow: /login
+
+# Bloquer l'accès aux routes d'administration (pas besoin d'indexation)
+Disallow: /admin/
+Disallow: /superadmin/
+
+# Bloquer les assets techniques
+Disallow: /assets/
+Disallow: /_vite/
+
+# Sitemap principal
+Sitemap: https://gestionimmo.site/sitemap.xml

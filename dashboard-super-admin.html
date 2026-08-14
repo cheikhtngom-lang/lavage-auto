@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin - Clean Car Galsen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="app.css">
+</head>
+<body class="min-h-screen bg-[#0a0a0a] text-white font-sans flex overflow-hidden">
+    <!-- Sidebar -->
+    <aside class="w-64 glass-panel border-r border-white/5 flex flex-col z-20">
+        <div class="p-6 border-b border-white/5 flex items-center gap-3">
+            <span class="text-3xl">👑</span>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight">Clean Car Galsen</h1>
+                <p class="text-[10px] text-amber-500 font-bold uppercase tracking-widest">Propriétaire SaaS</p>
+            </div>
+        </div>
+        
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="switchAdminTab('overview')" id="nav-overview" class="admin-nav-item bg-amber-500/10 text-amber-500 flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors" style="border-right: 4px solid #fbbf24;">
+                <span class="text-lg opacity-80">📊</span> <span class="ml-3">Vue d'ensemble</span>
+            </button>
+            <button onclick="switchAdminTab('stations')" id="nav-stations" class="admin-nav-item flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg opacity-80">🏢</span> <span class="ml-3">Réseau de Stations</span>
+            </button>
+            <button onclick="switchAdminTab('revenue')" id="nav-revenue" class="admin-nav-item flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg opacity-80">💰</span> <span class="ml-3">Revenus SaaS</span>
+            </button>
+            <button onclick="switchAdminTab('settings')" id="nav-settings" class="admin-nav-item flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg opacity-80">⚙️</span> <span class="ml-3">Paramètres</span>
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-white/10">
+            <button onclick="logout()" class="flex items-center px-4 py-3 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-colors w-full mt-2">
+                <span class="text-lg">🚪</span> <span class="ml-3">Déconnexion</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto relative h-screen">
+        <header class="sticky top-0 z-10 glass-panel border-b border-white/5 px-8 h-20 flex items-center justify-between">
+            <h2 id="page-title" class="text-2xl font-bold">Vue d'ensemble SaaS</h2>
+            <div class="flex items-center gap-4">
+                <span class="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase flex items-center gap-2 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                    <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Système Opérationnel
+                </span>
+            </div>
+        </header>
+
+        <div class="p-8 max-w-7xl mx-auto pb-24">
+            
+            <!-- SECTION: VUE D'ENSEMBLE -->
+            <section id="tab-overview" class="animate-fade-in block">
+                <!-- KPIs -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="glass-panel p-6 rounded-3xl border-amber-500/30 relative overflow-hidden group">
+                        <div class="absolute -right-6 -top-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
+                        <h3 class="text-neutral-400 text-sm font-medium mb-1">Revenu Mensuel (MRR)</h3>
+                        <p class="text-4xl font-bold text-white mb-2">150 000 <span class="text-lg text-neutral-500">FCFA</span></p>
+                        <p class="text-xs text-emerald-400 font-bold flex items-center gap-1"><span>↗</span> +25% ce mois-ci</p>
+                    </div>
+                    
+                    <div class="glass-panel p-6 rounded-3xl border-blue-500/20 relative overflow-hidden group">
+                        <div class="absolute -right-6 -top-6 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
+                        <h3 class="text-neutral-400 text-sm font-medium mb-1">Stations Actives</h3>
+                        <p id="total-stations" class="text-4xl font-bold text-white mb-2">4</p>
+                        <p class="text-xs text-blue-400 font-bold">1 nouvelle cette semaine</p>
+                    </div>
+                    
+                    <div class="glass-panel p-6 rounded-3xl border-purple-500/20 relative overflow-hidden group">
+                        <div class="absolute -right-6 -top-6 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all"></div>
+                        <h3 class="text-neutral-400 text-sm font-medium mb-1">Utilisateurs (Automobilistes)</h3>
+                        <p class="text-4xl font-bold text-white mb-2">1,248</p>
+                        <p class="text-xs text-purple-400 font-bold">+150 inscrits</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Dernières Inscriptions -->
+                    <div class="glass-panel rounded-3xl p-6 border-white/5">
+                        <h3 class="text-lg font-bold mb-6">Dernières Stations Inscrites</h3>
+                        <div id="recent-stations" class="space-y-4">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                    <!-- Chart Mock -->
+                    <div class="glass-panel rounded-3xl p-6 border-white/5">
+                        <h3 class="text-lg font-bold mb-6">Croissance MRR</h3>
+                        <div class="h-64 flex items-end justify-between gap-2 px-2 pb-6 border-b border-white/10 relative">
+                            <!-- Grid lines -->
+                            <div class="absolute inset-x-0 bottom-[25%] border-t border-white/5"></div>
+                            <div class="absolute inset-x-0 bottom-[50%] border-t border-white/5"></div>
+                            <div class="absolute inset-x-0 bottom-[75%] border-t border-white/5"></div>
+                            <!-- Bars -->
+                            <div class="w-full bg-amber-500/20 hover:bg-amber-500/40 transition-colors rounded-t-sm h-[30%] relative group"><span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">50k</span></div>
+                            <div class="w-full bg-amber-500/20 hover:bg-amber-500/40 transition-colors rounded-t-sm h-[40%] relative group"><span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">75k</span></div>
+                            <div class="w-full bg-amber-500/40 hover:bg-amber-500/60 transition-colors rounded-t-sm h-[60%] relative group"><span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">100k</span></div>
+                            <div class="w-full bg-amber-500/60 hover:bg-amber-500/80 transition-colors rounded-t-sm h-[80%] relative group"><span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">125k</span></div>
+                            <div class="w-full bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)] rounded-t-sm h-[100%] relative group"><span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity font-bold">150k</span></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-neutral-500 mt-2">
+                            <span>Avril</span><span>Mai</span><span>Juin</span><span>Juil</span><span class="text-amber-400 font-bold">Août</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: STATIONS -->
+            <section id="tab-stations" class="hidden animate-fade-in">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">Réseau des Stations Partenaires</h3>
+                    <button class="bg-amber-500 hover:bg-amber-600 text-black font-bold py-2 px-4 rounded-xl text-sm transition-colors shadow-lg shadow-amber-500/20">Exporter CSV</button>
+                </div>
+                <div class="glass-panel rounded-3xl overflow-hidden border-white/5">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-white/10 text-neutral-400 text-sm bg-black/40">
+                                <th class="p-5 font-medium">Station</th>
+                                <th class="p-5 font-medium">Inscription</th>
+                                <th class="p-5 font-medium">Plan SaaS</th>
+                                <th class="p-5 font-medium">Statut</th>
+                                <th class="p-5 font-medium text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stations-table-body">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- SECTION: REVENUE -->
+            <section id="tab-revenue" class="hidden animate-fade-in">
+                <h3 class="text-xl font-bold mb-6">Historique des Paiements SaaS</h3>
+                <div class="glass-panel rounded-3xl overflow-hidden border-white/5">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-white/10 text-neutral-400 text-sm bg-black/40">
+                                <th class="p-5 font-medium">Date</th>
+                                <th class="p-5 font-medium">Station</th>
+                                <th class="p-5 font-medium">Montant</th>
+                                <th class="p-5 font-medium">Méthode</th>
+                                <th class="p-5 font-medium">Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                <td class="p-5 text-white">10 Août 2024</td>
+                                <td class="p-5 font-semibold text-white">Auto Clean VIP</td>
+                                <td class="p-5 font-bold text-amber-400">25 000 F</td>
+                                <td class="p-5 text-neutral-300">Wave</td>
+                                <td class="p-5"><span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-bold px-3 py-1 rounded-full">Payé</span></td>
+                            </tr>
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                <td class="p-5 text-white">05 Août 2024</td>
+                                <td class="p-5 font-semibold text-white">Mermoz Wash Express</td>
+                                <td class="p-5 font-bold text-amber-400">50 000 F</td>
+                                <td class="p-5 text-neutral-300">Orange Money</td>
+                                <td class="p-5"><span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-bold px-3 py-1 rounded-full">Payé</span></td>
+                            </tr>
+                            <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                <td class="p-5 text-white">01 Août 2024</td>
+                                <td class="p-5 font-semibold text-white">Lavage Pro Dakar</td>
+                                <td class="p-5 font-bold text-amber-400">25 000 F</td>
+                                <td class="p-5 text-neutral-300">Virement Bancaire</td>
+                                <td class="p-5"><span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs font-bold px-3 py-1 rounded-full">Payé</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- SECTION: SETTINGS -->
+            <section id="tab-settings" class="hidden animate-fade-in">
+                <div class="glass-panel p-8 rounded-3xl max-w-2xl border-white/5">
+                    <h3 class="text-xl font-bold mb-6">Paramètres de la Plateforme</h3>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-400 mb-2">Prix Abonnement Mensuel (Standard)</label>
+                            <input type="text" value="25000" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-neutral-400 mb-2">Prix Abonnement Mensuel (Premium)</label>
+                            <input type="text" value="50000" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors">
+                        </div>
+                        <hr class="border-white/5">
+                        <button class="bg-amber-500 hover:bg-amber-600 text-black font-bold py-3 px-6 rounded-xl transition-colors shadow-lg shadow-amber-500/20">Enregistrer les modifications</button>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script src="logic-super-admin.js"></script>
+    <script>
+        function logout() {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('userRole');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

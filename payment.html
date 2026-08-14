@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiement - Clean Car Galsen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="app.css">
+    <!-- Intégration de l'API de Canvas Confetti pour la micro-victoire -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body class="min-h-screen relative overflow-x-hidden flex flex-col">
+    
+    <header class="sticky top-0 z-50 w-full border-b border-white/10 glass-panel">
+        <div class="container mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <a href="station.html" class="text-neutral-400 hover:text-white mr-4 text-xl">←</a>
+                <span class="text-blue-400 text-2xl">💧</span>
+                <span class="font-bold text-xl tracking-tight">Paiement Sécurisé</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 container mx-auto px-4 flex items-center justify-center py-12 relative z-10 animate-fade-in opacity-0">
+        
+        <div class="w-full max-w-xl">
+            
+            <!-- Récapitulatif -->
+            <div class="glass-panel rounded-t-3xl p-6 border-b border-white/10 bg-black/60">
+                <h2 class="text-sm text-neutral-400 uppercase tracking-wider mb-4 font-semibold">Récapitulatif de la commande</h2>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-lg text-white">Lavage Complet</span>
+                    <span class="font-bold text-lg text-white">5 000 FCFA</span>
+                </div>
+                <div class="flex justify-between items-center text-sm text-neutral-400">
+                    <span>Auto Clean VIP - Plateau</span>
+                    <span class="text-orange-400 font-medium">Position dans la file : #4</span>
+                </div>
+            </div>
+
+            <!-- Formulaire rapide (Onboarding intégré) -->
+            <div class="glass-card rounded-b-3xl p-8 border-t-0 shadow-2xl">
+                <div class="mb-8">
+                    <label class="block text-sm font-medium text-neutral-300 mb-2">Votre numéro de téléphone (Sert d'identifiant)</label>
+                    <input type="tel" placeholder="Ex: 77 123 45 67" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-lg tracking-wide">
+                </div>
+
+                <h3 class="text-lg font-bold mb-4">Mode de paiement</h3>
+                
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                    <!-- Wave -->
+                    <label class="cursor-pointer group relative">
+                        <input type="radio" name="payment" class="peer hidden" value="wave" checked>
+                        <div class="absolute inset-0 border-2 border-transparent peer-checked:border-[#1ac4f3] rounded-xl pointer-events-none transition-all"></div>
+                        <div class="bg-[#1ac4f3]/10 hover:bg-[#1ac4f3]/20 border border-[#1ac4f3]/30 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-colors h-28">
+                            <img src="https://logowik.com/content/uploads/images/wave-mobile-money8893.jpg" class="h-8 rounded object-cover" alt="Wave">
+                            <span class="font-bold text-white text-sm">Wave</span>
+                        </div>
+                    </label>
+
+                    <!-- Orange Money -->
+                    <label class="cursor-pointer group relative">
+                        <input type="radio" name="payment" class="peer hidden" value="om">
+                        <div class="absolute inset-0 border-2 border-transparent peer-checked:border-[#ff6600] rounded-xl pointer-events-none transition-all"></div>
+                        <div class="bg-[#ff6600]/10 hover:bg-[#ff6600]/20 border border-[#ff6600]/30 rounded-xl p-4 flex flex-col items-center justify-center gap-3 transition-colors h-28">
+                            <img src="https://logowik.com/content/uploads/images/orange-money3132.jpg" class="h-8 rounded object-cover" alt="Orange Money">
+                            <span class="font-bold text-white text-sm">Orange Money</span>
+                        </div>
+                    </label>
+                </div>
+
+                <button id="payBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-3 relative overflow-hidden">
+                    <span id="btnText">Payer 5 000 FCFA & Prendre Position</span>
+                    <div id="btnSpinner" class="hidden w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                </button>
+                
+                <p class="text-center text-xs text-neutral-500 mt-4">Paiement sécurisé. Votre place est réservée dès la validation.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.getElementById('payBtn').addEventListener('click', function() {
+            const btn = this;
+            const text = document.getElementById('btnText');
+            const spinner = document.getElementById('btnSpinner');
+            
+            // Animation de chargement
+            text.innerText = "Validation en cours...";
+            spinner.classList.remove('hidden');
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
+            
+            // Simulation de requête API (2 secondes)
+            setTimeout(() => {
+                // Micro-victoire : Confettis
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#3b82f6', '#10b981', '#ffffff']
+                });
+                
+                text.innerText = "Paiement Validé !";
+                spinner.classList.add('hidden');
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                btn.classList.add('bg-emerald-500', 'hover:bg-emerald-600');
+                
+                // Redirection vers le dashboard après 1.5s
+                setTimeout(() => {
+                    window.location.href = 'dashboard-client.html';
+                }, 1500);
+                
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

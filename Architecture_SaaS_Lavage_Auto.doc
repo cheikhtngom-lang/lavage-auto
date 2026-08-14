@@ -1,0 +1,412 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>Architecture Technique v3.0 - O'Wash SaaS</title>
+<style>
+  body { font-family: 'Calibri', sans-serif; line-height: 1.7; max-width: 900px; margin: 0 auto; padding: 20px; }
+  h1 { color: #1E3A5F; font-size: 22pt; border-bottom: 3px solid #2980B9; padding-bottom: 10px; }
+  h2 { color: #2980B9; font-size: 16pt; margin-top: 30px; border-left: 4px solid #2980B9; padding-left: 10px; }
+  h3 { color: #34495E; font-size: 13pt; margin-top: 20px; }
+  .toc { background: #EBF5FB; padding: 15px 25px; border: 1px solid #AED6F1; border-radius: 8px; }
+  .toc a { text-decoration: none; color: #2980B9; }
+  .toc ol { margin: 5px 0; }
+  .badge-new { background: #27AE60; color: white; font-size: 9pt; padding: 2px 8px; border-radius: 12px; margin-left: 8px; font-weight: bold; vertical-align: middle; }
+  .badge-planned { background: #E67E22; color: white; font-size: 9pt; padding: 2px 8px; border-radius: 12px; margin-left: 8px; font-weight: bold; vertical-align: middle; }
+  .badge-limit { background: #C0392B; color: white; font-size: 9pt; padding: 2px 8px; border-radius: 12px; margin-left: 8px; font-weight: bold; vertical-align: middle; }
+  pre { background: #1E1E1E; color: #D4D4D4; padding: 16px; border-radius: 8px; font-size: 10pt; overflow-x: auto; line-height: 1.5; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th { background: #2980B9; color: white; padding: 10px 14px; text-align: left; }
+  td { border: 1px solid #D5D8DC; padding: 9px 14px; }
+  tr:nth-child(even) { background: #F8F9FA; }
+  .checklist { list-style: none; padding-left: 5px; }
+  .checklist li { padding: 3px 0; }
+  .check-done { color: #27AE60; font-weight: bold; }
+  .check-pending { color: #E67E22; }
+  .check-future { color: #7F8C8D; }
+  .meta { color: #7F8C8D; font-size: 10pt; }
+  .note { background: #FEF9E7; border-left: 4px solid #F39C12; padding: 10px 15px; margin: 10px 0; border-radius: 0 8px 8px 0; }
+  .warn { background: #FDEDEC; border-left: 4px solid #C0392B; padding: 10px 15px; margin: 10px 0; border-radius: 0 8px 8px 0; }
+</style>
+</head>
+<body>
+
+<h1>Document d'Architecture Technique (DAT) : O'Wash - SaaS Lavage Auto</h1>
+<p class="meta"><strong>Auteur :</strong> Architecte Logiciel Senior &nbsp;|&nbsp; <strong>Date :</strong> Août 2026 &nbsp;|&nbsp; <strong>Version :</strong> 3.0</p>
+<p class="meta"><em>Mis à jour après la session du 11 Août 2026 — Espace Super Admin étendu (Analytique, Automobilistes, Paramètres) + réservation multi-véhicules plafonnée.</em></p>
+
+<div class="toc">
+  <h2 style="border: none; padding: 0; margin: 0 0 10px 0;">Table des matières</h2>
+  <ol>
+    <li><a href="#intro">Introduction et Objectifs</a></li>
+    <li><a href="#arch">Architecture Globale</a></li>
+    <li><a href="#structure">Structure des Fichiers</a></li>
+    <li><a href="#frontend">Couche Présentation (Front-End)</a></li>
+    <li><a href="#comptes">Comptes, Rôles et Sessions</a></li>
+    <li><a href="#state">Gestion de l'État Global</a></li>
+    <li><a href="#flux">Flux Métier Détaillés</a></li>
+    <li><a href="#superadmin">Espace Super Admin</a></li>
+    <li><a href="#backend">Couche Données (Back-End)</a></li>
+    <li><a href="#secu">Sécurité et Déploiement</a></li>
+    <li><a href="#roadmap">Roadmap et Évolutions</a></li>
+  </ol>
+</div>
+
+<h2 id="intro">1. Introduction et Objectifs</h2>
+<p>O'Wash est une plateforme SaaS multi-stations de gestion des files d'attente pour stations de lavage automobile. Elle sert trois types d'utilisateurs :</p>
+<ul>
+  <li><strong>Automobilistes :</strong> réserver une place en ligne pour un ou plusieurs véhicules, obtenir un ticket numérique, suivre chaque véhicule en temps réel, gérer leur garage et leurs stations favorites.</li>
+  <li><strong>Gérants de stations (Admin) :</strong> gérer la file d'attente live, encaisser, assigner les laveurs, suivre la comptabilité et les performances.</li>
+  <li><strong>Super Admin (SEGEA SA) :</strong> piloter l'ensemble du réseau de stations partenaires — validation, facturation SaaS, analytique de la plateforme, support et litiges.</li>
+</ul>
+
+<h2 id="arch">2. Architecture Globale</h2>
+<p>L'application est un <strong>multi-page Vite</strong> : trois points d'entrée HTML distincts, dont un seul (<code>dashboard.html</code>) héberge la vraie SPA React (routage <code>BrowserRouter</code>). Un plugin Vite dédié (<code>reactAppDevFallback</code>, dans <code>vite.config.js</code>) réécrit en développement les requêtes <code>/admin/*</code>, <code>/superadmin/*</code>, <code>/dashboard/*</code> et <code>/stations/*</code> vers <code>dashboard.html</code>, pour que les rafraîchissements de page fonctionnent comme en production (voir aussi <code>public/_redirects</code> pour l'hébergement statique).</p>
+<pre>
++-------------------------------------------------------------------------+
+|                            NAVIGATEUR WEB                               |
+|                                                                          |
+|  index.html          login.html            dashboard.html               |
+|  (vitrine publique)  (connexion/           (App React complète)         |
+|                        inscription)                                     |
+|                            |                       |                    |
+|                            v                       v                    |
+|                    lib/accounts.js          src/App.jsx (Router)        |
+|                    (comptes + session)             |                    |
+|                            |          +--------------+--------------+   |
+|                            |          |              |              |   |
+|                            |     MainLayout    ClientLayout   AdminLayout  SuperAdminLayout
+|                            |     /  /stations  /dashboard/*  /admin/*      /superadmin/*
+|                            |          |              |              |   |
+|                            +----------+--------------+--------------+   |
+|                                       |                                 |
+|                       +---------------+----------------+                |
+|                       |               |                |                |
+|              AppStateProvider  SuperAdminStateProvider  ClientAccountProvider
+|              (données d'UNE     (registre des stations,  (compte automobiliste
+|               station, clé      plans, litiges, audit —   connecté)
+|               namespacée par     lecture aussi des
+|               stationId)         comptes automobilistes)
+|                       |               |                |                |
+|                       +---------------+----------------+                |
+|                                       |                                 |
+|                              window.localStorage                        |
++-------------------------------------------------------------------------+
+</pre>
+<p><strong>Paradigme :</strong> SPA React avec état partagé via 3 React Context imbriqués (voir §6).<br>
+<strong>Persistance actuelle :</strong> <code>localStorage</code> / <code>sessionStorage</code> du navigateur — aucun serveur, aucune base de données partagée entre appareils (migration Firebase toujours à l'état de dépendance installée mais non branchée, voir §9 §10).</p>
+<div class="warn"><strong>Limite structurelle actuelle :</strong> les données étant 100% locales au navigateur, deux appareils différents (le téléphone du client, l'ordinateur de la station) ne voient pas le même état sans passer par le même navigateur/profil. C'est le principal frein à lever avant une mise en production multi-appareils réelle — voir la Roadmap v4.0.</div>
+
+<h2 id="structure">3. Structure des Fichiers</h2>
+<pre>
+src/
+├── App.jsx                     # Routeur principal (BrowserRouter) + 3 Providers imbriqués
+├── main.jsx                    # Point d'entrée React
+├── index.css                   # Thème dark, .glass-card, animations
+├── firebase.js                 # Config Firebase (SDK installé, non connecté à l'app)
+│
+├── hooks/
+│   ├── useAppState.jsx          # État opérationnel d'UNE station (file, employés, tarifs...)
+│   ├── useSuperAdminState.jsx   # Registre des stations, plans SaaS, litiges, audit
+│   └── useClientAccount.jsx     # Compte automobiliste connecté (véhicules, favoris)
+│
+├── lib/
+│   ├── accounts.js              # Comptes (automobilistes + stations) + session — sans backend
+│   ├── stationData.js           # Accès en LECTURE aux données d'UNE station depuis l'EXTÉRIEUR
+│   │                             # (pages publiques : réservation, suivi client, plafond véhicules)
+│   ├── vehicleBrands.js         # Catégories de véhicules + marques + mapping tarifaire
+│   ├── vehicleTypes.js, washDefaults.js, regions.js, geocoding.js, utils.js
+│
+├── components/
+│   ├── layout/
+│   │   ├── MainLayout.jsx, ClientLayout.jsx, AdminLayout.jsx, SuperAdminLayout.jsx
+│   ├── client/
+│   │   └── VehicleFormFields.jsx  # CategoryPicker, BrandDropdown, categoryIcon (réutilisés)
+│   └── ui/
+│       ├── Badge.jsx, Button.jsx, Card.jsx, Input.jsx, StarRating.jsx
+│
+└── pages/
+    ├── Client/
+    │   ├── Home.jsx              # Landing publique
+    │   ├── Stations.jsx          # Recherche stations + RÉSERVATION MULTI-VÉHICULES [v3.0]
+    │   ├── Dashboard.jsx         # Suivi temps réel — 1 carte de statut PAR véhicule actif [v3.0]
+    │   ├── Garage.jsx            # Gestion des véhicules du compte automobiliste
+    │   ├── MyStations.jsx        # Stations déjà visitées / favorites
+    │   └── Settings.jsx          # Profil automobiliste
+    │
+    ├── Admin/
+    │   ├── StationDashboard.jsx  # File live + timer + regroupement réservations liées [v3.0]
+    │   ├── Transactions.jsx, Accounting.jsx, Analytics.jsx, Team.jsx, Washers.jsx, Settings.jsx
+    │
+    └── SuperAdmin/
+        ├── Dashboard.jsx        # Vue d'ensemble réseau (KPIs, croissance stations)
+        ├── Analytics.jsx        # Volumes d'abonnements, fréquence, revenus SaaS [NOUVEAU v3.0]
+        ├── Stations.jsx         # Validation / suspension / plan des stations partenaires
+        ├── Motorists.jsx        # Registre des comptes automobilistes de la plateforme [NOUVEAU v3.0]
+        ├── Billing.jsx          # Facturation SaaS, statut de paiement des stations
+        ├── Support.jsx          # Litiges + journal d'audit
+        └── Settings.jsx         # Gestion des plans d'abonnement (tarifs éditables) [NOUVEAU v3.0]
+</pre>
+
+<h2 id="frontend">4. Couche Présentation — Front-End</h2>
+<table>
+  <tr><th>Technologie</th><th>Version</th><th>Rôle</th></tr>
+  <tr><td>React</td><td>18</td><td>Framework UI, composants fonctionnels + hooks</td></tr>
+  <tr><td>Vite</td><td>5</td><td>Bundler + dev server (avec réécriture d'URL custom, voir §2)</td></tr>
+  <tr><td>React Router DOM</td><td>v6 (BrowserRouter)</td><td>Navigation SPA, imbriquée sous 4 layouts</td></tr>
+  <tr><td>Tailwind CSS</td><td>v3</td><td>Utilitaire CSS, dark mode, palette neutre / blue / emerald / purple</td></tr>
+  <tr><td>Framer Motion</td><td>11</td><td>Animations, transitions, AnimatePresence, layout animations</td></tr>
+  <tr><td>Lucide React</td><td>latest</td><td>Icônes SVG</td></tr>
+  <tr><td>Firebase</td><td>10.12 (installé)</td><td>SDK présent (<code>src/firebase.js</code>), <u>non utilisé</u> dans le flux applicatif actuel</td></tr>
+</table>
+
+<h3>Conventions de design</h3>
+<ul>
+  <li><strong>Thème :</strong> Dark mode exclusif (fond #030712 côté Admin/Client, #0a0a0a côté Super Admin)</li>
+  <li><strong>Glassmorphism :</strong> classe <code>.glass-card</code> (bg blanc/5, backdrop-blur, border blanc/10)</li>
+  <li><strong>Couleurs par espace :</strong> blue-400/600 (automobiliste), emerald-400 (station / live), orange-400 (paiement), purple-400 (Super Admin / analytics)</li>
+  <li><strong>Animations :</strong> spring stiffness 200-300 pour les modals, <code>layout</code> pour les listes triées, compteurs animés (<code>AnimatedCounter</code>) pour les KPIs</li>
+</ul>
+
+<h2 id="comptes">5. Comptes, Rôles et Sessions</h2>
+<p>Tout le système de comptes vit dans <code>src/lib/accounts.js</code>, sans dépendance React (réutilisable depuis <code>login.html</code> comme depuis les hooks). Trois registres distincts en <code>localStorage</code> :</p>
+<table>
+  <tr><th>Registre</th><th>Clé localStorage</th><th>Créé par</th></tr>
+  <tr><td>Comptes automobilistes</td><td><code>clientAccounts</code></td><td><code>createClientAccount()</code> — inscription libre</td></tr>
+  <tr><td>Comptes stations</td><td><code>saasStations</code></td><td><code>createStationAccount()</code> (auto-inscription) ou <code>addStation()</code> côté Super Admin (ajout manuel)</td></tr>
+  <tr><td>Session active</td><td><code>isLoggedIn</code>, <code>userRole</code>, <code>currentClientId</code>, <code>currentStationId</code></td><td><code>setSession()</code> — stockée en <code>localStorage</code> (case "se souvenir de moi") ou <code>sessionStorage</code></td></tr>
+</table>
+<p>Rôles gérés par <code>login.html</code> : <code>client</code> (automobiliste), <code>admin</code> (station), <code>superadmin</code>.</p>
+<div class="warn"><strong>Constat sécurité :</strong> les mots de passe automobilistes/stations sont stockés <u>en clair</u> dans <code>localStorage</code> (acceptable uniquement en phase de développement local, à corriger avant toute mise en production réelle — hachage + vrai backend). Le compte Super Admin n'est pas un compte enregistré : c'est un identifiant/mot de passe codé en dur dans <code>login.html</code> (« easter egg »), à remplacer par un vrai compte avant la mise en ligne publique.</div>
+<p><strong>Impersonation Super Admin :</strong> <code>impersonateStation(station)</code> bascule la session (<code>currentStationId</code> en <code>sessionStorage</code>, qui prend le pas sur la session « propriétaire » en <code>localStorage</code>) et émet l'événement <code>station-session-changed</code>, écouté par <code>App.jsx</code> pour remonter <code>AppStateProvider</code> avec les bonnes données — sans recharger la page.</p>
+
+<h2 id="state">6. Gestion de l'État Global</h2>
+<p>Trois providers React Context sont imbriqués dans <code>App.jsx</code> : <code>AppStateProvider</code> → <code>SuperAdminStateProvider</code> → <code>ClientAccountProvider</code>. Chacun couvre un périmètre de données différent.</p>
+
+<h3>6.1 AppStateProvider (<code>useAppState.jsx</code>) — données d'UNE station</h3>
+<p>Toutes les clés sont <strong>namespacées par <code>stationId</code></strong> (<code>washQueue_&#123;id&#125;</code>, etc.) pour isoler chaque station. Remonté (via <code>key</code>) à chaque changement de station active (impersonation Super Admin comprise).</p>
+<table>
+  <tr><th>État</th><th>Description</th></tr>
+  <tr><td>queue</td><td>File d'attente (status: 'attente') — peut contenir plusieurs entrées liées par <code>reservationGroupId</code> [v3.0]</td></tr>
+  <tr><td>activeWashes</td><td>Véhicules en cours de lavage (<code>assignedTo</code>, <code>startedAt</code>)</td></tr>
+  <tr><td>completedWashes</td><td>Historique des lavages terminés du jour</td></tr>
+  <tr><td>transactions</td><td>Encaissements validés</td></tr>
+  <tr><td>employees</td><td>Équipe de la station</td></tr>
+  <tr><td>pricingConfig / durationConfig</td><td>Tarifs / durées par catégorie × service (Moto, Particulier, Transport, Camion)</td></tr>
+  <tr><td>stationProfile</td><td>Nom, adresse, téléphone, horaires, logo</td></tr>
+</table>
+<p>Actions clés : <code>addWash</code>, <code>startWash(id, employeeId)</code>, <code>endWash(id)</code>, <code>skipWash(id)</code>, <code>validatePayment(id)</code>, <code>getEstimatedWaitTime(client)</code>, <code>cleanDemoData()</code>, <code>resetStationCompletely()</code>.</p>
+
+<h3>6.2 SuperAdminStateProvider (<code>useSuperAdminState.jsx</code>) — registre plateforme</h3>
+<table>
+  <tr><th>État</th><th>Description</th></tr>
+  <tr><td>stations</td><td>Toutes les stations partenaires (statut, plan, abonnement, clients déclarés...)</td></tr>
+  <tr><td>PLANS</td><td>Plans d'abonnement SaaS (label + prix), <strong>éditables</strong> depuis Super Admin → Paramètres, persistés sous <code>saasPlans</code> [NOUVEAU v3.0 — auparavant codés en dur]</td></tr>
+  <tr><td>clientAccounts</td><td>Lecture seule du registre <code>clientAccounts</code> (rafraîchi périodiquement) — alimente Analytique et Automobilistes [NOUVEAU v3.0]</td></tr>
+  <tr><td>disputes</td><td>Litiges ouverts / résolus / remboursés</td></tr>
+  <tr><td>auditLog</td><td>Journal des actions Super Admin (chaque action métier logue une entrée)</td></tr>
+</table>
+<p>Actions clés : <code>addStation</code>, <code>setStationStatus</code>, <code>setStationPlan</code>, <code>markSubscriptionPaid/Overdue</code>, <code>sendBillingReminder</code>, <code>addDispute</code>, <code>resolveDispute</code>, <code>refundDispute</code>, <code>impersonateStation</code>, <code>updatePlan(key, patch)</code> / <code>resetPlans()</code> [NOUVEAU v3.0].</p>
+
+<h3>6.3 ClientAccountProvider (<code>useClientAccount.jsx</code>) — compte automobiliste connecté</h3>
+<p>Expose <code>account</code> (véhicules, stations favorites/masquées) et <code>updateProfile</code>, <code>addVehicle</code>, <code>removeVehicle</code>, <code>toggleFavorite</code>, <code>hideStation</code>, <code>unhideStation</code>.</p>
+
+<h3>6.4 lib/stationData.js — lecture cross-station côté pages publiques</h3>
+<p>Les pages de réservation/suivi client (<code>Client/Stations.jsx</code>, <code>Client/Dashboard.jsx</code>) n'ont pas forcément la station courante en session : ce module lit directement les clés <code>localStorage</code> namespacées d'une station donnée par son id.</p>
+<table>
+  <tr><th>Fonction</th><th>Rôle</th></tr>
+  <tr><td>getStationQueue / getStationActiveWashes / ...</td><td>Lecture brute des données d'une station par id</td></tr>
+  <tr><td>addToStationQueue(stationId, data)</td><td>Crée une entrée de file (utilisée par la réservation client)</td></tr>
+  <tr><td>countClientActiveVehicles(stationId, clientName)</td><td>Compte les véhicules actifs (file + lavage) d'un client — sert au plafond [NOUVEAU v3.0]</td></tr>
+  <tr><td>findClientReservations(stations, clientName)</td><td>TOUTES les réservations actives d'un client (remplace <code>findClientReservation</code> singulier) [NOUVEAU v3.0]</td></tr>
+  <tr><td>estimateItemWaitTime(stationId, itemId)</td><td>Temps d'attente estimé PAR véhicule précis (et non plus par nom de client) [NOUVEAU v3.0]</td></tr>
+  <tr><td>getVisitedStations / getClientTransactions</td><td>Historique cross-stations d'un automobiliste</td></tr>
+  <tr><td>getStationReviews / addStationReview / getStationRatingSummary</td><td>Avis et notes des stations</td></tr>
+  <tr><td>MAX_ACTIVE_VEHICLES_PER_CLIENT</td><td>Constante de plafond = <strong>2</strong> [NOUVEAU v3.0]</td></tr>
+</table>
+
+<h2 id="flux">7. Flux Métier Détaillés</h2>
+
+<h3>7.1 Réservation Automobiliste — Multi-véhicules plafonnée <span class="badge-new">v3.0</span></h3>
+<p>Un automobiliste peut réserver <strong>jusqu'à 2 véhicules en une seule fois</strong>, et ne peut pas dépasser <strong>2 véhicules actifs simultanément</strong> (file + en lavage) dans une même station. Dès qu'un des deux est terminé/retiré, une nouvelle réservation redevient possible.</p>
+<pre>
+[Page /stations] -> clic station -> "Réserver ma place"
+      |
+      v
+countClientActiveVehicles(stationId, client) >= 2 ?
+      |                                   |
+     OUI                                 NON
+      |                                   |
+      v                                   v
+Écran "Limite atteinte"          Formulaire de réservation
+(bloqué, CTA "Suivre en          +-- VehiclePicker MULTI-SÉLECTION
+ direct")                        |   (checkboxes, plafond dynamique
+                                  |    = 2 - véhicules déjà actifs)
+                                  +-- Compteur "X/Y sélectionné(s)"
+                                  +-- Choix service (appliqué à tous
+                                  |    les véhicules sélectionnés)
+                                  v
+                    goToPayment() -> mode de paiement
+                    (Wave / Orange Money / sur place)
+                                  |
+                                  v
+                    finalizeReservation()
+                    +-- reservationGroupId partagé SI > 1 véhicule
+                    +-- addToStationQueue() une fois PAR véhicule
+                    +-- 1 transaction PAR véhicule si payé en ligne
+                                  |
+                                  v
+                    Ticket de confirmation
+                    +-- Liste des véhicules, position PAR véhicule
+                    +-- Temps d'attente estimé global
+</pre>
+<p class="note">Chaque véhicule reste une entrée de file indépendante (même modèle de données qu'avant) — <code>reservationGroupId</code> et <code>groupSize</code> ne sont qu'un lien de regroupement <em>visuel</em>, pas une nouvelle entité métier.</p>
+
+<h3>7.2 Affichage groupé côté Station (file d'attente live) <span class="badge-new">v3.0</span></h3>
+<p>Dans <code>StationDashboard.jsx</code>, toute entrée portant un <code>reservationGroupId</code> affiche un badge <strong>« 🚗×N »</strong> à côté du nom du client, et une barre de couleur sur le bord gauche de la ligne — couleur dérivée du <code>reservationGroupId</code> (fonction <code>groupAccentColors</code>), stable et identique pour les 2 véhicules même s'ils ne sont plus côte à côte dans la file (l'un en lavage, l'autre encore en attente). Appliqué aux 3 vues : file d'attente, véhicules en lavage, historique du jour.</p>
+
+<h3>7.3 Suivi client — une carte de statut par véhicule <span class="badge-new">v3.0</span></h3>
+<p><code>Client/Dashboard.jsx</code> affiche désormais <strong>un <code>LiveStatusCard</code> par réservation active</strong> (jusqu'à 2, grille responsive), chacune avec son propre minuteur de lavage et sa propre estimation d'attente (<code>estimateItemWaitTime</code> par id, plus par nom de client). Les notifications navigateur sont également suivies par véhicule (map de signatures par <code>item.id</code>).</p>
+
+<h3>7.4 Flux de Démarrage de Lavage</h3>
+<pre>
+[Dashboard Station] -> clic "GO" sur le 1er véhicule
+      -> Modal sélection laveur (employés présents)
+      -> startWash(id, employeeId)
+      -> Passage en "En Lavage" : assignedTo, startedAt, timer démarre
+</pre>
+
+<h3>7.5 Flux d'Encaissement</h3>
+<pre>
+[File d'attente, véhicule non payé] -> "Encaisser"
+      -> Modal confirmation (montant = pricingConfig[catégorie][service])
+      -> validatePayment(id) -> item.paid = true + transaction créée
+</pre>
+
+<h3>7.6 Calcul du Temps d'Attente Estimé</h3>
+<pre>
+estimateItemWaitTime(stationId, itemId):
+  1. Localiser la position EXACTE de cet item dans queue[] (par id, pas par nom)
+  2. + 50% du temps des véhicules déjà en lavage (supposés à mi-parcours)
+  3. + 100% du temps des véhicules devant lui dans la file
+  4. / nombre d'employés présents (capacité parallèle)
+  => Minutes estimées (arrondi)
+</pre>
+
+<h2 id="superadmin">8. Espace Super Admin</h2>
+<p>7 rubriques (contre 4 avant la session du 11 août 2026) :</p>
+<table>
+  <tr><th>Route</th><th>Page</th><th>Contenu</th></tr>
+  <tr><td>/superadmin</td><td>Dashboard.jsx</td><td>KPIs réseau (stations actives, automobilistes déclarés, MRR), croissance des inscriptions sur 6 mois, dernières stations</td></tr>
+  <tr><td>/superadmin/analytics</td><td>Analytics.jsx <span class="badge-new">v3.0</span></td><td>Volume d'abonnements segmenté Jour / Semaine / Mois / Année (stations vs automobilistes), fréquence par plan, fiabilité de paiement, évolution du MRR sur 6 mois, top stations / villes</td></tr>
+  <tr><td>/superadmin/stations</td><td>Stations.jsx</td><td>Validation, suspension, changement de plan, impersonation d'une station</td></tr>
+  <tr><td>/superadmin/automobilistes</td><td>Motorists.jsx <span class="badge-new">v3.0</span></td><td>Registre des comptes automobilistes (recherche, véhicules, favoris, date d'inscription)</td></tr>
+  <tr><td>/superadmin/billing</td><td>Billing.jsx</td><td>MRR, stations en impayé, relances de facturation</td></tr>
+  <tr><td>/superadmin/support</td><td>Support.jsx</td><td>Litiges (ouvrir / résoudre / rembourser) + journal d'audit</td></tr>
+  <tr><td>/superadmin/settings</td><td>Settings.jsx <span class="badge-new">v3.0</span></td><td>Édition des plans d'abonnement (nom + prix), auparavant codés en dur dans <code>PLANS</code></td></tr>
+</table>
+<p class="note">L'« abonnement automobiliste » n'est pas (encore) une entité métier à part entière — il n'existe pas de forfait/pass récurrent payé par les automobilistes. La rubrique Analytique traite donc leur « fréquence d'abonnement » comme la cadence d'inscription des comptes (segmentée jour/semaine/mois/année), explicitement libellée comme telle dans l'UI plutôt que de simuler une fonctionnalité qui n'existe pas.</p>
+
+<h2 id="backend">9. Couche Données — Back-End actuel</h2>
+<h3>Clés localStorage (v3.0, exhaustif)</h3>
+<table>
+  <tr><th>Clé</th><th>Portée</th><th>Contenu</th></tr>
+  <tr><td>clientAccounts</td><td>Globale</td><td>[ &#123; id, name, email, phone, password, vehicles[], favoriteStationIds[], hiddenStationIds[], createdAt &#125; ]</td></tr>
+  <tr><td>saasStations</td><td>Globale</td><td>[ &#123; id, name, ownerName, status, plan, subscriptionStatus, nextBillingDate, clientsCount, joinedAt... &#125; ]</td></tr>
+  <tr><td>saasPlans</td><td>Globale</td><td>&#123; Starter, Pro, Business &#125; × &#123; label, price &#125; — éditable [v3.0]</td></tr>
+  <tr><td>saasDisputes / saasAuditLog</td><td>Globale</td><td>Litiges plateforme / journal d'actions Super Admin</td></tr>
+  <tr><td>washQueue_&#123;stationId&#125;</td><td>Par station</td><td>[ &#123; id, client, vehicle, category, service, status, paid, reservationGroupId?, groupSize? &#125; ]</td></tr>
+  <tr><td>activeWashes_&#123;stationId&#125;</td><td>Par station</td><td>Idem + assignedTo, startedAt</td></tr>
+  <tr><td>completedWashes_&#123;stationId&#125;</td><td>Par station</td><td>Idem + completedAt</td></tr>
+  <tr><td>washTransactions_&#123;stationId&#125;</td><td>Par station</td><td>[ &#123; date, client, service, method, amount &#125; ]</td></tr>
+  <tr><td>washEmployees_&#123;stationId&#125;</td><td>Par station</td><td>[ &#123; id, name, role, present, dailyStatus, avatar &#125; ]</td></tr>
+  <tr><td>washPricingConfig_&#123;stationId&#125; / washDurationConfig_&#123;stationId&#125;</td><td>Par station</td><td>Grille tarifaire / durées par catégorie × service</td></tr>
+  <tr><td>stationProfile_&#123;stationId&#125;</td><td>Par station</td><td>&#123; name, phone, address, quartier, region, openTime, closeTime, logo &#125;</td></tr>
+  <tr><td>stationReviews_&#123;stationId&#125;</td><td>Par station</td><td>[ &#123; clientName, rating, comment, transactionId, createdAt &#125; ]</td></tr>
+  <tr><td>isLoggedIn, userRole, currentClientId, currentStationId, impersonatingStation</td><td>Session</td><td>local ou sessionStorage selon « se souvenir de moi »</td></tr>
+  <tr><td>customVehicleBrands, ccg_custom_vehicle_types</td><td>Globale (navigateur)</td><td>Marques / types de véhicules ajoutés manuellement par les utilisateurs</td></tr>
+</table>
+
+<h3>Cible v4.0 — Firebase Firestore (toujours en attente)</h3>
+<pre>
+Firestore
++-- /stations/{stationId}
+|   +-- profile (name, address, openTime, closeTime, logoUrl)
+|   +-- /queue/{itemId}            (+ reservationGroupId, groupSize)
+|   +-- /transactions/{txId}
+|   +-- /employees/{empId}
++-- /users/{userId}
+    +-- role: 'admin' | 'client' | 'superadmin'
+    +-- stationId (pour les admins)
++-- /plans/{planId}                # plans SaaS éditables (remplace saasPlans)
+</pre>
+
+<h2 id="secu">10. Sécurité et Déploiement</h2>
+<table>
+  <tr><th>Aspect</th><th>État actuel</th><th>Cible</th></tr>
+  <tr><td>Authentification</td><td>Comptes en clair dans localStorage, Super Admin en identifiants codés en dur</td><td>Firebase Auth (Email + Google OAuth), suppression du compte Super Admin codé en dur</td></tr>
+  <tr><td>Autorisations</td><td>Aucune — tout code d'un rôle est accessible par URL directe (pas de garde de route)</td><td>Règles Firestore par rôle : admin = lecture/écriture sa station, client = lecture seule sa file, superadmin = accès global</td></tr>
+  <tr><td>Paiement mobile</td><td>Simulé (délai de 1.4s, aucun vrai appel réseau)</td><td>Wave / Orange Money via Webhooks HMAC</td></tr>
+  <tr><td>Hébergement</td><td>Build Vite statique (voir <code>Compiler_Le_Site.bat</code>)</td><td>Vercel ou Firebase Hosting, déploiement depuis GitHub</td></tr>
+  <tr><td>CI/CD</td><td>Manuel (scripts .bat locaux)</td><td>GitHub Actions → build Vite → déploiement automatique</td></tr>
+</table>
+
+<h2 id="roadmap">11. Roadmap et Évolutions</h2>
+
+<h3>✅ v3.0 — Implémenté (11 Août 2026)</h3>
+<ul class="checklist">
+  <li><span class="check-done">✅</span> Rubrique Analytique Super Admin : abonnements segmentés jour/semaine/mois/année, fréquence par plan, fiabilité de paiement, évolution du MRR</li>
+  <li><span class="check-done">✅</span> Rubrique Automobilistes Super Admin : registre complet des comptes clients</li>
+  <li><span class="check-done">✅</span> Rubrique Paramètres Super Admin : plans d'abonnement (Starter/Pro/Business) désormais éditables, persistés sous <code>saasPlans</code></li>
+  <li><span class="check-done">✅</span> Réservation multi-véhicules côté automobiliste, plafonnée à 2 véhicules actifs par station (<code>MAX_ACTIVE_VEHICLES_PER_CLIENT</code>)</li>
+  <li><span class="check-done">✅</span> Écran de blocage clair si le plafond est atteint, avec CTA vers le suivi en direct</li>
+  <li><span class="check-done">✅</span> Regroupement visuel (badge + accent couleur) des véhicules réservés ensemble, côté file d'attente station</li>
+  <li><span class="check-done">✅</span> Suivi client corrigé pour afficher TOUTES les réservations actives (et non plus une seule) — <code>findClientReservations</code>, <code>estimateItemWaitTime</code></li>
+</ul>
+
+<h3>✅ v2.0 — Implémenté (10 Août 2026)</h3>
+<ul class="checklist">
+  <li><span class="check-done">✅</span> Timer en temps réel sur les lavages actifs (WashTimer + startedAt)</li>
+  <li><span class="check-done">✅</span> Modal de sélection du laveur avant démarrage du lavage</li>
+  <li><span class="check-done">✅</span> Prix affiché dans la file d'attente (calculé depuis pricingConfig)</li>
+  <li><span class="check-done">✅</span> Modal de confirmation avant encaissement</li>
+  <li><span class="check-done">✅</span> Flux de réservation automobiliste complet (Stations → Modal → Ticket)</li>
+  <li><span class="check-done">✅</span> Nom réel de la station dans la sidebar AdminLayout</li>
+</ul>
+
+<h3>🟠 v3.1 — Prochaines priorités</h3>
+<ul class="checklist">
+  <li><span class="check-pending">⏳</span> Garde de routes par rôle (empêcher l'accès direct par URL à un espace non autorisé)</li>
+  <li><span class="check-pending">⏳</span> Remplacer le compte Super Admin codé en dur par un vrai compte</li>
+  <li><span class="check-pending">⏳</span> Export Excel des transactions (xlsx ou papaparse)</li>
+  <li><span class="check-pending">⏳</span> Impression des reçus (@media print) + envoi WhatsApp (wa.me)</li>
+  <li><span class="check-pending">⏳</span> Toasts de confirmation (react-hot-toast)</li>
+  <li><span class="check-pending">⏳</span> Responsive mobile complet des tableaux (cards sur mobile)</li>
+</ul>
+
+<h3>🔵 v4.0 — Migration Firebase (backend réel)</h3>
+<ul class="checklist">
+  <li><span class="check-future">📋</span> Firebase Auth (rôles : admin, client, superadmin) + hachage des mots de passe</li>
+  <li><span class="check-future">📋</span> Migration état local → Firestore (synchronisation multi-appareils, condition pour une vraie prod)</li>
+  <li><span class="check-future">📋</span> Firebase Cloud Messaging (notifications push, au lieu de l'API Notification navigateur actuelle)</li>
+  <li><span class="check-future">📋</span> Règles de sécurité Firestore par rôle</li>
+</ul>
+
+<h3>🟡 v4.1 — Fonctionnalités avancées</h3>
+<ul class="checklist">
+  <li><span class="check-future">📋</span> Vrai abonnement récurrent automobiliste (pass mensuel), si validé côté produit — condition pour que la rubrique « fréquence d'abonnement automobiliste » reflète une vraie facturation</li>
+  <li><span class="check-future">📋</span> Carte Google Maps des stations</li>
+  <li><span class="check-future">📋</span> Upload logo station (Firebase Storage)</li>
+  <li><span class="check-future">📋</span> Drag &amp; Drop pour réorganiser la file (@dnd-kit/core)</li>
+  <li><span class="check-future">📋</span> Mode hors-ligne (Firestore offline persistence)</li>
+  <li><span class="check-future">📋</span> Multi-langue Français / Wolof (i18next)</li>
+</ul>
+
+<p class="meta" style="margin-top: 40px; border-top: 1px solid #BDC3C7; padding-top: 10px;">
+  Document mis à jour lors de la session du 11 Août 2026.<br>
+  Historique : v1.0 (Août 2026) → v2.0 (10 Août 2026) → <strong>v3.0 (11 Août 2026, version actuelle)</strong>.
+</p>
+
+</body>
+</html>

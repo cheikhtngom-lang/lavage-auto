@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Station Admin - Clean Car Galsen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="app.css">
+    <style>
+        /* Pour cacher les sections non actives */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-neutral-950 text-white h-screen flex overflow-hidden">
+    
+    <!-- Sidebar -->
+    <aside class="w-64 border-r border-white/10 glass-panel flex flex-col h-full z-20">
+        <div class="h-16 flex items-center px-6 border-b border-white/10">
+            <span class="text-blue-400 text-2xl mr-2">💧</span>
+            <span class="font-bold text-lg tracking-tight">Clean Car <span class="text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-yellow-400 to-red-500">Galsen</span></span>
+        </div>
+        
+        <div class="p-4 border-b border-white/10">
+            <p class="text-xs text-neutral-500 uppercase tracking-wider font-bold mb-1">Station</p>
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-white p-0.5 shadow-lg shadow-white/5 border border-white/10 flex-shrink-0">
+                    <img id="sidebar-station-logo" src="https://images.unsplash.com/photo-1601362840469-51e4d8d58785?q=80&w=200&auto=format&fit=crop" class="w-full h-full object-cover rounded-lg" alt="Logo Station">
+                </div>
+                <div>
+                    <h3 id="sidebar-station-name" class="font-bold text-sm text-white truncate max-w-[130px]">Auto Clean VIP</h3>
+                    <p id="sidebar-station-plan" class="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded inline-block mt-1">⭐ Offre Pro</p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="flex-1 py-4 px-3 space-y-1 overflow-y-auto" id="admin-nav">
+            <button onclick="switchTab('overview')" class="nav-btn active flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-blue-500/10 text-blue-400">
+                <span class="text-lg">📊</span> <span class="ml-3">Vue d'ensemble</span>
+            </button>
+            <button onclick="switchTab('transactions')" class="nav-btn flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg">💳</span> <span class="ml-3">Transactions</span>
+            </button>
+            <button onclick="switchTab('accounting')" class="nav-btn flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg">🧮</span> <span class="ml-3">Comptabilité</span>
+            </button>
+            <button onclick="switchTab('analytics')" class="nav-btn flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg">📈</span> <span class="ml-3">Analytique</span>
+            </button>
+            <button onclick="switchTab('settings')" class="nav-btn flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg">⚙️</span> <span class="ml-3">Paramètres</span>
+            </button>
+            <button onclick="switchTab('team')" class="nav-btn flex w-full items-center px-4 py-3 rounded-xl text-sm font-medium text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+                <span class="text-lg">👥</span> <span class="ml-3">Équipe</span>
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-white/10">
+            <button onclick="logout()" class="flex items-center px-4 py-3 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-colors w-full mt-2">
+                <span class="text-lg">🚪</span> <span class="ml-3">Déconnexion</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 relative overflow-y-auto">
+        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-neutral-950 to-neutral-950 pointer-events-none"></div>
+        
+        <div class="relative z-10 p-8 max-w-7xl mx-auto">
+            
+            <!-- SECTION 1: VUE D'ENSEMBLE -->
+            <div id="tab-overview" class="tab-content active">
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-white mb-1">Vue d'ensemble</h1>
+                        <p class="text-neutral-400">Gérez votre station en temps réel.</p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-3 bg-blue-950/40 border border-blue-900/50 rounded-full px-5 py-2.5 shadow-lg shadow-blue-900/20">
+                            <div class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></div>
+                            <span class="text-blue-400 font-semibold text-sm">File synchronisée</span>
+                        </div>
+                        <button onclick="openShareModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-full font-bold shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 flex items-center gap-2" title="Partager le lien client">
+                            <span>🔗</span> Partager
+                        </button>
+                        <button onclick="openNewWashModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full font-bold shadow-lg shadow-blue-600/30 transition-transform active:scale-95 flex items-center gap-2">
+                            <span>+</span> Nouveau Lavage
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPIs -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="glass-card rounded-2xl p-6 border-t-2 border-emerald-500">
+                        <p class="text-neutral-400 text-sm font-medium mb-1">Chiffre d'affaires (Aujourd'hui)</p>
+                        <p class="text-3xl font-bold text-white">45 000 <span class="text-lg text-emerald-400">FCFA</span></p>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6 border-t-2 border-blue-500">
+                        <p class="text-neutral-400 text-sm font-medium mb-1">Véhicules lavés</p>
+                        <p class="text-3xl font-bold text-white">12 <span class="text-lg text-blue-400">véhicules</span></p>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6 border-t-2 border-orange-500">
+                        <p class="text-neutral-400 text-sm font-medium mb-1">Attente moyenne</p>
+                        <p class="text-3xl font-bold text-white">18 <span class="text-lg text-orange-400">min</span></p>
+                    </div>
+                </div>
+
+                <!-- Live Queue -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-1">
+                        <h2 class="text-xl font-semibold mb-4 text-emerald-400 flex items-center">
+                            <span class="mr-2">▶️</span> En cours de lavage
+                        </h2>
+                        <div id="active-wash-container" class="space-y-4">
+                            <!-- Injecté par JS -->
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <h2 class="text-xl font-semibold mb-4 text-neutral-300 flex items-center">
+                            <span class="mr-2">⏳</span> Prochains véhicules
+                        </h2>
+                        <div class="glass-panel rounded-2xl overflow-hidden shadow-2xl">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="border-b border-white/10 text-neutral-400 text-sm bg-black/40">
+                                        <th class="p-4 font-medium w-16 text-center">Pos</th>
+                                        <th class="p-4 font-medium">Véhicule & Client</th>
+                                        <th class="p-4 font-medium">Service</th>
+                                        <th class="p-4 font-medium">Paiement</th>
+                                        <th class="p-4 font-medium text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="queue-container">
+                                    <!-- Injecté par JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION TEAM -->
+            <div id="tab-team" class="tab-content">
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-white mb-1">Équipe</h1>
+                        <p class="text-neutral-400">Gérez vos employés et attribuez les tâches.</p>
+                    </div>
+                    <button onclick="switchTab('settings')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-600/30 transition-transform active:scale-95 flex items-center gap-2">
+                        <span>+</span> Ajouter un employé
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="team-container">
+                    <!-- Injecté par JS -->
+                </div>
+            </div>
+
+            <!-- SECTION 2: TRANSACTIONS -->
+            <div id="tab-transactions" class="tab-content">
+                <div class="flex items-center justify-between mb-8">
+                    <div>
+                        <h1 class="text-3xl font-bold text-white mb-1">Transactions</h1>
+                        <p class="text-neutral-400">Historique complet des paiements.</p>
+                    </div>
+                    <button class="bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                        <span>📥</span> Exporter (CSV)
+                    </button>
+                </div>
+
+                <div class="glass-panel rounded-2xl overflow-hidden shadow-2xl">
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="border-b border-white/10 text-neutral-400 text-sm bg-black/40">
+                                <th class="p-4 font-medium">Date & Heure</th>
+                                <th class="p-4 font-medium">Client</th>
+                                <th class="p-4 font-medium">Prestation</th>
+                                <th class="p-4 font-medium">Méthode</th>
+                                <th class="p-4 font-medium text-right">Montant</th>
+                                <th class="p-4 font-medium w-16"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-container">
+                            <!-- Injecté par JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SECTION 3: COMPTABILITÉ -->
+            <div id="tab-accounting" class="tab-content">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-white mb-1">Comptabilité</h1>
+                    <p class="text-neutral-400">Gérez vos revenus, vos dépenses et votre marge bénéficiaire.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="glass-card rounded-2xl p-6 border-t-2 border-emerald-500">
+                        <p class="text-neutral-400 text-sm font-medium mb-1">Revenus (Ce mois)</p>
+                        <p class="text-3xl font-bold text-white">850 000 <span class="text-sm font-normal text-emerald-400">FCFA</span></p>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6 border-t-2 border-red-500">
+                        <p class="text-neutral-400 text-sm font-medium mb-1">Dépenses (Ce mois)</p>
+                        <p class="text-3xl font-bold text-white">210 000 <span class="text-sm font-normal text-red-400">FCFA</span></p>
+                    </div>
+                    <div class="glass-card rounded-2xl p-6 border-t-2 border-blue-500">
+                        <p class="text-neutral-400 text-sm font-medium mb-1">Bénéfice Net</p>
+                        <p class="text-3xl font-bold text-white">640 000 <span class="text-sm font-normal text-blue-400">FCFA</span></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Liste des dépenses -->
+                    <div class="glass-panel rounded-2xl overflow-hidden shadow-2xl">
+                        <div class="p-6 border-b border-white/10 flex justify-between items-center bg-black/40">
+                            <h3 class="font-bold text-lg">Journal des Dépenses</h3>
+                        </div>
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr class="border-b border-white/10 text-neutral-400 bg-black/20">
+                                    <th class="p-4 font-medium">Date</th>
+                                    <th class="p-4 font-medium">Catégorie</th>
+                                    <th class="p-4 font-medium text-right">Montant</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b border-white/5 hover:bg-white/5">
+                                    <td class="p-4">12 Août 2026</td>
+                                    <td class="p-4"><span class="bg-blue-500/10 text-blue-400 px-2 py-1 rounded text-xs">Produits Lavage</span></td>
+                                    <td class="p-4 text-right font-medium text-red-400">- 45 000 F</td>
+                                </tr>
+                                <tr class="border-b border-white/5 hover:bg-white/5">
+                                    <td class="p-4">10 Août 2026</td>
+                                    <td class="p-4"><span class="bg-orange-500/10 text-orange-400 px-2 py-1 rounded text-xs">Facture SENELEC</span></td>
+                                    <td class="p-4 text-right font-medium text-red-400">- 130 000 F</td>
+                                </tr>
+                                <tr class="border-b border-white/5 hover:bg-white/5">
+                                    <td class="p-4">05 Août 2026</td>
+                                    <td class="p-4"><span class="bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded text-xs">Abonnement SaaS</span></td>
+                                    <td class="p-4 text-right font-medium text-red-400">- 35 000 F</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Formulaire Dépense -->
+                    <div class="glass-card rounded-2xl p-6">
+                        <h3 class="font-bold text-lg mb-6 text-blue-400 flex items-center gap-2"><span>📝</span> Saisir une charge</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-neutral-400 mb-1">Catégorie</label>
+                                <select class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 transition-all">
+                                    <option>Salaires Employés</option>
+                                    <option>Produits & Matériels</option>
+                                    <option>Électricité / Eau</option>
+                                    <option>Loyer</option>
+                                    <option>Autre charge</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-neutral-400 mb-1">Montant (FCFA)</label>
+                                <input type="number" placeholder="Ex: 15000" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-neutral-400 mb-1">Note (Optionnel)</label>
+                                <input type="text" placeholder="Ex: Achat de savon..." class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 transition-all">
+                            </div>
+                            <button class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl text-sm font-bold transition-colors mt-2 shadow-lg shadow-blue-500/20">Enregistrer la dépense</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: ANALYTIQUE -->
+            <div id="tab-analytics" class="tab-content">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-white mb-1">Analytique & Fréquentation</h1>
+                    <p class="text-neutral-400">Performances et trafic de votre station sur les 7 derniers jours.</p>
+                </div>
+
+                <!-- KPIs de Fréquentation -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-black/40 border border-white/10 rounded-2xl p-5">
+                        <div class="text-neutral-400 text-[10px] font-bold uppercase tracking-wider mb-2 flex items-center gap-2"><span>👁️</span> Visiteurs de votre page</div>
+                        <p class="text-2xl font-bold text-white">458</p>
+                        <p class="text-xs text-emerald-400 mt-1">↑ 12% cette semaine</p>
+                    </div>
+                    <div class="bg-black/40 border border-emerald-500/30 rounded-2xl p-5 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-emerald-500/10 text-6xl">✅</div>
+                        <div class="text-neutral-400 text-[10px] font-bold uppercase tracking-wider mb-2">Réservations Validées</div>
+                        <p class="text-2xl font-bold text-emerald-400 relative z-10">142</p>
+                        <p class="text-xs text-neutral-500 mt-1 relative z-10">Honorées à temps</p>
+                    </div>
+                    <div class="bg-black/40 border border-orange-500/30 rounded-2xl p-5 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-orange-500/10 text-6xl">🔄</div>
+                        <div class="text-neutral-400 text-[10px] font-bold uppercase tracking-wider mb-2">Réservations Reportées</div>
+                        <p class="text-2xl font-bold text-orange-400 relative z-10">18</p>
+                        <p class="text-xs text-neutral-500 mt-1 relative z-10">Algorithme de retard</p>
+                    </div>
+                    <div class="bg-black/40 border border-red-500/30 rounded-2xl p-5 relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 text-red-500/10 text-6xl">❌</div>
+                        <div class="text-neutral-400 text-[10px] font-bold uppercase tracking-wider mb-2">Réservations Annulées</div>
+                        <p class="text-2xl font-bold text-red-400 relative z-10">5</p>
+                        <p class="text-xs text-neutral-500 mt-1 relative z-10">Absents (No-shows)</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <!-- Graphique Fréquentation (Ligne) -->
+                    <div class="glass-card rounded-2xl p-6">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+                            <h3 class="text-lg font-bold flex items-center gap-2"><span>📈</span> Fréquentation</h3>
+                            <div class="flex bg-black/50 p-1 rounded-lg border border-white/5 text-xs">
+                                <button onclick="setChartFilter(this)" class="px-3 py-1 rounded-md text-neutral-400 hover:text-white transition-all filter-btn">Jour</button>
+                                <button onclick="setChartFilter(this)" class="px-3 py-1 rounded-md bg-white/10 text-white font-medium shadow transition-all filter-btn">Semaine</button>
+                                <button onclick="setChartFilter(this)" class="px-3 py-1 rounded-md text-neutral-400 hover:text-white transition-all filter-btn">Mois</button>
+                                <button onclick="setChartFilter(this)" class="px-3 py-1 rounded-md text-neutral-400 hover:text-white transition-all filter-btn">Année</button>
+                            </div>
+                        </div>
+                        <div class="relative h-48 w-full">
+                            <!-- Chart.js Canvas -->
+                            <canvas id="analyticsChart"></canvas>
+                        </div>
+                        <div class="flex justify-between mt-4 text-xs text-neutral-500 font-medium px-2">
+                            <span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span><span>Dim</span>
+                        </div>
+                    </div>
+
+                    <!-- Graphique Prestations -->
+                    <div class="glass-card rounded-2xl p-6">
+                        <h3 class="text-lg font-bold mb-6">Répartition des prestations</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>Lavage Simple</span>
+                                    <span class="font-bold">65%</span>
+                                </div>
+                                <div class="w-full bg-white/5 rounded-full h-3">
+                                    <div class="bg-blue-500 h-3 rounded-full" style="width: 65%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>Lavage Complet</span>
+                                    <span class="font-bold">25%</span>
+                                </div>
+                                <div class="w-full bg-white/5 rounded-full h-3">
+                                    <div class="bg-emerald-500 h-3 rounded-full" style="width: 25%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>Lavage Moteur</span>
+                                    <span class="font-bold">10%</span>
+                                </div>
+                                <div class="w-full bg-white/5 rounded-full h-3">
+                                    <div class="bg-orange-500 h-3 rounded-full" style="width: 10%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 4: PARAMÈTRES -->
+            <div id="tab-settings" class="tab-content">
+                <div class="mb-8">
+                    <h1 class="text-3xl font-bold text-white mb-1">Paramètres</h1>
+                    <p class="text-neutral-400">Configurez votre station et vos documents.</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    
+                    <!-- Profil Station -->
+                    <div class="glass-card rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-6 flex items-center gap-2"><span>🏢</span> Profil de la station</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-neutral-400 mb-1">Nom de la station</label>
+                                <input type="text" id="settings-station-name" value="Auto Clean VIP" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-neutral-400 mb-1">Quartier</label>
+                                <input type="text" id="settings-station-address" value="Plateau" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 transition-all">
+                            </div>
+                            <button onclick="saveStationProfile()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-transform active:scale-95 mt-2 shadow-lg shadow-blue-500/20">Enregistrer les modifications</button>
+                        </div>
+                    </div>
+
+                    <!-- Création d'Employé -->
+                    <div class="glass-card rounded-2xl p-6">
+                        <h3 class="text-xl font-bold mb-6 flex items-center gap-2"><span>👥</span> Ajouter un employé</h3>
+                        <form onsubmit="submitNewEmployee(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-neutral-400 mb-1">Prénom & Nom</label>
+                                <input type="text" id="new-emp-name" required placeholder="Ex: Moussa Diop" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-neutral-400 mb-1">Rôle</label>
+                                <select id="new-emp-role" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 transition-all">
+                                    <option value="Laveur">Laveur</option>
+                                    <option value="Caisse">Caisse</option>
+                                    <option value="Superviseur">Superviseur</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-transform active:scale-95 mt-2 shadow-lg shadow-emerald-500/20 w-full">Créer l'employé</button>
+                        </form>
+                    </div>
+
+                    <!-- Algorithme de Temps -->
+                    <div class="glass-card rounded-2xl p-6 lg:col-span-2">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold flex items-center gap-2"><span>⏱️</span> Algorithme d'Estimation (Temps)</h3>
+                            <button onclick="saveDurationConfig()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-transform active:scale-95">Enregistrer</button>
+                        </div>
+                        <p class="text-sm text-neutral-400 mb-4">Ajustez les durées de référence pour le calcul du temps d'attente estimé des clients.</p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="duration-config-container">
+                            <!-- Rempli par JS -->
+                        </div>
+                    </div>
+
+                    <!-- Cachet & Documents -->
+                    <div class="glass-card rounded-2xl p-6 border border-emerald-500/20 bg-emerald-900/5">
+                        <h3 class="text-xl font-bold mb-6 flex items-center gap-2"><span>📜</span> Documents & Cachet</h3>
+                        <p class="text-sm text-neutral-400 mb-4">Téléchargez le cachet officiel de votre entreprise. Il sera automatiquement apposé sur les reçus de paiement de vos clients.</p>
+                        
+                        <div class="border-2 border-dashed border-white/10 rounded-xl p-6 text-center hover:border-emerald-500/50 transition-colors cursor-pointer mb-4">
+                            <span class="text-3xl mb-2 inline-block">🔖</span>
+                            <p class="text-sm font-medium">Cliquez pour importer votre cachet</p>
+                            <p class="text-xs text-neutral-500 mt-1">Format PNG avec fond transparent recommandé</p>
+                        </div>
+                        
+                        <!-- Aperçu du cachet existant -->
+                        <div class="flex items-center gap-4 bg-black/40 p-3 rounded-xl border border-white/5">
+                            <div class="w-12 h-12 rounded bg-white p-1">
+                                <img src="https://via.placeholder.com/150/ffffff/ff0000?text=CACHET" class="w-full h-full object-cover mix-blend-multiply opacity-80 rounded" alt="Cachet actuel">
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium">cachet_officiel.png</p>
+                                <p class="text-xs text-emerald-400">Actif sur les reçus</p>
+                            </div>
+                            <button class="text-red-400 hover:bg-red-500/10 p-2 rounded-lg transition-colors">🗑️</button>
+                        </div>
+                    </div>
+
+                    <!-- Forfaits Dynamiques -->
+                    <div class="glass-card rounded-2xl p-6 lg:col-span-2">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-xl font-bold flex items-center gap-2"><span>💰</span> Grille Tarifaire (FCFA)</h3>
+                            <button onclick="savePricingConfig()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">Enregistrer</button>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-white/10 text-neutral-400 text-sm">
+                                        <th class="py-3 px-2 font-medium">Catégorie</th>
+                                        <th class="py-3 px-2 font-medium">Lavage Simple</th>
+                                        <th class="py-3 px-2 font-medium">Lavage Complet</th>
+                                        <th class="py-3 px-2 font-medium">Lavage Moteur</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pricing-table-body">
+                                    <!-- Rendered dynamically via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modale Nouveau Lavage -->
+    <div id="new-wash-modal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-md rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-emerald-500"></div>
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold text-white">Nouveau Lavage</h2>
+                    <button onclick="closeNewWashModal()" class="text-neutral-500 hover:text-white transition-colors">✕</button>
+                </div>
+                
+                <form id="new-wash-form" onsubmit="submitNewWash(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-400 mb-1">Nom du client</label>
+                        <input type="text" id="nw-client" required class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 focus:outline-none transition-all" placeholder="Ex: Jean Dupont">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-400 mb-1">Véhicule</label>
+                        <input type="text" id="nw-vehicle" required class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 focus:outline-none transition-all" placeholder="Ex: Peugeot 3008 (DK-123-AB)">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-400 mb-1">Catégorie</label>
+                        <select id="nw-category" onchange="updateNewWashPrice()" required class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 focus:outline-none transition-all">
+                            <option value="Particulier">Véhicule Particulier</option>
+                            <option value="Moto">Moto</option>
+                            <option value="Transport">Transport en commun</option>
+                            <option value="Camion">Camion</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-400 mb-1">Forfait</label>
+                        <select id="nw-service" onchange="updateNewWashPrice()" required class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-blue-500 focus:outline-none transition-all">
+                            <option value="Lavage Simple">Lavage Simple</option>
+                            <option value="Lavage Complet">Lavage Complet</option>
+                            <option value="Lavage Moteur">Lavage Moteur</option>
+                        </select>
+                    </div>
+                    
+                    <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 flex justify-between items-center shadow-inner">
+                        <span class="text-neutral-300 font-medium text-sm">Montant à payer :</span>
+                        <span id="nw-price-display" class="text-2xl font-bold text-white">--- FCFA</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-neutral-400 mb-1">Statut du paiement</label>
+                        <div class="flex gap-4">
+                            <label class="flex-1 flex items-center justify-center gap-2 p-3 border border-emerald-500/30 bg-emerald-500/10 rounded-xl cursor-pointer hover:bg-emerald-500/20 transition-colors">
+                                <input type="radio" name="nw-payment" value="paid" checked class="accent-emerald-500">
+                                <span class="text-emerald-400 font-medium text-sm">Déjà Payé</span>
+                            </label>
+                            <label class="flex-1 flex items-center justify-center gap-2 p-3 border border-orange-500/30 bg-orange-500/10 rounded-xl cursor-pointer hover:bg-orange-500/20 transition-colors">
+                                <input type="radio" name="nw-payment" value="unpaid" class="accent-orange-500">
+                                <span class="text-orange-400 font-medium text-sm">Sur place</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 pt-6 border-t border-white/10 flex gap-3">
+                        <button type="button" onclick="closeNewWashModal()" class="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-white/5 hover:bg-white/10 transition-colors">Annuler</button>
+                        <button type="submit" class="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/30 transition-transform active:scale-95">Ajouter</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Assignation Employé -->
+    <div id="assign-employee-modal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl p-6 relative overflow-hidden">
+            <h3 class="text-lg font-bold text-white mb-4">Assigner un laveur</h3>
+            <p class="text-sm text-neutral-400 mb-4">Sélectionnez l'employé qui va effectuer ce lavage.</p>
+            <select id="assign-employee-select" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-blue-500 mb-6 focus:outline-none">
+                <!-- Rempli par JS -->
+            </select>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeAssignModal()" class="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-white/5 hover:bg-white/10 transition-colors">Annuler</button>
+                <button type="button" id="confirm-assign-btn" class="flex-1 px-4 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/30 transition-transform active:scale-95">Démarrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Partage Lien Client -->
+    <div id="share-modal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="glass-panel w-full max-w-sm rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 to-green-400"></div>
+            <div class="p-6 text-center">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-white">Lien Client</h2>
+                    <button onclick="closeShareModal()" class="text-neutral-500 hover:text-white transition-colors">✕</button>
+                </div>
+                
+                <p class="text-sm text-neutral-400 mb-6 text-left">Faites scanner ce QR Code au client ou envoyez-lui le lien pour qu'il puisse suivre sa position.</p>
+                
+                <!-- Mockup QR Code -->
+                <div class="bg-white p-4 rounded-xl inline-block mb-6 mx-auto">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://cleancargalsen.com/dashboard-client.html" alt="QR Code" class="w-32 h-32">
+                </div>
+                
+                <div class="relative mb-4 text-left">
+                    <label class="block text-xs font-medium text-neutral-500 mb-1">Lien direct</label>
+                    <div class="flex bg-black/50 border border-white/10 rounded-xl overflow-hidden">
+                        <input type="text" id="share-url" readonly value="https://cleancargalsen.com/dashboard-client.html" class="w-full bg-transparent px-3 py-2 text-sm text-emerald-400 focus:outline-none">
+                        <button onclick="copyClientLink()" class="px-4 py-2 bg-white/5 hover:bg-white/10 text-white text-sm font-bold border-l border-white/10 transition-colors">Copier</button>
+                    </div>
+                </div>
+                
+                <button onclick="sendWhatsApp()" class="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white py-3 rounded-xl font-bold flex justify-center items-center gap-2 shadow-lg shadow-[#25D366]/20 transition-transform active:scale-95">
+                    <span>💬</span> Envoyer par WhatsApp
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="logic.js"></script>
+    <script>
+        function logout() {
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('userRole');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

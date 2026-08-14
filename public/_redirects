@@ -1,0 +1,15 @@
+# Fichier de redirections pour Netlify / Vercel / hébergeurs compatibles
+#
+# Le site a deux points d'entrée : index.html (page vitrine statique) et
+# dashboard.html (app React : espace client, admin station, super admin).
+# Les règles ci-dessous servent dashboard.html (avec code 200, donc l'URL
+# affichée reste inchangée) pour les chemins gérés par React Router, afin
+# qu'un accès direct ou un rafraîchissement fonctionne. Tout le reste
+# retombe sur index.html pour que BrowserRouter/la page vitrine fonctionnent.
+
+/admin/*        /dashboard.html   200
+/superadmin/*   /dashboard.html   200
+/dashboard/*    /dashboard.html   200
+/stations       /dashboard.html   200
+/dashboard      /dashboard.html   200
+/*              /index.html       200

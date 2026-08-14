@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node __TRACKED_VAR__/_verify_tmp.js)"
+    ]
+  }
+}
