@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { getPricingCategory } from '../../lib/vehicleBrands';
@@ -123,6 +123,12 @@ export default function Stations() {
   const { account, toggleFavorite, unhideStation, reservations, refreshActivity } = useClientAccount();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  // Côté espace client connecté (/dashboard/stations), on ne dévoile la liste
+  // qu'après une action de recherche explicite (texte/région ou géolocalisation) —
+  // pas d'annuaire complet affiché d'office. La page publique (/stations, visiteurs
+  // non connectés) garde elle la liste complète pour donner envie de s'inscrire.
+  const isDashboardContext = location.pathname.startsWith('/dashboard');
 
   const [userPos, setUserPos] = useState(null);
   const [geoStatus, setGeoStatus] = useState(null); // null | 'loading' | 'error'
@@ -210,6 +216,11 @@ export default function Stations() {
         s.address.toLowerCase().includes(appliedSearch.query))
     ))
     .filter(s => !favoritesOnly || favoriteIds.includes(s.id));
+
+  // Recherche texte/région, géolocalisation ou filtre favoris : n'importe
+  // laquelle de ces actions explicites suffit à révéler la liste.
+  const hasSearched = !!appliedSearch || userPos !== null || favoritesOnly;
+  const showStationsList = !isDashboardContext || hasSearched;
 
   const handleSearch = () => setAppliedSearch({ query: searchInput.trim().toLowerCase(), region: regionInput });
   const handleResetSearch = () => { setSearchInput(''); setRegionInput(''); setAppliedSearch(null); };
@@ -444,7 +455,13 @@ export default function Stations() {
         {geoMessage && <p className={`text-sm ${geoStatus === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>{geoMessage}</p>}
       </div>
 
-      {stations.length === 0 ? (
+      {!showStationsList ? (
+        <div className="glass-card rounded-2xl p-16 text-center border-dashed border-2 border-white/10">
+          <Search className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-white mb-2">Recherchez une station pour commencer</h3>
+          <p className="text-neutral-400 mb-4">Tapez un quartier, une station, choisissez une région, ou utilisez votre position pour découvrir les stations disponibles près de vous.</p>
+        </div>
+      ) : stations.length === 0 ? (
         <div className="glass-card rounded-2xl p-16 text-center border-dashed border-2 border-white/10">
           <Building2 className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">{appliedSearch ? 'Aucune station ne correspond à votre recherche' : 'Aucune station disponible pour le moment'}</h3>
