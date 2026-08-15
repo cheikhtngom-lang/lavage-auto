@@ -180,12 +180,13 @@ export function AppStateProvider({ children }) {
         return () => { cancelled = true; };
     }, [stationId]);
 
-    // Alerte sonore : bipe une fois quand un lavage en cours dépasse sa durée
-    // estimée, pour prévenir le gérant même s'il n'a pas l'onglet "File
+    // Alerte sonore : bipe en boucle tant qu'un lavage en cours dépasse sa
+    // durée estimée, pour prévenir le gérant même s'il n'a pas l'onglet "File
     // d'attente" ouvert (ce provider tourne sur toutes les pages admin, pas
-    // seulement StationDashboard). Un id ne sonne qu'une fois — il ressort du
-    // suivi dès qu'il quitte activeWashes (lavage terminé/annulé), donc il
-    // pourrait re-sonner s'il redémarrait un jour.
+    // seulement StationDashboard). Volontairement PAS "une seule fois" — le
+    // gérant a demandé que ça ne s'arrête pas tant qu'il n'a pas cliqué
+    // "Terminer le lavage" (qui fait sortir l'id de activeWashes, seule façon
+    // dont la boucle s'arrête).
     //
     // Un AudioContext créé (et jamais débloqué par un clic) démarre "suspended"
     // dans la plupart des navigateurs — un son déclenché depuis un simple
@@ -193,7 +194,6 @@ export function AppStateProvider({ children }) {
     // chargement, restait donc silencieux. On garde UN SEUL contexte partagé
     // (pas un nouveau à chaque bip) et on le débloque dès le tout premier
     // clic/touch/touche du gérant sur la page, plutôt que d'attendre le bip.
-    const notifiedWashIds = useRef(new Set());
     const audioCtxRef = useRef(null);
     const getAudioCtx = () => {
         if (!audioCtxRef.current) {
@@ -245,20 +245,13 @@ export function AppStateProvider({ children }) {
         };
 
         const checkCompletions = () => {
-            const activeIds = new Set(activeWashes.map((w) => w.id));
-            for (const id of notifiedWashIds.current) {
-                if (!activeIds.has(id)) notifiedWashIds.current.delete(id);
-            }
             activeWashes.forEach((item) => {
-                if (!item.startedAt || notifiedWashIds.current.has(item.id)) return;
+                if (!item.startedAt) return;
                 const cat = item.category || 'Particulier';
                 const minutes = (durationConfig[cat] && durationConfig[cat][item.service]) ? durationConfig[cat][item.service] : 30;
                 const totalSeconds = Math.max(0, Math.round(minutes * 60));
                 const elapsed = Math.floor((Date.now() - new Date(item.startedAt).getTime()) / 1000);
-                if (elapsed >= totalSeconds) {
-                    notifiedWashIds.current.add(item.id);
-                    playCompletionChime();
-                }
+                if (elapsed >= totalSeconds) playCompletionChime();
             });
         };
         checkCompletions();
