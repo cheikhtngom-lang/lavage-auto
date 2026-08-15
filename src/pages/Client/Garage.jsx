@@ -29,7 +29,7 @@ export default function Garage() {
     <div className="container mx-auto px-4 py-12 max-w-5xl relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
         <div>
-          <h1 className="text-4xl font-bold mb-2 tracking-tight">Mon <span className="text-blue-400">Garage</span></h1>
+          <h1 className="text-4xl font-bold mb-2 tracking-tight">Mon <span className="text-blue-400">Parking</span></h1>
           <p className="text-neutral-400 text-lg">Retrouvez vos véhicules pour réserver plus vite.</p>
         </div>
         <button
@@ -43,7 +43,7 @@ export default function Garage() {
       {vehicles.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
           <Car className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">Votre garage est vide</h3>
+          <h3 className="text-xl font-bold text-white mb-2">Votre parking est vide</h3>
           <p className="text-neutral-400">Ajoutez un véhicule pour le retrouver rapidement lors de votre prochaine réservation.</p>
         </div>
       ) : (
@@ -122,7 +122,7 @@ export default function Garage() {
                 <div className="pt-4 mt-2 border-t border-white/10">
                   <button type="submit" disabled={!form.category || !form.brand || !form.plate.trim()}
                     className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center">
-                    <Plus className="w-5 h-5 mr-2" /> Ajouter au garage
+                    <Plus className="w-5 h-5 mr-2" /> Ajouter au parking
                   </button>
                 </div>
               </form>

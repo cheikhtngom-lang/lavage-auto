@@ -25,7 +25,7 @@ export default function ClientLayout() {
     { name: "Vue d'ensemble", href: '/dashboard', icon: LayoutDashboard },
     { name: 'Mes Stations', href: '/dashboard/mes-stations', icon: Building2 },
     { name: 'Trouver une station', href: '/dashboard/stations', icon: MapPin },
-    { name: 'Mon Garage', href: '/dashboard/garage', icon: Car },
+    { name: 'Mon Parking', href: '/dashboard/garage', icon: Car },
     { name: 'Paramètres', href: '/dashboard/parametres', icon: SettingsIcon },
   ];
 
