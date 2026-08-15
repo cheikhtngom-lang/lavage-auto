@@ -17,7 +17,7 @@ export default function Garage() {
 
   const handleAdd = (e) => {
     e.preventDefault();
-    if (!form.category || !form.brand) return;
+    if (!form.category || !form.brand || !form.plate.trim()) return;
     addVehicle({ category: form.category, brand: form.brand, plate: form.plate.trim() });
     setForm(emptyForm);
     setShowAddModal(false);
@@ -114,13 +114,13 @@ export default function Garage() {
                 </AnimatePresence>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">Immatriculation <span className="text-neutral-600">(optionnel)</span></label>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">Immatriculation <span className="text-red-400">*</span></label>
                   <input type="text" placeholder="Ex: DK-1234-AB" value={form.plate}
                     onChange={(e) => setForm({ ...form, plate: e.target.value })}
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
                 </div>
                 <div className="pt-4 mt-2 border-t border-white/10">
-                  <button type="submit" disabled={!form.category || !form.brand}
+                  <button type="submit" disabled={!form.category || !form.brand || !form.plate.trim()}
                     className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center">
                     <Plus className="w-5 h-5 mr-2" /> Ajouter au garage
                   </button>

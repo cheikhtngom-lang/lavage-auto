@@ -128,10 +128,11 @@ export function estimateItemWaitTime(stationId, itemCreatedAt) {
 }
 
 // ─── Réservation / encaissement (écriture côté client) ───────────────────
-export async function createReservation(stationId, { clientId, clientName, vehicleLabel, category, service, paid, amount, reservationGroupId, groupSize }) {
+export async function createReservation(stationId, { clientId, clientName, vehicleLabel, category, service, paid, amount, paymentMethod, reservationGroupId, groupSize }) {
   const { data, error } = await supabase.from('reservations').insert({
     station_id: stationId, client_id: clientId, client_name: clientName, vehicle_label: vehicleLabel,
-    category, service, paid: !!paid, amount, reservation_group_id: reservationGroupId, group_size: groupSize,
+    category, service, paid: !!paid, amount, payment_method: paymentMethod || null,
+    reservation_group_id: reservationGroupId, group_size: groupSize,
   }).select('id, created_at').single();
   if (error) throw new Error(error.message);
   return data;

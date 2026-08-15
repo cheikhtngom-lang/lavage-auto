@@ -71,6 +71,7 @@ function rowToItem(row) {
         category: row.category,
         service: row.service,
         paid: row.paid,
+        paymentMethod: row.payment_method,
         amount: row.amount,
         assignedTo: row.assigned_to_name,
         startedAt: row.started_at,
@@ -312,6 +313,24 @@ export function AppStateProvider({ children }) {
         supabase.from('reservations').update({ status: 'annule' }).eq('id', id).then(() => loadReservations());
     };
 
+    // Recule un véhicule payé en ligne (Wave/Orange Money) d'une place dans la
+    // file, quand le client tarde à venir — règle : ces réservations gardent
+    // leur ticket payé au lieu d'être annulées, elles cèdent juste leur tour.
+    // La position vient du tri par `created_at` (voir loadReservations), donc
+    // "reculer d'un rang" = échanger le created_at avec le véhicule suivant —
+    // ça garde l'ordre cohérent partout ailleurs (estimation d'attente côté
+    // client, file admin) sans avoir besoin d'une colonne de position dédiée.
+    const pushBackOnePosition = (id) => {
+        const idx = queue.findIndex((q) => q.id === id);
+        if (idx === -1 || idx >= queue.length - 1) return;
+        const current = queue[idx];
+        const next = queue[idx + 1];
+        Promise.all([
+            supabase.from('reservations').update({ created_at: next.createdAt }).eq('id', current.id),
+            supabase.from('reservations').update({ created_at: current.createdAt }).eq('id', next.id),
+        ]).then(() => loadReservations());
+    };
+
     const validatePayment = (id) => {
         const item = queue.find(q => q.id === id) || activeWashes.find(w => w.id === id);
         if (!item || item.paid) return;
@@ -418,7 +437,7 @@ export function AppStateProvider({ children }) {
         <AppStateContext.Provider value={{
             queue, activeWashes, employees, transactions, pricingConfig, durationConfig, promoConfig, stationProfile, completedWashes,
             attendanceHistory, recordDailyAttendance,
-            addWash, startWash, endWash, skipWash, validatePayment, updatePricing, updateEmployees, getEstimatedWaitTime,
+            addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, updateEmployees, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>

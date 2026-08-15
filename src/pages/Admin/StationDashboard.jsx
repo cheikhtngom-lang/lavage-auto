@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, Search, Timer, UserCheck, AlertCircle, Calendar } from 'lucide-react';
+import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, ChevronsDown, Search, Timer, UserCheck, AlertCircle, Calendar } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import Pagination from '../../components/ui/Pagination';
@@ -224,7 +224,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 }
 
 export default function StationDashboard() {
-  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, validatePayment, addWash, employees, pricingConfig, durationConfig } = useAppState();
+  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig } = useAppState();
 
   const getDurationMinutes = (item) => {
     const cat = item?.category || 'Particulier';
@@ -464,11 +464,11 @@ export default function StationDashboard() {
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-white/5 bg-white/[0.02]">
-                    <th className="p-5 font-semibold text-neutral-400 w-16">Pos</th>
-                    <th className="p-5 font-semibold text-neutral-400">Véhicule & Client</th>
-                    <th className="p-5 font-semibold text-neutral-400">Service</th>
-                    <th className="p-5 font-semibold text-neutral-400">Paiement</th>
-                    <th className="p-5 font-semibold text-neutral-400 text-right">Actions</th>
+                    <th className="p-3 font-semibold text-neutral-400 w-12">Pos</th>
+                    <th className="p-3 font-semibold text-neutral-400">Véhicule & Client</th>
+                    <th className="p-3 font-semibold text-neutral-400">Service</th>
+                    <th className="p-3 font-semibold text-neutral-400">Paiement</th>
+                    <th className="p-3 font-semibold text-neutral-400 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -491,12 +491,12 @@ export default function StationDashboard() {
                         className="border-b border-white/5 hover:bg-white/5 group transition-colors"
                         style={item.reservationGroupId ? { borderLeft: `4px solid ${groupAccentColors(item.reservationGroupId).solid}` } : undefined}
                       >
-                        <td className="p-5">
-                          <div className="w-10 h-10 rounded-xl bg-neutral-900 border border-white/10 flex items-center justify-center font-bold text-neutral-300 group-hover:border-blue-500/50 transition-colors shadow-inner">
+                        <td className="p-3">
+                          <div className="w-8 h-8 rounded-xl bg-neutral-900 border border-white/10 flex items-center justify-center font-bold text-neutral-300 text-sm group-hover:border-blue-500/50 transition-colors shadow-inner">
                             {index + 1}
                           </div>
                         </td>
-                        <td className="p-5">
+                        <td className="p-3">
                           <p className="font-bold text-white text-base">{item.vehicle}</p>
                           <p className="text-sm text-neutral-400 flex items-center mt-1">
                             {item.category && <span className="bg-white/10 px-2 py-0.5 rounded text-xs mr-2">{PRICING_CATEGORY_LABELS[item.category] || item.category}</span>}
@@ -504,11 +504,11 @@ export default function StationDashboard() {
                             <GroupBadge item={item} />
                           </p>
                         </td>
-                        <td className="p-5">
+                        <td className="p-3">
                           <p className="text-neutral-300 font-medium">{item.service}</p>
                           <p className="text-blue-400 font-bold text-sm mt-0.5">{getPrice(item).toLocaleString('fr-FR')} FCFA</p>
                         </td>
-                        <td className="p-5">
+                        <td className="p-3">
                           {item.paid ? (
                             <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
                               <CreditCard className="w-3 h-3 mr-1.5" /> Payé
@@ -519,17 +519,27 @@ export default function StationDashboard() {
                             </Badge>
                           )}
                         </td>
-                        <td className="p-5 text-right">
-                          <div className="flex items-center justify-end gap-3">
+                        <td className="p-3 text-right">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             {!item.paid && (
-                              <button 
+                              <button
                                 onClick={() => handleEncaisserClick(item)}
-                                className="text-sm px-4 py-2 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500 hover:text-white transition-all font-medium border border-orange-500/20 hover:border-orange-500"
+                                className="text-sm px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500 hover:text-white transition-all font-medium border border-orange-500/20 hover:border-orange-500"
                               >
                                 Encaisser
                               </button>
                             )}
-                            
+
+                            {index === 0 && item.paymentMethod && waitingQueue.length > 1 && (
+                              <button
+                                onClick={() => pushBackOnePosition(item.id)}
+                                title={`Payé en ligne (${item.paymentMethod}) — client en retard : céder la 1ère place et passer au 2nd rang`}
+                                className="text-sm px-3 py-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 hover:text-white transition-all font-medium border border-white/10 flex items-center"
+                              >
+                                <ChevronsDown className="w-4 h-4 mr-1" /> 2nd rang
+                              </button>
+                            )}
+
                             {index === 0 && (() => {
                               const goBlocked = !item.paid || availableEmployees.length === 0;
                               const goTitle = !item.paid
@@ -541,7 +551,7 @@ export default function StationDashboard() {
                                 <button
                                   onClick={() => handleGoClick(item)}
                                   title={goTitle}
-                                  className={`text-sm px-4 py-2 rounded-lg text-white transition-all font-bold flex items-center ${
+                                  className={`text-sm px-3 py-1.5 rounded-lg text-white transition-all font-bold flex items-center ${
                                     goBlocked
                                       ? 'bg-blue-600/40 cursor-pointer'
                                       : 'bg-blue-600 hover:bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]'
@@ -551,10 +561,10 @@ export default function StationDashboard() {
                                 </button>
                               );
                             })()}
-                            
-                            <button 
+
+                            <button
                               onClick={() => skipWash(item.id)}
-                              className="text-neutral-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                              className="text-neutral-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
                               title="Annuler / Retirer"
                             >
                               ✕

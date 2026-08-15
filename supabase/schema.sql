@@ -156,6 +156,12 @@ create table public.reservations (
   assigned_to_name text,
   amount integer,
   paid boolean not null default false,
+  -- Rempli uniquement quand le client a payé en ligne (Wave/Orange Money) au
+  -- moment de la réservation — jamais pour un encaissement sur place (bouton
+  -- "Encaisser" côté station), même si `paid` devient true dans les deux cas.
+  -- Sert à savoir quelles réservations ont droit au recul de position en cas
+  -- de retard (voir pushBackOnePosition dans useAppState.jsx).
+  payment_method text,
   reservation_group_id text,
   group_size integer,
   started_at timestamptz,
