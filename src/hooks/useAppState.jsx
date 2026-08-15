@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getCurrentStationId } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
@@ -25,8 +25,6 @@ function loadNamespaced(base, stationId, fallback) {
 }
 
 // Données par défaut — vides pour une vraie station
-const defaultQueue = []; // Aucun véhicule de démo
-
 const defaultEmployees = []; // Aucun employé de démo
 
 const defaultPricing = DEFAULT_PRICING;
@@ -47,21 +45,86 @@ const defaultStationProfile = {
 // ─── Identifiants des données fictives à supprimer ───────────────────────────
 // Ce sont les noms exacts utilisés dans le code de démo d'origine.
 // Toute autre donnée (créée manuellement par l'admin) sera préservée.
-const DEMO_CLIENT_NAMES  = ['Amadou D.', 'Fatou S.', 'Oumar N.'];
 const DEMO_EMPLOYEE_NAMES = ['Moussa Diop', 'Alioune Fall'];
 const DEMO_STATION_NAME  = 'Auto Clean VIP';
 const DEMO_STATION_PHONE = '+221 77 000 00 00';
+
+// Formate l'horodatage d'une transaction comme avant ("Aujourd'hui, HH:MM"
+// pour le jour courant, sinon une date complète — les anciennes transactions
+// n'étaient jamais consultées passé le jour même, donc ce cas n'existait pas
+// encore, mais les données Supabase persistent maintenant réellement).
+function formatTxDate(iso) {
+    const d = new Date(iso);
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (d.toDateString() === new Date().toDateString()) return `Aujourd'hui, ${time}`;
+    return `${d.toLocaleDateString('fr-FR')}, ${time}`;
+}
+
+// reservations (Supabase) -> même forme que l'ancien item localStorage, pour
+// ne rien changer côté StationDashboard.jsx/Washers.jsx/etc.
+function rowToItem(row) {
+    return {
+        id: row.id,
+        status: row.status,
+        client: row.client_name,
+        vehicle: row.vehicle_label,
+        category: row.category,
+        service: row.service,
+        paid: row.paid,
+        amount: row.amount,
+        assignedTo: row.assigned_to_name,
+        startedAt: row.started_at,
+        completedAt: row.completed_at ? new Date(row.completed_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null,
+        completedAtISO: row.completed_at,
+        reservationGroupId: row.reservation_group_id,
+        groupSize: row.group_size,
+        createdAt: row.created_at,
+    };
+}
 
 const AppStateContext = createContext(null);
 
 export function AppStateProvider({ children }) {
     const stationId = getCurrentStationId();
 
-    const [queue, setQueue] = useState(() => loadNamespaced('washQueue', stationId, defaultQueue));
-    const [activeWashes, setActiveWashes] = useState(() => loadNamespaced('activeWashes', stationId, []));
     const [employees, setEmployees] = useState(() => loadNamespaced('washEmployees', stationId, defaultEmployees));
-    const [transactions, setTransactions] = useState(() => loadNamespaced('washTransactions', stationId, []));
-    const [completedWashes, setCompletedWashes] = useState(() => loadNamespaced('completedWashes', stationId, []));
+
+    // File d'attente + lavages en cours/terminés = une seule table Supabase
+    // (`reservations`, distinguée par `status`) — remplace les 3 listes
+    // localStorage séparées. Rafraîchi par sondage (8s + focus) : un client
+    // peut réserver depuis son propre appareil, il faut voir sa réservation
+    // apparaître ici sans recharger la page (voir [[backend_migration]]).
+    const [queue, setQueue] = useState([]);
+    const [activeWashes, setActiveWashes] = useState([]);
+    const [completedWashes, setCompletedWashes] = useState([]);
+    const [transactions, setTransactions] = useState([]);
+
+    const loadReservations = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setQueue([]); setActiveWashes([]); setCompletedWashes([]); return; }
+        const { data } = await supabase.from('reservations').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
+        const items = (data || []).map(rowToItem);
+        setQueue(items.filter((i) => i.status === 'attente'));
+        setActiveWashes(items.filter((i) => i.status === 'en_cours'));
+        setCompletedWashes(items.filter((i) => i.status === 'termine').sort((a, b) => new Date(b.completedAtISO || 0) - new Date(a.completedAtISO || 0)));
+    }, [stationId]);
+
+    const loadTransactions = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setTransactions([]); return; }
+        const { data } = await supabase.from('transactions').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
+        setTransactions((data || []).map((row) => ({
+            id: row.id, date: formatTxDate(row.created_at), createdAt: row.created_at, client: row.client_name, vehicle: row.vehicle_label,
+            service: row.service, method: row.method, amount: row.amount,
+        })));
+    }, [stationId]);
+
+    useEffect(() => {
+        loadReservations();
+        loadTransactions();
+        const refresh = () => { loadReservations(); loadTransactions(); };
+        const interval = setInterval(refresh, 8000);
+        window.addEventListener('focus', refresh);
+        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); };
+    }, [loadReservations, loadTransactions]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -120,32 +183,6 @@ export function AppStateProvider({ children }) {
     // pour permettre de consulter qui a travaillé et combien d'heures à une date passée (page Laveurs).
     const [attendanceHistory, setAttendanceHistory] = useState(() => loadNamespaced('attendanceHistory', stationId, {}));
 
-    // La file, les lavages en cours et les transactions peuvent aussi être écrits
-    // par un CLIENT (réservation depuis son propre onglet/appareil, via
-    // addToStationQueue/addStationTransaction dans stationData.js) — pas
-    // seulement par l'admin via les setters ci-dessous. Sans resynchronisation,
-    // une réservation client faite après le chargement de cette page restait
-    // invisible tant que l'admin ne rafraîchissait pas manuellement. Même
-    // mécanisme (poll + storage + focus) que Client/Dashboard.jsx.
-    useEffect(() => {
-        const refresh = () => {
-            setQueue(loadNamespaced('washQueue', stationId, defaultQueue));
-            setActiveWashes(loadNamespaced('activeWashes', stationId, []));
-            setTransactions(loadNamespaced('washTransactions', stationId, []));
-        };
-        const interval = setInterval(refresh, 8000);
-        window.addEventListener('storage', refresh);
-        window.addEventListener('focus', refresh);
-        return () => {
-            clearInterval(interval);
-            window.removeEventListener('storage', refresh);
-            window.removeEventListener('focus', refresh);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stationId]);
-
-    const updateQueue = (newQ) => { setQueue(newQ); localStorage.setItem(keyFor('washQueue', stationId), JSON.stringify(newQ)); };
-    const updateActiveWashes = (newAW) => { setActiveWashes(newAW); localStorage.setItem(keyFor('activeWashes', stationId), JSON.stringify(newAW)); };
     const updateEmployees = (newE) => { setEmployees(newE); localStorage.setItem(keyFor('washEmployees', stationId), JSON.stringify(newE)); };
     const updateAttendanceHistory = (newH) => { setAttendanceHistory(newH); localStorage.setItem(keyFor('attendanceHistory', stationId), JSON.stringify(newH)); };
 
@@ -188,8 +225,6 @@ export function AppStateProvider({ children }) {
             [todayKey]: { ...dayEntries, [employeeId]: { ...existing, ...patch } },
         });
     };
-    const updateTransactions = (newT) => { setTransactions(newT); localStorage.setItem(keyFor('washTransactions', stationId), JSON.stringify(newT)); };
-
     // Une ligne par (catégorie, service) touché — fusionne toujours prix ET
     // durée dans le même upsert (les deux colonnes sont NOT NULL), en prenant
     // la valeur de l'autre config depuis l'état courant quand un seul des deux
@@ -227,8 +262,6 @@ export function AppStateProvider({ children }) {
             logo_url: newP.logo, cachet_url: newP.cachet,
         }).eq('id', stationId).then(() => {});
     };
-    const updateCompletedWashes = (newC) => { setCompletedWashes(newC); localStorage.setItem(keyFor('completedWashes', stationId), JSON.stringify(newC)); };
-
     const addEmployee = (employeeData) => {
         const id = employees.length > 0 ? Math.max(...employees.map(m => m.id)) + 1 : 1;
         const initials = employeeData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || '👤';
@@ -255,57 +288,32 @@ export function AppStateProvider({ children }) {
     };
 
     const addWash = (washData) => {
-        updateQueue([...queue, { id: Date.now(), status: 'attente', ...washData }]);
+        if (!stationId || stationId === 'default') return;
+        supabase.from('reservations').insert({
+            station_id: stationId, client_name: washData.client, vehicle_label: washData.vehicle,
+            category: washData.category, service: washData.service, paid: !!washData.paid, status: 'attente',
+        }).then(() => loadReservations());
     };
 
     const startWash = (id, employeeId) => {
-        const itemIndex = queue.findIndex(q => q.id === id);
-        if (itemIndex > -1) {
-            const item = queue[itemIndex];
-            const newQ = [...queue];
-            newQ.splice(itemIndex, 1);
-            
-            const emp = (employees || []).find(e => e.id === parseInt(employeeId));
-            const newActive = [...activeWashes, { ...item, status: 'en_cours', assignedTo: emp ? emp.name : 'Inconnu', startedAt: new Date().toISOString() }];
-            
-            updateQueue(newQ);
-            updateActiveWashes(newActive);
-        }
+        const emp = (employees || []).find(e => e.id === parseInt(employeeId));
+        supabase.from('reservations').update({
+            status: 'en_cours', assigned_to_name: emp ? emp.name : 'Inconnu', started_at: new Date().toISOString(),
+        }).eq('id', id).then(() => loadReservations());
     };
 
     const endWash = (id) => {
-        const itemIndex = activeWashes.findIndex(q => q.id === id);
-        if (itemIndex > -1) {
-            const item = activeWashes[itemIndex];
-            const newActive = [...activeWashes];
-            newActive.splice(itemIndex, 1);
-            updateActiveWashes(newActive);
-            
-            // Add to completed history
-            const now = new Date();
-            const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            // `completedAtISO` (horodatage complet) permet de filtrer l'historique
-            // par date — `completedAt` reste le texte HH:MM affiché tel quel.
-            updateCompletedWashes([{ ...item, status: 'termine', completedAt: timeString, completedAtISO: now.toISOString() }, ...completedWashes]);
-        }
+        supabase.from('reservations').update({
+            status: 'termine', completed_at: new Date().toISOString(),
+        }).eq('id', id).then(() => loadReservations());
     };
-    
+
     const skipWash = (id) => {
-        const itemIndex = queue.findIndex(q => q.id === id);
-        if (itemIndex > -1) {
-            const newQ = [...queue];
-            newQ.splice(itemIndex, 1);
-            updateQueue(newQ);
-        }
+        supabase.from('reservations').update({ status: 'annule' }).eq('id', id).then(() => loadReservations());
     };
 
     const validatePayment = (id) => {
-        let item = queue.find(q => q.id === id);
-        let inQueue = true;
-        if (!item) {
-            item = activeWashes.find(w => w.id === id);
-            inQueue = false;
-        }
+        const item = queue.find(q => q.id === id) || activeWashes.find(w => w.id === id);
         if (!item || item.paid) return;
 
         const cat = item.category || "Particulier";
@@ -315,24 +323,14 @@ export function AppStateProvider({ children }) {
         const basePrice = (pricingConfig[cat] && pricingConfig[cat][item.service]) ? pricingConfig[cat][item.service] : 2500;
         const amount = item.amount != null ? item.amount : applyDiscount(promoConfig, cat, item.service, basePrice);
 
-        item.paid = true;
-        if (inQueue) {
-            updateQueue([...queue]);
-        } else {
-            updateActiveWashes([...activeWashes]);
-        }
-
-        const now = new Date();
-        const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-        const newTx = {
-            id: Date.now(),
-            date: `Aujourd'hui, ${timeString}`,
-            client: item.client || "Client",
-            service: item.service,
-            method: "Espèces",
-            amount: amount
-        };
-        updateTransactions([newTx, ...transactions]);
+        supabase.from('reservations').update({ paid: true, amount }).eq('id', id).then(async () => {
+            await supabase.from('transactions').insert({
+                station_id: stationId, reservation_id: id, client_name: item.client, vehicle_label: item.vehicle,
+                service: item.service, method: 'Espèces', amount,
+            });
+            loadReservations();
+            loadTransactions();
+        });
     };
 
     // Calcul du temps d'attente estimé pour un client spécifique
@@ -371,42 +369,19 @@ export function AppStateProvider({ children }) {
     const cleanDemoData = () => {
         let cleaned = [];
 
-        // 1. File d'attente : retirer les véhicules de démo
-        const cleanQ = queue.filter(item => !DEMO_CLIENT_NAMES.includes(item.client));
-        if (cleanQ.length !== queue.length) {
-            updateQueue(cleanQ);
-            cleaned.push(`${queue.length - cleanQ.length} véhicule(s) fictif(s) retiré(s) de la file`);
-        }
+        // Réservations/transactions ne sont plus concernées : une station créée
+        // via Supabase ne démarre jamais avec des données fictives (contrairement
+        // à l'ancien bootstrap localStorage) — seuls employés et profil peuvent
+        // encore porter les anciens noms de démo.
 
-        // 2. Lavages actifs : retirer les véhicules de démo en cours
-        const cleanActive = activeWashes.filter(item => !DEMO_CLIENT_NAMES.includes(item.client));
-        if (cleanActive.length !== activeWashes.length) {
-            updateActiveWashes(cleanActive);
-            cleaned.push(`${activeWashes.length - cleanActive.length} lavage(s) fictif(s) en cours retiré(s)`);
-        }
-
-        // 3. Historique terminé : retirer les entrées de démo
-        const cleanCompleted = completedWashes.filter(item => !DEMO_CLIENT_NAMES.includes(item.client));
-        if (cleanCompleted.length !== completedWashes.length) {
-            updateCompletedWashes(cleanCompleted);
-            cleaned.push(`${completedWashes.length - cleanCompleted.length} historique(s) fictif(s) supprimé(s)`);
-        }
-
-        // 4. Transactions : retirer celles liées aux clients de démo
-        const cleanTx = transactions.filter(tx => !DEMO_CLIENT_NAMES.includes(tx.client));
-        if (cleanTx.length !== transactions.length) {
-            updateTransactions(cleanTx);
-            cleaned.push(`${transactions.length - cleanTx.length} transaction(s) fictive(s) supprimée(s)`);
-        }
-
-        // 5. Employés : retirer Moussa Diop et Alioune Fall s'ils existent
+        // 1. Employés : retirer Moussa Diop et Alioune Fall s'ils existent
         const cleanEmps = employees.filter(emp => !DEMO_EMPLOYEE_NAMES.includes(emp.name));
         if (cleanEmps.length !== employees.length) {
             updateEmployees(cleanEmps);
             cleaned.push(`${employees.length - cleanEmps.length} employé(s) fictif(s) supprimé(s)`);
         }
 
-        // 6. Profil station : réinitialiser si toujours le nom de démo
+        // 2. Profil station : réinitialiser si toujours le nom de démo
         if (stationProfile?.name === DEMO_STATION_NAME) {
             const cleanProfile = { ...stationProfile, name: '', phone: DEMO_STATION_PHONE === stationProfile.phone ? '' : stationProfile.phone, address: stationProfile.address === 'Plateau, Dakar' ? '' : stationProfile.address };
             updateStationProfile(cleanProfile);
@@ -419,22 +394,22 @@ export function AppStateProvider({ children }) {
     // Vide la file, l'historique et les transactions de LA STATION COURANTE
     // uniquement (profil et tarifs conservés). Ne touche pas aux autres stations.
     const resetOperationalData = () => {
-        updateQueue([]);
-        updateActiveWashes([]);
-        updateCompletedWashes([]);
-        updateTransactions([]);
+        if (!stationId || stationId === 'default') return;
+        supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
+        supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
     };
 
     // Réinitialisation complète de LA STATION COURANTE uniquement (profil,
     // tarifs, employés, historique). Les autres stations et les registres
     // Super Admin / comptes automobilistes ne sont pas affectés.
     const resetStationCompletely = () => {
-        ['washQueue', 'activeWashes', 'washEmployees', 'washTransactions', 'completedWashes', 'attendanceHistory']
-            .forEach(base => localStorage.removeItem(keyFor(base, stationId)));
+        ['washEmployees', 'attendanceHistory'].forEach(base => localStorage.removeItem(keyFor(base, stationId)));
         updateStationProfile(defaultStationProfile);
         if (stationId && stationId !== 'default') {
             supabase.from('wash_pricing').delete().eq('station_id', stationId).then(() => {});
             supabase.from('stations').update({ promo_config: {} }).eq('id', stationId).then(() => {});
+            supabase.from('reservations').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('transactions').delete().eq('station_id', stationId).then(() => {});
         }
         window.location.reload();
     };

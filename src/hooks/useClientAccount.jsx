@@ -6,16 +6,21 @@ const ClientAccountContext = createContext(null);
 export function ClientAccountProvider({ children }) {
     const [account, setAccount] = useState(null);
     const [loading, setLoading] = useState(true);
+    // Réservations actives (file/en cours) et transactions du client connecté —
+    // RLS les rend directement lisibles (client_id = auth.uid()), contrairement
+    // aux données des AUTRES clients (voir lib/stationData.js pour ça).
+    const [reservations, setReservations] = useState([]);
+    const [myTransactions, setMyTransactions] = useState([]);
 
     const load = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setAccount(null); setLoading(false); return; }
+        if (!user) { setAccount(null); setReservations([]); setMyTransactions([]); setLoading(false); return; }
 
         const [{ data: profile }, { data: vehicles }] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
             supabase.from('vehicles').select('*').eq('owner_id', user.id).order('created_at'),
         ]);
-        if (!profile || profile.role !== 'automobiliste') { setAccount(null); setLoading(false); return; }
+        if (!profile || profile.role !== 'automobiliste') { setAccount(null); setReservations([]); setMyTransactions([]); setLoading(false); return; }
 
         setAccount({
             id: profile.id,
@@ -29,7 +34,28 @@ export function ClientAccountProvider({ children }) {
         setLoading(false);
     }, []);
 
+    const loadActivity = useCallback(async (clientId) => {
+        if (!clientId) { setReservations([]); setMyTransactions([]); return; }
+        const [{ data: resData }, { data: txData }] = await Promise.all([
+            supabase.from('reservations').select('*, stations(name, quartier, region)').eq('client_id', clientId).in('status', ['attente', 'en_cours']).order('created_at'),
+            supabase.from('transactions').select('*, stations(name)').eq('client_id', clientId).order('created_at', { ascending: false }),
+        ]);
+        setReservations(resData || []);
+        setMyTransactions(txData || []);
+    }, []);
+
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+        if (!account?.id) return;
+        loadActivity(account.id);
+        const refresh = () => loadActivity(account.id);
+        const interval = setInterval(refresh, 8000);
+        window.addEventListener('focus', refresh);
+        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); };
+    }, [account?.id, loadActivity]);
+
+    const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id); }, [account?.id, loadActivity]);
 
     const updateProfile = async (patch) => {
         if (!account) return;
@@ -87,7 +113,10 @@ export function ClientAccountProvider({ children }) {
     };
 
     return (
-        <ClientAccountContext.Provider value={{ account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation }}>
+        <ClientAccountContext.Provider value={{
+            account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation,
+            reservations, myTransactions, refreshActivity,
+        }}>
             {children}
         </ClientAccountContext.Provider>
     );

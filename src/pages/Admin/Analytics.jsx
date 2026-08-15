@@ -43,11 +43,10 @@ export default function Analytics() {
 
   const segments = ['Tous', 'Par Jour', 'Par Mois', 'Par Année'];
 
-  // `tx.id` est un timestamp `Date.now()` fiable (voir validatePayment /
-  // addStationTransaction) — contrairement à `tx.date` qui est un texte
-  // d'affichage ("Aujourd'hui, HH:MM") non filtrable par date réelle.
+  // `tx.createdAt` est l'horodatage réel (ISO) — contrairement à `tx.date` qui
+  // est un texte d'affichage ("Aujourd'hui, HH:MM") non filtrable par date réelle.
   const filteredTransactions = (transactions || []).filter((tx) => {
-    const txDate = new Date(tx.id);
+    const txDate = new Date(tx.createdAt);
     if (timeSegment === 'Par Jour') {
       const [y, m, d] = filterDay.split('-').map(Number);
       return txDate.getFullYear() === y && txDate.getMonth() + 1 === m && txDate.getDate() === d;

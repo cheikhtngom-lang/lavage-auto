@@ -4,18 +4,21 @@ import { Link } from 'react-router-dom';
 import { MapPin, Clock, Trash2, Building2, ArrowRight } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
-import { getVisitedStations, getStationOperationalProfile, isStationOpenNow, getStationRatingSummary } from '../../lib/stationData';
+import { getStationOperationalProfile, isStationOpenNow, getStationRatingSummary } from '../../lib/stationData';
 import { regionLabel } from '../../lib/regions';
 import { StarRatingDisplay } from '../../components/ui/StarRating';
 
 export default function MyStations() {
   const { stations: registry } = useSuperAdminState();
-  const { account, hideStation } = useClientAccount();
+  const { account, hideStation, reservations, myTransactions } = useClientAccount();
 
   const activeStations = (registry || []).filter(s => s.status !== 'suspendue');
   const hiddenIds = account?.hiddenStationIds || [];
-  const stations = getVisitedStations(activeStations, account?.name || '')
-    .filter(s => !hiddenIds.includes(s.id));
+  // "Visitée" = au moins une réservation active ou un paiement enregistré dans
+  // cette station — RLS ne rend visibles que MES propres lignes (reservations/
+  // transactions), donc pas besoin de parcourir tout le registre comme avant.
+  const visitedIds = new Set([...reservations.map(r => r.station_id), ...myTransactions.map(tx => tx.station_id)]);
+  const stations = activeStations.filter(s => visitedIds.has(s.id) && !hiddenIds.includes(s.id));
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl relative z-10">

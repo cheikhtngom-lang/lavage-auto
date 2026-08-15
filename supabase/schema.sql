@@ -317,12 +317,19 @@ create policy "reservations_insert" on public.reservations for insert
   with check (client_id = auth.uid() or station_id = current_station_id());
 create policy "reservations_update" on public.reservations for update
   using (station_id = current_station_id() or app_role() = 'super_admin');
+-- Suppression réservée à la station propriétaire (bouton "Vider l'historique"
+-- en Paramètres > Sécurité) — pas d'UPDATE côté transactions pour autant
+-- (immuables), seulement ce nettoyage global.
+create policy "reservations_delete" on public.reservations for delete
+  using (station_id = current_station_id() or app_role() = 'super_admin');
 
 -- transactions : immuables (pas de policy update/delete = interdit par défaut).
 create policy "transactions_select" on public.transactions for select
   using (station_id = current_station_id() or client_id = auth.uid() or app_role() = 'super_admin');
 create policy "transactions_insert" on public.transactions for insert
   with check (station_id = current_station_id() or client_id = auth.uid());
+create policy "transactions_delete" on public.transactions for delete
+  using (station_id = current_station_id() or app_role() = 'super_admin');
 
 -- station_reviews : lecture publique, un client ne poste que ses propres avis.
 create policy "reviews_select" on public.station_reviews for select
@@ -351,3 +358,43 @@ create policy "audit_log_all" on public.audit_log for all
 -- appareil regarde l'écran (file d'attente admin pendant qu'un client réserve).
 alter publication supabase_realtime add table public.reservations;
 alter publication supabase_realtime add table public.transactions;
+
+-- ══════════════════════════════════════════════════════════════════════
+-- Fonctions publiques agrégées (contournent volontairement RLS via
+-- SECURITY DEFINER) — un automobiliste qui compare des stations ou suit sa
+-- position doit voir "combien de monde attend", jamais QUI attend. Sans ça,
+-- reservations_select interdit toute lecture des réservations des AUTRES
+-- clients (comportement correct et volontaire, contrairement à l'ancien
+-- système localStorage qui n'avait aucune protection de ce type).
+-- ══════════════════════════════════════════════════════════════════════
+
+-- Compteurs + laveurs présents par station, pour l'annuaire public et
+-- l'estimation d'attente avant réservation.
+create or replace function public.station_public_stats()
+returns table(station_id uuid, waiting_count bigint, active_count bigint, active_employees bigint)
+language sql security definer stable
+set search_path = public
+as $$
+  select
+    s.id,
+    (select count(*) from public.reservations r where r.station_id = s.id and r.status = 'attente'),
+    (select count(*) from public.reservations r where r.station_id = s.id and r.status = 'en_cours'),
+    (select count(*) from public.employees e where e.station_id = s.id and e.daily_status = 'present')
+  from public.stations s;
+$$;
+grant execute on function public.station_public_stats() to anon, authenticated;
+
+-- Composition de la file de TOUTES les stations (catégorie/service/statut,
+-- jamais le nom du client ni le véhicule) — sert à calculer une position et
+-- un temps d'attente exacts, aussi bien pour un client qui réserve que pour
+-- celui qui suit son propre véhicule.
+create or replace function public.all_stations_queue_snapshot()
+returns table(id uuid, station_id uuid, status text, category text, service text, created_at timestamptz)
+language sql security definer stable
+set search_path = public
+as $$
+  select id, station_id, status, category, service, created_at
+  from public.reservations
+  where status in ('attente', 'en_cours');
+$$;
+grant execute on function public.all_stations_queue_snapshot() to anon, authenticated;

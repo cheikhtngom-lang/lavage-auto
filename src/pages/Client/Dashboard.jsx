@@ -7,14 +7,20 @@ import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import {
-  findClientReservations, getClientTransactions, estimateItemWaitTime,
+  getItemPosition, estimateItemWaitTime,
   addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile,
 } from '../../lib/stationData';
 import { downloadReceiptPdf } from '../../lib/receipt';
 import Pagination from '../../components/ui/Pagination';
 
-const POLL_INTERVAL_MS = 8000;
 const LOYALTY_DEFAULT_THRESHOLD = 5;
+
+function formatTxDate(iso) {
+  const d = new Date(iso);
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (d.toDateString() === new Date().toDateString()) return `Aujourd'hui, ${time}`;
+  return `${d.toLocaleDateString('fr-FR')}, ${time}`;
+}
 
 // Une carte de statut par véhicule actif — un client peut désormais avoir
 // jusqu'à MAX_ACTIVE_VEHICLES_PER_CLIENT réservations en même temps (voir
@@ -46,7 +52,7 @@ function LiveStatusCard({ reservation }) {
     return () => clearInterval(interval);
   }, [reservation.isWashing, reservation.item.id, reservation.item.startedAt, reservation.station.id]);
 
-  const estimatedWait = !reservation.isWashing ? estimateItemWaitTime(reservation.station.id, reservation.item.id) : 0;
+  const estimatedWait = !reservation.isWashing ? estimateItemWaitTime(reservation.station.id, reservation.item.createdAt) : 0;
 
   return (
     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="animated-border-card">
@@ -95,7 +101,7 @@ function LiveStatusCard({ reservation }) {
 
 export default function ClientOverview() {
   const navigate = useNavigate();
-  const { account } = useClientAccount();
+  const { account, reservations: myReservations, myTransactions: rawTransactions } = useClientAccount();
   const { stations: registry } = useSuperAdminState();
 
   const myName = account?.name || '';
@@ -104,8 +110,16 @@ export default function ClientOverview() {
 
   // Un client peut avoir plusieurs véhicules actifs en même temps (jusqu'à
   // MAX_ACTIVE_VEHICLES_PER_CLIENT — voir lib/stationData.js), donc on suit un
-  // tableau de réservations plutôt qu'une seule.
-  const [reservations, setReservations] = useState(() => findClientReservations(activeStations, myName));
+  // tableau de réservations plutôt qu'une seule. `myReservations` (déjà les
+  // siennes, via RLS) vient de useClientAccount, qui le rafraîchit toutes les
+  // 8s — la position/l'attente elles restent calculées ici via le cache
+  // anonymisé (stationData.js), puisqu'elles dépendent des AUTRES clients.
+  const reservations = myReservations.map((r) => ({
+    station: { id: r.station_id, name: r.stations?.name || 'Station' },
+    item: { id: r.id, vehicle: r.vehicle_label, service: r.service, category: r.category, startedAt: r.started_at, createdAt: r.created_at },
+    isWashing: r.status === 'en_cours',
+    position: r.status === 'en_cours' ? 0 : getItemPosition(r.station_id, r.created_at),
+  }));
   const [lastUpdated, setLastUpdated] = useState(Date.now());
   const [notifStatus, setNotifStatus] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
   const prevSignatures = useRef({}); // itemId -> signature, pour détecter les changements par véhicule
@@ -116,20 +130,7 @@ export default function ClientOverview() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  // Rafraîchit le statut : au montage, toutes les 8s, et instantanément si une
-  // autre fenêtre/onglet de ce navigateur modifie les données (ex: la station
-  // fait avancer la file). Pas de backend temps réel, mais ça reste vivant.
-  useEffect(() => {
-    const refresh = () => {
-      setReservations(findClientReservations(activeStations, myName));
-      setLastUpdated(Date.now());
-    };
-    refresh();
-    const interval = setInterval(refresh, POLL_INTERVAL_MS);
-    window.addEventListener('storage', refresh);
-    return () => { clearInterval(interval); window.removeEventListener('storage', refresh); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registry, myName]);
+  useEffect(() => { setLastUpdated(Date.now()); }, [myReservations]);
 
   // Notification navigateur sur les changements significatifs, par véhicule :
   // position qui devient 1 ou 2, ou passage en lavage. On ignore les absences
@@ -162,7 +163,10 @@ export default function ClientOverview() {
     Notification.requestPermission().then(setNotifStatus);
   };
 
-  const myTransactions = getClientTransactions(activeStations, myName).sort((a, b) => (b.id || 0) - (a.id || 0));
+  const myTransactions = rawTransactions.map((tx) => ({
+    id: tx.id, date: formatTxDate(tx.created_at), client: tx.client_name, vehicle: tx.vehicle_label,
+    service: tx.service, method: tx.method, amount: tx.amount, stationId: tx.station_id, stationName: tx.stations?.name || 'Station',
+  }));
   const totalPages = Math.max(1, Math.ceil(myTransactions.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginatedTransactions = myTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -182,9 +186,9 @@ export default function ClientOverview() {
   }).filter(Boolean).sort((a, b) => b.count - a.count);
 
   const openReview = (tx) => { setReviewingTx(tx); setReviewRating(0); setReviewComment(''); };
-  const submitReview = () => {
-    if (!reviewingTx || reviewRating === 0) return;
-    addStationReview(reviewingTx.stationId, { clientName: myName, rating: reviewRating, comment: reviewComment, transactionId: reviewingTx.id });
+  const submitReview = async () => {
+    if (!reviewingTx || reviewRating === 0 || !account) return;
+    await addStationReview(reviewingTx.stationId, { clientId: account.id, rating: reviewRating, comment: reviewComment, transactionId: reviewingTx.id });
     setReviewedFlags(prev => ({ ...prev, [`${reviewingTx.stationId}:${reviewingTx.id}`]: true }));
     setReviewingTx(null);
   };

@@ -7,8 +7,8 @@ import { useClientAccount } from '../../hooks/useClientAccount';
 import { getPricingCategory } from '../../lib/vehicleBrands';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
 import {
-  getStationQueue, getStationActiveWashes, addToStationQueue, addStationTransaction, getStationPricing, getStationOperationalProfile,
-  getStationPromo, isStationOpenNow, getStationRatingSummary, countClientActiveVehicles, MAX_ACTIVE_VEHICLES_PER_CLIENT,
+  getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, getStationPricing, getStationOperationalProfile,
+  getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
 import { SENEGAL_REGIONS, regionLabel } from '../../lib/regions';
@@ -120,7 +120,7 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
 
 export default function Stations() {
   const { stations: registry } = useSuperAdminState();
-  const { account, toggleFavorite, unhideStation } = useClientAccount();
+  const { account, toggleFavorite, unhideStation, reservations, refreshActivity } = useClientAccount();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -157,7 +157,7 @@ export default function Stations() {
   }, [onlyMotoSelected, service]);
   // Places encore disponibles pour ce client dans cette station, compte tenu de
   // ses véhicules déjà actifs (file + en lavage) — voir MAX_ACTIVE_VEHICLES_PER_CLIENT.
-  const activeVehiclesCount = (selectedStation && account) ? countClientActiveVehicles(selectedStation.id, account.name) : 0;
+  const activeVehiclesCount = selectedStation ? reservations.filter(r => r.station_id === selectedStation.id).length : 0;
   const remainingSlots = Math.max(0, MAX_ACTIVE_VEHICLES_PER_CLIENT - activeVehiclesCount);
   const maxSelectable = Math.min(MAX_ACTIVE_VEHICLES_PER_CLIENT, remainingSlots || MAX_ACTIVE_VEHICLES_PER_CLIENT);
 
@@ -185,10 +185,10 @@ export default function Stations() {
         quartier: s.quartier || '',
         region: s.region || '',
         open: isStationOpenNow(profile),
-        waitingCount: getStationQueue(s.id).filter(q => q.status === 'attente').length,
+        waitingCount: getStationWaitingCount(s.id),
         // Distinct de waitingCount : véhicules déjà en cours de lavage — sans ça,
         // un client voyait "0 en attente" alors que la station était occupée.
-        activeCount: getStationActiveWashes(s.id).length,
+        activeCount: getStationActiveCount(s.id),
         distanceKm,
         rating: getStationRatingSummary(s.id),
         promoMessage: isBannerActive(promo) ? promo.banner.message : null,
@@ -232,7 +232,7 @@ export default function Stations() {
   const handleReserveClick = () => {
     if (!selectedStation) return;
     if (account) {
-      const activeCount = countClientActiveVehicles(selectedStation.id, account.name);
+      const activeCount = reservations.filter(r => r.station_id === selectedStation.id).length;
       if (activeCount >= MAX_ACTIVE_VEHICLES_PER_CLIENT) {
         setModalStep('limit');
         return;
@@ -275,38 +275,36 @@ export default function Stations() {
   // fois le mode de paiement choisi (payé en ligne, ou à régler sur place).
   // Un `reservationGroupId` partagé relie les véhicules réservés ensemble,
   // pour que le tableau de bord station puisse les afficher groupés.
-  const finalizeReservation = ({ paid, method }) => {
+  const finalizeReservation = async ({ paid, method }) => {
     if (selectedVehicles.length === 0 || !account || !selectedStation) return;
     const reservationGroupId = selectedVehicles.length > 1 ? `RG-${Date.now()}` : null;
-    const waitingBefore = getStationQueue(selectedStation.id).filter(q => q.status === 'attente').length;
+    const waitingBefore = getStationWaitingCount(selectedStation.id);
 
-    const createdEntries = selectedVehicles.map((vehicle, idx) => {
+    const createdEntries = [];
+    for (let idx = 0; idx < selectedVehicles.length; idx++) {
+      const vehicle = selectedVehicles[idx];
       const vehicleLabel = `${vehicle.brand}${vehicle.plate ? ` (${vehicle.plate})` : ''}`;
       const category = getPricingCategory(vehicle.category);
+      // Prix figé à la réservation (réduction + code promo déjà appliqués),
+      // pour que l'encaissement sur place facture le même montant que celui
+      // affiché ici, même si la promo change ou expire entre-temps.
       const amount = priceForVehicle(vehicle);
-      addToStationQueue(selectedStation.id, {
-        client: account.name, vehicle: vehicleLabel, category, service, paid,
-        // Prix figé à la réservation (réduction + code promo déjà appliqués),
-        // pour que l'encaissement sur place facture le même montant que celui
-        // affiché ici, même si la promo change ou expire entre-temps.
-        amount,
+      const reservation = await createReservation(selectedStation.id, {
+        clientId: account.id, clientName: account.name, vehicleLabel, category, service, paid, amount,
         reservationGroupId, groupSize: selectedVehicles.length,
       });
-      return { vehicle: vehicleLabel, position: waitingBefore + idx + 1, amount };
-    });
+      if (paid) {
+        await recordClientTransaction(selectedStation.id, {
+          reservationId: reservation.id, clientId: account.id, clientName: account.name, vehicleLabel, service, method, amount,
+        });
+      }
+      createdEntries.push({ vehicle: vehicleLabel, position: waitingBefore + idx + 1, amount });
+    }
     unhideStation(selectedStation.id);
+    refreshActivity();
 
     const now = new Date();
     const dateLabel = now.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-    if (paid) {
-      const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      selectedVehicles.forEach((vehicle) => {
-        addStationTransaction(selectedStation.id, {
-          date: `Aujourd'hui, ${timeString}`, client: account.name, vehicle: `${vehicle.brand}${vehicle.plate ? ` (${vehicle.plate})` : ''}`,
-          service, method, amount: priceForVehicle(vehicle),
-        });
-      });
-    }
 
     const stationProfile = getStationOperationalProfile(selectedStation.id);
     setTicketInfo({
@@ -389,7 +387,7 @@ export default function Stations() {
     const match = allStations.find(s => String(s.id) === pendingId);
     if (match) {
       setSelectedStation(match);
-      const activeCount = countClientActiveVehicles(match.id, account.name);
+      const activeCount = reservations.filter(r => r.station_id === match.id).length;
       setModalStep(activeCount >= MAX_ACTIVE_VEHICLES_PER_CLIENT ? 'limit' : 'form');
       setSelectedVehicleIds([]);
       setService('Lavage Simple');

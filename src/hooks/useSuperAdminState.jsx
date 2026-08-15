@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { setStationsCache, setWashPricingCache } from '../lib/stationData';
+import { setStationsCache, setWashPricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 
 // Aucun litige/audit de démo — le Super Admin part d'un registre vide.
 // Litiges/audit/plans restent sur localStorage pour l'instant (pas encore
@@ -100,18 +100,39 @@ export function SuperAdminStateProvider({ children }) {
         setWashPricingCache(data || []);
     }, []);
 
+    // File d'attente anonymisée (aucun nom de client) + compteurs publics de
+    // TOUTES les stations — fonctions SQL dédiées (SECURITY DEFINER) car RLS
+    // interdit normalement à un client de lire les réservations des autres
+    // (voir supabase/schema.sql). Sert à afficher "3 en attente" et estimer un
+    // temps d'attente pour n'importe quelle station, sans exposer qui attend.
+    const loadQueueSnapshot = useCallback(async () => {
+        const [{ data: snapshot }, { data: stats }] = await Promise.all([
+            supabase.rpc('all_stations_queue_snapshot'),
+            supabase.rpc('station_public_stats'),
+        ]);
+        setQueueSnapshotCache(snapshot || []);
+        setPublicStatsCache(stats || []);
+    }, []);
+
+    const loadReviews = useCallback(async () => {
+        const { data } = await supabase.from('station_reviews').select('*');
+        setReviewsCache(data || []);
+    }, []);
+
     useEffect(() => {
         loadStations();
         loadClientAccounts();
         loadWashPricing();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); };
+        loadQueueSnapshot();
+        loadReviews();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); };
         window.addEventListener('focus', refresh);
-        const interval = setInterval(refresh, 15000);
+        const interval = setInterval(refresh, 8000);
         return () => {
             window.removeEventListener('focus', refresh);
             clearInterval(interval);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews]);
 
     const updateDisputes = (next) => { setDisputes(next); localStorage.setItem('saasDisputes', JSON.stringify(next)); };
     const updateAuditLog = (next) => { setAuditLog(next); localStorage.setItem('saasAuditLog', JSON.stringify(next)); };
