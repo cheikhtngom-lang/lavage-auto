@@ -186,11 +186,35 @@ export function AppStateProvider({ children }) {
     // seulement StationDashboard). Un id ne sonne qu'une fois — il ressort du
     // suivi dès qu'il quitte activeWashes (lavage terminé/annulé), donc il
     // pourrait re-sonner s'il redémarrait un jour.
+    //
+    // Un AudioContext créé (et jamais débloqué par un clic) démarre "suspended"
+    // dans la plupart des navigateurs — un son déclenché depuis un simple
+    // setInterval, sans qu'aucun clic n'ait eu lieu sur la page depuis son
+    // chargement, restait donc silencieux. On garde UN SEUL contexte partagé
+    // (pas un nouveau à chaque bip) et on le débloque dès le tout premier
+    // clic/touch/touche du gérant sur la page, plutôt que d'attendre le bip.
     const notifiedWashIds = useRef(new Set());
+    const audioCtxRef = useRef(null);
+    const getAudioCtx = () => {
+        if (!audioCtxRef.current) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return null;
+            audioCtxRef.current = new AC();
+        }
+        return audioCtxRef.current;
+    };
+    useEffect(() => {
+        const unlock = () => { getAudioCtx()?.resume().catch(() => {}); };
+        ['click', 'touchstart', 'keydown'].forEach((evt) => document.addEventListener(evt, unlock));
+        return () => ['click', 'touchstart', 'keydown'].forEach((evt) => document.removeEventListener(evt, unlock));
+    }, []);
+
     useEffect(() => {
         const playCompletionChime = () => {
             try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const ctx = getAudioCtx();
+                if (!ctx) return;
+                ctx.resume().catch(() => {});
                 const now = ctx.currentTime;
                 [880, 1108.73].forEach((freq, i) => {
                     const osc = ctx.createOscillator();
@@ -204,7 +228,7 @@ export function AppStateProvider({ children }) {
                     osc.start(now + i * 0.15);
                     osc.stop(now + i * 0.15 + 0.45);
                 });
-            } catch { /* AudioContext indisponible/bloqué (autoplay) — pas bloquant */ }
+            } catch { /* AudioContext indisponible — pas bloquant */ }
         };
 
         const checkCompletions = () => {
