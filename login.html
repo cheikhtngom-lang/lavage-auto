@@ -357,42 +357,23 @@
                 <div class="back-link" onclick="backToLoginFromForgot()">← Retour</div>
                 <h2 class="view-heading">Mot de passe oublié</h2>
 
-                <!-- Étape 1 : identifiant -->
+                <!-- Étape 1 : email -->
                 <div id="forgot-step-identifier" class="form-section visible">
-                    <p class="text-sm text-neutral-400 mb-5">Pas d'e-mail envoyé pour l'instant (pas encore de serveur mail) : saisissez votre identifiant, on vous laisse choisir un nouveau mot de passe directement.</p>
+                    <p class="text-sm text-neutral-400 mb-5">Saisissez votre email, on vous envoie un lien pour choisir un nouveau mot de passe.</p>
                     <form id="forgot-form-identifier" onsubmit="handleForgotIdentifier(event)">
                         <div class="mb-5">
-                            <label class="field-label">Email ou Identifiant</label>
-                            <input id="forgot-identifier" type="text" placeholder="votre@email.com" required class="input-field">
+                            <label class="field-label">Email</label>
+                            <input id="forgot-identifier" type="email" placeholder="votre@email.com" required class="input-field">
                         </div>
                         <p id="forgot-identifier-error" class="text-sm text-red-400 mb-4 hidden"></p>
-                        <button type="submit" class="btn-primary-blue">Continuer</button>
+                        <button type="submit" id="forgot-submit-btn" class="btn-primary-blue">Envoyer le lien</button>
                     </form>
                 </div>
 
-                <!-- Étape 2 : nouveau mot de passe -->
-                <div id="forgot-step-newpass" class="form-section">
-                    <p class="text-sm text-neutral-400 mb-5">Choisissez un nouveau mot de passe pour <span id="forgot-account-label" class="text-white font-medium"></span>.</p>
-                    <form id="forgot-form-newpass" onsubmit="handleForgotReset(event)">
-                        <div class="space-y-4 mb-5">
-                            <div>
-                                <label class="field-label">Nouveau mot de passe</label>
-                                <input id="forgot-new-password" type="password" placeholder="Min. 8 caractères" required class="input-field" minlength="8">
-                            </div>
-                            <div>
-                                <label class="field-label">Confirmer le mot de passe</label>
-                                <input id="forgot-new-password-confirm" type="password" placeholder="Répétez le mot de passe" required class="input-field">
-                            </div>
-                        </div>
-                        <p id="forgot-newpass-error" class="text-sm text-red-400 mb-4 hidden"></p>
-                        <button type="submit" class="btn-primary-blue">Réinitialiser le mot de passe</button>
-                    </form>
-                </div>
-
-                <!-- Étape 3 : confirmation -->
+                <!-- Étape 2 : confirmation -->
                 <div id="forgot-step-done" class="form-section">
                     <div class="badge-info text-center">
-                        ✅ Mot de passe mis à jour. Vous pouvez vous reconnecter.
+                        ✅ Email envoyé (si un compte existe avec cette adresse). Cliquez le lien reçu pour choisir un nouveau mot de passe.
                     </div>
                     <button type="button" class="btn-primary-blue mt-5" onclick="backToLoginFromForgot()">Retour à la connexion</button>
                 </div>
@@ -583,11 +564,11 @@
 
     <script type="module">
         import {
-            createClientAccount, verifyClientLogin, findClientAccount, resetClientPassword,
-            createStationAccount, verifyStationLogin, findStationByEmail, resetStationPassword,
-            setSession,
+            createClientAccount, createStationAccount, signIn, requestPasswordReset, setSession,
         } from '/src/lib/accounts.js';
         import { geocodeQuartierRegion } from '/src/lib/geocoding.js';
+
+        const ROLE_REDIRECT = { super_admin: '/superadmin', admin: '/admin/queue', automobiliste: '/dashboard' };
 
         // ============ ÉTAT ============
         let currentView = 'choice';        // 'choice' | 'login' | 'register' | 'forgot'
@@ -789,7 +770,7 @@
 
         // ============ MOT DE PASSE OUBLIÉ ============
         function showForgotStep(step) {
-            ['identifier', 'newpass', 'done'].forEach((s) => {
+            ['identifier', 'done'].forEach((s) => {
                 document.getElementById(`forgot-step-${s}`).classList.toggle('visible', s === step);
             });
         }
@@ -801,70 +782,44 @@
 
         function goToForgotPassword() {
             forgotRole = currentLoginRole;
-            forgotIdentifier = '';
             document.getElementById('forgot-form-identifier').reset();
-            document.getElementById('forgot-form-newpass').reset();
             document.getElementById('forgot-identifier-error').classList.add('hidden');
-            document.getElementById('forgot-newpass-error').classList.add('hidden');
             showForgotStep('identifier');
             showView('forgot');
         }
         window.goToForgotPassword = goToForgotPassword;
 
-        function handleForgotIdentifier(e) {
+        async function handleForgotIdentifier(e) {
             e.preventDefault();
-            const identifier = document.getElementById('forgot-identifier').value.trim();
+            const email = document.getElementById('forgot-identifier').value.trim();
             const errorEl = document.getElementById('forgot-identifier-error');
             errorEl.classList.add('hidden');
-
-            const account = forgotRole === 'admin' ? findStationByEmail(identifier) : findClientAccount(identifier);
-            if (!account) {
-                errorEl.textContent = 'Aucun compte trouvé avec cet identifiant.';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
-            forgotIdentifier = identifier;
-            document.getElementById('forgot-account-label').textContent = account.name;
-            showForgotStep('newpass');
-        }
-        window.handleForgotIdentifier = handleForgotIdentifier;
-
-        function handleForgotReset(e) {
-            e.preventDefault();
-            const password = document.getElementById('forgot-new-password').value;
-            const passwordConfirm = document.getElementById('forgot-new-password-confirm').value;
-            const errorEl = document.getElementById('forgot-newpass-error');
-            errorEl.classList.add('hidden');
-
-            if (password !== passwordConfirm) {
-                errorEl.textContent = 'Les mots de passe ne correspondent pas.';
-                errorEl.classList.remove('hidden');
-                return;
-            }
+            const btn = document.getElementById('forgot-submit-btn');
+            btn.disabled = true;
 
             try {
-                if (forgotRole === 'admin') {
-                    resetStationPassword(forgotIdentifier, password);
-                } else {
-                    resetClientPassword(forgotIdentifier, password);
-                }
+                await requestPasswordReset(email);
                 showForgotStep('done');
             } catch (err) {
                 errorEl.textContent = err.message;
                 errorEl.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
             }
         }
-        window.handleForgotReset = handleForgotReset;
+        window.handleForgotIdentifier = handleForgotIdentifier;
 
         // ============ CONNEXION ============
-        function handleLogin(e) {
+        // Le rôle affiché/redirigé vient de profiles.role (base de données),
+        // pas de l'onglet cliqué — currentLoginRole ne sert qu'à l'habillage visuel.
+        async function handleLogin(e) {
             e.preventDefault();
 
             const rememberMe = document.getElementById('remember-me').checked;
             const identifier = document.getElementById('login-identifier').value.trim();
             const password = document.getElementById('login-password').value;
             const errorEl = document.getElementById('login-error');
+            const submitBtn = document.getElementById('login-submit-btn');
             errorEl.classList.add('hidden');
 
             if (rememberMe) {
@@ -873,36 +828,27 @@
                 localStorage.removeItem('rememberedLogin');
             }
 
-            // Easter egg Superadmin
-            if (identifier.toLowerCase() === 'adminshewu' && password === '0000') {
-                setSession({ role: 'superadmin', remember: rememberMe });
-                window.location.href = '/superadmin';
-                return;
-            }
-
-            if (currentLoginRole === 'admin') {
-                const station = verifyStationLogin(identifier, password);
-                if (!station) {
-                    errorEl.textContent = 'Email ou mot de passe incorrect.';
-                    errorEl.classList.remove('hidden');
-                    return;
-                }
-                setSession({ role: 'admin', remember: rememberMe, stationId: station.id });
-                window.location.href = '/admin/queue';
-            } else {
-                const account = verifyClientLogin(identifier, password);
-                if (!account) {
-                    errorEl.textContent = 'Email ou mot de passe incorrect.';
-                    errorEl.classList.remove('hidden');
-                    return;
-                }
-                setSession({ role: 'client', remember: rememberMe, clientId: account.id });
-                window.location.href = returnToReserve ? '/stations' : '/dashboard';
+            submitBtn.disabled = true;
+            try {
+                const { profile } = await signIn(identifier, password);
+                setSession({
+                    role: profile.role,
+                    remember: rememberMe,
+                    clientId: profile.role === 'automobiliste' ? profile.id : undefined,
+                    stationId: profile.role === 'admin' ? profile.station_id : undefined,
+                });
+                const dest = profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role];
+                window.location.href = dest || '/dashboard';
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('hidden');
+            } finally {
+                submitBtn.disabled = false;
             }
         }
 
         // ============ INSCRIPTION AUTOMOBILISTE ============
-        function handleRegisterAuto(e) {
+        async function handleRegisterAuto(e) {
             e.preventDefault();
             const errorEl = document.getElementById('reg-auto-error');
             errorEl.classList.add('hidden');
@@ -921,8 +867,8 @@
             }
 
             try {
-                const account = createClientAccount({ firstName, lastName, email, phone, password });
-                setSession({ role: 'client', remember: true, clientId: account.id });
+                const account = await createClientAccount({ firstName, lastName, email, phone, password });
+                setSession({ role: 'automobiliste', remember: true, clientId: account.id });
                 window.location.href = returnToReserve ? '/stations' : '/dashboard';
             } catch (err) {
                 errorEl.textContent = err.message;
@@ -931,7 +877,7 @@
         }
 
         // ============ INSCRIPTION AGENCE ============
-        function handleRegisterAgence(e) {
+        async function handleRegisterAgence(e) {
             e.preventDefault();
             const errorEl = document.getElementById('reg-agence-error');
             errorEl.classList.add('hidden');
@@ -954,7 +900,7 @@
             }
 
             try {
-                const station = createStationAccount({ name, address, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat: stationLat, lng: stationLng });
+                const station = await createStationAccount({ name, address, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat: stationLat, lng: stationLng });
                 setSession({ role: 'admin', remember: true, stationId: station.id });
                 alert('🏪 Votre espace station a été créé ! Il est en attente de validation par notre équipe, mais vous pouvez déjà commencer à le configurer.');
                 window.location.href = '/admin/queue';

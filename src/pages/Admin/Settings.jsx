@@ -3,7 +3,8 @@ import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, 
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { getCurrentStationId, findStationByEmail } from '../../lib/accounts';
+import { getCurrentStationId } from '../../lib/accounts';
+import { supabase } from '../../lib/supabaseClient';
 import { SENEGAL_REGIONS } from '../../lib/regions';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
@@ -39,7 +40,7 @@ export default function Settings() {
   const { stations, updateStation } = useSuperAdminState();
   const navigate = useNavigate();
   const isNewStation = !stationProfile?.name || stationProfile.name.trim() === '';
-  const stationId = Number(getCurrentStationId());
+  const stationId = getCurrentStationId();
   const registryEntry = stations.find(s => s.id === stationId);
   const hasLocation = registryEntry?.lat != null && registryEntry?.lng != null;
 
@@ -53,6 +54,17 @@ export default function Settings() {
   const [duration, setDuration] = useState(durationConfig);
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(registryEntry?.loyaltyThreshold || 5);
   const [newEmp, setNewEmp] = useState({ name: '', phone: '', role: 'laveur', salary: '' });
+
+  // stationProfile/registryEntry se chargent désormais depuis Supabase (async) —
+  // ils sont vides au tout premier rendu, donc on resynchronise les formulaires
+  // locaux dès que les vraies données arrivent (une fois par station chargée).
+  useEffect(() => { setProfile(stationProfile); }, [stationProfile]);
+  useEffect(() => {
+    if (!registryEntry) return;
+    setLoyaltyThreshold(registryEntry.loyaltyThreshold || 5);
+    setLoginEmail(registryEntry.ownerEmail || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registryEntry?.id]);
   
   // States for CTAs
   const [isSaving, setIsSaving] = useState(false);
@@ -65,7 +77,7 @@ export default function Settings() {
   const [cleanReport, setCleanReport] = useState(null); // null | [] | ['msg1', 'msg2']
 
   // États pour le changement d'identifiants (email de connexion + mot de passe)
-  const [loginEmail, setLoginEmail] = useState(registryEntry?.loginEmail || '');
+  const [loginEmail, setLoginEmail] = useState(registryEntry?.ownerEmail || '');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
@@ -237,28 +249,17 @@ export default function Settings() {
 
   // Changement d'email de connexion et/ou de mot de passe — vérifie le mot de
   // passe actuel avant toute modification, comme côté espace automobiliste.
-  const handleChangeCredentials = (e) => {
+  // Le mot de passe actuel n'est jamais accessible côté client (Supabase Auth) —
+  // on le revérifie via une tentative de connexion avant tout changement.
+  const handleChangeCredentials = async (e) => {
     e.preventDefault();
     setCredentialsError('');
-
-    if (currentPassword !== registryEntry?.password) {
-      setCredentialsError('Mot de passe actuel incorrect.');
-      return;
-    }
 
     const trimmedEmail = loginEmail.trim();
     if (!trimmedEmail) {
       setCredentialsError("L'email de connexion ne peut pas être vide.");
       return;
     }
-    if (trimmedEmail.toLowerCase() !== registryEntry?.loginEmail?.toLowerCase()) {
-      const existing = findStationByEmail(trimmedEmail);
-      if (existing && existing.id !== stationId) {
-        setCredentialsError('Cet email de connexion est déjà utilisé par une autre station.');
-        return;
-      }
-    }
-
     if (newPassword || newPasswordConfirm) {
       if (newPassword.length < 8) {
         setCredentialsError('Le nouveau mot de passe doit contenir au moins 8 caractères.');
@@ -270,9 +271,21 @@ export default function Settings() {
       }
     }
 
-    const patch = { loginEmail: trimmedEmail };
-    if (newPassword) patch.password = newPassword;
-    updateStation(stationId, patch);
+    const { error: verifyError } = await supabase.auth.signInWithPassword({ email: registryEntry?.ownerEmail, password: currentPassword });
+    if (verifyError) {
+      setCredentialsError('Mot de passe actuel incorrect.');
+      return;
+    }
+
+    if (newPassword) {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) { setCredentialsError(error.message); return; }
+    }
+    if (trimmedEmail.toLowerCase() !== registryEntry?.ownerEmail?.toLowerCase()) {
+      const { error } = await supabase.auth.updateUser({ email: trimmedEmail });
+      if (error) { setCredentialsError(error.message); return; }
+      updateStation(stationId, { ownerEmail: trimmedEmail });
+    }
 
     setCurrentPassword('');
     setNewPassword('');

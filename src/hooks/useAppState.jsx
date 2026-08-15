@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getCurrentStationId } from '../lib/accounts';
+import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
 
@@ -63,8 +64,32 @@ export function AppStateProvider({ children }) {
     const [pricingConfig, setPricingConfig] = useState(() => loadNamespaced('washPricingConfig', stationId, defaultPricing));
     const [durationConfig, setDurationConfig] = useState(() => loadNamespaced('washDurationConfig', stationId, defaultDuration));
     const [promoConfig, setPromoConfig] = useState(() => loadNamespaced('promoConfig', stationId, DEFAULT_PROMO));
-    const [stationProfile, setStationProfile] = useState(() => loadNamespaced('stationProfile', stationId, defaultStationProfile));
     const [completedWashes, setCompletedWashes] = useState(() => loadNamespaced('completedWashes', stationId, []));
+
+    // Le profil de la station (nom, adresse, horaires...) est la même donnée
+    // que le registre Super Admin (table `stations`) — plus de copie locale
+    // séparée, pour ne jamais désynchroniser ce que voit l'admin de ce que
+    // voit le registre/l'annuaire public (voir supabase/schema.sql).
+    const [stationProfile, setStationProfile] = useState(defaultStationProfile);
+    const rowToProfile = (row) => ({
+        name: row?.name || '',
+        phone: row?.owner_phone || '',
+        address: row?.address || '',
+        quartier: row?.quartier || '',
+        region: row?.region || '',
+        openTime: row?.open_time || '08:00',
+        closeTime: row?.close_time || '20:00',
+        logo: row?.logo_url || null,
+        cachet: row?.cachet_url || null,
+    });
+    useEffect(() => {
+        if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); return; }
+        let cancelled = false;
+        supabase.from('stations').select('*').eq('id', stationId).single().then(({ data }) => {
+            if (!cancelled) setStationProfile(rowToProfile(data));
+        });
+        return () => { cancelled = true; };
+    }, [stationId]);
     // Historique de pointage par jour : { "2026-08-12": { [employeeId]: { name, role, dailyStatus, status, clockIn, clockOut, totalTime... } } }
     // Alimenté au fil de l'eau à chaque action de pointage du jour (voir recordDailyAttendance),
     // pour permettre de consulter qui a travaillé et combien d'heures à une date passée (page Laveurs).
@@ -142,7 +167,15 @@ export function AppStateProvider({ children }) {
     const updatePricing = (newP) => { setPricingConfig(newP); localStorage.setItem(keyFor('washPricingConfig', stationId), JSON.stringify(newP)); };
     const updateDuration = (newD) => { setDurationConfig(newD); localStorage.setItem(keyFor('washDurationConfig', stationId), JSON.stringify(newD)); };
     const updatePromo = (newPr) => { setPromoConfig(newPr); localStorage.setItem(keyFor('promoConfig', stationId), JSON.stringify(newPr)); };
-    const updateStationProfile = (newP) => { setStationProfile(newP); localStorage.setItem(keyFor('stationProfile', stationId), JSON.stringify(newP)); };
+    const updateStationProfile = (newP) => {
+        setStationProfile(newP);
+        if (!stationId || stationId === 'default') return;
+        supabase.from('stations').update({
+            name: newP.name, owner_phone: newP.phone, address: newP.address, quartier: newP.quartier,
+            region: newP.region, open_time: newP.openTime, close_time: newP.closeTime,
+            logo_url: newP.logo, cachet_url: newP.cachet,
+        }).eq('id', stationId).then(() => {});
+    };
     const updateCompletedWashes = (newC) => { setCompletedWashes(newC); localStorage.setItem(keyFor('completedWashes', stationId), JSON.stringify(newC)); };
 
     const addEmployee = (employeeData) => {
@@ -345,8 +378,9 @@ export function AppStateProvider({ children }) {
     // tarifs, employés, historique). Les autres stations et les registres
     // Super Admin / comptes automobilistes ne sont pas affectés.
     const resetStationCompletely = () => {
-        ['washQueue', 'activeWashes', 'washEmployees', 'washTransactions', 'washPricingConfig', 'washDurationConfig', 'stationProfile', 'completedWashes', 'attendanceHistory']
+        ['washQueue', 'activeWashes', 'washEmployees', 'washTransactions', 'washPricingConfig', 'washDurationConfig', 'completedWashes', 'attendanceHistory']
             .forEach(base => localStorage.removeItem(keyFor(base, stationId)));
+        updateStationProfile(defaultStationProfile);
         window.location.reload();
     };
 

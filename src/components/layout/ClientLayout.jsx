@@ -9,15 +9,17 @@ import { clearSession } from '../../lib/accounts';
 export default function ClientLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { account } = useClientAccount();
+  const { account, loading } = useClientAccount();
 
   // Pas de compte automobiliste connecté : direction la page de connexion
-  // (login.html — page statique hors du routeur React).
+  // (login.html — page statique hors du routeur React). On attend la fin du
+  // chargement Supabase avant de conclure à une absence de session, sinon
+  // un rafraîchissement de page redirige à tort pendant la première requête.
   useEffect(() => {
-    if (!account) {
+    if (!loading && !account) {
       window.location.href = '/login.html';
     }
-  }, [account]);
+  }, [loading, account]);
 
   const navigation = [
     { name: "Vue d'ensemble", href: '/dashboard', icon: LayoutDashboard },

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
-import { clearSession } from '../../lib/accounts';
+import { clearSession, getCurrentRole } from '../../lib/accounts';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -14,6 +14,15 @@ export default function AdminLayout() {
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
   const stationName = isConfigured ? stationProfile.name : '⚙️ Configurer';
   const impersonatingStation = sessionStorage.getItem('impersonatingStation');
+
+  // Accès réservé à un compte station connecté, ou à un Super Admin en train
+  // d'impersonner une station (voir impersonateStation dans useSuperAdminState).
+  useEffect(() => {
+    const role = getCurrentRole();
+    if (role !== 'admin' && !(role === 'super_admin' && impersonatingStation)) {
+      window.location.href = '/login.html';
+    }
+  }, [impersonatingStation]);
 
   const exitImpersonation = () => {
     sessionStorage.removeItem('impersonatingStation');

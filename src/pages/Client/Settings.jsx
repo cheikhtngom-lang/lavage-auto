@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, Phone, Lock, CheckCircle2 } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
+import { changePassword } from '../../lib/accounts';
 
 export default function Settings() {
   const { account, updateProfile } = useClientAccount();
@@ -22,14 +23,10 @@ export default function Settings() {
     setTimeout(() => setProfileSaved(false), 2500);
   };
 
-  const handleChangePassword = (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
     setPasswordError('');
 
-    if (currentPassword !== account?.password) {
-      setPasswordError('Mot de passe actuel incorrect.');
-      return;
-    }
     if (newPassword.length < 8) {
       setPasswordError('Le nouveau mot de passe doit contenir au moins 8 caractères.');
       return;
@@ -39,7 +36,13 @@ export default function Settings() {
       return;
     }
 
-    updateProfile({ password: newPassword });
+    try {
+      await changePassword(account?.email, currentPassword, newPassword);
+    } catch (err) {
+      setPasswordError(err.message);
+      return;
+    }
+
     setCurrentPassword('');
     setNewPassword('');
     setNewPasswordConfirm('');

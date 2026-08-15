@@ -28,7 +28,6 @@ import Analytics from './pages/Admin/Analytics';
 import Team from './pages/Admin/Team';
 import Washers from './pages/Admin/Washers';
 import Settings from './pages/Admin/Settings';
-
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';

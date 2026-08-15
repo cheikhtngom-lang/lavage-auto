@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Sparkles, Menu, X, BarChart3, Users, Settings as SettingsIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { clearSession } from '../../lib/accounts';
+import { clearSession, getCurrentRole } from '../../lib/accounts';
 
 export default function SuperAdminLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (getCurrentRole() !== 'super_admin') {
+      window.location.href = '/login.html';
+    }
+  }, []);
 
   const navigation = [
     { name: 'Vue d\'ensemble', href: '/superadmin', icon: LayoutDashboard },

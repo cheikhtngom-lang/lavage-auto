@@ -34,6 +34,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         dashboard: resolve(__dirname, 'dashboard.html'),
         login: resolve(__dirname, 'login.html'),
+        resetPassword: resolve(__dirname, 'reset-password.html'),
       }
     }
   }

@@ -1,141 +1,104 @@
-// Comptes locaux (automobilistes + stations) — en attendant un vrai backend (Firebase).
-// Persistés dans localStorage. Mots de passe stockés en clair : acceptable uniquement
-// pour cette phase de développement local, à remplacer par une vraie authentification
-// (hash, backend) au moment du branchement Firebase.
+// Authentification réelle via Supabase Auth (remplace l'ancien système
+// localStorage à mots de passe en clair). `role` d'un compte = celui de sa
+// ligne `profiles` ('super_admin' | 'admin' | 'automobiliste'), jamais choisi
+// côté client — voir supabase/schema.sql pour les policies RLS associées.
 //
-// Module sans dépendance React : importable aussi bien depuis login.html (script type="module")
-// que depuis les hooks React, pour éviter toute divergence entre les deux.
+// Module sans dépendance React : importable aussi bien depuis login.html
+// (script type="module") que depuis les hooks React.
+import { supabase } from './supabaseClient';
 
-const CLIENTS_KEY = 'clientAccounts';
-const STATIONS_KEY = 'saasStations';
+// ─── Inscription ────────────────────────────────────────────────────────
+export async function createClientAccount({ firstName, lastName, email, phone, password }) {
+  const fullName = `${firstName} ${lastName}`.trim();
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) throw new Error(error.message === 'User already registered' ? 'Un compte existe déjà avec cet email.' : error.message);
+  if (!data.user) throw new Error('Compte créé mais session indisponible — vérifiez les paramètres Auth du projet (confirmation email désactivée ?).');
 
-function readList(key) {
-  try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
-}
-function writeList(key, list) {
-  localStorage.setItem(key, JSON.stringify(list));
-}
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: data.user.id, role: 'automobiliste', full_name: fullName, email, phone: phone || '',
+  });
+  if (profileError) throw new Error(profileError.message);
 
-// ─── Comptes automobilistes ────────────────────────────────────────────────
-export function getClientAccounts() { return readList(CLIENTS_KEY); }
-export function saveClientAccounts(list) { writeList(CLIENTS_KEY, list); }
-
-export function findClientAccount(identifier) {
-  const norm = (identifier || '').trim().toLowerCase();
-  if (!norm) return null;
-  return getClientAccounts().find(
-    (c) => c.email?.toLowerCase() === norm || (c.phone && c.phone === identifier.trim())
-  ) || null;
+  return { id: data.user.id, name: fullName, email, phone: phone || '' };
 }
 
-export function createClientAccount({ firstName, lastName, email, phone, password }) {
-  if (findClientAccount(email)) {
-    throw new Error('Un compte existe déjà avec cet email.');
+export async function createStationAccount({ name, address, city, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat, lng }) {
+  const ownerName = `${ownerFirstName} ${ownerLastName}`.trim();
+  const { data, error } = await supabase.auth.signUp({ email: loginEmail, password });
+  if (error) throw new Error(error.message === 'User already registered' ? 'Un compte station existe déjà avec cet email.' : error.message);
+  if (!data.user) throw new Error('Compte créé mais session indisponible — vérifiez les paramètres Auth du projet (confirmation email désactivée ?).');
+
+  const { data: station, error: stationError } = await supabase.from('stations').insert({
+    created_by: data.user.id,
+    name, owner_name: ownerName, owner_email: loginEmail, owner_phone: phone || '',
+    address: address || '', city: city || '', quartier: quartier || '', region: region || '',
+    lat: typeof lat === 'number' ? lat : null, lng: typeof lng === 'number' ? lng : null,
+  }).select().single();
+  if (stationError) throw new Error(stationError.message);
+
+  const { error: profileError } = await supabase.from('profiles').insert({
+    id: data.user.id, role: 'admin', station_id: station.id, full_name: ownerName, email: loginEmail, phone: phone || '',
+  });
+  if (profileError) throw new Error(profileError.message);
+
+  return { id: station.id, name: station.name, ownerEmail: loginEmail };
+}
+
+// ─── Connexion ──────────────────────────────────────────────────────────
+// Le rôle vient de la base (profiles.role), pas de l'onglet cliqué dans
+// l'UI de login.html — ça évite de devoir dupliquer la logique de rôle
+// côté client et ça marche même si l'utilisateur clique le mauvais onglet.
+export async function signIn(identifier, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email: identifier, password });
+  if (error) {
+    if (error.message === 'Email not confirmed') {
+      throw new Error("Ce compte n'est pas confirmé — dans Supabase, Authentication > Users, confirmez-le manuellement ou recréez-le avec « Auto Confirm User » coché.");
+    }
+    throw new Error('Email ou mot de passe incorrect.');
   }
-  const accounts = getClientAccounts();
-  const id = accounts.length > 0 ? Math.max(...accounts.map((a) => a.id)) + 1 : 1;
-  const account = {
-    id,
-    name: `${firstName} ${lastName}`.trim(),
-    email,
-    phone: phone || '',
-    password,
-    vehicles: [],
-    favoriteStationIds: [],
-    createdAt: new Date().toISOString(),
-  };
-  saveClientAccounts([...accounts, account]);
-  return account;
-}
 
-export function verifyClientLogin(identifier, password) {
-  const account = findClientAccount(identifier);
-  return account && account.password === password ? account : null;
-}
-
-export function updateClientAccount(id, patch) {
-  const accounts = getClientAccounts();
-  const next = accounts.map((a) => (a.id === id ? { ...a, ...patch } : a));
-  saveClientAccounts(next);
-  return next.find((a) => a.id === id) || null;
-}
-
-// Pas d'e-mail de confirmation possible sans backend : réinitialisation directe,
-// cohérente avec le stockage en clair des mots de passe (voir en-tête du fichier).
-export function resetClientPassword(identifier, newPassword) {
-  const account = findClientAccount(identifier);
-  if (!account) throw new Error('Aucun compte trouvé avec cet identifiant.');
-  return updateClientAccount(account.id, { password: newPassword });
-}
-
-// ─── Comptes stations (registre partagé avec le Super Admin) ──────────────
-export function getStationAccounts() { return readList(STATIONS_KEY); }
-export function saveStationAccounts(list) { writeList(STATIONS_KEY, list); }
-
-export function findStationByEmail(email) {
-  const norm = (email || '').trim().toLowerCase();
-  if (!norm) return null;
-  return getStationAccounts().find((s) => s.loginEmail?.toLowerCase() === norm) || null;
-}
-
-export function createStationAccount({ name, address, city, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat, lng }) {
-  if (findStationByEmail(loginEmail)) {
-    throw new Error('Un compte station existe déjà avec cet email.');
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+  if (profileError || !profile) {
+    await supabase.auth.signOut();
+    throw new Error("Compte introuvable — contactez le support.");
   }
-  const stations = getStationAccounts();
-  const id = stations.length > 0 ? Math.max(...stations.map((s) => s.id)) + 1 : 1;
-  const station = {
-    id,
-    name,
-    ownerName: `${ownerFirstName} ${ownerLastName}`.trim(),
-    ownerEmail: loginEmail,
-    ownerPhone: phone || '',
-    address: address || '',
-    city: city || '',
-    quartier: quartier || '',
-    region: region || '',
-    lat: typeof lat === 'number' ? lat : null,
-    lng: typeof lng === 'number' ? lng : null,
-    status: 'en_attente',
-    plan: 'Starter',
-    subscriptionStatus: 'essai',
-    nextBillingDate: null,
-    clientsCount: 0,
-    joinedAt: new Date().toISOString(),
-    notes: '',
-    loginEmail,
-    password,
-  };
-  saveStationAccounts([station, ...stations]);
-
-  // Pré-remplit le profil opérationnel (useAppState) de cette station avec les
-  // infos déjà saisies à l'inscription, pour ne pas retomber sur "Configurer".
-  localStorage.setItem(`stationProfile_${id}`, JSON.stringify({
-    name, phone: phone || '', address: address || '', quartier: quartier || '', region: region || '', openTime: '08:00', closeTime: '20:00',
-  }));
-
-  return station;
+  return { user: data.user, profile };
 }
 
-export function verifyStationLogin(email, password) {
-  const station = findStationByEmail(email);
-  return station && station.password === password ? station : null;
+export async function signOutUser() {
+  await supabase.auth.signOut();
+  clearSession();
 }
 
-export function updateStationAccount(id, patch) {
-  const stations = getStationAccounts();
-  const next = stations.map((s) => (s.id === id ? { ...s, ...patch } : s));
-  saveStationAccounts(next);
-  return next.find((s) => s.id === id) || null;
+// ─── Mot de passe oublié (vrai flux email — remplace l'ancien reset direct
+// par identifiant, incompatible avec une authentification sécurisée) ─────
+export async function requestPasswordReset(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password.html`,
+  });
+  if (error) throw new Error(error.message);
 }
 
-export function resetStationPassword(email, newPassword) {
-  const station = findStationByEmail(email);
-  if (!station) throw new Error('Aucun compte station trouvé avec cet email.');
-  return updateStationAccount(station.id, { password: newPassword });
+// Appelé depuis reset-password.html, une fois la session de récupération
+// établie automatiquement par le lien reçu par email.
+export async function confirmPasswordReset(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
 }
 
-// ─── Session ────────────────────────────────────────────────────────────
+// Changement de mot de passe depuis un espace déjà connecté (Paramètres) —
+// revérifie le mot de passe actuel par une tentative de connexion, puisque
+// Supabase ne l'expose jamais côté client.
+export async function changePassword(email, currentPassword, newPassword) {
+  const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+  if (verifyError) throw new Error('Mot de passe actuel incorrect.');
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+}
+
+// ─── Session (cache léger du rôle/ids courants pour un accès synchrone
+// dans le reste de l'app — la vraie session d'auth est gérée par Supabase
+// lui-même dans son propre stockage, indépendamment de ces clés) ─────────
 export function setSession({ role, remember, clientId, stationId }) {
   const storage = remember ? localStorage : sessionStorage;
   const other = remember ? sessionStorage : localStorage;
@@ -153,11 +116,15 @@ export function clearSession() {
   });
 }
 
+export function getCurrentRole() {
+  return sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || null;
+}
+
 export function getCurrentStationId() {
   return sessionStorage.getItem('currentStationId') || localStorage.getItem('currentStationId') || 'default';
 }
 
+// UUID Supabase — ne plus le forcer en Number() (voir anciens usages).
 export function getCurrentClientId() {
-  const raw = sessionStorage.getItem('currentClientId') || localStorage.getItem('currentClientId');
-  return raw ? Number(raw) : null;
+  return sessionStorage.getItem('currentClientId') || localStorage.getItem('currentClientId') || null;
 }
