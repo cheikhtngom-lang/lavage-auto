@@ -395,11 +395,11 @@ grant execute on function public.station_public_stats() to anon, authenticated;
 -- un temps d'attente exacts, aussi bien pour un client qui réserve que pour
 -- celui qui suit son propre véhicule.
 create or replace function public.all_stations_queue_snapshot()
-returns table(id uuid, station_id uuid, status text, category text, service text, created_at timestamptz)
+returns table(id uuid, station_id uuid, status text, category text, service text, created_at timestamptz, started_at timestamptz)
 language sql security definer stable
 set search_path = public
 as $$
-  select id, station_id, status, category, service, created_at
+  select id, station_id, status, category, service, created_at, started_at
   from public.reservations
   where status in ('attente', 'en_cours');
 $$;

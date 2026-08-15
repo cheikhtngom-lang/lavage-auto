@@ -118,7 +118,14 @@ export function estimateItemWaitTime(stationId, itemCreatedAt) {
   let total = 0;
   queueSnapshot
     .filter((r) => r.station_id === stationId && r.status === 'en_cours')
-    .forEach((r) => { total += timeFor(r) / 2; });
+    .forEach((r) => {
+      // Temps RÉELLEMENT restant (durée - temps déjà écoulé depuis started_at),
+      // pas une estimation à plat — sinon un lavage commencé il y a 18 min sur
+      // 20 comptait encore pour 10 min restantes dans l'attente affichée au client.
+      const durationMin = timeFor(r);
+      const elapsedMin = r.started_at ? (Date.now() - new Date(r.started_at).getTime()) / 60000 : durationMin / 2;
+      total += Math.max(0, durationMin - elapsedMin);
+    });
   queueSnapshot
     .filter((r) => r.station_id === stationId && r.status === 'attente' && new Date(r.created_at).getTime() < t)
     .forEach((r) => { total += timeFor(r); });
