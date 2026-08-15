@@ -239,10 +239,19 @@ alter table public.audit_log enable row level security;
 
 -- stations : annuaire public pour les stations actives ; une station voit
 -- toujours sa propre fiche même "en_attente" (onboarding avant validation).
+-- `created_by = auth.uid()` est indispensable : à la création, le code lit la
+-- ligne juste insérée (`.select()`) AVANT que le profil admin (qui alimente
+-- current_station_id()) n'existe — sans cette clause, ce retour immédiat est
+-- invisible pour son propre créateur et Postgres annule l'insertion entière
+-- (RLS s'applique aussi à la clause RETURNING d'un INSERT).
 create policy "stations_select" on public.stations for select
-  using (status = 'active' or id = current_station_id() or app_role() = 'super_admin');
-create policy "stations_insert" on public.stations for insert to authenticated
-  with check (true);
+  using (status = 'active' or id = current_station_id() or created_by = auth.uid() or app_role() = 'super_admin');
+-- Le rôle Postgres "authenticated" ne s'est pas appliqué de façon fiable sur
+-- ce projet (cause non élucidée, possiblement lié aux clés JWT asymétriques) —
+-- `auth.uid() is not null` est un équivalent fonctionnel qui ne dépend que du
+-- contenu du JWT, pas du rôle de connexion PostgREST.
+create policy "stations_insert" on public.stations for insert
+  with check (auth.uid() is not null);
 create policy "stations_update" on public.stations for update
   using (id = current_station_id() or app_role() = 'super_admin');
 create policy "stations_delete" on public.stations for delete
