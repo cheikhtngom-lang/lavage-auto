@@ -24,7 +24,7 @@ export default function MainLayout() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
               <Droplets className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-xl tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400">O'Wash</span>
+            <span className="font-bold text-xl tracking-wide text-white">Clean Car <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-yellow-400 to-red-500">Galsen</span></span>
           </Link>
           
           <nav className="hidden md:flex gap-8 items-center">
@@ -82,14 +82,14 @@ export default function MainLayout() {
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center flex-shrink-0">
             <Droplets className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight text-white">O'Wash</span>
+          <span className="font-bold text-lg tracking-tight text-white">Clean Car Galsen</span>
         </div>
         <nav className="flex items-center justify-center gap-6 mb-4 text-neutral-400">
           <Link to="/" className="hover:text-white transition-colors">Accueil</Link>
           <Link to="/stations" className="hover:text-white transition-colors">Stations</Link>
           <Link to="/dashboard" className="hover:text-white transition-colors">Mon Suivi</Link>
         </nav>
-        <p>&copy; {new Date().getFullYear()} O'Wash. Tous droits réservés.</p>
+        <p>&copy; {new Date().getFullYear()} Clean Car Galsen. Tous droits réservés.</p>
       </footer>
     </div>
   );

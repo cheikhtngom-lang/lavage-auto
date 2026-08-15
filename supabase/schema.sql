@@ -1,4 +1,4 @@
--- O'Wash / Lavage Auto — schéma Supabase (Postgres + Auth + RLS)
+-- Clean Car Galsen / Lavage Auto — schéma Supabase (Postgres + Auth + RLS)
 -- À coller tel quel dans Supabase Dashboard > SQL Editor > New query > Run.
 -- Conçu pour repartir de zéro (aucune donnée localStorage existante à migrer).
 

@@ -1,4 +1,4 @@
-# robots.txt — O'Wash SaaS (gestionimmo.site)
+# robots.txt — Clean Car Galsen SaaS (gestionimmo.site)
 # Mis à jour : Août 2026
 
 # Autoriser tous les robots à explorer le site public
