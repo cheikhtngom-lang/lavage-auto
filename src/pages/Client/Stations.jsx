@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
@@ -387,12 +387,23 @@ export default function Stations() {
     );
   };
 
-  // Ouverture directe d'une station via ?stationId= (venu de la landing page)
+  // Ouverture directe d'une station via ?stationId= (venu de la landing page).
+  // `registry` est dans les dépendances pour retenter tant que la liste n'est
+  // pas encore chargée au premier rendu — mais il se rafraîchit ensuite par
+  // sondage toutes les 8s (voir useSuperAdminState), donc sans ce garde-fou
+  // openStationDetail() (qui remet modalStep à 'detail' et vide la sélection)
+  // se redéclenchait à chaque poll, éjectant le client de son formulaire en
+  // cours de remplissage — voire en pleine saisie du numéro Wave/Orange Money.
+  const autoOpenedStationIdRef = useRef(null);
   useEffect(() => {
     const stationId = searchParams.get('stationId');
     if (!stationId || allStations.length === 0) return;
+    if (autoOpenedStationIdRef.current === stationId) return;
     const match = allStations.find(s => String(s.id) === stationId);
-    if (match) openStationDetail(match);
+    if (match) {
+      openStationDetail(match);
+      autoOpenedStationIdRef.current = stationId;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, registry]);
 
