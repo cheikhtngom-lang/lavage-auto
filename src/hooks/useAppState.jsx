@@ -210,24 +210,37 @@ export function AppStateProvider({ children }) {
     }, []);
 
     useEffect(() => {
+        // Bips courts, aigus (onde carrée, plus perçante qu'un sinus) et répétés
+        // par salves — pensé pour porter à travers la vitre d'un véhicule,
+        // pas pour être agréable (un "ding" doux ne s'entend pas de dehors).
         const playCompletionChime = () => {
             try {
                 const ctx = getAudioCtx();
                 if (!ctx) return;
                 ctx.resume().catch(() => {});
                 const now = ctx.currentTime;
-                [880, 1108.73].forEach((freq, i) => {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.value = freq;
-                    gain.gain.setValueAtTime(0, now + i * 0.15);
-                    gain.gain.linearRampToValueAtTime(0.3, now + i * 0.15 + 0.02);
-                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
-                    osc.connect(gain).connect(ctx.destination);
-                    osc.start(now + i * 0.15);
-                    osc.stop(now + i * 0.15 + 0.45);
-                });
+                const freq = 2800;
+                const beepDuration = 0.1;
+                const beepGap = 0.08;
+                const beepsPerRound = 3;
+                const roundGap = 0.3;
+                const rounds = 2;
+                for (let round = 0; round < rounds; round++) {
+                    for (let beep = 0; beep < beepsPerRound; beep++) {
+                        const t = now + round * (beepsPerRound * (beepDuration + beepGap) + roundGap) + beep * (beepDuration + beepGap);
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'square';
+                        osc.frequency.value = freq;
+                        gain.gain.setValueAtTime(0, t);
+                        gain.gain.linearRampToValueAtTime(0.5, t + 0.008);
+                        gain.gain.setValueAtTime(0.5, t + beepDuration - 0.015);
+                        gain.gain.linearRampToValueAtTime(0, t + beepDuration);
+                        osc.connect(gain).connect(ctx.destination);
+                        osc.start(t);
+                        osc.stop(t + beepDuration + 0.01);
+                    }
+                }
             } catch { /* AudioContext indisponible — pas bloquant */ }
         };
 
