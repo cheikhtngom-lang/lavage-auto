@@ -528,6 +528,35 @@ export default function Settings() {
                     )}
                   </div>
                 </form>
+
+                <h2 className="text-2xl font-bold text-white mt-10 mb-2 flex items-center gap-2"><Lock className="w-5 h-5 text-blue-400" /> Changer mot de passe</h2>
+                <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">Le mot de passe actuel est requis pour confirmer le changement.</p>
+                <form onSubmit={handleChangeCredentials} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Ancien mot de passe</label>
+                    <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Nouveau mot de passe</label>
+                    <input type="password" required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Confirmer mot de passe</label>
+                    <input type="password" required value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                  </div>
+                  {credentialsError && <p className="text-sm text-red-400">{credentialsError}</p>}
+                  <div className="flex items-center gap-3 pt-2">
+                    <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl transition-colors">
+                      Changer le mot de passe
+                    </button>
+                    {credentialsSaved && (
+                      <span className="text-sm text-emerald-400 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Mot de passe mis à jour</span>
+                    )}
+                  </div>
+                </form>
               </CardContent>
             </Card>
           )}
