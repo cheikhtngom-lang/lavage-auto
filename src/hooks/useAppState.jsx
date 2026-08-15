@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getCurrentStationId } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
@@ -179,6 +179,56 @@ export function AppStateProvider({ children }) {
         });
         return () => { cancelled = true; };
     }, [stationId]);
+
+    // Alerte sonore : bipe une fois quand un lavage en cours dépasse sa durée
+    // estimée, pour prévenir le gérant même s'il n'a pas l'onglet "File
+    // d'attente" ouvert (ce provider tourne sur toutes les pages admin, pas
+    // seulement StationDashboard). Un id ne sonne qu'une fois — il ressort du
+    // suivi dès qu'il quitte activeWashes (lavage terminé/annulé), donc il
+    // pourrait re-sonner s'il redémarrait un jour.
+    const notifiedWashIds = useRef(new Set());
+    useEffect(() => {
+        const playCompletionChime = () => {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const now = ctx.currentTime;
+                [880, 1108.73].forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0, now + i * 0.15);
+                    gain.gain.linearRampToValueAtTime(0.3, now + i * 0.15 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
+                    osc.connect(gain).connect(ctx.destination);
+                    osc.start(now + i * 0.15);
+                    osc.stop(now + i * 0.15 + 0.45);
+                });
+            } catch { /* AudioContext indisponible/bloqué (autoplay) — pas bloquant */ }
+        };
+
+        const checkCompletions = () => {
+            const activeIds = new Set(activeWashes.map((w) => w.id));
+            for (const id of notifiedWashIds.current) {
+                if (!activeIds.has(id)) notifiedWashIds.current.delete(id);
+            }
+            activeWashes.forEach((item) => {
+                if (!item.startedAt || notifiedWashIds.current.has(item.id)) return;
+                const cat = item.category || 'Particulier';
+                const minutes = (durationConfig[cat] && durationConfig[cat][item.service]) ? durationConfig[cat][item.service] : 30;
+                const totalSeconds = Math.max(0, Math.round(minutes * 60));
+                const elapsed = Math.floor((Date.now() - new Date(item.startedAt).getTime()) / 1000);
+                if (elapsed >= totalSeconds) {
+                    notifiedWashIds.current.add(item.id);
+                    playCompletionChime();
+                }
+            });
+        };
+        checkCompletions();
+        const interval = setInterval(checkCompletions, 5000);
+        return () => clearInterval(interval);
+    }, [activeWashes, durationConfig]);
+
     // Historique de pointage par jour : { "2026-08-12": { [employeeId]: { name, role, dailyStatus, status, clockIn, clockOut, totalTime... } } }
     // Alimenté au fil de l'eau à chaque action de pointage du jour (voir recordDailyAttendance),
     // pour permettre de consulter qui a travaillé et combien d'heures à une date passée (page Laveurs).
