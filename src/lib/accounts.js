@@ -46,6 +46,11 @@ export async function createStationAccount({ name, address, city, quartier, regi
     name, owner_name: ownerName, owner_email: loginEmail, owner_phone: phone || '',
     address: address || '', city: city || '', quartier: quartier || '', region: region || '',
     lat: typeof lat === 'number' ? lat : null, lng: typeof lng === 'number' ? lng : null,
+    // Visible immédiatement dans l'annuaire public — pas de validation manuelle
+    // préalable par le Super Admin (qui est aussi le seul développeur pour
+    // l'instant, ça créait une friction inutile en phase de lancement).
+    // Le Super Admin garde "Suspendre" pour retirer une station a posteriori.
+    status: 'active',
   }).select().single();
   if (stationError) throw new Error(stationError.message);
 
