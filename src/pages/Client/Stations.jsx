@@ -745,21 +745,21 @@ export default function Stations() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-              className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600/30 to-emerald-500/30 p-6 text-center border-b border-white/10">
+              className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="bg-gradient-to-r from-blue-600/30 to-emerald-500/30 p-4 text-center border-b border-white/10">
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
-                  className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                  className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto mb-2">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                 </motion.div>
-                <h2 className="text-xl font-bold text-white mb-1">{ticketInfo.vehicles.length > 1 ? 'Réservations confirmées !' : 'Réservation confirmée !'}</h2>
-                <p className="text-neutral-400 text-sm">{ticketInfo.vehicles.length > 1 ? `${ticketInfo.vehicles.length} places sont réservées` : 'Votre place est réservée'}</p>
+                <h2 className="text-lg font-bold text-white mb-1">{ticketInfo.vehicles.length > 1 ? 'Réservations confirmées !' : 'Réservation confirmée !'}</h2>
+                <p className="text-neutral-400 text-xs">{ticketInfo.vehicles.length > 1 ? `${ticketInfo.vehicles.length} places sont réservées` : 'Votre place est réservée'}</p>
               </div>
-              <div className="p-6">
-                <div className="text-center mb-5">
+              <div className="p-4">
+                <div className="text-center mb-3">
                   <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold mb-1">Numéro de ticket</p>
-                  <p className="text-3xl font-bold font-mono text-blue-400 tracking-wider">{ticketInfo.ticketNumber}</p>
+                  <p className="text-2xl font-bold font-mono text-blue-400 tracking-wider">{ticketInfo.ticketNumber}</p>
                 </div>
-                <div className="space-y-2.5 border-t border-white/10 py-4 mb-4">
+                <div className="space-y-2 border-t border-white/10 py-3 mb-3">
                   {[
                     { label: 'Station', value: ticketInfo.station },
                     { label: 'Client', value: ticketInfo.client },
@@ -769,31 +769,31 @@ export default function Stations() {
                     <div key={row.label} className="flex justify-between text-sm"><span className="text-neutral-400">{row.label}</span><span className={`font-medium ${row.accent || 'text-white'}`}>{row.value}</span></div>
                   ))}
                 </div>
-                <div className="space-y-2 border-b border-white/10 pb-4 mb-4">
+                <div className="space-y-2 border-b border-white/10 pb-3 mb-3">
                   {ticketInfo.vehicles.map((v) => (
-                    <div key={v.vehicle} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+                    <div key={v.vehicle} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2">
                       <span className="text-white text-sm font-medium truncate pr-2">{v.vehicle}</span>
                       <span className="text-blue-400 text-xs font-bold bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-md whitespace-nowrap">n{String.fromCharCode(176)}{v.position}</span>
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-1 gap-3 mb-6">
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
-                    <p className="text-3xl font-bold text-emerald-400">~{ticketInfo.estimatedWait}</p>
+                <div className="grid grid-cols-1 gap-3 mb-4">
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+                    <p className="text-2xl font-bold text-emerald-400">~{ticketInfo.estimatedWait}</p>
                     <p className="text-xs text-neutral-500 mt-1">Minutes d&apos;attente estimée</p>
                   </div>
                 </div>
                 {ticketInfo.paid && (
                   <button onClick={handleDownloadReceipt}
-                    className="w-full mb-3 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors font-bold text-sm flex items-center justify-center gap-2">
+                    className="w-full mb-2.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors font-bold text-sm flex items-center justify-center gap-2">
                     <Download className="w-4 h-4" /> Télécharger le reçu (PDF)
                   </button>
                 )}
                 <div className="flex gap-3">
                   <button onClick={() => setShowTicket(false)}
-                    className="flex-1 py-3 rounded-xl border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-sm">Fermer</button>
+                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-sm">Fermer</button>
                   <button onClick={() => { setShowTicket(false); navigate('/dashboard'); }}
-                    className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all flex items-center justify-center gap-2 text-sm">
+                    className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all flex items-center justify-center gap-2 text-sm">
                     <Droplets className="w-4 h-4" /> Suivre en direct
                   </button>
                 </div>
