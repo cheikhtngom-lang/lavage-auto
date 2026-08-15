@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { setStationsCache, setWashPricingCache } from '../lib/stationData';
 
 // Aucun litige/audit de démo — le Super Admin part d'un registre vide.
 // Litiges/audit/plans restent sur localStorage pour l'instant (pas encore
@@ -31,6 +32,11 @@ const rowToStation = (row) => ({
     lng: row.lng,
     status: row.status,
     loyaltyThreshold: row.loyalty_threshold ?? 5,
+    openTime: row.open_time,
+    closeTime: row.close_time,
+    logo: row.logo_url,
+    cachet: row.cachet_url,
+    promoConfig: row.promo_config || {},
     joinedAt: row.created_at,
     plan: row.station_billing?.plan || 'Starter',
     subscriptionStatus: row.station_billing?.subscription_status || 'essai',
@@ -76,7 +82,9 @@ export function SuperAdminStateProvider({ children }) {
 
     const loadStations = useCallback(async () => {
         const { data } = await supabase.from('stations').select('*, station_billing(*)').order('created_at', { ascending: false });
-        setStations((data || []).map(rowToStation));
+        const mapped = (data || []).map(rowToStation);
+        setStations(mapped);
+        setStationsCache(mapped);
     }, []);
 
     const loadClientAccounts = useCallback(async () => {
@@ -84,17 +92,26 @@ export function SuperAdminStateProvider({ children }) {
         setClientAccounts((data || []).map(rowToClientAccount));
     }, []);
 
+    // Grille tarifaire de TOUTES les stations (lecture publique) — alimente le
+    // cache lu par stationData.js (comparaison de prix/durée côté client, pour
+    // n'importe quelle station, pas seulement "ma" station admin).
+    const loadWashPricing = useCallback(async () => {
+        const { data } = await supabase.from('wash_pricing').select('*');
+        setWashPricingCache(data || []);
+    }, []);
+
     useEffect(() => {
         loadStations();
         loadClientAccounts();
-        const refresh = () => { loadStations(); loadClientAccounts(); };
+        loadWashPricing();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); };
         window.addEventListener('focus', refresh);
         const interval = setInterval(refresh, 15000);
         return () => {
             window.removeEventListener('focus', refresh);
             clearInterval(interval);
         };
-    }, [loadStations, loadClientAccounts]);
+    }, [loadStations, loadClientAccounts, loadWashPricing]);
 
     const updateDisputes = (next) => { setDisputes(next); localStorage.setItem('saasDisputes', JSON.stringify(next)); };
     const updateAuditLog = (next) => { setAuditLog(next); localStorage.setItem('saasAuditLog', JSON.stringify(next)); };

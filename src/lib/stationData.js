@@ -3,8 +3,13 @@
 // consulte des données qui ne sont pas forcément celles de la session active
 // (useAppState ne représente que "ma" station, côté admin connecté).
 //
-// Mêmes clés localStorage que useAppState.jsx (`${base}_${stationId}`) —
-// à garder synchronisé si ce format change.
+// File/transactions/employés/avis restent en localStorage pour l'instant
+// (mêmes clés que useAppState.jsx, `${base}_${stationId}`) — prochaine étape
+// de la migration Supabase. Profil/tarifs/promo sont déjà sur Supabase (voir
+// [[backend_migration]]) : plutôt que de rendre chaque fonction ci-dessous
+// asynchrone (gros impact sur tous les appelants), useSuperAdminState.jsx
+// alimente un cache module-level via setStationsCache/setWashPricingCache à
+// chaque rafraîchissement, lu ici de façon synchrone comme avant.
 
 import { DEFAULT_PRICING, DEFAULT_DURATION } from './washDefaults';
 import { DEFAULT_PROMO } from './promoDefaults';
@@ -16,6 +21,24 @@ function writeList(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 const sameClient = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+
+// ─── Cache Supabase (alimenté par useSuperAdminState.jsx) ───────────────
+let stationsCache = {};
+let pricingCache = {};
+
+export function setStationsCache(stations) {
+  stationsCache = {};
+  (stations || []).forEach((s) => { stationsCache[s.id] = s; });
+}
+
+export function setWashPricingCache(rows) {
+  pricingCache = {};
+  (rows || []).forEach((row) => {
+    const entry = (pricingCache[row.station_id] ||= { pricing: {}, duration: {} });
+    (entry.pricing[row.category] ||= {})[row.service] = row.price;
+    (entry.duration[row.category] ||= {})[row.service] = row.duration_minutes;
+  });
+}
 
 // Un automobiliste ne peut pas avoir plus de N véhicules actifs (en file
 // d'attente OU en lavage) en même temps dans une même station. Une fois qu'un
@@ -38,7 +61,7 @@ export function getStationEmployees(stationId) {
   return readList(`washEmployees_${stationId}`, []);
 }
 export function getStationDurationConfig(stationId) {
-  return readList(`washDurationConfig_${stationId}`, DEFAULT_DURATION);
+  return pricingCache[stationId]?.duration || DEFAULT_DURATION;
 }
 
 export function addToStationQueue(stationId, washData) {
@@ -59,15 +82,20 @@ export function addStationTransaction(stationId, tx) {
 }
 
 export function getStationOperationalProfile(stationId) {
-  return readList(`stationProfile_${stationId}`, null);
+  const s = stationsCache[stationId];
+  if (!s) return null;
+  return {
+    name: s.name, phone: s.ownerPhone, address: s.address, quartier: s.quartier, region: s.region,
+    openTime: s.openTime, closeTime: s.closeTime, logo: s.logo, cachet: s.cachet,
+  };
 }
 
 export function getStationPricing(stationId) {
-  return readList(`washPricingConfig_${stationId}`, DEFAULT_PRICING);
+  return pricingCache[stationId]?.pricing || DEFAULT_PRICING;
 }
 
 export function getStationPromo(stationId) {
-  return readList(`promoConfig_${stationId}`, DEFAULT_PROMO);
+  return stationsCache[stationId]?.promoConfig || DEFAULT_PROMO;
 }
 
 // Une station sans horaires configurés est considérée ouverte par défaut

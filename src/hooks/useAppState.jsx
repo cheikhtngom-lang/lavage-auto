@@ -61,9 +61,6 @@ export function AppStateProvider({ children }) {
     const [activeWashes, setActiveWashes] = useState(() => loadNamespaced('activeWashes', stationId, []));
     const [employees, setEmployees] = useState(() => loadNamespaced('washEmployees', stationId, defaultEmployees));
     const [transactions, setTransactions] = useState(() => loadNamespaced('washTransactions', stationId, []));
-    const [pricingConfig, setPricingConfig] = useState(() => loadNamespaced('washPricingConfig', stationId, defaultPricing));
-    const [durationConfig, setDurationConfig] = useState(() => loadNamespaced('washDurationConfig', stationId, defaultDuration));
-    const [promoConfig, setPromoConfig] = useState(() => loadNamespaced('promoConfig', stationId, DEFAULT_PROMO));
     const [completedWashes, setCompletedWashes] = useState(() => loadNamespaced('completedWashes', stationId, []));
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
@@ -71,6 +68,9 @@ export function AppStateProvider({ children }) {
     // séparée, pour ne jamais désynchroniser ce que voit l'admin de ce que
     // voit le registre/l'annuaire public (voir supabase/schema.sql).
     const [stationProfile, setStationProfile] = useState(defaultStationProfile);
+    // Bandeau promo / réduction / code promo — même principe : colonne
+    // `promo_config` de la même ligne `stations`, plus de copie locale séparée.
+    const [promoConfig, setPromoConfig] = useState(DEFAULT_PROMO);
     const rowToProfile = (row) => ({
         name: row?.name || '',
         phone: row?.owner_phone || '',
@@ -83,10 +83,35 @@ export function AppStateProvider({ children }) {
         cachet: row?.cachet_url || null,
     });
     useEffect(() => {
-        if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); return; }
+        if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); return; }
         let cancelled = false;
         supabase.from('stations').select('*').eq('id', stationId).single().then(({ data }) => {
-            if (!cancelled) setStationProfile(rowToProfile(data));
+            if (cancelled) return;
+            setStationProfile(rowToProfile(data));
+            setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
+        });
+        return () => { cancelled = true; };
+    }, [stationId]);
+
+    // Grille tarifaire + durées — une ligne par (catégorie, service) dans
+    // `wash_pricing` au lieu de deux blobs JSON séparés (voir supabase/schema.sql).
+    const [pricingConfig, setPricingConfig] = useState(defaultPricing);
+    const [durationConfig, setDurationConfig] = useState(defaultDuration);
+    useEffect(() => {
+        if (!stationId || stationId === 'default') { setPricingConfig(defaultPricing); setDurationConfig(defaultDuration); return; }
+        let cancelled = false;
+        supabase.from('wash_pricing').select('*').eq('station_id', stationId).then(({ data }) => {
+            if (cancelled) return;
+            if (!data || data.length === 0) { setPricingConfig(defaultPricing); setDurationConfig(defaultDuration); return; }
+            const pricing = {};
+            const duration = {};
+            Object.keys(defaultPricing).forEach((cat) => { pricing[cat] = { ...defaultPricing[cat] }; duration[cat] = { ...defaultDuration[cat] }; });
+            data.forEach((row) => {
+                (pricing[row.category] ||= {})[row.service] = row.price;
+                (duration[row.category] ||= {})[row.service] = row.duration_minutes;
+            });
+            setPricingConfig(pricing);
+            setDurationConfig(duration);
         });
         return () => { cancelled = true; };
     }, [stationId]);
@@ -164,9 +189,35 @@ export function AppStateProvider({ children }) {
         });
     };
     const updateTransactions = (newT) => { setTransactions(newT); localStorage.setItem(keyFor('washTransactions', stationId), JSON.stringify(newT)); };
-    const updatePricing = (newP) => { setPricingConfig(newP); localStorage.setItem(keyFor('washPricingConfig', stationId), JSON.stringify(newP)); };
-    const updateDuration = (newD) => { setDurationConfig(newD); localStorage.setItem(keyFor('washDurationConfig', stationId), JSON.stringify(newD)); };
-    const updatePromo = (newPr) => { setPromoConfig(newPr); localStorage.setItem(keyFor('promoConfig', stationId), JSON.stringify(newPr)); };
+
+    // Une ligne par (catégorie, service) touché — fusionne toujours prix ET
+    // durée dans le même upsert (les deux colonnes sont NOT NULL), en prenant
+    // la valeur de l'autre config depuis l'état courant quand un seul des deux
+    // formulaires (Grille Tarifaire / Temps Estimés) vient d'être sauvegardé.
+    const syncWashPricing = (pricing, duration) => {
+        if (!stationId || stationId === 'default') return;
+        const categories = new Set([...Object.keys(pricing || {}), ...Object.keys(duration || {})]);
+        const rows = [];
+        categories.forEach((category) => {
+            const services = new Set([...Object.keys(pricing?.[category] || {}), ...Object.keys(duration?.[category] || {})]);
+            services.forEach((service) => {
+                rows.push({
+                    station_id: stationId, category, service,
+                    price: pricing?.[category]?.[service] ?? 0,
+                    duration_minutes: duration?.[category]?.[service] ?? 30,
+                });
+            });
+        });
+        if (rows.length === 0) return;
+        supabase.from('wash_pricing').upsert(rows, { onConflict: 'station_id,category,service' }).then(() => {});
+    };
+    const updatePricing = (newP) => { setPricingConfig(newP); syncWashPricing(newP, durationConfig); };
+    const updateDuration = (newD) => { setDurationConfig(newD); syncWashPricing(pricingConfig, newD); };
+    const updatePromo = (newPr) => {
+        setPromoConfig(newPr);
+        if (!stationId || stationId === 'default') return;
+        supabase.from('stations').update({ promo_config: newPr }).eq('id', stationId).then(() => {});
+    };
     const updateStationProfile = (newP) => {
         setStationProfile(newP);
         if (!stationId || stationId === 'default') return;
@@ -378,9 +429,13 @@ export function AppStateProvider({ children }) {
     // tarifs, employés, historique). Les autres stations et les registres
     // Super Admin / comptes automobilistes ne sont pas affectés.
     const resetStationCompletely = () => {
-        ['washQueue', 'activeWashes', 'washEmployees', 'washTransactions', 'washPricingConfig', 'washDurationConfig', 'completedWashes', 'attendanceHistory']
+        ['washQueue', 'activeWashes', 'washEmployees', 'washTransactions', 'completedWashes', 'attendanceHistory']
             .forEach(base => localStorage.removeItem(keyFor(base, stationId)));
         updateStationProfile(defaultStationProfile);
+        if (stationId && stationId !== 'default') {
+            supabase.from('wash_pricing').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('stations').update({ promo_config: {} }).eq('id', stationId).then(() => {});
+        }
         window.location.reload();
     };
 
