@@ -38,10 +38,15 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
 
   const setCategory = (category) => setNewVehicle({ category, brand: '', plate: newVehicle.plate });
 
-  const handleAddVehicle = (e) => {
+  const handleAddVehicle = async (e) => {
     e.preventDefault();
     if (!newVehicle.category || !newVehicle.brand || !newVehicle.plate.trim()) return;
-    const created = addVehicle({ category: newVehicle.category, brand: newVehicle.brand, plate: newVehicle.plate.trim() });
+    // addVehicle() est async (écriture Supabase) — sans ce await, onVehicleCreated
+    // recevait la Promise elle-même au lieu du véhicule créé, donc v.id valait
+    // undefined et le véhicule n'était jamais réellement ajouté à la sélection
+    // (silencieusement : il apparaissait bien dans le garage, mais pas dans la
+    // réservation soumise juste après).
+    const created = await addVehicle({ category: newVehicle.category, brand: newVehicle.brand, plate: newVehicle.plate.trim() });
     setNewVehicle(emptyNewVehicle);
     setMode('select');
     if (created) onVehicleCreated(created);
