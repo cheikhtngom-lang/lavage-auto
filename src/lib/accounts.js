@@ -7,12 +7,24 @@
 // (script type="module") que depuis les hooks React.
 import { supabase } from './supabaseClient';
 
+// signUp() ne renvoie pas toujours une session active immédiatement (selon
+// la configuration exacte du projet, même avec "Confirm email" désactivé) —
+// sans ça, l'écriture qui suit (profil/station) est rejetée par les policies
+// RLS car auth.uid() est vide. On force une connexion explicite pour garantir
+// une session avant d'écrire quoi que ce soit.
+async function ensureSession(data, email, password) {
+  if (data.session) return;
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new Error("Compte créé mais connexion automatique impossible : " + error.message);
+}
+
 // ─── Inscription ────────────────────────────────────────────────────────
 export async function createClientAccount({ firstName, lastName, email, phone, password }) {
   const fullName = `${firstName} ${lastName}`.trim();
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw new Error(error.message === 'User already registered' ? 'Un compte existe déjà avec cet email.' : error.message);
   if (!data.user) throw new Error('Compte créé mais session indisponible — vérifiez les paramètres Auth du projet (confirmation email désactivée ?).');
+  await ensureSession(data, email, password);
 
   const { error: profileError } = await supabase.from('profiles').insert({
     id: data.user.id, role: 'automobiliste', full_name: fullName, email, phone: phone || '',
@@ -27,6 +39,7 @@ export async function createStationAccount({ name, address, city, quartier, regi
   const { data, error } = await supabase.auth.signUp({ email: loginEmail, password });
   if (error) throw new Error(error.message === 'User already registered' ? 'Un compte station existe déjà avec cet email.' : error.message);
   if (!data.user) throw new Error('Compte créé mais session indisponible — vérifiez les paramètres Auth du projet (confirmation email désactivée ?).');
+  await ensureSession(data, loginEmail, password);
 
   const { data: station, error: stationError } = await supabase.from('stations').insert({
     created_by: data.user.id,
