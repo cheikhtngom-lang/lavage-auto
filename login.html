@@ -312,7 +312,7 @@
                             <label class="field-label">Mot de passe</label>
                             <input id="login-password" type="password" placeholder="••••••••" required class="input-field">
                             <div class="flex justify-end mt-2">
-                                <a href="#" class="text-xs text-blue-400 hover:text-blue-300">Mot de passe oublié ?</a>
+                                <a href="#" onclick="goToForgotPassword(); return false;" class="text-xs text-blue-400 hover:text-blue-300">Mot de passe oublié ?</a>
                             </div>
                         </div>
                     </div>
@@ -347,6 +347,54 @@
 
                 <div class="switch-mode-text">
                     Pas encore de compte ? <span class="switch-mode-link" onclick="goToRegister('automobiliste')">Créer un compte</span>
+                </div>
+            </div>
+
+            <!-- ============================= -->
+            <!-- VUE : MOT DE PASSE OUBLIÉ     -->
+            <!-- ============================= -->
+            <div id="view-forgot" class="view-section">
+                <div class="back-link" onclick="backToLoginFromForgot()">← Retour</div>
+                <h2 class="view-heading">Mot de passe oublié</h2>
+
+                <!-- Étape 1 : identifiant -->
+                <div id="forgot-step-identifier" class="form-section visible">
+                    <p class="text-sm text-neutral-400 mb-5">Pas d'e-mail envoyé pour l'instant (pas encore de serveur mail) : saisissez votre identifiant, on vous laisse choisir un nouveau mot de passe directement.</p>
+                    <form id="forgot-form-identifier" onsubmit="handleForgotIdentifier(event)">
+                        <div class="mb-5">
+                            <label class="field-label">Email ou Identifiant</label>
+                            <input id="forgot-identifier" type="text" placeholder="votre@email.com" required class="input-field">
+                        </div>
+                        <p id="forgot-identifier-error" class="text-sm text-red-400 mb-4 hidden"></p>
+                        <button type="submit" class="btn-primary-blue">Continuer</button>
+                    </form>
+                </div>
+
+                <!-- Étape 2 : nouveau mot de passe -->
+                <div id="forgot-step-newpass" class="form-section">
+                    <p class="text-sm text-neutral-400 mb-5">Choisissez un nouveau mot de passe pour <span id="forgot-account-label" class="text-white font-medium"></span>.</p>
+                    <form id="forgot-form-newpass" onsubmit="handleForgotReset(event)">
+                        <div class="space-y-4 mb-5">
+                            <div>
+                                <label class="field-label">Nouveau mot de passe</label>
+                                <input id="forgot-new-password" type="password" placeholder="Min. 8 caractères" required class="input-field" minlength="8">
+                            </div>
+                            <div>
+                                <label class="field-label">Confirmer le mot de passe</label>
+                                <input id="forgot-new-password-confirm" type="password" placeholder="Répétez le mot de passe" required class="input-field">
+                            </div>
+                        </div>
+                        <p id="forgot-newpass-error" class="text-sm text-red-400 mb-4 hidden"></p>
+                        <button type="submit" class="btn-primary-blue">Réinitialiser le mot de passe</button>
+                    </form>
+                </div>
+
+                <!-- Étape 3 : confirmation -->
+                <div id="forgot-step-done" class="form-section">
+                    <div class="badge-info text-center">
+                        ✅ Mot de passe mis à jour. Vous pouvez vous reconnecter.
+                    </div>
+                    <button type="button" class="btn-primary-blue mt-5" onclick="backToLoginFromForgot()">Retour à la connexion</button>
                 </div>
             </div>
 
@@ -535,16 +583,18 @@
 
     <script type="module">
         import {
-            createClientAccount, verifyClientLogin,
-            createStationAccount, verifyStationLogin,
+            createClientAccount, verifyClientLogin, findClientAccount, resetClientPassword,
+            createStationAccount, verifyStationLogin, findStationByEmail, resetStationPassword,
             setSession,
         } from '/src/lib/accounts.js';
         import { geocodeQuartierRegion } from '/src/lib/geocoding.js';
 
         // ============ ÉTAT ============
-        let currentView = 'choice';        // 'choice' | 'login' | 'register'
+        let currentView = 'choice';        // 'choice' | 'login' | 'register' | 'forgot'
         let currentLoginRole = 'client';   // 'client' | 'admin'
         let currentRegRole = 'automobiliste'; // 'automobiliste' | 'agence'
+        let forgotRole = 'client';         // rôle figé au moment d'entrer dans le flux mot de passe oublié
+        let forgotIdentifier = '';
         let stationLat = null;
         let stationLng = null;
 
@@ -671,12 +721,14 @@
             document.getElementById('view-choice').classList.toggle('visible', view === 'choice');
             document.getElementById('view-login').classList.toggle('visible', view === 'login');
             document.getElementById('view-register').classList.toggle('visible', view === 'register');
+            document.getElementById('view-forgot').classList.toggle('visible', view === 'forgot');
 
             const subtitle = document.getElementById('page-subtitle');
             if (!subtitle) return;
             if (view === 'choice') subtitle.textContent = 'Bienvenue, que voulez-vous faire ?';
             else if (view === 'login') subtitle.textContent = 'Connectez-vous à votre espace Clean Car Galsen.';
             else if (view === 'register') subtitle.textContent = 'Rejoignez Clean Car Galsen gratuitement.';
+            else if (view === 'forgot') subtitle.textContent = 'Réinitialisez votre mot de passe.';
         }
 
         function backToChoice() { showView('choice'); }
@@ -734,6 +786,76 @@
                 formAgence.classList.add('visible');
             }
         }
+
+        // ============ MOT DE PASSE OUBLIÉ ============
+        function showForgotStep(step) {
+            ['identifier', 'newpass', 'done'].forEach((s) => {
+                document.getElementById(`forgot-step-${s}`).classList.toggle('visible', s === step);
+            });
+        }
+
+        function backToLoginFromForgot() {
+            goToLogin(forgotRole);
+        }
+        window.backToLoginFromForgot = backToLoginFromForgot;
+
+        function goToForgotPassword() {
+            forgotRole = currentLoginRole;
+            forgotIdentifier = '';
+            document.getElementById('forgot-form-identifier').reset();
+            document.getElementById('forgot-form-newpass').reset();
+            document.getElementById('forgot-identifier-error').classList.add('hidden');
+            document.getElementById('forgot-newpass-error').classList.add('hidden');
+            showForgotStep('identifier');
+            showView('forgot');
+        }
+        window.goToForgotPassword = goToForgotPassword;
+
+        function handleForgotIdentifier(e) {
+            e.preventDefault();
+            const identifier = document.getElementById('forgot-identifier').value.trim();
+            const errorEl = document.getElementById('forgot-identifier-error');
+            errorEl.classList.add('hidden');
+
+            const account = forgotRole === 'admin' ? findStationByEmail(identifier) : findClientAccount(identifier);
+            if (!account) {
+                errorEl.textContent = 'Aucun compte trouvé avec cet identifiant.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            forgotIdentifier = identifier;
+            document.getElementById('forgot-account-label').textContent = account.name;
+            showForgotStep('newpass');
+        }
+        window.handleForgotIdentifier = handleForgotIdentifier;
+
+        function handleForgotReset(e) {
+            e.preventDefault();
+            const password = document.getElementById('forgot-new-password').value;
+            const passwordConfirm = document.getElementById('forgot-new-password-confirm').value;
+            const errorEl = document.getElementById('forgot-newpass-error');
+            errorEl.classList.add('hidden');
+
+            if (password !== passwordConfirm) {
+                errorEl.textContent = 'Les mots de passe ne correspondent pas.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                if (forgotRole === 'admin') {
+                    resetStationPassword(forgotIdentifier, password);
+                } else {
+                    resetClientPassword(forgotIdentifier, password);
+                }
+                showForgotStep('done');
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('hidden');
+            }
+        }
+        window.handleForgotReset = handleForgotReset;
 
         // ============ CONNEXION ============
         function handleLogin(e) {

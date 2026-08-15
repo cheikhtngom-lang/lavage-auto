@@ -60,6 +60,14 @@ export function updateClientAccount(id, patch) {
   return next.find((a) => a.id === id) || null;
 }
 
+// Pas d'e-mail de confirmation possible sans backend : réinitialisation directe,
+// cohérente avec le stockage en clair des mots de passe (voir en-tête du fichier).
+export function resetClientPassword(identifier, newPassword) {
+  const account = findClientAccount(identifier);
+  if (!account) throw new Error('Aucun compte trouvé avec cet identifiant.');
+  return updateClientAccount(account.id, { password: newPassword });
+}
+
 // ─── Comptes stations (registre partagé avec le Super Admin) ──────────────
 export function getStationAccounts() { return readList(STATIONS_KEY); }
 export function saveStationAccounts(list) { writeList(STATIONS_KEY, list); }
@@ -112,6 +120,19 @@ export function createStationAccount({ name, address, city, quartier, region, ow
 export function verifyStationLogin(email, password) {
   const station = findStationByEmail(email);
   return station && station.password === password ? station : null;
+}
+
+export function updateStationAccount(id, patch) {
+  const stations = getStationAccounts();
+  const next = stations.map((s) => (s.id === id ? { ...s, ...patch } : s));
+  saveStationAccounts(next);
+  return next.find((s) => s.id === id) || null;
+}
+
+export function resetStationPassword(email, newPassword) {
+  const station = findStationByEmail(email);
+  if (!station) throw new Error('Aucun compte station trouvé avec cet email.');
+  return updateStationAccount(station.id, { password: newPassword });
 }
 
 // ─── Session ────────────────────────────────────────────────────────────
