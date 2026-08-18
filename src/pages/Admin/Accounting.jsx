@@ -6,10 +6,12 @@ import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, C
 import { useAppState } from '../../hooks/useAppState';
 
 export default function Accounting() {
-  const { transactions } = useAppState();
+  const { transactions, stationProfile } = useAppState();
 
   const totalRevenue = transactions.reduce((acc, curr) => acc + (parseInt(curr.amount) || 0), 0);
-  const dailyTarget = 50000;
+  // Configurable par l'admin dans Paramètres > Objectif de revenus (voir
+  // Admin/Settings.jsx) — plus une valeur figée dans le code.
+  const dailyTarget = stationProfile?.dailyRevenueTarget || 50000;
   const progress = Math.min((totalRevenue / dailyTarget) * 100, 100);
 
   return (

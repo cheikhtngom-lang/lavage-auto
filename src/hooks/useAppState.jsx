@@ -58,6 +58,7 @@ const defaultStationProfile = {
     closeTime: "20:00",
     logo: null, // Data URL (image encodée) — voir updateStationProfile
     cachet: null, // Data URL du cachet/tampon officiel — apposé sur les reçus
+    dailyRevenueTarget: 50000, // Objectif de revenus journalier affiché dans Accounting.jsx
 };
 
 // ─── Identifiants des données fictives à supprimer ───────────────────────────
@@ -260,6 +261,7 @@ export function AppStateProvider({ children }) {
         closeTime: row?.close_time || '20:00',
         logo: row?.logo_url || null,
         cachet: row?.cachet_url || null,
+        dailyRevenueTarget: row?.daily_revenue_target ?? 50000,
     });
     useEffect(() => {
         if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); return; }
@@ -497,7 +499,7 @@ export function AppStateProvider({ children }) {
         supabase.from('stations').update({
             name: newP.name, owner_phone: newP.phone, address: newP.address, quartier: newP.quartier,
             region: newP.region, open_time: newP.openTime, close_time: newP.closeTime,
-            logo_url: newP.logo, cachet_url: newP.cachet,
+            logo_url: newP.logo, cachet_url: newP.cachet, daily_revenue_target: newP.dailyRevenueTarget,
         }).eq('id', stationId).then(() => {});
     };
     // Async et renvoie { success, error } — l'assistant d'onboarding (StationOnboarding.jsx)

@@ -503,6 +503,15 @@ export default function Settings() {
                     <input type="time" value={profile?.closeTime || ''} onChange={e => setProfile({...profile, closeTime: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   </div>
                 </div>
+
+                <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4">Objectif de revenus</h2>
+                <div className="space-y-2 max-w-sm">
+                  <label className="text-sm font-medium text-neutral-400">Objectif journalier (FCFA)</label>
+                  <input type="number" min="0" step="1000" value={profile?.dailyRevenueTarget ?? 50000}
+                    onChange={e => setProfile({ ...profile, dailyRevenueTarget: e.target.value === '' ? '' : Number(e.target.value) })}
+                    className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                  <p className="text-neutral-500 text-xs">Affiché dans Comptabilité, sous "Objectif du Jour".</p>
+                </div>
               </CardContent>
             </Card>
           )}

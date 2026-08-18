@@ -24,6 +24,7 @@ create table public.stations (
   cachet_url text,
   owner_email text,
   loyalty_threshold integer not null default 5,
+  daily_revenue_target integer not null default 50000,
   promo_config jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
