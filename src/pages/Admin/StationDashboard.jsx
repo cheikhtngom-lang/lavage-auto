@@ -67,22 +67,14 @@ const DEFAULT_VEHICLE_TYPES = [
   { label: '🚜 Engin / Tracteur', value: 'Engin / Tracteur' },
 ];
 
-// Charger les types custom depuis localStorage
-function loadCustomTypes() {
-  try { return JSON.parse(localStorage.getItem('ccg_custom_vehicle_types') || '[]'); } catch { return []; }
-}
-function saveCustomTypes(types) {
-  localStorage.setItem('ccg_custom_vehicle_types', JSON.stringify(types));
-}
-
 // ---- Composant Dropdown Searchable Véhicule ----
 function VehicleDropdown({ value, onChange }) {
-  const [customTypes, setCustomTypes] = React.useState(loadCustomTypes);
+  const { customVehicleTypes, addCustomVehicleType } = useAppState();
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const dropdownRef = React.useRef(null);
 
-  const allTypes = [...DEFAULT_VEHICLE_TYPES, ...customTypes.map(v => ({ label: `✏️ ${v}`, value: v }))];
+  const allTypes = [...DEFAULT_VEHICLE_TYPES, ...customVehicleTypes.map(v => ({ label: `✏️ ${v}`, value: v }))];
   const filtered = allTypes.filter(t =>
     t.label.toLowerCase().includes(search.toLowerCase()) ||
     t.value.toLowerCase().includes(search.toLowerCase())
@@ -101,11 +93,7 @@ function VehicleDropdown({ value, onChange }) {
     const trimmed = search.trim();
     if (!trimmed) return;
     const exists = allTypes.some(t => t.value.toLowerCase() === trimmed.toLowerCase());
-    if (!exists) {
-      const updated = [...customTypes, trimmed];
-      setCustomTypes(updated);
-      saveCustomTypes(updated);
-    }
+    if (!exists) addCustomVehicleType(trimmed);
     onChange(trimmed);
     setSearch('');
     setOpen(false);

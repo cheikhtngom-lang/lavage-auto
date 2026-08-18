@@ -111,7 +111,7 @@ export default function Team() {
                           </div>
                           <div>
                             <p className="font-bold text-white">{member.name}</p>
-                            <p className="text-xs text-neutral-500">ID: #EMP-{member.id.toString().padStart(3, '0')}</p>
+                            <p className="text-xs text-neutral-500">ID: #EMP-{member.id.toString().slice(0, 8).toUpperCase()}</p>
                           </div>
                         </div>
                       </td>

@@ -14,18 +14,36 @@ import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
 // un tel fallback ferait hériter chaque nouvelle station des données du
 // dernier testeur, ce qui n'est pas acceptable pour une vraie plateforme
 // multi-stations.
-function keyFor(base, stationId) {
-    return `${base}_${stationId}`;
+// Une ligne Supabase (table `employees`) -> forme utilisée par
+// Washers.jsx/Team.jsx/StationDashboard.jsx (mêmes noms de champs qu'avant
+// la migration localStorage, pour ne rien changer côté UI).
+function rowToEmployee(row) {
+    return {
+        id: row.id,
+        name: row.name,
+        role: row.role,
+        access: row.access,
+        status: row.status,
+        dailyStatus: row.daily_status,
+        avatar: row.avatar,
+        clockIn: row.clock_in,
+        clockOut: row.clock_out,
+        clockInAt: row.clock_in_at,
+        clockOutAt: row.clock_out_at,
+        totalTime: row.total_time,
+        lastLogin: 'Jamais', // jamais persisté nulle part, valeur statique comme avant la migration
+    };
 }
 
-function loadNamespaced(base, stationId, fallback) {
-    const raw = localStorage.getItem(keyFor(base, stationId));
-    if (raw == null) return fallback;
-    try { return JSON.parse(raw); } catch { return fallback; }
+// Champs de pointage partagés entre `employees` (état courant) et
+// `attendance_records` (instantané par jour) — mêmes noms de colonnes dans
+// les deux tables, donc un seul mapping camelCase -> snake_case pour les deux.
+const ATTENDANCE_FIELD_MAP = { dailyStatus: 'daily_status', clockIn: 'clock_in', clockOut: 'clock_out', clockInAt: 'clock_in_at', clockOutAt: 'clock_out_at', totalTime: 'total_time' };
+function patchToRow(patch) {
+    const row = {};
+    Object.entries(patch).forEach(([k, v]) => { row[ATTENDANCE_FIELD_MAP[k] || k] = v; });
+    return row;
 }
-
-// Données par défaut — vides pour une vraie station
-const defaultEmployees = []; // Aucun employé de démo
 
 const defaultPricing = DEFAULT_PRICING;
 const defaultDuration = DEFAULT_DURATION;
@@ -88,7 +106,29 @@ const AppStateContext = createContext(null);
 export function AppStateProvider({ children }) {
     const stationId = getCurrentStationId();
 
-    const [employees, setEmployees] = useState(() => loadNamespaced('washEmployees', stationId, defaultEmployees));
+    const [employees, setEmployees] = useState([]);
+    const loadEmployees = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setEmployees([]); return; }
+        const { data } = await supabase.from('employees').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
+        setEmployees((data || []).map(rowToEmployee));
+    }, [stationId]);
+
+    // Types de véhicule ajoutés à la volée par l'admin (dropdown "Ajouter un
+    // lavage manuel" — voir VehicleDropdown dans StationDashboard.jsx), propres
+    // à SA station.
+    const [customVehicleTypes, setCustomVehicleTypes] = useState([]);
+    const loadCustomVehicleTypes = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setCustomVehicleTypes([]); return; }
+        const { data } = await supabase.from('custom_vehicle_types').select('value').eq('station_id', stationId).order('created_at', { ascending: true });
+        setCustomVehicleTypes((data || []).map((r) => r.value));
+    }, [stationId]);
+    const addCustomVehicleType = (value) => {
+        const clean = (value || '').trim();
+        if (!clean || !stationId || stationId === 'default') return;
+        if (customVehicleTypes.some((v) => v.toLowerCase() === clean.toLowerCase())) return;
+        setCustomVehicleTypes((prev) => [...prev, clean]); // optimiste, pour que le dropdown l'affiche tout de suite
+        supabase.from('custom_vehicle_types').upsert({ station_id: stationId, value: clean }, { onConflict: 'station_id,value' }).then(() => {});
+    };
 
     // File d'attente + lavages en cours/terminés = une seule table Supabase
     // (`reservations`, distinguée par `status`) — remplace les 3 listes
@@ -121,11 +161,13 @@ export function AppStateProvider({ children }) {
     useEffect(() => {
         loadReservations();
         loadTransactions();
-        const refresh = () => { loadReservations(); loadTransactions(); };
+        loadEmployees();
+        loadCustomVehicleTypes();
+        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); };
         const interval = setInterval(refresh, 8000);
         window.addEventListener('focus', refresh);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); };
-    }, [loadReservations, loadTransactions]);
+    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -262,10 +304,26 @@ export function AppStateProvider({ children }) {
     // Historique de pointage par jour : { "2026-08-12": { [employeeId]: { name, role, dailyStatus, status, clockIn, clockOut, totalTime... } } }
     // Alimenté au fil de l'eau à chaque action de pointage du jour (voir recordDailyAttendance),
     // pour permettre de consulter qui a travaillé et combien d'heures à une date passée (page Laveurs).
-    const [attendanceHistory, setAttendanceHistory] = useState(() => loadNamespaced('attendanceHistory', stationId, {}));
+    const [attendanceHistory, setAttendanceHistory] = useState({});
 
-    const updateEmployees = (newE) => { setEmployees(newE); localStorage.setItem(keyFor('washEmployees', stationId), JSON.stringify(newE)); };
-    const updateAttendanceHistory = (newH) => { setAttendanceHistory(newH); localStorage.setItem(keyFor('attendanceHistory', stationId), JSON.stringify(newH)); };
+    // Charge le pointage d'une date passée à la demande (voir Washers.jsx) et
+    // le met en cache — pour aujourd'hui, le cache est alimenté au fil de l'eau
+    // par recordDailyAttendance, pas besoin de le recharger depuis Supabase.
+    const loadAttendanceForDate = useCallback(async (dateKey) => {
+        if (!stationId || stationId === 'default') return;
+        const { data } = await supabase.from('attendance_records').select('*').eq('station_id', stationId).eq('work_date', dateKey);
+        const dayEntries = {};
+        (data || []).forEach((row) => {
+            dayEntries[row.employee_id] = {
+                id: row.employee_id, name: row.name, role: row.role,
+                dailyStatus: row.daily_status, status: row.status,
+                clockIn: row.clock_in, clockOut: row.clock_out,
+                clockInAt: row.clock_in_at, clockOutAt: row.clock_out_at,
+                totalTime: row.total_time,
+            };
+        });
+        setAttendanceHistory((prev) => ({ ...prev, [dateKey]: dayEntries }));
+    }, [stationId]);
 
     // Réinitialisation quotidienne du pointage des laveurs : sans ça, un laveur
     // marqué "Présent" un jour donné restait "présent" indéfiniment (avec les
@@ -279,32 +337,36 @@ export function AppStateProvider({ children }) {
         const now = new Date();
         const localDateKey = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
         const todayKey = localDateKey(now);
-        const staleIds = new Set(
-            employees
-                .filter((e) => e?.role === 'Laveur' && e?.dailyStatus === 'present' && e?.clockInAt && localDateKey(new Date(e.clockInAt)) !== todayKey)
-                .map((e) => e.id)
-        );
-        if (staleIds.size === 0) return;
-        updateEmployees(employees.map((e) => (staleIds.has(e.id)
-            ? { ...e, dailyStatus: 'absent', status: 'Absent', clockIn: null, clockOut: null, clockInAt: null, clockOutAt: null, totalTime: null }
-            : e)));
+        const staleIds = employees
+            .filter((e) => e?.role === 'Laveur' && e?.dailyStatus === 'present' && e?.clockInAt && localDateKey(new Date(e.clockInAt)) !== todayKey)
+            .map((e) => e.id);
+        if (staleIds.length === 0 || !stationId || stationId === 'default') return;
+        supabase.from('employees').update({
+            daily_status: 'absent', status: 'Absent', clock_in: null, clock_out: null, clock_in_at: null, clock_out_at: null, total_time: null,
+        }).in('id', staleIds).then(() => loadEmployees());
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [employees.map((e) => `${e.id}:${e.dailyStatus}:${e.clockInAt || ''}`).join(',')]);
 
     // Enregistre/complète l'entrée du jour courant pour un employé (statut du jour et/ou
     // pointage). Chaque appel fusionne avec l'entrée existante du jour, pour que la
     // consultation d'une date passée reflète bien l'état final de cette journée-là.
+    // Le cache local est mis à jour tout de suite (pour Washers.jsx), la ligne
+    // `attendance_records` est upsertée en tâche de fond pour la persistance.
     const recordDailyAttendance = (employeeId, patch) => {
         // Clé du jour en heure locale (pas UTC) pour matcher le sélecteur de date de Washers.jsx.
         const now = new Date();
         const todayKey = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
         const emp = employees.find(e => e.id === employeeId);
-        const dayEntries = attendanceHistory[todayKey] || {};
-        const existing = dayEntries[employeeId] || { id: employeeId, name: emp?.name, role: emp?.role };
-        updateAttendanceHistory({
-            ...attendanceHistory,
-            [todayKey]: { ...dayEntries, [employeeId]: { ...existing, ...patch } },
+        setAttendanceHistory((prev) => {
+            const dayEntries = prev[todayKey] || {};
+            const existing = dayEntries[employeeId] || { id: employeeId, name: emp?.name, role: emp?.role };
+            return { ...prev, [todayKey]: { ...dayEntries, [employeeId]: { ...existing, ...patch } } };
         });
+        if (!stationId || stationId === 'default') return;
+        supabase.from('attendance_records').upsert({
+            station_id: stationId, employee_id: employeeId, work_date: todayKey,
+            name: emp?.name, role: emp?.role, ...patchToRow(patch),
+        }, { onConflict: 'employee_id,work_date' }).then(() => {});
     };
     // Une ligne par (catégorie, service) touché — fusionne toujours prix ET
     // durée dans le même upsert (les deux colonnes sont NOT NULL), en prenant
@@ -344,28 +406,22 @@ export function AppStateProvider({ children }) {
         }).eq('id', stationId).then(() => {});
     };
     const addEmployee = (employeeData) => {
-        const id = employees.length > 0 ? Math.max(...employees.map(m => m.id)) + 1 : 1;
+        if (!stationId || stationId === 'default') return;
         const initials = employeeData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || '👤';
-        const newEmployee = {
-            id,
-            status: "Actif",
-            dailyStatus: "present",
-            lastLogin: "Jamais",
-            avatar: initials,
-            clockIn: null,
-            clockOut: null,
-            totalTime: null,
-            ...employeeData
-        };
-        updateEmployees([...employees, newEmployee]);
+        supabase.from('employees').insert({
+            station_id: stationId, name: employeeData.name, role: employeeData.role, access: employeeData.access,
+            status: 'Actif', daily_status: 'present', avatar: initials,
+        }).then(() => loadEmployees());
     };
 
     const updateEmployee = (id, updatedData) => {
-        updateEmployees(employees.map(emp => emp.id === id ? { ...emp, ...updatedData } : emp));
+        if (!stationId || stationId === 'default') return;
+        supabase.from('employees').update(patchToRow(updatedData)).eq('id', id).then(() => loadEmployees());
     };
 
     const deleteEmployee = (id) => {
-        updateEmployees(employees.filter(emp => emp.id !== id));
+        if (!stationId || stationId === 'default') return;
+        supabase.from('employees').delete().eq('id', id).then(() => loadEmployees());
     };
 
     const addWash = (washData) => {
@@ -377,7 +433,7 @@ export function AppStateProvider({ children }) {
     };
 
     const startWash = (id, employeeId) => {
-        const emp = (employees || []).find(e => e.id === parseInt(employeeId));
+        const emp = (employees || []).find(e => e.id === employeeId);
         supabase.from('reservations').update({
             status: 'en_cours', assigned_to_name: emp ? emp.name : 'Inconnu', started_at: new Date().toISOString(),
         }).eq('id', id).then(() => loadReservations());
@@ -474,10 +530,10 @@ export function AppStateProvider({ children }) {
         // encore porter les anciens noms de démo.
 
         // 1. Employés : retirer Moussa Diop et Alioune Fall s'ils existent
-        const cleanEmps = employees.filter(emp => !DEMO_EMPLOYEE_NAMES.includes(emp.name));
-        if (cleanEmps.length !== employees.length) {
-            updateEmployees(cleanEmps);
-            cleaned.push(`${employees.length - cleanEmps.length} employé(s) fictif(s) supprimé(s)`);
+        const demoEmps = employees.filter(emp => DEMO_EMPLOYEE_NAMES.includes(emp.name));
+        if (demoEmps.length > 0 && stationId && stationId !== 'default') {
+            supabase.from('employees').delete().in('id', demoEmps.map(e => e.id)).then(() => loadEmployees());
+            cleaned.push(`${demoEmps.length} employé(s) fictif(s) supprimé(s)`);
         }
 
         // 2. Profil station : réinitialiser si toujours le nom de démo
@@ -502,13 +558,14 @@ export function AppStateProvider({ children }) {
     // tarifs, employés, historique). Les autres stations et les registres
     // Super Admin / comptes automobilistes ne sont pas affectés.
     const resetStationCompletely = () => {
-        ['washEmployees', 'attendanceHistory'].forEach(base => localStorage.removeItem(keyFor(base, stationId)));
         updateStationProfile(defaultStationProfile);
         if (stationId && stationId !== 'default') {
             supabase.from('wash_pricing').delete().eq('station_id', stationId).then(() => {});
             supabase.from('stations').update({ promo_config: {} }).eq('id', stationId).then(() => {});
             supabase.from('reservations').delete().eq('station_id', stationId).then(() => {});
             supabase.from('transactions').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('employees').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('attendance_records').delete().eq('station_id', stationId).then(() => {});
         }
         window.location.reload();
     };
@@ -516,8 +573,9 @@ export function AppStateProvider({ children }) {
     return (
         <AppStateContext.Provider value={{
             queue, activeWashes, employees, transactions, pricingConfig, durationConfig, promoConfig, stationProfile, completedWashes,
-            attendanceHistory, recordDailyAttendance,
-            addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, updateEmployees, getEstimatedWaitTime,
+            attendanceHistory, recordDailyAttendance, loadAttendanceForDate,
+            customVehicleTypes, addCustomVehicleType,
+            addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>

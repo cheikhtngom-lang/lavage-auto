@@ -2,10 +2,20 @@
 // du garage automobiliste (src/pages/Client/Garage.jsx).
 //
 // Les marques personnalisées ajoutées par les utilisateurs (marque absente de la liste)
-// sont persistées dans localStorage et fusionnées avec la liste de base, pour toute
-// l'application (en attendant un vrai backend partagé).
+// sont persistées dans la table Supabase `custom_vehicle_brands` (référentiel PARTAGÉ,
+// pas propre à une station) et fusionnées avec la liste de base, pour toute l'application.
 
-const CUSTOM_BRANDS_KEY = 'customVehicleBrands';
+import { supabase } from './supabaseClient';
+
+// Cache alimenté par useSuperAdminState.jsx à chaque poll (même principe que
+// stationsCache/pricingCache dans stationData.js) — lu de façon synchrone par
+// getBrandsForCategory pour ne pas changer la signature des composants appelants.
+let customBrandsCache = {};
+
+export function setCustomBrandsCache(rows) {
+  customBrandsCache = {};
+  (rows || []).forEach((row) => { (customBrandsCache[row.category] ||= []).push(row.brand); });
+}
 
 // `pricingCategory` correspond aux clés de pricingConfig/durationConfig (useAppState) —
 // utilisé pour facturer correctement une réservation faite avec un véhicule du garage.
@@ -77,17 +87,9 @@ const BRANDS_BY_CATEGORY = {
   'Bus / Car (+50 places)': BUS_BRANDS,
 };
 
-function readCustomBrands() {
-  try { return JSON.parse(localStorage.getItem(CUSTOM_BRANDS_KEY)) || {}; } catch { return {}; }
-}
-
-function writeCustomBrands(map) {
-  localStorage.setItem(CUSTOM_BRANDS_KEY, JSON.stringify(map));
-}
-
 export function getBrandsForCategory(category) {
   const base = BRANDS_BY_CATEGORY[category] || [];
-  const custom = readCustomBrands()[category] || [];
+  const custom = customBrandsCache[category] || [];
   const seen = new Set();
   const merged = [];
   for (const brand of [...base, ...custom]) {
@@ -99,8 +101,9 @@ export function getBrandsForCategory(category) {
   return merged.sort((a, b) => a.localeCompare(b, 'fr'));
 }
 
-// Ajoute une nouvelle marque à la liste d'une catégorie (persisté dans localStorage,
-// pris en compte pour toute l'application dès le prochain rendu de la liste).
+// Ajoute une nouvelle marque à la liste d'une catégorie (mise à jour du cache
+// tout de suite pour un retour instantané dans le dropdown, persistée en tâche
+// de fond — voir custom_vehicle_brands dans supabase/schema.sql).
 export function addCustomBrand(category, brand) {
   const clean = (brand || '').trim();
   if (!clean) return getBrandsForCategory(category);
@@ -108,9 +111,8 @@ export function addCustomBrand(category, brand) {
   const existing = getBrandsForCategory(category);
   const alreadyThere = existing.some((b) => b.toLowerCase() === clean.toLowerCase());
   if (!alreadyThere) {
-    const map = readCustomBrands();
-    map[category] = [...(map[category] || []), clean];
-    writeCustomBrands(map);
+    (customBrandsCache[category] ||= []).push(clean);
+    supabase.from('custom_vehicle_brands').insert({ category, brand: clean }).then(() => {});
   }
   return getBrandsForCategory(category);
 }

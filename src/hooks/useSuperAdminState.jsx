@@ -1,19 +1,27 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { setStationsCache, setWashPricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
+import { setCustomBrandsCache } from '../lib/vehicleBrands';
 
-// Aucun litige/audit de démo — le Super Admin part d'un registre vide.
-// Litiges/audit/plans restent sur localStorage pour l'instant (pas encore
-// migrés vers Supabase — voir [[backend_migration]] : module par module).
-const defaultDisputes = [];
-const defaultAuditLog = [];
-
-// Plans par défaut — modifiables depuis Super Admin > Paramètres (persistés dans localStorage).
+// Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
+// une ligne par clé ; sert de secours si la table est vide/pas encore lue).
 export const DEFAULT_PLANS = {
     Starter: { label: 'Starter', price: 15000 },
     Pro: { label: 'Pro', price: 35000 },
     Business: { label: 'Business', price: 75000 },
 };
+
+const rowToDispute = (row) => ({
+    id: row.id,
+    stationId: row.station_id,
+    stationName: row.station_name,
+    subject: row.subject,
+    description: row.description,
+    amount: row.amount,
+    status: row.status,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+});
 
 // stations + station_billing (Supabase) ↔ forme plate attendue par l'UI —
 // voir supabase/schema.sql pour pourquoi les infos de facturation sont dans
@@ -72,13 +80,27 @@ const SuperAdminStateContext = createContext(null);
 
 export function SuperAdminStateProvider({ children }) {
     const [stations, setStations] = useState([]);
-    const [disputes, setDisputes] = useState(() => JSON.parse(localStorage.getItem('saasDisputes')) || defaultDisputes);
-    const [auditLog, setAuditLog] = useState(() => JSON.parse(localStorage.getItem('saasAuditLog')) || defaultAuditLog);
-    const [plans, setPlans] = useState(() => {
-        const saved = JSON.parse(localStorage.getItem('saasPlans'));
-        return saved && Object.keys(saved).length > 0 ? saved : DEFAULT_PLANS;
-    });
+    const [disputes, setDisputes] = useState([]);
+    const [auditLog, setAuditLog] = useState([]);
+    const [plans, setPlans] = useState(DEFAULT_PLANS);
     const [clientAccounts, setClientAccounts] = useState([]);
+
+    const loadDisputes = useCallback(async () => {
+        const { data } = await supabase.from('disputes').select('*').order('created_at', { ascending: false });
+        setDisputes((data || []).map(rowToDispute));
+    }, []);
+
+    const loadAuditLog = useCallback(async () => {
+        const { data } = await supabase.from('audit_log').select('*').order('created_at', { ascending: false });
+        setAuditLog((data || []).map((row) => ({ id: row.id, actor: row.actor, action: row.action, timestamp: row.created_at })));
+    }, []);
+
+    const loadPlans = useCallback(async () => {
+        const { data } = await supabase.from('plans').select('*');
+        const obj = {};
+        (data || []).forEach((row) => { obj[row.key] = { label: row.label, price: row.price }; });
+        setPlans(Object.keys(obj).length > 0 ? obj : DEFAULT_PLANS);
+    }, []);
 
     const loadStations = useCallback(async () => {
         const { data } = await supabase.from('stations').select('*, station_billing(*)').order('created_at', { ascending: false });
@@ -119,30 +141,40 @@ export function SuperAdminStateProvider({ children }) {
         setReviewsCache(data || []);
     }, []);
 
+    // Référentiel partagé de marques de véhicule custom (voir src/lib/vehicleBrands.js)
+    // — alimenté ici car ce provider tourne sur TOUTE l'app, y compris les pages
+    // automobiliste qui n'ont pas d'autre raison de monter SuperAdminStateProvider.
+    const loadVehicleBrands = useCallback(async () => {
+        const { data } = await supabase.from('custom_vehicle_brands').select('*');
+        setCustomBrandsCache(data || []);
+    }, []);
+
     useEffect(() => {
         loadStations();
         loadClientAccounts();
         loadWashPricing();
         loadQueueSnapshot();
         loadReviews();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); };
+        loadDisputes();
+        loadAuditLog();
+        loadPlans();
+        loadVehicleBrands();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); };
         window.addEventListener('focus', refresh);
         const interval = setInterval(refresh, 8000);
         return () => {
             window.removeEventListener('focus', refresh);
             clearInterval(interval);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands]);
 
-    const updateDisputes = (next) => { setDisputes(next); localStorage.setItem('saasDisputes', JSON.stringify(next)); };
-    const updateAuditLog = (next) => { setAuditLog(next); localStorage.setItem('saasAuditLog', JSON.stringify(next)); };
-    const updatePlans = (next) => { setPlans(next); localStorage.setItem('saasPlans', JSON.stringify(next)); };
-
-    const logAction = (action, currentLog = auditLog) => {
-        const entry = { id: Date.now(), timestamp: new Date().toISOString(), actor: 'Super Admin', action };
-        const next = [entry, ...currentLog];
-        updateAuditLog(next);
-        return next;
+    // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
+    // et persiste en tâche de fond — appelée en fire-and-forget après quasi
+    // chaque action Super Admin, un aller-retour synchrone serait trop lent.
+    const logAction = (action) => {
+        const entry = { id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}`, actor: 'Super Admin', action, timestamp: new Date().toISOString() };
+        setAuditLog((prev) => [entry, ...prev]);
+        supabase.from('audit_log').insert({ actor: 'Super Admin', action }).then(() => {});
     };
 
     // Ajout manuel d'une station par le Super Admin (pas de compte de connexion —
@@ -216,23 +248,31 @@ export function SuperAdminStateProvider({ children }) {
         if (station) logAction(`Relance de facturation envoyée à : ${station.name}`);
     };
 
-    const addDispute = (data) => {
-        const id = disputes.length > 0 ? Math.max(...disputes.map(d => d.id)) + 1 : 1;
-        const newDispute = { id, status: 'ouvert', createdAt: new Date().toISOString(), resolvedAt: null, ...data };
-        updateDisputes([newDispute, ...disputes]);
+    const addDispute = async (data) => {
+        const { data: row, error } = await supabase.from('disputes').insert({
+            station_id: data.stationId || null, station_name: data.stationName, subject: data.subject,
+            description: data.description || null, amount: data.amount || 0, status: 'ouvert',
+        }).select().single();
+        if (error) { console.error(error); return null; }
+        const newDispute = rowToDispute(row);
+        setDisputes((prev) => [newDispute, ...prev]);
         logAction(`Litige ouvert : ${newDispute.subject} (${newDispute.stationName})`);
         return newDispute;
     };
 
-    const resolveDispute = (id) => {
+    const resolveDispute = async (id) => {
         const dispute = disputes.find(d => d.id === id);
-        updateDisputes(disputes.map(d => d.id === id ? { ...d, status: 'resolu', resolvedAt: new Date().toISOString() } : d));
+        const resolvedAt = new Date().toISOString();
+        await supabase.from('disputes').update({ status: 'resolu', resolved_at: resolvedAt }).eq('id', id);
+        setDisputes((prev) => prev.map(d => d.id === id ? { ...d, status: 'resolu', resolvedAt } : d));
         if (dispute) logAction(`Litige résolu : ${dispute.subject} (${dispute.stationName})`);
     };
 
-    const refundDispute = (id) => {
+    const refundDispute = async (id) => {
         const dispute = disputes.find(d => d.id === id);
-        updateDisputes(disputes.map(d => d.id === id ? { ...d, status: 'rembourse', resolvedAt: new Date().toISOString() } : d));
+        const resolvedAt = new Date().toISOString();
+        await supabase.from('disputes').update({ status: 'rembourse', resolved_at: resolvedAt }).eq('id', id);
+        setDisputes((prev) => prev.map(d => d.id === id ? { ...d, status: 'rembourse', resolvedAt } : d));
         if (dispute) logAction(`Remboursement effectué : ${dispute.subject} (${dispute.stationName})`);
     };
 
@@ -245,14 +285,17 @@ export function SuperAdminStateProvider({ children }) {
         logAction(`Connexion en tant que la station : ${station.name}`);
     };
 
-    const updatePlan = (key, patch) => {
-        const next = { ...plans, [key]: { ...plans[key], ...patch } };
-        updatePlans(next);
-        logAction(`Plan "${plans[key]?.label || key}" mis à jour (${patch.price != null ? patch.price.toLocaleString('fr-FR') + ' FCFA' : 'modifié'})`);
+    const updatePlan = async (key, patch) => {
+        const current = plans[key] || { label: key, price: 0 };
+        const next = { ...current, ...patch };
+        await supabase.from('plans').upsert({ key, label: next.label, price: next.price }, { onConflict: 'key' });
+        setPlans((prev) => ({ ...prev, [key]: next }));
+        logAction(`Plan "${current.label || key}" mis à jour (${patch.price != null ? patch.price.toLocaleString('fr-FR') + ' FCFA' : 'modifié'})`);
     };
 
-    const resetPlans = () => {
-        updatePlans(DEFAULT_PLANS);
+    const resetPlans = async () => {
+        await supabase.from('plans').upsert(Object.entries(DEFAULT_PLANS).map(([key, v]) => ({ key, label: v.label, price: v.price })), { onConflict: 'key' });
+        setPlans(DEFAULT_PLANS);
         logAction('Plans réinitialisés aux valeurs par défaut');
     };
 

@@ -53,10 +53,17 @@ function WorkedTimeCell({ member, status, live }) {
 }
 
 export default function Washers() {
-  const { employees, updateEmployee, attendanceHistory, recordDailyAttendance } = useAppState();
+  const { employees, updateEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const isToday = selectedDate === todayKey();
+
+  // L'historique d'une date passée n'est chargé qu'à la demande (aujourd'hui
+  // est déjà tenu à jour en direct via recordDailyAttendance).
+  React.useEffect(() => {
+    if (!isToday) loadAttendanceForDate(selectedDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, isToday]);
 
   const washersList = (employees || []).filter(e => e?.role === 'Laveur');
 

@@ -1,6 +1,5 @@
-// Configuration des promotions d'une station — namespacée par station comme
-// pricingConfig/durationConfig (voir washDefaults.js), persistée dans
-// localStorage sous la clé `promoConfig_<stationId>`.
+// Configuration des promotions d'une station — persistée dans la colonne
+// `promo_config` de la table Supabase `stations` (voir useAppState.jsx).
 export const DEFAULT_PROMO = {
   // Message court affiché sur la fiche de la station côté client (recherche + détail).
   banner: { message: '', expiresAt: '' },

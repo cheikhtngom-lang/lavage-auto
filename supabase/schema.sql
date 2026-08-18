@@ -103,6 +103,7 @@ create table public.employees (
   station_id uuid not null references public.stations(id) on delete cascade,
   name text not null,
   role text not null default 'Laveur',
+  access text,
   status text not null default 'Actif',
   daily_status text not null default 'present',
   avatar text,
@@ -114,11 +115,25 @@ create table public.employees (
   created_at timestamptz not null default now()
 );
 
+-- Types de véhicule ajoutés à la volée par l'admin (dropdown "Ajouter un
+-- lavage manuel") — propres à SA station, comme employees/wash_pricing.
+create table public.custom_vehicle_types (
+  id uuid primary key default gen_random_uuid(),
+  station_id uuid not null references public.stations(id) on delete cascade,
+  value text not null,
+  created_at timestamptz not null default now(),
+  unique (station_id, value)
+);
+
+-- name/role dupliqués depuis employees : un pointage passé doit rester lisible
+-- même si l'employé a depuis été supprimé de l'équipe.
 create table public.attendance_records (
   id uuid primary key default gen_random_uuid(),
   station_id uuid not null references public.stations(id) on delete cascade,
   employee_id uuid not null references public.employees(id) on delete cascade,
   work_date date not null,
+  name text,
+  role text,
   daily_status text,
   status text,
   clock_in text,
@@ -206,6 +221,18 @@ insert into public.plans (key, label, price) values
   ('Pro', 'Pro', 35000),
   ('Business', 'Business', 75000);
 
+-- Marques de véhicule ajoutées par les automobilistes quand la leur manque à
+-- l'appel (voir src/lib/vehicleBrands.js) — liste PARTAGÉE par tout le monde,
+-- toutes stations confondues (contrairement à custom_vehicle_types, propre
+-- à une station : ici on enrichit juste un référentiel commun de marques).
+create table public.custom_vehicle_brands (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  brand text not null,
+  created_at timestamptz not null default now(),
+  unique (category, brand)
+);
+
 -- ─── Litiges + journal d'audit (Super Admin) ─────────────────────────────
 create table public.disputes (
   id uuid primary key default gen_random_uuid(),
@@ -213,6 +240,7 @@ create table public.disputes (
   station_name text,
   subject text not null,
   description text,
+  amount integer,
   status text not null default 'ouvert' check (status in ('ouvert', 'resolu', 'rembourse')),
   created_at timestamptz not null default now(),
   resolved_at timestamptz
@@ -235,6 +263,8 @@ alter table public.profiles enable row level security;
 alter table public.vehicles enable row level security;
 alter table public.employees enable row level security;
 alter table public.attendance_records enable row level security;
+alter table public.custom_vehicle_types enable row level security;
+alter table public.custom_vehicle_brands enable row level security;
 alter table public.wash_pricing enable row level security;
 alter table public.reservations enable row level security;
 alter table public.transactions enable row level security;
@@ -304,6 +334,17 @@ create policy "employees_all" on public.employees for all
 create policy "attendance_all" on public.attendance_records for all
   using (station_id = current_station_id() or app_role() = 'super_admin')
   with check (station_id = current_station_id() or app_role() = 'super_admin');
+create policy "custom_vehicle_types_all" on public.custom_vehicle_types for all
+  using (station_id = current_station_id() or app_role() = 'super_admin')
+  with check (station_id = current_station_id() or app_role() = 'super_admin');
+
+-- custom_vehicle_brands : référentiel partagé — lecture publique, écriture par
+-- tout utilisateur connecté (pas de restriction de rôle : `to authenticated`
+-- s'est révélé peu fiable sur ce projet, voir les autres policies d'insert).
+create policy "custom_vehicle_brands_select" on public.custom_vehicle_brands for select
+  using (true);
+create policy "custom_vehicle_brands_insert" on public.custom_vehicle_brands for insert
+  with check (auth.uid() is not null);
 
 -- wash_pricing : lecture publique (nécessaire pour que tout client compare/réserve),
 -- écriture réservée à l'admin de la station concernée.
