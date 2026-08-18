@@ -405,6 +405,9 @@ create policy "audit_log_all" on public.audit_log for all
 -- appareil regarde l'écran (file d'attente admin pendant qu'un client réserve).
 alter publication supabase_realtime add table public.reservations;
 alter publication supabase_realtime add table public.transactions;
+-- Statut de présence/pointage d'un laveur affecté à un lavage : la station
+-- doit voir "occupé"/"présent" changer en direct sans attendre le sondage.
+alter publication supabase_realtime add table public.employees;
 
 -- ══════════════════════════════════════════════════════════════════════
 -- Fonctions publiques agrégées (contournent volontairement RLS via

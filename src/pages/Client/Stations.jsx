@@ -436,7 +436,7 @@ export default function Stations() {
       </div>
 
       {/* Recherche par quartier / région */}
-      <div className="glass-panel p-4 rounded-2xl border border-white/10 mb-4 flex flex-col md:flex-row gap-4 items-center">
+      <div className="glass-card p-4 rounded-2xl mb-4 flex flex-col md:flex-row gap-4 items-center">
         <div className="flex-1 w-full relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
           <input type="text" value={searchInput} onChange={e => setSearchInput(e.target.value)}

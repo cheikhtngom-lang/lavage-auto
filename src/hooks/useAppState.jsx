@@ -165,17 +165,19 @@ export function AppStateProvider({ children }) {
         loadCustomVehicleTypes();
         const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); };
         window.addEventListener('focus', refresh);
-        // `reservations`/`transactions` sont dans la publication supabase_realtime
-        // (voir schema.sql) : un client qui réserve depuis son propre appareil
-        // apparaît ici en direct, sans sonder toutes les 8s. `employees`/
-        // `custom_vehicle_types` n'y sont pas encore — ils gardent un sondage
-        // classique. Le setInterval restant sert de filet de sécurité (une
-        // reconnexion Realtime manquée ne doit pas figer la file indéfiniment).
+        // `reservations`/`transactions`/`employees` sont dans la publication
+        // supabase_realtime (voir schema.sql) : un client qui réserve depuis son
+        // propre appareil, ou un pointage/assignation de laveur, apparaît ici en
+        // direct, sans sonder toutes les 8s. `custom_vehicle_types` n'y est pas
+        // encore (change trop rarement pour en avoir besoin). Le setInterval
+        // restant sert de filet de sécurité (une reconnexion Realtime manquée
+        // ne doit pas figer la file indéfiniment).
         const channel = (stationId && stationId !== 'default')
             ? supabase
                 .channel(`station-live-${stationId}`)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `station_id=eq.${stationId}` }, loadReservations)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `station_id=eq.${stationId}` }, loadTransactions)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `station_id=eq.${stationId}` }, loadEmployees)
                 .subscribe()
             : null;
         const interval = setInterval(refresh, 45000);
