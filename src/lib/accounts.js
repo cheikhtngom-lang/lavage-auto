@@ -114,6 +114,26 @@ export async function changePassword(email, currentPassword, newPassword) {
   if (error) throw new Error(error.message);
 }
 
+// ─── Compteur de connexions par compte ───────────────────────────────────
+// Sert à borner l'affichage de l'onboarding (voir [[design_onboarding_backlog]]) :
+// 1re/2e/3e connexion -> montré, à partir de la 4e -> masqué définitivement,
+// même si l'utilisateur n'a toujours pas fait l'action clé (pas de visite
+// guidée perpétuelle). Incrémenté une seule fois par connexion réelle, ici
+// dans setSession (appelée par login ET par le auto-login qui suit un
+// signup — donc le signup compte bien comme la 1re connexion).
+const LOGIN_COUNT_KEY = 'ccg_login_count';
+function loginCountKey(role, id) { return `${LOGIN_COUNT_KEY}_${role}_${id}`; }
+
+export function getLoginCount(role, id) {
+  if (!role || !id) return 0;
+  return parseInt(localStorage.getItem(loginCountKey(role, id)) || '0', 10);
+}
+
+function incrementLoginCount(role, id) {
+  if (!role || !id) return;
+  localStorage.setItem(loginCountKey(role, id), String(getLoginCount(role, id) + 1));
+}
+
 // ─── Session (cache léger du rôle/ids courants pour un accès synchrone
 // dans le reste de l'app — la vraie session d'auth est gérée par Supabase
 // lui-même dans son propre stockage, indépendamment de ces clés) ─────────
@@ -125,6 +145,7 @@ export function setSession({ role, remember, clientId, stationId }) {
   storage.setItem('userRole', role);
   if (clientId != null) storage.setItem('currentClientId', String(clientId));
   if (stationId != null) storage.setItem('currentStationId', String(stationId));
+  incrementLoginCount(role, role === 'automobiliste' ? clientId : role === 'admin' ? stationId : null);
 }
 
 export function clearSession() {

@@ -12,6 +12,7 @@ import {
 } from '../../lib/stationData';
 import { downloadReceiptPdf } from '../../lib/receipt';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
+import { getLoginCount } from '../../lib/accounts';
 import Pagination from '../../components/ui/Pagination';
 
 const LOYALTY_DEFAULT_THRESHOLD = 5;
@@ -110,8 +111,10 @@ export default function ClientOverview() {
   const activeStations = (registry || []).filter(s => s.status !== 'suspendue');
   // Compte jamais utilisé (aucune réservation passée ou en cours) — sert à distinguer
   // le message "bienvenue, réservez votre premier lavage" de l'état vide générique
-  // qu'un client existant verrait simplement entre deux lavages.
-  const isBrandNewAccount = myReservations.length === 0 && rawTransactions.length === 0;
+  // qu'un client existant verrait simplement entre deux lavages. Plafonné à 3
+  // connexions (voir [[design_onboarding_backlog]]) : au-delà, même un compte
+  // jamais utilisé retombe sur le message neutre — pas de relance perpétuelle.
+  const isBrandNewAccount = myReservations.length === 0 && rawTransactions.length === 0 && getLoginCount('automobiliste', account?.id) <= 3;
 
   // Un client peut avoir plusieurs véhicules actifs en même temps (jusqu'à
   // MAX_ACTIVE_VEHICLES_PER_CLIENT — voir lib/stationData.js), donc on suit un

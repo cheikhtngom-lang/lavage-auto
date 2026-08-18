@@ -7,7 +7,7 @@ import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plu
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
-import { getCurrentStationId } from '../../lib/accounts';
+import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import Pagination from '../../components/ui/Pagination';
 
@@ -351,8 +351,10 @@ export default function StationDashboard() {
       {/* Bannière d'activation : tant qu'aucun employé n'existe, aucun lavage ne peut
           être démarré (voir handleGoClick plus bas) — c'est le seul vrai blocage pour
           une station qui vient de s'inscrire, donc on le signale explicitement plutôt
-          que de laisser le nouvel admin découvrir le blocage seul via une alerte. */}
-      {employees.length === 0 && (
+          que de laisser le nouvel admin découvrir le blocage seul via une alerte.
+          Plafonnée à 3 connexions (voir [[design_onboarding_backlog]]) : au-delà,
+          plus de relance même si le blocage persiste — pas de visite guidée perpétuelle. */}
+      {employees.length === 0 && getLoginCount('admin', getCurrentStationId()) <= 3 && (
         <button
           onClick={() => navigate('/admin/team')}
           className="w-full mb-8 flex items-center gap-4 bg-blue-950/40 border border-blue-500/20 rounded-2xl px-5 py-4 hover:bg-blue-950/60 transition-colors text-left"
