@@ -139,6 +139,16 @@ export default function Washers() {
   const resetTemplateForm = () => { setEditingTemplateId(null); setTemplateForm({ label: '', startTime: '08:00', endTime: '14:00', color: SHIFT_COLOR_PALETTE[0] }); };
   const openShiftTemplatesModal = () => { resetTemplateForm(); setShowShiftTemplatesModal(true); };
   const openEditTemplate = (t) => { setEditingTemplateId(t.id); setTemplateForm({ label: t.label, startTime: t.startTime, endTime: t.endTime, color: t.color }); };
+  // Supprimer un créneau supprime en cascade (côté base) toutes les cases du
+  // planning qui l'utilisaient — sans ce rafraîchissement, scheduleByDate
+  // gardait ces cases en cache avec un shiftTemplateId qui n'existe plus,
+  // laissant leur <select> dans un état incohérent (valeur sans <option>
+  // correspondante) tant que l'utilisateur ne changeait pas de semaine/mois.
+  const handleDeleteTemplate = async (id) => {
+    await deleteShiftTemplate(id);
+    if (editingTemplateId === id) resetTemplateForm();
+    loadScheduleRange(dateKey(periodDates[0]), dateKey(periodDates[periodDates.length - 1]));
+  };
   const submitTemplate = (e) => {
     e.preventDefault();
     if (!templateForm.label.trim()) return;
@@ -588,7 +598,7 @@ export default function Washers() {
                         <button onClick={() => openEditTemplate(t)} className="p-1.5 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-neutral-400 rounded-lg transition-colors">
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => deleteShiftTemplate(t.id)} className="p-1.5 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-neutral-400 rounded-lg transition-colors">
+                        <button onClick={() => handleDeleteTemplate(t.id)} className="p-1.5 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-neutral-400 rounded-lg transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
