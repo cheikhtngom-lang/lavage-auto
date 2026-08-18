@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import * as XLSX from 'xlsx';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2 } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 
 // Formate une durée en minutes en "Xh YYm" (ex: 8h 02m) pour le pointage.
@@ -31,6 +32,30 @@ function dateKey(d) {
   return new Date(d.getTime() - tzOffsetMs).toISOString().slice(0, 10);
 }
 function todayKey() { return dateKey(new Date()); }
+
+// ─── Planning de poste (prévisionnel, indépendant du pointage ci-dessus) ──
+const SHIFT_COLOR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ef4444', '#06b6d4'];
+
+// Lundi comme premier jour de semaine.
+function startOfWeek(d) {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  const day = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - day);
+  return date;
+}
+// Liste des dates (objets Date) de la période affichée : 7 jours si 'week',
+// tous les jours du mois si 'month'.
+function getPeriodDates(anchor, view) {
+  if (view === 'week') {
+    const start = startOfWeek(anchor);
+    return Array.from({ length: 7 }, (_, i) => new Date(start.getTime() + i * 86400000));
+  }
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1));
+}
 
 // Statut de pointage effectif : un laveur créé (ou dont le statut de compte est
 // "Actif" par défaut) mais qui n'a encore jamais pointé n'est pas réellement en
@@ -64,7 +89,10 @@ function WorkedTimeCell({ member, status, live }) {
 const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
 
 export default function Washers() {
-  const { employees, updateEmployee, resumeEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth } = useAppState();
+  const {
+    employees, updateEmployee, resumeEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
+    shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate, scheduleByDate, loadScheduleRange, setShiftForDay,
+  } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [exporting, setExporting] = useState(false);
@@ -78,6 +106,65 @@ export default function Washers() {
   }, [selectedDate, isToday]);
 
   const washersList = (employees || []).filter(e => e?.role === 'Laveur');
+
+  // ─── Planning de poste (prévisionnel) ────────────────────────────────────
+  const [planningView, setPlanningView] = useState('week'); // 'week' | 'month'
+  const [planningAnchor, setPlanningAnchor] = useState(new Date());
+  const [showShiftTemplatesModal, setShowShiftTemplatesModal] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
+  const [templateForm, setTemplateForm] = useState({ label: '', startTime: '08:00', endTime: '14:00', color: SHIFT_COLOR_PALETTE[0] });
+
+  const periodDates = getPeriodDates(planningAnchor, planningView);
+  const periodLabel = planningView === 'week'
+    ? `${periodDates[0].toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} — ${periodDates[6].toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    : planningAnchor.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  React.useEffect(() => {
+    loadScheduleRange(dateKey(periodDates[0]), dateKey(periodDates[periodDates.length - 1]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planningView, planningAnchor.getTime()]);
+
+  const goPrevPeriod = () => setPlanningAnchor(prev => {
+    const d = new Date(prev);
+    if (planningView === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1);
+    return d;
+  });
+  const goNextPeriod = () => setPlanningAnchor(prev => {
+    const d = new Date(prev);
+    if (planningView === 'week') d.setDate(d.getDate() + 7); else d.setMonth(d.getMonth() + 1);
+    return d;
+  });
+  const goToTodayPeriod = () => setPlanningAnchor(new Date());
+
+  const resetTemplateForm = () => { setEditingTemplateId(null); setTemplateForm({ label: '', startTime: '08:00', endTime: '14:00', color: SHIFT_COLOR_PALETTE[0] }); };
+  const openShiftTemplatesModal = () => { resetTemplateForm(); setShowShiftTemplatesModal(true); };
+  const openEditTemplate = (t) => { setEditingTemplateId(t.id); setTemplateForm({ label: t.label, startTime: t.startTime, endTime: t.endTime, color: t.color }); };
+  const submitTemplate = (e) => {
+    e.preventDefault();
+    if (!templateForm.label.trim()) return;
+    if (editingTemplateId) updateShiftTemplate(editingTemplateId, templateForm); else addShiftTemplate(templateForm);
+    resetTemplateForm();
+  };
+
+  // Feuille Excel (.xlsx, via SheetJS) : une ligne par laveur, une colonne par
+  // jour de la période affichée à l'écran (semaine ou mois).
+  const exportPlanningToExcel = () => {
+    const header = ['Laveur', ...periodDates.map(d => d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' }))];
+    const rows = [header];
+    washersList.forEach(w => {
+      const row = [w.name];
+      periodDates.forEach(d => {
+        const template = shiftTemplates.find(t => t.id === scheduleByDate[dateKey(d)]?.[w.id]);
+        row.push(template ? `${template.label} (${template.startTime}-${template.endTime})` : '');
+      });
+      rows.push(row);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Planning');
+    const periodSuffix = planningView === 'week' ? dateKey(periodDates[0]) : `${planningAnchor.getFullYear()}-${String(planningAnchor.getMonth() + 1).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `Planning_${periodSuffix}.xlsx`);
+  };
 
   const getStatusIcon = (status) => {
     switch(status) {
@@ -387,6 +474,174 @@ export default function Washers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Planning de poste (prévisionnel) — totalement indépendant du pointage
+          ci-dessus : ne touche jamais daily_status/status/clockIn. */}
+      <Card className="mt-8">
+        <CardContent className="p-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-white">Planning de Poste</h2>
+              <p className="text-sm text-neutral-400">Prévoyez les horaires de vos laveurs — sans effet sur le pointage journalier.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex bg-neutral-900 border border-white/10 rounded-lg p-1">
+                <button onClick={() => setPlanningView('week')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${planningView === 'week' ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white'}`}>Semaine</button>
+                <button onClick={() => setPlanningView('month')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${planningView === 'month' ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white'}`}>Mois</button>
+              </div>
+              <button onClick={openShiftTemplatesModal} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                <Settings2 className="w-3.5 h-3.5" /> Gérer les créneaux
+              </button>
+              <button onClick={exportPlanningToExcel} disabled={washersList.length === 0} className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <button onClick={goPrevPeriod} className="p-1.5 rounded-lg bg-neutral-900 border border-white/10 text-neutral-400 hover:text-white transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium text-white capitalize min-w-[190px] text-center">{periodLabel}</span>
+            <button onClick={goNextPeriod} className="p-1.5 rounded-lg bg-neutral-900 border border-white/10 text-neutral-400 hover:text-white transition-colors">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button onClick={goToTodayPeriod} className="text-xs font-bold text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 transition-colors">
+              Aujourd'hui
+            </button>
+          </div>
+
+          {washersList.length === 0 ? (
+            <p className="text-center text-neutral-500 py-8">Ajoutez des laveurs pour planifier leurs horaires.</p>
+          ) : shiftTemplates.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-neutral-500 mb-4">Aucun créneau défini pour l'instant.</p>
+              <button onClick={openShiftTemplatesModal} className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">Créer un créneau</button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="p-3 font-semibold text-neutral-400 whitespace-nowrap">Laveur</th>
+                    {periodDates.map(d => (
+                      <th key={dateKey(d)} className="p-2 font-semibold text-neutral-400 text-center text-xs whitespace-nowrap">
+                        {d.toLocaleDateString('fr-FR', { weekday: 'short' })}<br />{d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {washersList.map(w => (
+                    <tr key={w.id} className="border-b border-white/5">
+                      <td className="p-3 font-medium text-white whitespace-nowrap">{w.name}</td>
+                      {periodDates.map(d => {
+                        const key = dateKey(d);
+                        const shiftId = scheduleByDate[key]?.[w.id] || '';
+                        const template = shiftTemplates.find(t => t.id === shiftId);
+                        return (
+                          <td key={key} className="p-1.5 text-center">
+                            <select
+                              value={shiftId}
+                              onChange={(e) => setShiftForDay(w.id, key, e.target.value || null)}
+                              style={template ? { backgroundColor: `${template.color}22`, borderColor: `${template.color}88`, color: template.color } : undefined}
+                              className="text-xs font-bold px-2 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors bg-neutral-900 border-white/10 text-neutral-500 w-full min-w-[64px]"
+                            >
+                              <option value="" className="bg-neutral-900 text-neutral-400">—</option>
+                              {shiftTemplates.map(t => <option key={t.id} value={t.id} className="bg-neutral-900 text-white">{t.label}</option>)}
+                            </select>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modal Gestion des créneaux */}
+      <AnimatePresence>
+        {showShiftTemplatesModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[85vh] overflow-y-auto">
+              <button onClick={() => setShowShiftTemplatesModal(false)} className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold text-white mb-6">Créneaux de travail</h2>
+
+              {shiftTemplates.length > 0 && (
+                <div className="space-y-2 mb-6">
+                  {shiftTemplates.map(t => (
+                    <div key={t.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-neutral-950 border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                        <div>
+                          <p className="text-sm font-bold text-white">{t.label}</p>
+                          <p className="text-xs text-neutral-500">{t.startTime} — {t.endTime}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => openEditTemplate(t)} className="p-1.5 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-neutral-400 rounded-lg transition-colors">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => deleteShiftTemplate(t.id)} className="p-1.5 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-neutral-400 rounded-lg transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form onSubmit={submitTemplate} className="space-y-3 pt-4 border-t border-white/10">
+                <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide">{editingTemplateId ? 'Modifier le créneau' : 'Nouveau créneau'}</p>
+                <input type="text" placeholder="Nom (ex: Matin)" value={templateForm.label}
+                  onChange={e => setTemplateForm({ ...templateForm, label: e.target.value })}
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Début</label>
+                    <input type="time" value={templateForm.startTime}
+                      onChange={e => setTemplateForm({ ...templateForm, startTime: e.target.value })}
+                      className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-neutral-500 mb-1">Fin</label>
+                    <input type="time" value={templateForm.endTime}
+                      onChange={e => setTemplateForm({ ...templateForm, endTime: e.target.value })}
+                      className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark]" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-neutral-500 mb-1.5">Couleur</label>
+                  <div className="flex gap-2">
+                    {SHIFT_COLOR_PALETTE.map(c => (
+                      <button key={c} type="button" onClick={() => setTemplateForm({ ...templateForm, color: c })}
+                        className={`w-7 h-7 rounded-full transition-all ${templateForm.color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-neutral-900' : ''}`}
+                        style={{ backgroundColor: c }} />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button type="submit" disabled={!templateForm.label.trim()}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl transition-colors text-sm">
+                    {editingTemplateId ? 'Enregistrer' : 'Ajouter'}
+                  </button>
+                  {editingTemplateId && (
+                    <button type="button" onClick={resetTemplateForm} className="px-4 py-2.5 rounded-xl border border-white/10 text-neutral-400 hover:text-white text-sm transition-colors">
+                      Annuler
+                    </button>
+                  )}
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

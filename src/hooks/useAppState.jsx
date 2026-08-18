@@ -130,6 +130,63 @@ export function AppStateProvider({ children }) {
         supabase.from('custom_vehicle_types').upsert({ station_id: stationId, value: clean }, { onConflict: 'station_id,value' }).then(() => {});
     };
 
+    // ─── Planning de poste (prévisionnel) — créneaux nommés + assignation par
+    // (laveur, jour). Totalement indépendant du pointage réel (employees.daily_status/
+    // status/clock_in, attendanceHistory plus bas) : ni lu ni écrit par ces
+    // fonctions, ni l'inverse — voir Washers.jsx pour la grille semaine/mois + export Excel.
+    const [shiftTemplates, setShiftTemplates] = useState([]);
+    const loadShiftTemplates = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setShiftTemplates([]); return; }
+        const { data } = await supabase.from('shift_templates').select('*').eq('station_id', stationId).order('start_time', { ascending: true });
+        setShiftTemplates((data || []).map((row) => ({ id: row.id, label: row.label, startTime: row.start_time, endTime: row.end_time, color: row.color })));
+    }, [stationId]);
+
+    const addShiftTemplate = async (data) => {
+        if (!stationId || stationId === 'default') return;
+        await supabase.from('shift_templates').insert({ station_id: stationId, label: data.label, start_time: data.startTime, end_time: data.endTime, color: data.color || '#3b82f6' });
+        await loadShiftTemplates();
+    };
+    const updateShiftTemplate = async (id, data) => {
+        await supabase.from('shift_templates').update({ label: data.label, start_time: data.startTime, end_time: data.endTime, color: data.color }).eq('id', id);
+        await loadShiftTemplates();
+    };
+    const deleteShiftTemplate = async (id) => {
+        await supabase.from('shift_templates').delete().eq('id', id);
+        await loadShiftTemplates();
+    };
+
+    // Planning par jour, chargé à la demande pour la période affichée (semaine
+    // ou mois) — { "2026-08-18": { [employeeId]: shiftTemplateId } }, même
+    // principe que loadAttendanceForDate mais pour shift_schedule.
+    const [scheduleByDate, setScheduleByDate] = useState({});
+    const loadScheduleRange = useCallback(async (startKey, endKey) => {
+        if (!stationId || stationId === 'default') return;
+        const { data } = await supabase.from('shift_schedule').select('*').eq('station_id', stationId).gte('work_date', startKey).lte('work_date', endKey);
+        const byDate = {};
+        let cursor = new Date(`${startKey}T12:00:00`);
+        const end = new Date(`${endKey}T12:00:00`);
+        while (cursor <= end) {
+            byDate[cursor.toISOString().slice(0, 10)] = {};
+            cursor = new Date(cursor.getTime() + 86400000);
+        }
+        (data || []).forEach((row) => { (byDate[row.work_date] ||= {})[row.employee_id] = row.shift_template_id; });
+        setScheduleByDate((prev) => ({ ...prev, ...byDate }));
+    }, [stationId]);
+
+    const setShiftForDay = async (employeeId, dateKey, shiftTemplateId) => {
+        if (!stationId || stationId === 'default') return;
+        // Optimiste : la case reflète le choix tout de suite, avant la confirmation réseau.
+        setScheduleByDate((prev) => ({ ...prev, [dateKey]: { ...(prev[dateKey] || {}), [employeeId]: shiftTemplateId || null } }));
+        if (!shiftTemplateId) {
+            await supabase.from('shift_schedule').delete().eq('employee_id', employeeId).eq('work_date', dateKey);
+            return;
+        }
+        await supabase.from('shift_schedule').upsert(
+            { station_id: stationId, employee_id: employeeId, work_date: dateKey, shift_template_id: shiftTemplateId },
+            { onConflict: 'employee_id,work_date' }
+        );
+    };
+
     // File d'attente + lavages en cours/terminés = une seule table Supabase
     // (`reservations`, distinguée par `status`) — remplace les 3 listes
     // localStorage séparées. Rafraîchi par sondage (8s + focus) : un client
@@ -163,7 +220,8 @@ export function AppStateProvider({ children }) {
         loadTransactions();
         loadEmployees();
         loadCustomVehicleTypes();
-        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); };
+        loadShiftTemplates();
+        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees` sont dans la publication
         // supabase_realtime (voir schema.sql) : un client qui réserve depuis son
@@ -182,7 +240,7 @@ export function AppStateProvider({ children }) {
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes, stationId]);
+    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -639,6 +697,8 @@ export function AppStateProvider({ children }) {
             queue, activeWashes, employees, transactions, pricingConfig, durationConfig, promoConfig, stationProfile, completedWashes,
             attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
             customVehicleTypes, addCustomVehicleType,
+            shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
+            scheduleByDate, loadScheduleRange, setShiftForDay,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, cleanDemoData,
             resetOperationalData, resetStationCompletely

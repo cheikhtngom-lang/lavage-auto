@@ -154,6 +154,32 @@ create table public.employees (
   created_at timestamptz not null default now()
 );
 
+-- ─── Planning de poste (prévisionnel, indépendant du pointage réel) ─────
+-- Créneaux nommés configurables par station (ex: "Matin" 08:00-14:00) —
+-- le manager assigne un créneau par (laveur, jour) dans shift_schedule ci-
+-- dessous. N'a aucun effet sur employees.daily_status/status/clock_in : le
+-- pointage journalier (Washers.jsx) reste entièrement manuel, comme avant.
+create table public.shift_templates (
+  id uuid primary key default gen_random_uuid(),
+  station_id uuid not null references public.stations(id) on delete cascade,
+  label text not null,
+  start_time text not null,
+  end_time text not null,
+  color text not null default '#3b82f6',
+  created_at timestamptz not null default now()
+);
+
+-- Un créneau au plus par (employé, jour) — case vide du planning = pas de ligne.
+create table public.shift_schedule (
+  id uuid primary key default gen_random_uuid(),
+  station_id uuid not null references public.stations(id) on delete cascade,
+  employee_id uuid not null references public.employees(id) on delete cascade,
+  work_date date not null,
+  shift_template_id uuid not null references public.shift_templates(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (employee_id, work_date)
+);
+
 -- Types de véhicule ajoutés à la volée par l'admin (dropdown "Ajouter un
 -- lavage manuel") — propres à SA station, comme employees/wash_pricing.
 create table public.custom_vehicle_types (
@@ -303,6 +329,8 @@ alter table public.vehicles enable row level security;
 alter table public.super_user_subscriptions enable row level security;
 alter table public.employees enable row level security;
 alter table public.attendance_records enable row level security;
+alter table public.shift_templates enable row level security;
+alter table public.shift_schedule enable row level security;
 alter table public.custom_vehicle_types enable row level security;
 alter table public.custom_vehicle_brands enable row level security;
 alter table public.wash_pricing enable row level security;
@@ -396,6 +424,15 @@ create policy "attendance_all" on public.attendance_records for all
   using (station_id = current_station_id() or app_role() = 'super_admin')
   with check (station_id = current_station_id() or app_role() = 'super_admin');
 create policy "custom_vehicle_types_all" on public.custom_vehicle_types for all
+  using (station_id = current_station_id() or app_role() = 'super_admin')
+  with check (station_id = current_station_id() or app_role() = 'super_admin');
+
+-- shift_templates / shift_schedule : planning prévisionnel, géré uniquement
+-- par l'admin de LEUR station (même pattern que employees/attendance_records).
+create policy "shift_templates_all" on public.shift_templates for all
+  using (station_id = current_station_id() or app_role() = 'super_admin')
+  with check (station_id = current_station_id() or app_role() = 'super_admin');
+create policy "shift_schedule_all" on public.shift_schedule for all
   using (station_id = current_station_id() or app_role() = 'super_admin')
   with check (station_id = current_station_id() or app_role() = 'super_admin');
 
