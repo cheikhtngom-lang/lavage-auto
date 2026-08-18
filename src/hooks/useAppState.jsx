@@ -164,10 +164,23 @@ export function AppStateProvider({ children }) {
         loadEmployees();
         loadCustomVehicleTypes();
         const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); };
-        const interval = setInterval(refresh, 8000);
         window.addEventListener('focus', refresh);
-        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); };
-    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes]);
+        // `reservations`/`transactions` sont dans la publication supabase_realtime
+        // (voir schema.sql) : un client qui réserve depuis son propre appareil
+        // apparaît ici en direct, sans sonder toutes les 8s. `employees`/
+        // `custom_vehicle_types` n'y sont pas encore — ils gardent un sondage
+        // classique. Le setInterval restant sert de filet de sécurité (une
+        // reconnexion Realtime manquée ne doit pas figer la file indéfiniment).
+        const channel = (stationId && stationId !== 'default')
+            ? supabase
+                .channel(`station-live-${stationId}`)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `station_id=eq.${stationId}` }, loadReservations)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `station_id=eq.${stationId}` }, loadTransactions)
+                .subscribe()
+            : null;
+        const interval = setInterval(refresh, 45000);
+        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
+    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale

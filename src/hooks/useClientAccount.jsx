@@ -50,9 +50,18 @@ export function ClientAccountProvider({ children }) {
         if (!account?.id) return;
         loadActivity(account.id);
         const refresh = () => loadActivity(account.id);
-        const interval = setInterval(refresh, 8000);
         window.addEventListener('focus', refresh);
-        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); };
+        // `reservations`/`transactions` sont dans la publication supabase_realtime
+        // (voir schema.sql) : la position en file/le passage en lavage arrivent en
+        // direct dès qu'une station modifie SA réservation, sans sonder toutes les
+        // 8s. Le setInterval restant sert de filet de sécurité (reconnexion ratée).
+        const channel = supabase
+            .channel(`client-live-${account.id}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `client_id=eq.${account.id}` }, refresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `client_id=eq.${account.id}` }, refresh)
+            .subscribe();
+        const interval = setInterval(refresh, 45000);
+        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
     }, [account?.id, loadActivity]);
 
     const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id); }, [account?.id, loadActivity]);
