@@ -340,6 +340,28 @@ export function AppStateProvider({ children }) {
         setAttendanceHistory((prev) => ({ ...prev, [dateKey]: dayEntries }));
     }, [stationId]);
 
+    // Charge tout un mois de pointage en un seul appel — utilisé par l'export
+    // Excel/CSV mensuel (Washers.jsx), qui a besoin du détail jour par jour de
+    // chaque employé plutôt que d'une seule date. Ne touche pas `attendanceHistory`
+    // (instantané ponctuel demandé au moment de l'export, pas mis en cache).
+    const loadAttendanceForMonth = useCallback(async (year, month) => {
+        if (!stationId || stationId === 'default') return {};
+        const pad = (n) => String(n).padStart(2, '0');
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const startKey = `${year}-${pad(month + 1)}-01`;
+        const endKey = `${year}-${pad(month + 1)}-${pad(daysInMonth)}`;
+        const { data } = await supabase.from('attendance_records').select('*')
+            .eq('station_id', stationId).gte('work_date', startKey).lte('work_date', endKey);
+        const byEmployeeDay = {};
+        (data || []).forEach((row) => {
+            byEmployeeDay[row.employee_id] ||= {};
+            byEmployeeDay[row.employee_id][row.work_date] = {
+                dailyStatus: row.daily_status, clockInAt: row.clock_in_at, clockOutAt: row.clock_out_at, totalTime: row.total_time,
+            };
+        });
+        return byEmployeeDay;
+    }, [stationId]);
+
     // Réinitialisation quotidienne du pointage des laveurs : sans ça, un laveur
     // marqué "Présent" un jour donné restait "présent" indéfiniment (avec les
     // heures de sa dernière journée) tant que personne n'y retouchait — il
@@ -588,7 +610,7 @@ export function AppStateProvider({ children }) {
     return (
         <AppStateContext.Provider value={{
             queue, activeWashes, employees, transactions, pricingConfig, durationConfig, promoConfig, stationProfile, completedWashes,
-            attendanceHistory, recordDailyAttendance, loadAttendanceForDate,
+            attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
             customVehicleTypes, addCustomVehicleType,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, cleanDemoData,

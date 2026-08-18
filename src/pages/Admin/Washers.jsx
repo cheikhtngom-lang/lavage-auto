@@ -2,17 +2,26 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2 } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 
-// Formate un écart entre deux dates en "Xh YYm" (ex: 8h 02m) pour le pointage.
-function formatWorkedTime(startIso, end) {
-  if (!startIso) return '0h 00m';
-  const start = new Date(startIso);
-  const totalMinutes = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+// Formate une durée en minutes en "Xh YYm" (ex: 8h 02m) pour le pointage.
+function formatMinutesToHM(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+}
+// Formate un écart entre deux dates en "Xh YYm".
+function formatWorkedTime(startIso, end) {
+  if (!startIso) return '0h 00m';
+  const totalMinutes = Math.max(0, Math.round((end.getTime() - new Date(startIso).getTime()) / 60000));
+  return formatMinutesToHM(totalMinutes);
+}
+// Chemin inverse : relit une durée déjà formatée ("8h 02m", telle que stockée
+// dans attendance_records.total_time) pour pouvoir la resommer sur un mois.
+function parseDurationToMinutes(str) {
+  const m = /(\d+)\s*h\s*(\d+)\s*m/.exec(str || '');
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 0;
 }
 
 // Clé du jour au format YYYY-MM-DD (fuseau local), utilisée pour indexer
@@ -52,10 +61,13 @@ function WorkedTimeCell({ member, status, live }) {
   return <span className="text-neutral-600 font-normal">-</span>;
 }
 
+const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
+
 export default function Washers() {
-  const { employees, updateEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate } = useAppState();
+  const { employees, updateEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayKey());
+  const [exporting, setExporting] = useState(false);
   const isToday = selectedDate === todayKey();
 
   // L'historique d'une date passée n'est chargé qu'à la demande (aujourd'hui
@@ -119,65 +131,60 @@ export default function Washers() {
     recordDailyAttendance(id, patch);
   };
 
-  const exportToCSV = () => {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    
-    // Obtenir le nombre de jours dans le mois actuel
+  // Export du pointage réel du mois en cours : une ligne par employé, une colonne
+  // par jour, avec les heures réellement travaillées (calculées depuis clockInAt/
+  // clockOutAt, pas un forfait fixe) — voir loadAttendanceForMonth dans useAppState.
+  const exportToCSV = async () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const todayNum = now.getDate();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    
-    // Création des en-têtes
+    const pad = (n) => String(n).padStart(2, '0');
+
+    setExporting(true);
+    const monthData = await loadAttendanceForMonth(year, month);
+    setExporting(false);
+
     let csvContent = "ID Employé;Prénom & Nom;Rôle;";
-    for (let i = 1; i <= daysInMonth; i++) {
-      csvContent += `Jour ${i};`;
-    }
+    for (let i = 1; i <= daysInMonth; i++) csvContent += `Jour ${i};`;
     csvContent += "Total Heures;Jours Repos;Jours Congé;Jours Maladie;Jours Absence\n";
 
-    // Remplissage avec des données fictives pour la démo
     washersList.forEach(washer => {
-      let totalHours = 0;
+      let totalMinutes = 0;
       let countRepos = 0, countConge = 0, countMaladie = 0, countAbsence = 0;
-      
       let row = `${washer.id};${washer.name};${washer.role};`;
-      
-      // Simulation des jours
-      for (let i = 1; i <= daysInMonth; i++) {
-        // Le jour actuel utilise le statut en temps réel, les autres jours sont aléatoires pour la démo
-        let dayStatus;
-        if (i === date.getDate()) {
-           dayStatus = washer.dailyStatus;
-        } else {
-           const rand = Math.random();
-           if (rand > 0.8) dayStatus = 'repos';
-           else if (rand > 0.75) dayStatus = 'absent';
-           else dayStatus = 'present';
-        }
 
-        if (dayStatus === 'present') {
-           row += "8h;";
-           totalHours += 8;
-        } else if (dayStatus === 'repos') {
-           row += "R;";
-           countRepos++;
-        } else if (dayStatus === 'conge') {
-           row += "C;";
-           countConge++;
-        } else if (dayStatus === 'maladie') {
-           row += "M;";
-           countMaladie++;
+      for (let i = 1; i <= daysInMonth; i++) {
+        // Aujourd'hui : état live de l'employé (le plus à jour). Les autres jours :
+        // instantané réellement enregistré ce jour-là (loadAttendanceForMonth).
+        const rec = i === todayNum
+          ? { dailyStatus: washer.dailyStatus, clockInAt: washer.clockInAt, clockOutAt: washer.clockOutAt, totalTime: washer.totalTime }
+          : monthData[washer.id]?.[`${year}-${pad(month + 1)}-${pad(i)}`];
+
+        if (!rec || !rec.dailyStatus) { row += ";"; continue; } // aucune donnée ce jour-là
+
+        if (rec.dailyStatus === 'present') {
+          let minutes = 0;
+          if (rec.totalTime) minutes = parseDurationToMinutes(rec.totalTime);
+          else if (rec.clockInAt && !rec.clockOutAt) minutes = Math.max(0, Math.round((now.getTime() - new Date(rec.clockInAt).getTime()) / 60000));
+          totalMinutes += minutes;
+          row += `${formatMinutesToHM(minutes)};`;
         } else {
-           row += "A;";
-           countAbsence++;
+          row += `${STATUS_LETTER[rec.dailyStatus] || 'A'};`;
+          if (rec.dailyStatus === 'repos') countRepos++;
+          else if (rec.dailyStatus === 'conge') countConge++;
+          else if (rec.dailyStatus === 'maladie') countMaladie++;
+          else countAbsence++;
         }
       }
-      
-      row += `${totalHours}h;${countRepos};${countConge};${countMaladie};${countAbsence}\n`;
+
+      row += `${formatMinutesToHM(totalMinutes)};${countRepos};${countConge};${countMaladie};${countAbsence}\n`;
       csvContent += row;
     });
 
     // Encodage spécial pour que Excel reconnaisse bien les accents (BOM UTF-8)
-    const BOM = "\uFEFF";
+    const BOM = "﻿";
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -215,25 +222,26 @@ export default function Washers() {
             <Droplets className="w-5 h-5 text-blue-400" />
             <span className="text-sm font-bold text-blue-400">{presentWashers.length} Présents Aujourd'hui</span>
           </div>
-          <button 
+          <button
             onClick={exportToCSV}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-6 py-3 flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-500/20"
+            disabled={exporting}
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait text-white rounded-xl px-6 py-3 flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-500/20"
           >
-            <Download className="w-5 h-5" />
-            <span className="hidden md:inline">Extraire Pointage Mensuel</span>
-            <span className="md:hidden">Export</span>
+            {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            <span className="hidden md:inline">{exporting ? 'Extraction...' : 'Extraire Pointage Mensuel'}</span>
+            <span className="md:hidden">{exporting ? '...' : 'Export'}</span>
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
+
         {/* Colonne de gauche : Sélection des présents */}
-        <Card className="border-white/5 bg-white/[0.02] h-fit">
+        <Card className="h-fit">
           <CardContent className="p-6">
             <h2 className="text-xl font-bold text-white mb-4">Base de Laveurs</h2>
             <p className="text-sm text-neutral-400 mb-6">Cochez les laveurs de garde pour la journée d'aujourd'hui.</p>
-            
+
             <div className="space-y-3">
               {filteredWashers.map(washer => (
                 <div key={washer.id} className="flex items-center justify-between p-3 rounded-xl bg-neutral-900 border border-white/5">
@@ -243,7 +251,7 @@ export default function Washers() {
                     </div>
                     <span className="text-sm font-medium text-white">{washer.name}</span>
                   </div>
-                  <select 
+                  <select
                     value={washer.dailyStatus}
                     onChange={(e) => changeDailyStatus(washer.id, e.target.value)}
                     className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors ${
@@ -267,7 +275,7 @@ export default function Washers() {
         </Card>
 
         {/* Colonne de droite : Pointage */}
-        <Card className="lg:col-span-2 border-white/5 bg-white/[0.02]">
+        <Card className="lg:col-span-2">
           <CardContent className="p-6">
             <div className="flex flex-wrap justify-between items-center gap-4 mb-2">
               <h2 className="text-xl font-bold text-white">Pointage {isToday ? 'Journalier' : '— Historique'}</h2>
