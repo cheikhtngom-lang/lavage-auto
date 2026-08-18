@@ -485,6 +485,18 @@ export function AppStateProvider({ children }) {
         supabase.from('reservations').update({
             status: 'en_cours', assigned_to_name: emp ? emp.name : 'Inconnu', started_at: new Date().toISOString(),
         }).eq('id', id).then(() => loadReservations());
+
+        // Un laveur réassigné alors qu'il avait déjà cliqué "Descente" aujourd'hui
+        // (status 'Terminé') reprend son service : on ne touche pas clockInAt (son
+        // tout premier pointage du jour), seulement clockOut/totalTime qu'on efface
+        // pour réactiver le bouton "Descendre" — au prochain clic, formatWorkedTime
+        // recalculera depuis ce clockInAt d'origine, donnant le temps global de la
+        // journée plutôt que juste cette reprise.
+        if (emp && emp.status === 'Terminé') {
+            const patch = { status: 'Actif', clockOut: null, clockOutAt: null, totalTime: null };
+            updateEmployee(emp.id, patch);
+            recordDailyAttendance(emp.id, patch);
+        }
     };
 
     const endWash = (id) => {
