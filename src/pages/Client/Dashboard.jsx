@@ -11,6 +11,7 @@ import {
   addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile,
 } from '../../lib/stationData';
 import { downloadReceiptPdf } from '../../lib/receipt';
+import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import Pagination from '../../components/ui/Pagination';
 
 const LOYALTY_DEFAULT_THRESHOLD = 5;
@@ -107,6 +108,10 @@ export default function ClientOverview() {
   const myName = account?.name || '';
   const firstName = myName.split(' ')[0] || 'là';
   const activeStations = (registry || []).filter(s => s.status !== 'suspendue');
+  // Compte jamais utilisé (aucune réservation passée ou en cours) — sert à distinguer
+  // le message "bienvenue, réservez votre premier lavage" de l'état vide générique
+  // qu'un client existant verrait simplement entre deux lavages.
+  const isBrandNewAccount = myReservations.length === 0 && rawTransactions.length === 0;
 
   // Un client peut avoir plusieurs véhicules actifs en même temps (jusqu'à
   // MAX_ACTIVE_VEHICLES_PER_CLIENT — voir lib/stationData.js), donc on suit un
@@ -129,6 +134,9 @@ export default function ClientOverview() {
   const [reviewedFlags, setReviewedFlags] = useState({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const garageTipId = account?.id ? `garage_${account.id}` : null;
+  const [showGarageTip, setShowGarageTip] = useState(false);
+  const dismissGarageTip = () => { markTipSeen(garageTipId); setShowGarageTip(false); };
 
   useEffect(() => { setLastUpdated(Date.now()); }, [myReservations]);
 
@@ -167,6 +175,13 @@ export default function ClientOverview() {
     id: tx.id, date: formatTxDate(tx.created_at), client: tx.client_name, vehicle: tx.vehicle_label,
     service: tx.service, method: tx.method, amount: tx.amount, stationId: tx.station_id, stationName: tx.stations?.name || 'Station',
   }));
+  // Astuce "adoption" (voir [[design_onboarding_backlog]]) : une fois le premier
+  // lavage payé effectué, on suggère le Garage pour accélérer les prochaines
+  // réservations — jamais montrée avant, jamais reproposée une fois vue.
+  useEffect(() => {
+    if (myTransactions.length > 0 && !hasSeenTip(garageTipId)) setShowGarageTip(true);
+  }, [myTransactions.length, garageTipId]);
+
   const totalPages = Math.max(1, Math.ceil(myTransactions.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginatedTransactions = myTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -226,6 +241,18 @@ export default function ClientOverview() {
         </button>
       )}
 
+      {showGarageTip && (
+        <div className="w-full mb-8 flex items-center gap-3 bg-emerald-950/30 border border-emerald-500/20 rounded-2xl px-5 py-4">
+          <Car className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <span className="text-sm text-emerald-200/80 flex-1">
+            <strong className="text-emerald-400">Astuce :</strong> ajoutez vos véhicules dans <button onClick={() => navigate('/dashboard/garage')} className="underline hover:text-emerald-300">Mon Parking</button> pour réserver encore plus vite la prochaine fois.
+          </span>
+          <button onClick={dismissGarageTip} className="text-neutral-500 hover:text-white flex-shrink-0" aria-label="Fermer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Active Status Board */}
       <section className="mb-16">
         <div className="flex items-center justify-between mb-6">
@@ -245,11 +272,20 @@ export default function ClientOverview() {
         ) : (
           <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10 hover:border-blue-500/30 transition-colors">
             <Car className="w-16 h-16 text-neutral-600 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">Aucun lavage en cours</h3>
-            <p className="text-neutral-400 mb-6">Vous n'avez pas de véhicule dans la file d'attente actuellement.</p>
-            <button onClick={() => navigate('/stations')} className="btn-premium">
+            {isBrandNewAccount ? (
+              <>
+                <h3 className="text-xl font-bold text-white mb-2">Bienvenue, {firstName} !</h3>
+                <p className="text-neutral-400 mb-6">Réservez votre premier lavage en moins d'une minute : trouvez une station, choisissez votre véhicule, payez par Wave ou sur place.</p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-bold text-white mb-2">Aucun lavage en cours</h3>
+                <p className="text-neutral-400 mb-6">Vous n'avez pas de véhicule dans la file d'attente actuellement.</p>
+              </>
+            )}
+            <button onClick={() => navigate('/dashboard/stations?onboarding=1')} className="btn-premium">
               <span className="btn-premium-shimmer"></span>
-              <span className="btn-premium-content">Prendre Rendez-vous <ArrowRight className="w-4 h-4 ml-2" /></span>
+              <span className="btn-premium-content">{isBrandNewAccount ? 'Réserver mon premier lavage' : 'Prendre Rendez-vous'} <ArrowRight className="w-4 h-4 ml-2" /></span>
             </button>
           </div>
         )}

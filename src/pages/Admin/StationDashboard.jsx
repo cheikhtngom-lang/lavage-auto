@@ -3,9 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, ChevronsDown, Search, Timer, UserCheck, AlertCircle, Calendar } from 'lucide-react';
+import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, ChevronsDown, Search, Timer, UserCheck, AlertCircle, Calendar, UserPlus, ArrowRight, LineChart } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
+import { getCurrentStationId } from '../../lib/accounts';
+import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import Pagination from '../../components/ui/Pagination';
 
 // Couleur d'accent stable pour une réservation groupée (plusieurs véhicules
@@ -212,6 +215,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 }
 
 export default function StationDashboard() {
+  const navigate = useNavigate();
   const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig } = useAppState();
 
   const getDurationMinutes = (item) => {
@@ -237,6 +241,16 @@ export default function StationDashboard() {
   const isCompletedToday = completedDate === todayKey();
   const [completedPage, setCompletedPage] = React.useState(1);
   const [completedPageSize, setCompletedPageSize] = React.useState(20);
+
+  // Astuce "adoption" (voir [[design_onboarding_backlog]]) : une fois le premier
+  // lavage terminé, on suggère l'Analytique pour suivre le chiffre d'affaires —
+  // jamais montrée avant, jamais reproposée une fois vue.
+  const analyticsTipId = `analytics_${getCurrentStationId()}`;
+  const [showAnalyticsTip, setShowAnalyticsTip] = React.useState(false);
+  React.useEffect(() => {
+    if (completedWashes.length > 0 && !hasSeenTip(analyticsTipId)) setShowAnalyticsTip(true);
+  }, [completedWashes.length, analyticsTipId]);
+  const dismissAnalyticsTip = () => { markTipSeen(analyticsTipId); setShowAnalyticsTip(false); };
 
   const presentEmployees = (employees || []).filter(e => e?.present || e?.dailyStatus === 'present');
   // Un laveur déjà en train de laver un véhicule (voir startWash — stocké par
@@ -333,6 +347,37 @@ export default function StationDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Bannière d'activation : tant qu'aucun employé n'existe, aucun lavage ne peut
+          être démarré (voir handleGoClick plus bas) — c'est le seul vrai blocage pour
+          une station qui vient de s'inscrire, donc on le signale explicitement plutôt
+          que de laisser le nouvel admin découvrir le blocage seul via une alerte. */}
+      {employees.length === 0 && (
+        <button
+          onClick={() => navigate('/admin/team')}
+          className="w-full mb-8 flex items-center gap-4 bg-blue-950/40 border border-blue-500/20 rounded-2xl px-5 py-4 hover:bg-blue-950/60 transition-colors text-left"
+        >
+          <div className="p-2 bg-blue-500/15 rounded-xl flex-shrink-0">
+            <UserPlus className="w-5 h-5 text-blue-400" />
+          </div>
+          <span className="text-sm text-blue-200/80 flex-1">
+            <strong className="text-blue-400">Bienvenue !</strong> Votre station est déjà active et peut recevoir des réservations. Ajoutez votre premier laveur pour pouvoir démarrer un lavage.
+          </span>
+          <ArrowRight className="w-4 h-4 text-blue-400 flex-shrink-0" />
+        </button>
+      )}
+
+      {showAnalyticsTip && (
+        <div className="w-full mb-8 flex items-center gap-3 bg-emerald-950/30 border border-emerald-500/20 rounded-2xl px-5 py-4">
+          <LineChart className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <span className="text-sm text-emerald-200/80 flex-1">
+            <strong className="text-emerald-400">Astuce :</strong> suivez votre chiffre d'affaires et l'activité de votre équipe dans <button onClick={() => navigate('/admin/analytics')} className="underline hover:text-emerald-300">Analytique</button>.
+          </span>
+          <button onClick={dismissAnalyticsTip} className="text-neutral-500 hover:text-white flex-shrink-0" aria-label="Fermer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* Véhicules en cours (Active Washes) */}

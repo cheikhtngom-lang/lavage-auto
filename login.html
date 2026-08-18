@@ -902,7 +902,7 @@
             try {
                 const station = await createStationAccount({ name, address, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat: stationLat, lng: stationLng });
                 setSession({ role: 'admin', remember: true, stationId: station.id });
-                alert('🏪 Votre espace station a été créé ! Il est en attente de validation par notre équipe, mais vous pouvez déjà commencer à le configurer.');
+                alert('🏪 Votre espace station a été créé et est déjà actif ! Ajoutez votre premier laveur pour pouvoir démarrer des lavages.');
                 window.location.href = '/admin/queue';
             } catch (err) {
                 errorEl.textContent = err.message;

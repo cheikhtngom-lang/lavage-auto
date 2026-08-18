@@ -224,7 +224,11 @@ export default function Stations() {
 
   // Recherche texte/région, géolocalisation ou filtre favoris : n'importe
   // laquelle de ces actions explicites suffit à révéler la liste.
-  const hasSearched = !!appliedSearch || userPos !== null || favoritesOnly;
+  // ?onboarding=1 : lien direct depuis le dashboard client vide ("Réserver mon
+  // premier lavage") — on saute le filtre de recherche pour ne pas ajouter une
+  // étape à un tout nouveau compte qui n'a encore jamais réservé.
+  const cameFromOnboarding = searchParams.get('onboarding') === '1';
+  const hasSearched = !!appliedSearch || userPos !== null || favoritesOnly || cameFromOnboarding;
   const showStationsList = !isDashboardContext || hasSearched;
 
   const handleSearch = () => setAppliedSearch({ query: searchInput.trim().toLowerCase(), region: regionInput });
