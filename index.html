@@ -22,7 +22,7 @@
     <style>
         /* Smooth scrolling */
         html { scroll-behavior: smooth; }
-        
+
         /* Floating animation for hero mockup */
         @keyframes float {
             0% { transform: translateY(0px); }
@@ -39,6 +39,9 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        @keyframes shimmer-slide { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+        @keyframes count-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
         /* Défilement horizontal des stations partenaires */
         .stations-marquee {
@@ -64,7 +67,7 @@
     <!-- Effets de lumière en arrière-plan -->
     <div class="absolute top-0 -left-10 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 pointer-events-none z-[-1]"></div>
     <div class="absolute top-0 -right-10 w-96 h-96 bg-emerald-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 pointer-events-none z-[-1]"></div>
-    
+
     <!-- Navigation -->
     <header class="sticky top-0 z-50 w-full border-b border-white/10 glass-panel">
         <div class="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -83,7 +86,7 @@
                     <button onclick="window.location.href='login.html'" class="hidden sm:inline-block text-white hover:text-blue-400 font-medium px-2 py-2 text-sm transition-colors">
                         Connexion
                     </button>
-                    <button onclick="window.location.href='login.html?mode=register'" class="bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 whitespace-nowrap">
+                    <button onclick="window.location.href='login.html?mode=register'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 whitespace-nowrap">
                         S'inscrire
                     </button>
                 </div>
@@ -109,45 +112,47 @@
         <section id="accueil" class="w-full min-h-[90vh] flex flex-col md:flex-row items-center justify-between px-4 max-w-7xl mx-auto py-20 gap-12">
             <div class="flex-1 flex flex-col items-start text-left animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
                 <div class="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-300 mb-8 backdrop-blur-sm">
-                    <span class="flex h-2 w-2 rounded-full bg-blue-500 mr-2 animate-pulse"></span>
+                    <span class="flex h-2 w-2 rounded-full bg-blue-500 mr-2" style="animation: pulse-dot 2s ease-in-out infinite;"></span>
                     Solution N°1 au Sénégal
                 </div>
-                
+
                 <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
                     Fini les files d'attente.<br />
                     <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
                         Lavez intelligent.
                     </span>
                 </h1>
-                
+
                 <p class="text-lg text-neutral-400 mb-10 max-w-xl">
                     La première plateforme SaaS de gestion de file d'attente virtuelle pour les stations de lavage au Sénégal. Réservez, payez par Wave, et arrivez juste à temps.
                 </p>
-                
+
                 <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mt-4">
-                    <button onclick="window.location.href='/stations'" class="bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
-                        Trouver une station 🔍
+                    <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        Trouver une station
                     </button>
                     <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-white/5 border border-white/10 hover:bg-white/10 rounded-full px-8 py-4 text-white font-semibold shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 backdrop-blur-sm">
-                        Espace Partenaire 🚀
+                        Espace Partenaire
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                     </button>
                 </div>
-                
+
                 <div class="mt-8 flex items-center gap-4 text-sm text-neutral-500">
                     <div class="flex -space-x-2">
                         <div class="w-8 h-8 rounded-full bg-neutral-800 border-2 border-black"></div>
                         <div class="w-8 h-8 rounded-full bg-neutral-700 border-2 border-black"></div>
                         <div class="w-8 h-8 rounded-full bg-neutral-600 border-2 border-black flex items-center justify-center text-[10px] text-white">+50</div>
                     </div>
-                    <span>Stations partenaires actives</span>
+                    <span><strong class="count-up text-white" data-target="50">50</strong> Stations partenaires actives</span>
                 </div>
             </div>
-            
+
             <!-- Mockup visuel : vraie photo du véhicule + statut d'attente flottant -->
             <div class="flex-1 w-full max-w-md mx-auto relative animate-float">
                 <div class="absolute -inset-8 bg-blue-600/20 blur-3xl rounded-full pointer-events-none"></div>
 
-                <div class="relative rounded-[2rem] overflow-hidden shadow-2xl shadow-blue-900/50 border border-white/10">
+                <div class="spotlight relative rounded-[2rem] overflow-hidden shadow-2xl shadow-blue-900/50 border border-white/10">
                     <img src="/images/peugeot-3008-2024.jpg" alt="Peugeot 3008 (2024)"
                          class="w-full aspect-[4/3] object-cover" style="object-position: 68% 55%;" loading="eager" />
                     <div class="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black to-transparent"></div>
@@ -168,14 +173,14 @@
                     </div>
                     <div class="w-full bg-black/50 rounded-full h-2 overflow-hidden">
                         <div class="bg-gradient-to-r from-blue-500 to-emerald-500 h-full rounded-full w-[75%] relative overflow-hidden">
-                            <div class="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite]"></div>
+                            <div class="absolute inset-0 bg-white/20 w-full" style="animation: shimmer-slide 2.2s infinite;"></div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Badge paiement flottant -->
                 <div class="absolute -top-4 -right-2 sm:-right-6 bg-emerald-500/90 backdrop-blur rounded-2xl px-4 py-2.5 shadow-xl flex items-center gap-2">
-                    <span class="text-lg">✅</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     <span class="text-xs font-bold text-white whitespace-nowrap">Paiement Wave validé</span>
                 </div>
 
@@ -187,24 +192,27 @@
         </section>
 
         <!-- Ce que nous facilitons (Avantages) -->
-        <section id="avantages" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 relative">
-            <div class="text-center mb-16">
+        <section id="avantages" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 relative reveal-group">
+            <div class="reveal-item text-center mb-16">
                 <span class="text-purple-400 font-bold tracking-wider uppercase text-sm mb-2 block">Nos Avantages</span>
                 <h2 class="text-3xl md:text-5xl font-bold mb-4">Ce que nous facilitons pour vous</h2>
                 <p class="text-neutral-400 max-w-2xl mx-auto">Une solution pensée pour éliminer la frustration des conducteurs et maximiser les revenus des stations de lavage.</p>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-12">
+            <div class="reveal-item grid md:grid-cols-2 gap-8">
                 <!-- Pour le client -->
-                <div class="glass-card p-10 rounded-3xl border border-blue-500/20 bg-blue-900/10 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-2xl">
+                <div class="spotlight glass-card p-10 rounded-3xl border border-blue-500/20 bg-blue-900/10 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-2xl">
                     <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-500/20 blur-3xl rounded-full group-hover:bg-blue-500/30 transition-colors"></div>
                     <h3 class="text-2xl font-bold text-white mb-8 flex items-center gap-4">
-                        <span class="text-4xl">👤</span> Pour les Automobilistes
+                        <span class="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center flex-shrink-0">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        </span>
+                        Pour les Automobilistes
                     </h3>
                     <ul class="space-y-6 text-neutral-300">
                         <li class="flex items-start gap-4">
                             <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-blue-400 font-bold text-sm">✓</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                             <div>
                                 <strong class="text-white block mb-1">Zéro attente imprévue</strong>
@@ -213,7 +221,7 @@
                         </li>
                         <li class="flex items-start gap-4">
                             <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-blue-400 font-bold text-sm">✓</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                             <div>
                                 <strong class="text-white block mb-1">Paiement simplifié</strong>
@@ -222,7 +230,7 @@
                         </li>
                         <li class="flex items-start gap-4">
                             <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-blue-400 font-bold text-sm">✓</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                             <div>
                                 <strong class="text-white block mb-1">Flexibilité intelligente</strong>
@@ -233,15 +241,18 @@
                 </div>
 
                 <!-- Pour la station -->
-                <div class="glass-card p-10 rounded-3xl border border-emerald-500/20 bg-emerald-900/10 relative overflow-hidden group hover:border-emerald-500/40 transition-colors shadow-2xl">
+                <div class="spotlight glass-card p-10 rounded-3xl border border-emerald-500/20 bg-emerald-900/10 relative overflow-hidden group hover:border-emerald-500/40 transition-colors shadow-2xl">
                     <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/20 blur-3xl rounded-full group-hover:bg-emerald-500/30 transition-colors"></div>
                     <h3 class="text-2xl font-bold text-white mb-8 flex items-center gap-4">
-                        <span class="text-4xl">🏢</span> Pour les Stations de Lavage
+                        <span class="w-11 h-11 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-6h6v6"></path></svg>
+                        </span>
+                        Pour les Stations de Lavage
                     </h3>
                     <ul class="space-y-6 text-neutral-300">
                         <li class="flex items-start gap-4">
                             <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                             <div>
                                 <strong class="text-white block mb-1">Fidélisation client</strong>
@@ -250,7 +261,7 @@
                         </li>
                         <li class="flex items-start gap-4">
                             <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                             <div>
                                 <strong class="text-white block mb-1">Gestion digitalisée</strong>
@@ -259,7 +270,7 @@
                         </li>
                         <li class="flex items-start gap-4">
                             <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                             <div>
                                 <strong class="text-white block mb-1">Paiements sécurisés</strong>
@@ -268,7 +279,7 @@
                         </li>
                         <li class="flex items-start gap-4">
                             <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <span class="text-emerald-400 font-bold text-sm">✓</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             </div>
                             <div>
                                 <strong class="text-white block mb-1">Module RH & Pointage</strong>
@@ -280,18 +291,18 @@
             </div>
         </section>
 
-        <!-- NOUVEAU: Comment ça marche ? -->
-        <section id="comment-ca-marche" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5">
-            <div class="text-center mb-16">
+        <!-- Comment ça marche ? -->
+        <section id="comment-ca-marche" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
+            <div class="reveal-item text-center mb-16">
                 <span class="text-blue-400 font-bold tracking-wider uppercase text-sm mb-2 block">Le processus</span>
                 <h2 class="text-3xl md:text-5xl font-bold mb-4">La magie en 3 étapes simples</h2>
                 <p class="text-neutral-400 max-w-2xl mx-auto">Une fluidité parfaite entre le client et la station.</p>
             </div>
-            
-            <div class="grid md:grid-cols-3 gap-8 relative">
+
+            <div class="reveal-item grid md:grid-cols-3 gap-8 relative">
                 <!-- Ligne de connexion (Desktop) -->
                 <div class="hidden md:block absolute top-[40px] left-[15%] right-[15%] h-1 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-emerald-500/20 z-0"></div>
-                
+
                 <!-- Step 1 -->
                 <div class="glass-panel p-8 rounded-3xl relative z-10 flex flex-col items-center text-center border-t border-blue-500/30">
                     <div class="w-20 h-20 rounded-full bg-blue-600 text-white font-bold text-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(37,99,235,0.4)]">1</div>
@@ -314,22 +325,23 @@
         </section>
 
         <!-- Recherche de Stations (Existante) -->
-        <section id="stations-section" class="w-full bg-black/40 py-24 border-y border-white/5 relative z-10">
+        <section id="stations-section" class="w-full bg-black/40 py-24 border-y border-white/5 relative z-10 reveal-group">
             <div class="max-w-6xl mx-auto px-4">
-                <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
+                <div class="reveal-item flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
                     <div>
                         <h2 class="text-3xl font-bold mb-2">Stations partenaires actuelles</h2>
                         <p class="text-neutral-400">Trouvez une station à proximité ou dans une autre région.</p>
                     </div>
                     <button onclick="window.location.href='login.html'" class="text-blue-400 hover:text-white font-medium transition-colors flex items-center gap-2">
-                        Rejoindre le réseau <span>→</span>
+                        Rejoindre le réseau
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                     </button>
                 </div>
 
                 <!-- Barre de recherche : quartier + région + bouton Rechercher -->
-                <div class="glass-panel p-4 rounded-2xl border border-white/5 mb-4 flex flex-col md:flex-row gap-4 items-center">
+                <div class="reveal-item glass-panel p-4 rounded-2xl border border-white/5 mb-4 flex flex-col md:flex-row gap-4 items-center">
                     <div class="flex-1 w-full relative">
-                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400">🔍</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input id="search-input" type="text" placeholder="Rechercher un quartier, une station..." class="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors" onkeydown="if(event.key==='Enter')searchStations()">
                     </div>
 
@@ -354,15 +366,17 @@
                         <span class="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none text-xs">▼</span>
                     </div>
 
-                    <button onclick="searchStations()" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
-                        🔍 Rechercher
+                    <button onclick="searchStations()" class="cta-beam w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        Rechercher
                     </button>
                 </div>
 
                 <!-- Recherche par géolocalisation : station la plus proche -->
-                <div class="flex flex-col items-center gap-1 mb-10">
+                <div class="reveal-item flex flex-col items-center gap-1 mb-10">
                     <button id="geoloc-btn" onclick="useMyPosition()" class="text-blue-400 hover:text-white font-medium text-sm transition-colors flex items-center gap-2">
-                        <span>📍</span> <span id="geoloc-btn-label">Ou trouver la station la plus proche de moi (géolocalisation)</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        <span id="geoloc-btn-label">Ou trouver la station la plus proche de moi (géolocalisation)</span>
                     </button>
                     <p id="geoloc-status" class="text-sm text-neutral-500"></p>
                 </div>
@@ -380,31 +394,31 @@
                 </div>
 
                 <!-- Défilement horizontal automatique des vraies stations inscrites (vue par défaut) -->
-                <div id="stations-marquee" class="stations-marquee">
+                <div id="stations-marquee" class="reveal-item stations-marquee">
                     <div id="stations-track" class="stations-track"></div>
                 </div>
                 <div id="stations-empty" class="hidden text-center py-16 glass-card rounded-2xl border border-dashed border-white/10">
                     <p class="text-neutral-300 font-medium mb-1">Aucune station inscrite pour le moment.</p>
                     <p class="text-neutral-500 text-sm mb-5">Soyez la première station partenaire du réseau !</p>
-                    <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20">
+                    <button onclick="window.location.href='login.html?mode=register&role=agence'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20">
                         Inscrire ma station
                     </button>
                 </div>
             </div>
         </section>
 
-        <!-- NOUVEAU: Témoignages -->
-        <section id="temoignages" class="w-full max-w-6xl mx-auto px-4 py-24">
-            <div class="text-center mb-16">
+        <!-- Témoignages -->
+        <section id="temoignages" class="w-full max-w-6xl mx-auto px-4 py-24 reveal-group">
+            <div class="reveal-item text-center mb-16">
                 <span class="text-emerald-400 font-bold tracking-wider uppercase text-sm mb-2 block">Preuve Sociale</span>
                 <h2 class="text-3xl md:text-5xl font-bold mb-4">Ils ont transformé leur station</h2>
             </div>
-            
-            <div class="grid md:grid-cols-2 gap-8">
+
+            <div class="reveal-item grid md:grid-cols-2 gap-8">
                 <div class="glass-panel p-8 rounded-3xl relative border border-white/5 shadow-2xl">
                     <span class="absolute top-4 right-6 text-6xl text-white/5 font-serif">"</span>
                     <div class="flex text-amber-400 mb-4 text-xl">★★★★★</div>
-                    <p class="text-lg text-neutral-300 mb-6 italic">"Avant, ma station était le chaos total le samedi matin. Les clients klaxonnaient, s'énervaient. Depuis Clean Car Galsen, tout est fluide, les paiements Wave rentrent tout seuls, et j'ai augmenté mon chiffre d'affaires de 35% !"</p>
+                    <p class="text-lg text-neutral-300 mb-6 italic">"Avant, ma station était le chaos total le samedi matin. Les clients klaxonnaient, s'énervaient. Depuis Clean Car Galsen, tout est fluide, les paiements Wave rentrent tout seuls, et j'ai augmenté mon chiffre d'affaires de <span class="count-up text-emerald-400 not-italic font-bold" data-target="35" data-suffix="%">0%</span> !"</p>
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg">OD</div>
                         <div>
@@ -413,7 +427,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="glass-panel p-8 rounded-3xl relative border border-white/5 shadow-2xl">
                     <span class="absolute top-4 right-6 text-6xl text-white/5 font-serif">"</span>
                     <div class="flex text-amber-400 mb-4 text-xl">★★★★★</div>
@@ -430,16 +444,16 @@
         </section>
 
         <!-- Tarifs SaaS pour Gérants -->
-        <section id="tarifs" class="w-full bg-neutral-900/50 py-24 border-t border-white/5 relative overflow-hidden">
+        <section id="tarifs" class="w-full bg-neutral-900/50 py-24 border-t border-white/5 relative overflow-hidden reveal-group">
             <div class="absolute bottom-0 left-0 w-[800px] h-[800px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none z-0"></div>
-            
+
             <div class="max-w-6xl mx-auto px-4 relative z-10">
-                <div class="text-center mb-16">
+                <div class="reveal-item text-center mb-16">
                     <h2 class="text-3xl md:text-5xl font-bold mb-4">Des tarifs simples & clairs</h2>
                     <p class="text-neutral-400 max-w-2xl mx-auto">Digitalisez votre lavage auto avec des forfaits sans engagement.</p>
                 </div>
 
-                <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <div class="reveal-item grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
                     <!-- Starter -->
                     <div class="glass-card p-10 rounded-3xl border border-white/5 relative flex flex-col bg-black/20">
                         <h3 class="text-2xl font-bold mb-2">Starter</h3>
@@ -456,7 +470,8 @@
                     </div>
 
                     <!-- Pro -->
-                    <div class="glass-card p-10 rounded-3xl border border-blue-500/50 bg-blue-600/10 relative flex flex-col shadow-2xl shadow-blue-900/20 transform md:-translate-y-4">
+                    <div class="spotlight cta-beam p-[1px] rounded-3xl transform md:-translate-y-4">
+                    <div class="glass-card p-10 rounded-3xl bg-blue-600/10 relative flex flex-col h-full shadow-2xl shadow-blue-900/20">
                         <div class="absolute top-0 inset-x-0 flex justify-center -mt-3">
                             <span class="bg-blue-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-[0_0_15px_rgba(59,130,246,0.5)]">Le Plus Populaire</span>
                         </div>
@@ -473,35 +488,42 @@
                         </ul>
                         <button onclick="window.location.href='login.html?mode=register&plan=pro'" class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors font-bold shadow-[0_0_20px_rgba(37,99,235,0.4)]">Choisir Pro</button>
                     </div>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- NOUVEAU: FAQ -->
-        <section class="w-full max-w-4xl mx-auto px-4 py-24 border-t border-white/5">
-            <div class="text-center mb-16">
+        <!-- FAQ -->
+        <section class="w-full max-w-4xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
+            <div class="reveal-item text-center mb-16">
                 <h2 class="text-3xl md:text-4xl font-bold mb-4">Questions Fréquentes</h2>
             </div>
-            
-            <div class="space-y-4">
-                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
-                    <h3 class="font-bold text-lg mb-2 text-white">Faut-il acheter du matériel informatique spécifique ?</h3>
-                    <p class="text-neutral-400 text-sm leading-relaxed">Absolument pas. Clean Car Galsen fonctionne sur n'importe quel smartphone, tablette ou ordinateur connecté à internet (via le navigateur web).</p>
-                </div>
-                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
-                    <h3 class="font-bold text-lg mb-2 text-white">Comment je récupère l'argent payé par les clients via Wave/OM ?</h3>
-                    <p class="text-neutral-400 text-sm leading-relaxed">L'argent va directement sur votre propre compte marchand (Wave/Orange Money). Nous ne prenons aucune commission sur vos lavages, seul l'abonnement mensuel vous est facturé.</p>
-                </div>
-                <div class="glass-panel p-6 rounded-2xl border border-white/5 hover:border-blue-500/30 transition-colors">
-                    <h3 class="font-bold text-lg mb-2 text-white">Puis-je annuler mon abonnement ?</h3>
-                    <p class="text-neutral-400 text-sm leading-relaxed">Oui, toutes nos offres sont sans engagement. Vous pouvez annuler votre abonnement SaaS à tout moment depuis votre tableau de bord.</p>
-                </div>
+
+            <div class="reveal-item">
+                <details class="faq" open>
+                    <summary>Faut-il acheter du matériel informatique spécifique ?
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <p>Absolument pas. Clean Car Galsen fonctionne sur n'importe quel smartphone, tablette ou ordinateur connecté à internet (via le navigateur web).</p>
+                </details>
+                <details class="faq">
+                    <summary>Comment je récupère l'argent payé par les clients via Wave/OM ?
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <p>L'argent va directement sur votre propre compte marchand (Wave/Orange Money). Nous ne prenons aucune commission sur vos lavages, seul l'abonnement mensuel vous est facturé.</p>
+                </details>
+                <details class="faq">
+                    <summary>Puis-je annuler mon abonnement ?
+                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <p>Oui, toutes nos offres sont sans engagement. Vous pouvez annuler votre abonnement SaaS à tout moment depuis votre tableau de bord.</p>
+                </details>
             </div>
         </section>
 
-        <!-- NOUVEAU: CTA Final -->
-        <section class="w-full py-24 border-t border-white/5 bg-gradient-to-b from-transparent to-blue-900/20 relative">
-            <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
+        <!-- CTA Final -->
+        <section class="w-full py-24 border-t border-white/5 bg-gradient-to-b from-transparent to-blue-900/20 relative reveal-group">
+            <div class="reveal-item max-w-4xl mx-auto px-4 text-center relative z-10">
                 <h2 class="text-4xl md:text-6xl font-bold mb-6">Prêt à digitaliser votre station ?</h2>
                 <p class="text-xl text-neutral-400 mb-10 max-w-2xl mx-auto">Rejoignez le réseau. Offrez une expérience Premium à vos clients. Maximisez vos revenus.</p>
                 <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-white hover:bg-neutral-200 text-black rounded-full px-10 py-5 font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-transform active:scale-95 text-lg">
@@ -509,7 +531,7 @@
                 </button>
             </div>
         </section>
-        
+
         <!-- Footer -->
         <footer class="w-full border-t border-white/10 bg-black py-12 text-center text-neutral-500 text-sm">
             <div class="flex items-center justify-center gap-2 mb-4">
@@ -534,7 +556,7 @@
                     const dashboardPath = role === 'client' ? '/dashboard' : role === 'admin' ? '/admin/queue' : '/superadmin';
                     authContainer.innerHTML = `
                         <button onclick="logout()" class="hidden sm:inline-block text-sm font-medium text-neutral-400 hover:text-red-400 transition-colors mr-1 sm:mr-3">Déconnexion</button>
-                        <button onclick="window.location.href='${dashboardPath}'" class="bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 whitespace-nowrap">
+                        <button onclick="window.location.href='${dashboardPath}'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 whitespace-nowrap">
                             <span class="sm:hidden">Mon Espace</span><span class="hidden sm:inline">Mon Tableau de Bord</span>
                         </button>
                     `;
@@ -542,6 +564,9 @@
             }
 
             renderPartnerStations();
+            initScrollReveal();
+            initSpotlights();
+            initCountUp();
         });
 
         // ============ MENU MOBILE (header) ============
@@ -569,6 +594,55 @@
             sessionStorage.removeItem('isLoggedIn');
             sessionStorage.removeItem('userRole');
             window.location.reload();
+        }
+
+        // ============ POLISH VISUEL (reveal au scroll, spotlight, compteurs) ============
+        function initScrollReveal() {
+            const groups = document.querySelectorAll('.reveal-group');
+            if (!groups.length) return;
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                        io.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+            groups.forEach((el) => io.observe(el));
+        }
+
+        function initSpotlights() {
+            document.querySelectorAll('.spotlight').forEach((card) => {
+                card.addEventListener('mousemove', (ev) => {
+                    const rect = card.getBoundingClientRect();
+                    card.style.setProperty('--mx', (ev.clientX - rect.left) + 'px');
+                    card.style.setProperty('--my', (ev.clientY - rect.top) + 'px');
+                });
+            });
+        }
+
+        function initCountUp() {
+            const els = document.querySelectorAll('.count-up');
+            if (!els.length) return;
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    io.unobserve(entry.target);
+                    const el = entry.target;
+                    const target = parseInt(el.dataset.target, 10) || 0;
+                    const suffix = el.dataset.suffix || '';
+                    const t0 = performance.now();
+                    const dur = 1300;
+                    function step(t) {
+                        const p = Math.min(1, (t - t0) / dur);
+                        const eased = 1 - Math.pow(1 - p, 3);
+                        el.textContent = Math.round(eased * target) + suffix;
+                        if (p < 1) requestAnimationFrame(step);
+                    }
+                    requestAnimationFrame(step);
+                });
+            }, { threshold: 0.5 });
+            els.forEach((el) => io.observe(el));
         }
 
         // ============ STATIONS PARTENAIRES (défilement) ============
@@ -636,6 +710,8 @@
             return { average: sum / reviews.length, count: reviews.length };
         }
 
+        const STAR_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"></polygon></svg>';
+
         function stationCardHTML(station, index) {
             const icon = STATION_ICONS[index % STATION_ICONS.length];
             const badge = STATUS_BADGES[station.status] || STATUS_BADGES.en_attente;
@@ -647,10 +723,10 @@
                 : '';
             const rating = getStationRating(station.id);
             const ratingLabel = rating
-                ? `<div class="flex items-center gap-1 text-xs text-amber-400 mb-2">★ <span class="font-medium text-white">${rating.average.toFixed(1)}</span> <span class="text-neutral-500">(${rating.count})</span></div>`
+                ? `<div class="flex items-center gap-1 text-xs text-amber-400 mb-2">${STAR_SVG} <span class="font-medium text-white">${rating.average.toFixed(1)}</span> <span class="text-neutral-500">(${rating.count})</span></div>`
                 : `<div class="text-xs text-neutral-600 mb-2">Aucun avis pour le moment</div>`;
             return `
-                <div class="station-card glass-card rounded-2xl p-6 border border-white/5 cursor-pointer hover:border-blue-500/30 transition-colors" onclick="window.location.href='/stations?stationId=${station.id}'">
+                <div class="station-card spotlight glass-card rounded-2xl p-6 border border-white/5 cursor-pointer hover:border-blue-500/30 transition-colors" onclick="window.location.href='/stations?stationId=${station.id}'">
                     <div class="flex justify-between items-start mb-4">
                         <div class="w-12 h-12 rounded-xl ${icon.bg} flex items-center justify-center text-2xl">${icon.emoji}</div>
                         <span class="${badge.class} text-xs font-bold px-3 py-1.5 rounded-full border">${badge.label}</span>
@@ -682,6 +758,7 @@
             // On duplique la liste pour un défilement en boucle infinie et fluide
             const cardsHTML = stations.map(stationCardHTML).join('');
             track.innerHTML = cardsHTML + cardsHTML;
+            initSpotlights();
 
             // Vitesse proportionnelle au nombre de stations pour un rythme constant
             const duration = Math.max(15, stations.length * 5);
@@ -723,6 +800,7 @@
             resultsGrid.classList.remove('hidden');
             countEl.textContent = `${results.length} station${results.length > 1 ? 's' : ''} trouvée${results.length > 1 ? 's' : ''}`;
             resultsGrid.innerHTML = results.map(stationCardHTML).join('');
+            initSpotlights();
         }
 
         function resetStationsSearch() {

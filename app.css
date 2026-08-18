@@ -1,10 +1,68 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Bricolage+Grotesque:wght@600;700;800&display=swap');
 
 body {
     font-family: 'Inter', sans-serif;
     background-color: #0a0a0a;
     color: #f5f5f5;
 }
+
+h1, h2, h3 {
+    font-family: 'Bricolage Grotesque', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+/* Halo qui suit le curseur (hero mockup, carte tarif "Populaire") */
+.spotlight { position: relative; overflow: hidden; }
+.spotlight::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.09), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
+}
+.spotlight:hover::after { opacity: 1; }
+
+/* Apparition au scroll : le parent bascule .is-visible (IntersectionObserver),
+   chaque .reveal-item hérite avec un décalage échelonné. */
+.reveal-group .reveal-item {
+    opacity: 0;
+    transform: translateY(26px);
+    transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-group.is-visible .reveal-item { opacity: 1; transform: translateY(0); }
+.reveal-group .reveal-item:nth-child(2) { transition-delay: 110ms; }
+.reveal-group .reveal-item:nth-child(3) { transition-delay: 220ms; }
+.reveal-group .reveal-item:nth-child(4) { transition-delay: 330ms; }
+
+/* Bordure animée en dégradé tournant (CTA principaux) */
+@property --angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+@keyframes rotate-beam { to { --angle: 360deg; } }
+.cta-beam { position: relative; isolation: isolate; }
+.cta-beam::before {
+    content: '';
+    position: absolute;
+    inset: -1.5px;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(from var(--angle, 0deg), #3b82f6, #10b981, #f0c419, #3b82f6);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    z-index: -1;
+    animation: rotate-beam 4.5s linear infinite;
+}
+
+/* Accordéon FAQ (natif, sans JS) */
+details.faq { border-top: 1px solid rgba(255, 255, 255, 0.08); padding: 22px 0; }
+details.faq summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 1.05rem; color: #fff; }
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq .chevron { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); flex-shrink: 0; color: #6b7280; }
+details.faq[open] .chevron { transform: rotate(180deg); color: #60a5fa; }
+details.faq p { color: #a1a1aa; font-size: 0.95rem; line-height: 1.7; margin-top: 14px; max-width: 640px; }
+
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 /* Glassmorphism Classes */
 .glass-panel {
