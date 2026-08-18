@@ -33,6 +33,7 @@ import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
 import SuperAdminStations from './pages/SuperAdmin/Stations';
 import SuperAdminMotorists from './pages/SuperAdmin/Motorists';
+import SuperAdminSuperUsers from './pages/SuperAdmin/SuperUsers';
 import SuperAdminBilling from './pages/SuperAdmin/Billing';
 import SuperAdminSupport from './pages/SuperAdmin/Support';
 import SuperAdminSettings from './pages/SuperAdmin/Settings';
@@ -94,6 +95,7 @@ function App() {
                 <Route path="analytics" element={<SuperAdminAnalytics />} />
                 <Route path="stations" element={<SuperAdminStations />} />
                 <Route path="automobilistes" element={<SuperAdminMotorists />} />
+                <Route path="super-users" element={<SuperAdminSuperUsers />} />
                 <Route path="billing" element={<SuperAdminBilling />} />
                 <Route path="support" element={<SuperAdminSupport />} />
                 <Route path="settings" element={<SuperAdminSettings />} />

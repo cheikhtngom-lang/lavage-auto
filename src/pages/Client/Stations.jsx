@@ -14,6 +14,8 @@ import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '.
 import { SENEGAL_REGIONS, regionLabel } from '../../lib/regions';
 import { StarRatingDisplay } from '../../components/ui/StarRating';
 import { downloadReceiptPdf } from '../../lib/receipt';
+import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
+import { MAX_FREE_VEHICLES } from '../../lib/superUser';
 
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -24,6 +26,14 @@ function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// `null` couvre les trois cas où la distance ne peut pas être calculée
+// (géoloc refusée/indisponible, station sans lat/lng) — l'appelant doit alors
+// simplement ne rien afficher, jamais planter ni montrer "NaN km".
+function formatDistance(distanceKm) {
+  if (distanceKm == null) return null;
+  return distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
+}
+
 const emptyNewVehicle = { category: '', brand: '', plate: '' };
 
 // Choix du/des véhicule(s) à réserver, à partir du garage de l'automobiliste.
@@ -31,8 +41,8 @@ const emptyNewVehicle = { category: '', brand: '', plate: '' };
 // véhicules déjà actifs du client dans cette station — voir MAX_ACTIVE_VEHICLES_PER_CLIENT).
 // S'il n'a encore aucun véhicule enregistré, on le bascule automatiquement
 // vers le mini-formulaire d'ajout (au lieu de lui montrer une liste vide).
-function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxSelectable }) {
-  const { addVehicle } = useClientAccount();
+function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxSelectable, onFreeLimitReached }) {
+  const { addVehicle, superUserStatus } = useClientAccount();
   const [mode, setMode] = useState(vehicles.length > 0 ? 'select' : 'add');
   const [newVehicle, setNewVehicle] = useState(emptyNewVehicle);
 
@@ -41,6 +51,13 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
   const handleAddVehicle = async (e) => {
     e.preventDefault();
     if (!newVehicle.category || !newVehicle.brand || !newVehicle.plate.trim()) return;
+    // Le garage est plafonné à 2 véhicules hors Super User (voir schema.sql,
+    // policy vehicles_insert) — vérifié ici pour un message clair au lieu d'un
+    // échec silencieux de l'insert Postgres.
+    if (superUserStatus !== 'ACTIVE' && vehicles.length >= MAX_FREE_VEHICLES) {
+      onFreeLimitReached();
+      return;
+    }
     // addVehicle() est async (écriture Supabase) — sans ce await, onVehicleCreated
     // recevait la Promise elle-même au lieu du véhicule créé, donc v.id valait
     // undefined et le véhicule n'était jamais réellement ajouté à la sélection
@@ -125,7 +142,8 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
 
 export default function Stations() {
   const { stations: registry } = useSuperAdminState();
-  const { account, toggleFavorite, unhideStation, reservations, refreshActivity } = useClientAccount();
+  const { account, toggleFavorite, unhideStation, reservations, refreshActivity, superUserStatus } = useClientAccount();
+  const isSuperUser = superUserStatus === 'ACTIVE';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const location = useLocation();
@@ -155,6 +173,7 @@ export default function Stations() {
   const [paymentPhone, setPaymentPhone] = useState('');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [showUpsellModal, setShowUpsellModal] = useState(false);
 
   const vehicles = account?.vehicles || [];
   const selectedVehicles = vehicles.filter(v => selectedVehicleIds.includes(v.id));
@@ -168,9 +187,13 @@ export default function Stations() {
   }, [onlyMotoSelected, service]);
   // Places encore disponibles pour ce client dans cette station, compte tenu de
   // ses véhicules déjà actifs (file + en lavage) — voir MAX_ACTIVE_VEHICLES_PER_CLIENT.
+  // Un Super User n'est plus plafonné à 2 : son plafond devient la taille de
+  // son garage (pas littéralement "illimité", pour éviter tout abus absurde —
+  // il ne peut de toute façon pas sélectionner plus de véhicules qu'il n'en possède).
+  const effectiveVehicleCap = isSuperUser ? Math.max(vehicles.length, 1) : MAX_ACTIVE_VEHICLES_PER_CLIENT;
   const activeVehiclesCount = selectedStation ? reservations.filter(r => r.station_id === selectedStation.id).length : 0;
-  const remainingSlots = Math.max(0, MAX_ACTIVE_VEHICLES_PER_CLIENT - activeVehiclesCount);
-  const maxSelectable = Math.min(MAX_ACTIVE_VEHICLES_PER_CLIENT, remainingSlots || MAX_ACTIVE_VEHICLES_PER_CLIENT);
+  const remainingSlots = Math.max(0, effectiveVehicleCap - activeVehiclesCount);
+  const maxSelectable = Math.min(effectiveVehicleCap, remainingSlots || effectiveVehicleCap);
 
   const toggleVehicleSelection = (id) => {
     setSelectedVehicleIds(prev => {
@@ -253,7 +276,13 @@ export default function Stations() {
     if (!selectedStation) return;
     if (account) {
       const activeCount = reservations.filter(r => r.station_id === selectedStation.id).length;
-      if (activeCount >= MAX_ACTIVE_VEHICLES_PER_CLIENT) {
+      if (activeCount >= effectiveVehicleCap) {
+        // Compte gratuit qui a déjà 2 véhicules actifs ici : c'est la limite
+        // monétisée (offre gratuite), pas une simple saturation opérationnelle
+        // — on montre l'upsell Super User plutôt que "attendez qu'un lavage
+        // se termine". Un Super User qui sature son PROPRE plafond (rare,
+        // = taille de son garage) reste sur le message opérationnel classique.
+        if (!isSuperUser) { setSelectedStation(null); setShowUpsellModal(true); return; }
         setModalStep('limit');
         return;
       }
@@ -418,11 +447,15 @@ export default function Stations() {
     if (!pendingId || allStations.length === 0) return;
     const match = allStations.find(s => String(s.id) === pendingId);
     if (match) {
-      setSelectedStation(match);
       const activeCount = reservations.filter(r => r.station_id === match.id).length;
-      setModalStep(activeCount >= MAX_ACTIVE_VEHICLES_PER_CLIENT ? 'limit' : 'form');
-      setSelectedVehicleIds([]);
-      setService('Lavage Simple');
+      if (activeCount >= effectiveVehicleCap && !isSuperUser) {
+        setShowUpsellModal(true);
+      } else {
+        setSelectedStation(match);
+        setModalStep(activeCount >= effectiveVehicleCap ? 'limit' : 'form');
+        setSelectedVehicleIds([]);
+        setService('Lavage Simple');
+      }
     }
     sessionStorage.removeItem('pendingReservationStationId');
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -521,8 +554,8 @@ export default function Stations() {
               <div className="space-y-3 mb-6 flex-1">
                 <div className="flex items-center text-neutral-400"><MapPin className="w-5 h-5 mr-3 text-blue-400 flex-shrink-0" /><span>{station.address}</span></div>
                 <div className="flex justify-between items-center border-t border-white/5 pt-3">
-                  {station.distanceKm != null
-                    ? <span className="bg-white/5 text-neutral-300 font-medium px-3 py-1 rounded-md text-sm border border-white/10">{station.distanceKm < 1 ? `${Math.round(station.distanceKm * 1000)} m` : `${station.distanceKm.toFixed(1)} km`}</span>
+                  {formatDistance(station.distanceKm)
+                    ? <span className="bg-white/5 text-neutral-300 font-medium px-3 py-1 rounded-md text-sm border border-white/10">{formatDistance(station.distanceKm)}</span>
                     : <span />}
                   <span className="text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md text-sm font-medium border border-blue-500/20">
                     {station.activeCount > 0 && <>{station.activeCount} en lavage · </>}{station.waitingCount} en attente
@@ -552,7 +585,12 @@ export default function Stations() {
                     <div className="p-2.5 bg-blue-500/20 rounded-xl"><Building2 className="w-5 h-5 text-blue-400" /></div>
                     <div className="flex-1">
                       <h2 className="text-xl font-bold text-white">{selectedStation.name}</h2>
-                      <p className="text-neutral-400 text-sm flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {selectedStation.address}</p>
+                      <p className="text-neutral-400 text-sm flex items-center gap-1 flex-wrap">
+                        <MapPin className="w-3.5 h-3.5" /> {selectedStation.address}
+                        {formatDistance(selectedStation.distanceKm) && (
+                          <span className="text-blue-400 font-medium">· {formatDistance(selectedStation.distanceKm)}</span>
+                        )}
+                      </p>
                     </div>
                     {account && (
                       <button onClick={() => toggleFavorite(selectedStation.id)} className="p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0">
@@ -599,7 +637,7 @@ export default function Stations() {
                     </div>
                   </div>
                   <p className="text-sm text-neutral-300 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 mb-6">
-                    Vous avez déjà <strong className="text-amber-400">{MAX_ACTIVE_VEHICLES_PER_CLIENT} véhicules</strong> en file ou en lavage dans cette station. Attendez qu'un lavage se termine pour réserver à nouveau.
+                    Vous avez déjà <strong className="text-amber-400">{effectiveVehicleCap} véhicules</strong> en file ou en lavage dans cette station. Attendez qu'un lavage se termine pour réserver à nouveau.
                   </p>
                   <button onClick={() => { setSelectedStation(null); navigate('/dashboard'); }}
                     className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
@@ -630,6 +668,7 @@ export default function Stations() {
                         onToggle={toggleVehicleSelection}
                         onVehicleCreated={(v) => setSelectedVehicleIds(prev => prev.length >= maxSelectable ? prev : [...prev, v.id])}
                         maxSelectable={maxSelectable}
+                        onFreeLimitReached={() => { setSelectedStation(null); setShowUpsellModal(true); }}
                       />
                     </div>
                     {selectedVehicles.length > 0 && (
@@ -823,6 +862,8 @@ export default function Stations() {
           </div>
         )}
       </AnimatePresence>
+
+      <SuperUserUpsellModal open={showUpsellModal} onClose={() => setShowUpsellModal(false)} />
     </div>
   );
 }

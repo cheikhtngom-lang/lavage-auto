@@ -3,21 +3,32 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Car, Trash2, Check } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
+import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
+import { MAX_FREE_VEHICLES } from '../../lib/superUser';
 
 const emptyForm = { category: '', brand: '', plate: '' };
 
 export default function Garage() {
-  const { account, addVehicle, removeVehicle } = useClientAccount();
+  const { account, addVehicle, removeVehicle, superUserStatus } = useClientAccount();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
   const vehicles = account?.vehicles || [];
+  const isSuperUser = superUserStatus === 'ACTIVE';
+  const atFreeLimit = !isSuperUser && vehicles.length >= MAX_FREE_VEHICLES;
 
   const setCategory = (category) => setForm({ category, brand: '', plate: form.plate });
+
+  const openAddModal = () => {
+    if (atFreeLimit) { setShowUpsellModal(true); return; }
+    setShowAddModal(true);
+  };
 
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.category || !form.brand || !form.plate.trim()) return;
+    if (atFreeLimit) { setShowAddModal(false); setShowUpsellModal(true); return; }
     addVehicle({ category: form.category, brand: form.brand, plate: form.plate.trim() });
     setForm(emptyForm);
     setShowAddModal(false);
@@ -33,12 +44,18 @@ export default function Garage() {
           <p className="text-neutral-400 text-lg">Retrouvez vos véhicules pour réserver plus vite.</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={openAddModal}
           className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 flex-shrink-0"
         >
           <Plus className="w-5 h-5" /> Ajouter un véhicule
         </button>
       </div>
+
+      {!isSuperUser && (
+        <p className="text-neutral-500 text-sm mb-6 -mt-6">
+          {vehicles.length}/{MAX_FREE_VEHICLES} véhicules utilisés (offre gratuite).
+        </p>
+      )}
 
       {vehicles.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
@@ -130,6 +147,8 @@ export default function Garage() {
           </div>
         )}
       </AnimatePresence>
+
+      <SuperUserUpsellModal open={showUpsellModal} onClose={() => setShowUpsellModal(false)} />
     </div>
   );
 }

@@ -61,6 +61,7 @@ create table public.profiles (
   phone text,
   favorite_station_ids uuid[] not null default '{}',
   hidden_station_ids uuid[] not null default '{}',
+  photo_url text,
   created_at timestamptz not null default now()
 );
 -- Un seul compte admin par station (comme aujourd'hui : 1 station = 1 compte de connexion).
@@ -96,6 +97,44 @@ create table public.vehicles (
   plate text,
   created_at timestamptz not null default now()
 );
+
+-- ─── Abonnements Super User (5000 FCFA/mois, débloque plus de 2 véhicules) ─
+-- Une ligne par tentative/période de paiement — jamais mélangée à `transactions`
+-- (station_id y est obligatoire et RLS-scopée à une station : impossible d'y
+-- loger un paiement qui revient au Super Admin, pas à une station). Le statut
+-- "courant" d'un client = sa ligne la plus récente ACTIVE et non expirée,
+-- interrogée à la volée (voir is_super_user() plus bas) — pas de colonne
+-- dupliquée sur profiles à resynchroniser.
+create table public.super_user_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  client_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'PENDING' check (status in ('PENDING', 'ACTIVE', 'EXPIRED', 'CANCELLED', 'FAILED')),
+  amount integer not null default 5000,
+  method text,
+  reference text,
+  started_at timestamptz,
+  expires_at timestamptz,
+  confirmed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Vrai uniquement si l'utilisateur a un abonnement Super User ACTIVE et non
+-- expiré à l'instant présent — utilisée par la policy vehicles_insert
+-- ci-dessous pour faire sauter la limite de 2 véhicules gratuits. Vérifiée
+-- côté Postgres (pas seulement en JS) : un client ne peut pas contourner la
+-- limite en modifiant le localStorage/DevTools/une requête réseau. Définie
+-- ici (après super_user_subscriptions) pour la même raison que app_role()/
+-- current_station_id() sont définies après profiles — voir plus haut.
+create or replace function public.is_super_user(uid uuid)
+returns boolean
+language sql security definer stable
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.super_user_subscriptions
+    where client_id = uid and status = 'ACTIVE' and expires_at > now()
+  );
+$$;
 
 -- ─── Employés (laveurs/équipe station — pas de login propre) ────────────
 create table public.employees (
@@ -261,6 +300,7 @@ alter table public.stations enable row level security;
 alter table public.station_billing enable row level security;
 alter table public.profiles enable row level security;
 alter table public.vehicles enable row level security;
+alter table public.super_user_subscriptions enable row level security;
 alter table public.employees enable row level security;
 alter table public.attendance_records enable row level security;
 alter table public.custom_vehicle_types enable row level security;
@@ -320,12 +360,33 @@ create policy "profiles_update" on public.profiles for update
 -- vehicles : strictement le propriétaire (+ super admin pour le support).
 create policy "vehicles_select" on public.vehicles for select
   using (owner_id = auth.uid() or app_role() = 'super_admin');
+-- Offre gratuite plafonnée à 2 véhicules ; un abonnement Super User ACTIVE
+-- fait sauter la limite (voir is_super_user() ci-dessus). Le count(*) porte
+-- sur les lignes déjà en base au moment du check, donc n'inclut pas encore
+-- la ligne en cours d'insertion : count < 2 signifie "j'en ai 0 ou 1 déjà".
 create policy "vehicles_insert" on public.vehicles for insert
-  with check (owner_id = auth.uid());
+  with check (
+    owner_id = auth.uid()
+    and (
+      (select count(*) from public.vehicles v where v.owner_id = auth.uid()) < 2
+      or public.is_super_user(auth.uid())
+    )
+  );
 create policy "vehicles_update" on public.vehicles for update
   using (owner_id = auth.uid());
 create policy "vehicles_delete" on public.vehicles for delete
   using (owner_id = auth.uid());
+
+-- super_user_subscriptions : le client voit/crée les siennes (paiement =
+-- insert PENDING) ; seul le Super Admin peut les faire évoluer (confirmer un
+-- paiement -> ACTIVE, rejeter -> FAILED) — jamais le client lui-même, sinon
+-- il pourrait s'auto-activer sans jamais payer réellement.
+create policy "super_user_subscriptions_select" on public.super_user_subscriptions for select
+  using (client_id = auth.uid() or app_role() = 'super_admin');
+create policy "super_user_subscriptions_insert" on public.super_user_subscriptions for insert
+  with check (client_id = auth.uid());
+create policy "super_user_subscriptions_update" on public.super_user_subscriptions for update
+  using (app_role() = 'super_admin');
 
 -- employees / attendance_records : gérés uniquement par l'admin de LEUR station.
 create policy "employees_all" on public.employees for all

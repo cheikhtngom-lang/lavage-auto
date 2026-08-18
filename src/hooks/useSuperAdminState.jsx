@@ -76,6 +76,25 @@ const rowToClientAccount = (row) => ({
     createdAt: row.created_at,
 });
 
+// Abonnements Super User — jamais mélangés avec station_billing/PLANS (revenus
+// stations, voir Billing.jsx) : un flux financier séparé qui revient au Super
+// Admin, pas aux stations (voir supabase/schema.sql, super_user_subscriptions).
+const rowToSuperUserSub = (row) => ({
+    id: row.id,
+    clientId: row.client_id,
+    clientName: row.profiles?.full_name || '',
+    clientEmail: row.profiles?.email || '',
+    clientPhone: row.profiles?.phone || '',
+    status: row.status,
+    amount: row.amount,
+    method: row.method,
+    reference: row.reference,
+    startedAt: row.started_at,
+    expiresAt: row.expires_at,
+    confirmedAt: row.confirmed_at,
+    createdAt: row.created_at,
+});
+
 const SuperAdminStateContext = createContext(null);
 
 export function SuperAdminStateProvider({ children }) {
@@ -84,6 +103,7 @@ export function SuperAdminStateProvider({ children }) {
     const [auditLog, setAuditLog] = useState([]);
     const [plans, setPlans] = useState(DEFAULT_PLANS);
     const [clientAccounts, setClientAccounts] = useState([]);
+    const [superUserSubscriptions, setSuperUserSubscriptions] = useState([]);
 
     const loadDisputes = useCallback(async () => {
         const { data } = await supabase.from('disputes').select('*').order('created_at', { ascending: false });
@@ -112,6 +132,11 @@ export function SuperAdminStateProvider({ children }) {
     const loadClientAccounts = useCallback(async () => {
         const { data } = await supabase.from('profiles').select('*, vehicles(*)').eq('role', 'automobiliste').order('created_at', { ascending: false });
         setClientAccounts((data || []).map(rowToClientAccount));
+    }, []);
+
+    const loadSuperUserSubscriptions = useCallback(async () => {
+        const { data } = await supabase.from('super_user_subscriptions').select('*, profiles(full_name, email, phone)').order('created_at', { ascending: false });
+        setSuperUserSubscriptions((data || []).map(rowToSuperUserSub));
     }, []);
 
     // Grille tarifaire de TOUTES les stations (lecture publique) — alimente le
@@ -159,14 +184,15 @@ export function SuperAdminStateProvider({ children }) {
         loadAuditLog();
         loadPlans();
         loadVehicleBrands();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); };
+        loadSuperUserSubscriptions();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); };
         window.addEventListener('focus', refresh);
         const interval = setInterval(refresh, 8000);
         return () => {
             window.removeEventListener('focus', refresh);
             clearInterval(interval);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions]);
 
     // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
     // et persiste en tâche de fond — appelée en fire-and-forget après quasi
@@ -243,6 +269,29 @@ export function SuperAdminStateProvider({ children }) {
         if (station) logAction(`Abonnement marqué impayé : ${station.name}`);
     };
 
+    // Confirme un paiement Super User (ligne PENDING -> ACTIVE) une fois
+    // l'argent réellement reçu (Wave/OM) — jamais déclenché automatiquement au
+    // clic "Payer" côté client, voir src/lib/superUser.js. Abonnement d'1 mois
+    // calendaire à partir de maintenant (18/08 -> 18/09), même logique que
+    // l'exemple du brief produit.
+    const confirmSuperUserPayment = async (id) => {
+        const sub = superUserSubscriptions.find((s) => s.id === id);
+        const startedAt = new Date();
+        const expiresAt = new Date(startedAt);
+        expiresAt.setMonth(expiresAt.getMonth() + 1);
+        const patch = { status: 'ACTIVE', started_at: startedAt.toISOString(), expires_at: expiresAt.toISOString(), confirmed_at: startedAt.toISOString() };
+        await supabase.from('super_user_subscriptions').update(patch).eq('id', id);
+        setSuperUserSubscriptions((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'ACTIVE', startedAt: patch.started_at, expiresAt: patch.expires_at, confirmedAt: patch.confirmed_at } : s)));
+        if (sub) logAction(`Abonnement Super User confirmé : ${sub.clientName || sub.clientEmail}`);
+    };
+
+    const rejectSuperUserPayment = async (id) => {
+        const sub = superUserSubscriptions.find((s) => s.id === id);
+        await supabase.from('super_user_subscriptions').update({ status: 'FAILED' }).eq('id', id);
+        setSuperUserSubscriptions((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'FAILED' } : s)));
+        if (sub) logAction(`Paiement Super User rejeté : ${sub.clientName || sub.clientEmail}`);
+    };
+
     const sendBillingReminder = (id) => {
         const station = stations.find((s) => s.id === id);
         if (station) logAction(`Relance de facturation envoyée à : ${station.name}`);
@@ -306,6 +355,7 @@ export function SuperAdminStateProvider({ children }) {
             markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder,
             addDispute, resolveDispute, refundDispute, impersonateStation, logAction,
             updatePlan, resetPlans,
+            superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,
         }}>
             {children}
         </SuperAdminStateContext.Provider>

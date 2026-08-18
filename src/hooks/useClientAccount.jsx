@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { getLatestSubscription, deriveSuperUserStatus } from '../lib/superUser';
 
 const ClientAccountContext = createContext(null);
 
@@ -11,6 +12,7 @@ export function ClientAccountProvider({ children }) {
     // aux données des AUTRES clients (voir lib/stationData.js pour ça).
     const [reservations, setReservations] = useState([]);
     const [myTransactions, setMyTransactions] = useState([]);
+    const [superUserSub, setSuperUserSub] = useState(null);
 
     const load = useCallback(async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -30,6 +32,7 @@ export function ClientAccountProvider({ children }) {
             vehicles: (vehicles || []).map((v) => ({ id: v.id, category: v.category, brand: v.brand, plate: v.plate })),
             favoriteStationIds: profile.favorite_station_ids || [],
             hiddenStationIds: profile.hidden_station_ids || [],
+            photoUrl: profile.photo_url || null,
         });
         setLoading(false);
     }, []);
@@ -46,15 +49,24 @@ export function ClientAccountProvider({ children }) {
 
     useEffect(() => { load(); }, [load]);
 
+    const loadSuperUserSub = useCallback(async (clientId) => {
+        if (!clientId) { setSuperUserSub(null); return; }
+        setSuperUserSub(await getLatestSubscription(clientId));
+    }, []);
+
     useEffect(() => {
         if (!account?.id) return;
         loadActivity(account.id);
-        const refresh = () => loadActivity(account.id);
+        loadSuperUserSub(account.id);
+        const refresh = () => { loadActivity(account.id); loadSuperUserSub(account.id); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions` sont dans la publication supabase_realtime
         // (voir schema.sql) : la position en file/le passage en lavage arrivent en
         // direct dès qu'une station modifie SA réservation, sans sonder toutes les
-        // 8s. Le setInterval restant sert de filet de sécurité (reconnexion ratée).
+        // 8s. `super_user_subscriptions` n'y est pas (pas indispensable, un
+        // paiement confirmé par le Super Admin est un événement rare) — elle
+        // profite quand même du même refresh sur focus/interval ci-dessus.
+        // Le setInterval restant sert de filet de sécurité (reconnexion ratée).
         const channel = supabase
             .channel(`client-live-${account.id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `client_id=eq.${account.id}` }, refresh)
@@ -62,9 +74,11 @@ export function ClientAccountProvider({ children }) {
             .subscribe();
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
-    }, [account?.id, loadActivity]);
+    }, [account?.id, loadActivity, loadSuperUserSub]);
 
     const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id); }, [account?.id, loadActivity]);
+    const refreshSuperUser = useCallback(() => { if (account?.id) loadSuperUserSub(account.id); }, [account?.id, loadSuperUserSub]);
+    const superUserStatus = deriveSuperUserStatus(superUserSub);
 
     const updateProfile = async (patch) => {
         if (!account) return;
@@ -73,6 +87,7 @@ export function ClientAccountProvider({ children }) {
         if (patch.phone !== undefined) dbPatch.phone = patch.phone;
         if (patch.favoriteStationIds !== undefined) dbPatch.favorite_station_ids = patch.favoriteStationIds;
         if (patch.hiddenStationIds !== undefined) dbPatch.hidden_station_ids = patch.hiddenStationIds;
+        if (patch.photoUrl !== undefined) dbPatch.photo_url = patch.photoUrl;
         if (Object.keys(dbPatch).length > 0) {
             await supabase.from('profiles').update(dbPatch).eq('id', account.id);
         }
@@ -125,6 +140,7 @@ export function ClientAccountProvider({ children }) {
         <ClientAccountContext.Provider value={{
             account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation,
             reservations, myTransactions, refreshActivity,
+            superUserSub, superUserStatus, refreshSuperUser,
         }}>
             {children}
         </ClientAccountContext.Provider>
