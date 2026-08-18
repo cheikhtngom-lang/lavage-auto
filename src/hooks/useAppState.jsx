@@ -448,9 +448,15 @@ export function AppStateProvider({ children }) {
     const addEmployee = async (employeeData) => {
         if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
         const initials = employeeData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || '👤';
+        // daily_status démarre à 'repos', pas 'present' : un laveur qui vient
+        // d'être ajouté n'est pas encore de garde aujourd'hui. Sans ça, il
+        // apparaissait immédiatement dans le Pointage Journalier ET se
+        // retrouvait pointé automatiquement (voir l'effet d'auto-prise de
+        // poste dans Washers.jsx, déclenché par dailyStatus === 'present').
+        // L'admin doit explicitement le passer à "Présent" pour l'activer.
         const { error } = await supabase.from('employees').insert({
             station_id: stationId, name: employeeData.name, role: employeeData.role, access: employeeData.access,
-            status: 'Actif', daily_status: 'present', avatar: initials,
+            status: 'Actif', daily_status: 'repos', avatar: initials,
         });
         if (!error) await loadEmployees();
         return { success: !error, error };

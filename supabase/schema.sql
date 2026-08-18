@@ -144,7 +144,7 @@ create table public.employees (
   role text not null default 'Laveur',
   access text,
   status text not null default 'Actif',
-  daily_status text not null default 'present',
+  daily_status text not null default 'repos',
   avatar text,
   clock_in text,
   clock_out text,
