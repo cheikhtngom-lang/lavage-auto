@@ -90,7 +90,7 @@ const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
 
 export default function Washers() {
   const {
-    employees, updateEmployee, resumeEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
+    employees, updateEmployee, resumeEmployee, finishService, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
     shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate, scheduleByDate, loadScheduleRange, setShiftForDay,
   } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
@@ -182,6 +182,7 @@ export default function Washers() {
       case 'En pause': return <Clock className="w-4 h-4 text-amber-400" />;
       case 'Absent': return <XCircle className="w-4 h-4 text-red-400" />;
       case 'Terminé': return <CheckCircle2 className="w-4 h-4 text-blue-400" />;
+      case 'Fin de service': return <CheckCircle2 className="w-4 h-4 text-neutral-400" />;
       default: return null;
     }
   };
@@ -192,6 +193,7 @@ export default function Washers() {
       case 'En pause': return "bg-amber-500/20 text-amber-400 border-amber-500/30";
       case 'Absent': return "bg-red-500/20 text-red-400 border-red-500/30";
       case 'Terminé': return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case 'Fin de service': return "bg-neutral-500/20 text-neutral-400 border-neutral-500/30";
       default: return "bg-neutral-500/20 text-neutral-400 border-neutral-500/30";
     }
   };
@@ -462,9 +464,17 @@ export default function Washers() {
                                   </button>
                                 )}
                                 {pointageStatus === 'Terminé' && (
-                                  <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
-                                    Reprendre service
-                                  </button>
+                                  <>
+                                    <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
+                                      Reprendre service
+                                    </button>
+                                    <button onClick={() => finishService(member.id)} className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold text-xs transition-colors">
+                                      Fin de service
+                                    </button>
+                                  </>
+                                )}
+                                {pointageStatus === 'Fin de service' && (
+                                  <span className="text-xs text-neutral-500 italic">Journée terminée</span>
                                 )}
                               </div>
                             ) : (

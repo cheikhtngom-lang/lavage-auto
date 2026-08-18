@@ -255,9 +255,12 @@ export default function StationDashboard() {
   const presentEmployees = (employees || []).filter(e => e?.present || e?.dailyStatus === 'present');
   // Un laveur déjà en train de laver un véhicule (voir startWash — stocké par
   // nom sur activeWashes.assignedTo) ne doit pas pouvoir être réassigné à un
-  // second véhicule tant qu'il n'a pas terminé le premier.
+  // second véhicule tant qu'il n'a pas terminé le premier. Un laveur en "Fin
+  // de service" (voir finishService dans useAppState.jsx) est définitivement
+  // clos pour la journée — contrairement à "Terminé" (Descendre), qui reste
+  // sélectionnable et reprend son service si on lui confie un véhicule.
   const busyEmployeeWash = new Map((activeWashes || []).map(w => [w.assignedTo, w]));
-  const availableEmployees = presentEmployees.filter(e => !busyEmployeeWash.has(e.name));
+  const availableEmployees = presentEmployees.filter(e => !busyEmployeeWash.has(e.name) && e.status !== 'Fin de service');
 
   const getPrice = (item) => {
     const cat = item?.category || 'Particulier';

@@ -552,6 +552,20 @@ export function AppStateProvider({ children }) {
         recordDailyAttendance(id, patch);
     };
 
+    // Clôture définitive d'un laveur "Terminé" — contrairement à resumeEmployee,
+    // ce n'est plus jamais réactivable ce jour-là : ni via le bouton "Reprendre
+    // service" (n'apparaît que pour status === 'Terminé', pas 'Fin de service'),
+    // ni via une nouvelle affectation de véhicule (voir availableEmployees dans
+    // StationDashboard.jsx, qui exclut désormais ce statut). daily_status reste
+    // 'present' et clockOut/totalTime restent ceux déjà enregistrés par le
+    // dernier "Descendre" — un laveur réellement fini a bien travaillé
+    // aujourd'hui, ça doit rester vrai dans l'export mensuel.
+    const finishService = (id) => {
+        const patch = { status: 'Fin de service' };
+        updateEmployee(id, patch);
+        recordDailyAttendance(id, patch);
+    };
+
     const startWash = (id, employeeId) => {
         const emp = (employees || []).find(e => e.id === employeeId);
         supabase.from('reservations').update({
@@ -700,7 +714,7 @@ export function AppStateProvider({ children }) {
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
             scheduleByDate, loadScheduleRange, setShiftForDay,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
-            updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, cleanDemoData,
+            updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>
             {children}
