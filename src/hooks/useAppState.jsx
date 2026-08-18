@@ -442,13 +442,18 @@ export function AppStateProvider({ children }) {
             logo_url: newP.logo, cachet_url: newP.cachet,
         }).eq('id', stationId).then(() => {});
     };
-    const addEmployee = (employeeData) => {
-        if (!stationId || stationId === 'default') return;
+    // Async et renvoie { success, error } — l'assistant d'onboarding (StationOnboarding.jsx)
+    // a besoin de savoir si l'ajout a réellement abouti avant d'avancer à l'étape
+    // suivante, contrairement à Team.jsx qui reste en fire-and-forget.
+    const addEmployee = async (employeeData) => {
+        if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
         const initials = employeeData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() || '👤';
-        supabase.from('employees').insert({
+        const { error } = await supabase.from('employees').insert({
             station_id: stationId, name: employeeData.name, role: employeeData.role, access: employeeData.access,
             status: 'Actif', daily_status: 'present', avatar: initials,
-        }).then(() => loadEmployees());
+        });
+        if (!error) await loadEmployees();
+        return { success: !error, error };
     };
 
     const updateEmployee = (id, updatedData) => {

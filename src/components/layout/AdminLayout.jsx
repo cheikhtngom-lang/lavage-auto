@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activi
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
+import StationOnboarding from '../onboarding/StationOnboarding';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -24,6 +25,15 @@ export default function AdminLayout() {
     }
   }, [impersonatingStation]);
 
+  // La visite guidée (GuidedTour) a besoin que la sidebar soit visible pour
+  // pouvoir surligner ses éléments — sur mobile elle est hors-écran tant que
+  // ce menu n'est pas ouvert.
+  useEffect(() => {
+    const open = () => setIsMobileMenuOpen(true);
+    window.addEventListener('ccg:open-mobile-nav', open);
+    return () => window.removeEventListener('ccg:open-mobile-nav', open);
+  }, []);
+
   const exitImpersonation = () => {
     sessionStorage.removeItem('impersonatingStation');
     sessionStorage.removeItem('currentStationId');
@@ -32,13 +42,13 @@ export default function AdminLayout() {
   };
 
   const navigation = [
-    { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard },
-    { name: 'Laveurs', href: '/admin/washers', icon: Droplets },
-    { name: 'Transactions', href: '/admin/transactions', icon: Activity },
+    { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview' },
+    { name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers' },
+    { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions' },
     { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator },
-    { name: 'Analytique', href: '/admin/analytics', icon: LineChart },
-    { name: 'Équipe', href: '/admin/team', icon: Users },
-    { name: 'Paramètres', href: '/admin/settings', icon: Settings },
+    { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics' },
+    { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team' },
+    { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings' },
   ];
 
   const handleLogout = () => {
@@ -49,7 +59,11 @@ export default function AdminLayout() {
 
   return (
     <div className="flex h-screen bg-neutral-950 text-white overflow-hidden font-sans">
-      
+      {/* Jamais pendant une impersonation Super Admin : la station ne doit pas
+          voir son propre onboarding se déclencher/se compléter à son insu
+          pendant qu'un tiers consulte son espace. */}
+      {!impersonatingStation && <StationOnboarding />}
+
       {/* Header Mobile */}
       <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 z-30 flex items-center px-4">
         <button 
@@ -112,6 +126,7 @@ export default function AdminLayout() {
               <Link
                 key={item.name}
                 to={item.href}
+                data-tour={item.tourId}
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={cn(
                   "relative flex items-center px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 overflow-hidden group",
