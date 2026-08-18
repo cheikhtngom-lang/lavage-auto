@@ -480,23 +480,27 @@ export function AppStateProvider({ children }) {
         }).then(() => loadReservations());
     };
 
+    // Réactive un laveur qui avait cliqué "Descente" (status 'Terminé') — ex:
+    // il était parti 2h et revient. On ne touche pas clockInAt (son tout premier
+    // pointage du jour), seulement clockOut/totalTime qu'on efface pour réactiver
+    // le bouton "Descendre" : au prochain clic, formatWorkedTime recalculera
+    // depuis ce clockInAt d'origine, donnant le temps global de la journée
+    // plutôt que juste cette reprise. Utilisée à la fois par le bouton "Reprendre
+    // service" (Washers.jsx) et automatiquement par startWash ci-dessous quand
+    // un véhicule est confié à un laveur déjà descendu.
+    const resumeEmployee = (id) => {
+        const patch = { status: 'Actif', clockOut: null, clockOutAt: null, totalTime: null };
+        updateEmployee(id, patch);
+        recordDailyAttendance(id, patch);
+    };
+
     const startWash = (id, employeeId) => {
         const emp = (employees || []).find(e => e.id === employeeId);
         supabase.from('reservations').update({
             status: 'en_cours', assigned_to_name: emp ? emp.name : 'Inconnu', started_at: new Date().toISOString(),
         }).eq('id', id).then(() => loadReservations());
 
-        // Un laveur réassigné alors qu'il avait déjà cliqué "Descente" aujourd'hui
-        // (status 'Terminé') reprend son service : on ne touche pas clockInAt (son
-        // tout premier pointage du jour), seulement clockOut/totalTime qu'on efface
-        // pour réactiver le bouton "Descendre" — au prochain clic, formatWorkedTime
-        // recalculera depuis ce clockInAt d'origine, donnant le temps global de la
-        // journée plutôt que juste cette reprise.
-        if (emp && emp.status === 'Terminé') {
-            const patch = { status: 'Actif', clockOut: null, clockOutAt: null, totalTime: null };
-            updateEmployee(emp.id, patch);
-            recordDailyAttendance(emp.id, patch);
-        }
+        if (emp && emp.status === 'Terminé') resumeEmployee(emp.id);
     };
 
     const endWash = (id) => {
@@ -636,7 +640,7 @@ export function AppStateProvider({ children }) {
             attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
             customVehicleTypes, addCustomVehicleType,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
-            updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, cleanDemoData,
+            updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>
             {children}

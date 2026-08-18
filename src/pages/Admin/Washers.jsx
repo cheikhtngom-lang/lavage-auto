@@ -64,7 +64,7 @@ function WorkedTimeCell({ member, status, live }) {
 const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
 
 export default function Washers() {
-  const { employees, updateEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth } = useAppState();
+  const { employees, updateEmployee, resumeEmployee, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [exporting, setExporting] = useState(false);
@@ -365,7 +365,9 @@ export default function Washers() {
                                   </button>
                                 )}
                                 {pointageStatus === 'Terminé' && (
-                                  <span className="text-xs text-neutral-500 italic">Journée terminée</span>
+                                  <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
+                                    Reprendre service
+                                  </button>
                                 )}
                               </div>
                             ) : (
