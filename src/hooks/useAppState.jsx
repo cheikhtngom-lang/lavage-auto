@@ -586,17 +586,27 @@ export function AppStateProvider({ children }) {
     };
 
     // Coupure automatique du pointage à l'heure de fermeture (Réglages > Horaires
-    // d'ouverture, `stationProfile.closeTime`) : un laveur encore "Actif" une fois
-    // cette heure dépassée est clôturé directement en "Fin de service" — même
-    // effet que si le gérant avait cliqué "Descendre" puis "Fin de service" à la
-    // main — sans quoi le compteur de temps travaillé continue de tourner
-    // indéfiniment tant que personne n'intervient. Le temps total est calculé
-    // jusqu'à l'heure de fermeture pile (pas jusqu'au moment de la vérification,
-    // qui tourne toutes les minutes) pour refléter le vrai horaire de fermeture.
+    // d'ouverture, `stationProfile.closeTime`) — filet de sécurité pour un gérant
+    // qui oublie de cliquer "Descendre" : un laveur encore "Actif" une fois cette
+    // heure dépassée est automatiquement passé à "Terminé", exactement comme un
+    // clic manuel sur "Descendre" (PAS "Fin de service" — voir plus bas pourquoi).
+    // Sans ça, le compteur de temps travaillé tournerait indéfiniment tant que
+    // personne n'intervient. Le temps total est calculé jusqu'à l'heure de
+    // fermeture pile (pas jusqu'au moment de la vérification, qui tourne toutes
+    // les minutes) pour refléter le vrai horaire de fermeture.
+    //
+    // Pourquoi "Terminé" et pas "Fin de service" (le choix initial du gérant,
+    // revu après test) : "Fin de service" est un état définitif, sans aucun
+    // bouton dans Washers.jsx — la coupure auto prenait donc de vitesse le
+    // gérant et lui masquait les boutons "Reprendre service"/"Fin de service"
+    // dont il a justement besoin pour gérer une pause ou un départ anticipé
+    // (urgence). "Terminé" garde ces deux boutons disponibles après coup :
+    // la coupure ne fait qu'arrêter le compteur, le gérant garde la main.
+    //
     // Vérifié au montage puis chaque minute — tourne tant que l'appli reste
     // ouverte (pas de tâche serveur, cette appli n'a pas de backend applicatif).
     useEffect(() => {
-        const checkAutoFinDeService = () => {
+        const checkAutoClockOut = () => {
             if (!stationId || stationId === 'default' || !stationProfile?.closeTime) return;
             const [closeH, closeM] = stationProfile.closeTime.split(':').map(Number);
             if (Number.isNaN(closeH) || Number.isNaN(closeM)) return;
@@ -614,13 +624,13 @@ export function AppStateProvider({ children }) {
             toClose.forEach((w) => {
                 const totalMinutes = Math.max(0, Math.round((closeAt.getTime() - new Date(w.clockInAt).getTime()) / 60000));
                 const total = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
-                const patch = { status: 'Fin de service', clockOut: display, clockOutAt: closeAt.toISOString(), totalTime: total };
+                const patch = { status: 'Terminé', clockOut: display, clockOutAt: closeAt.toISOString(), totalTime: total };
                 updateEmployee(w.id, patch);
                 recordDailyAttendance(w.id, patch);
             });
         };
-        checkAutoFinDeService();
-        const interval = setInterval(checkAutoFinDeService, 60000);
+        checkAutoClockOut();
+        const interval = setInterval(checkAutoClockOut, 60000);
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime, stationId]);
