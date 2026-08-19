@@ -98,7 +98,13 @@ export function isStationOpenNow(profile) {
   const [ch, cm] = profile.closeTime.split(':').map(Number);
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  return nowMinutes >= (oh * 60 + om) && nowMinutes < (ch * 60 + cm);
+  const openMinutes = oh * 60 + om;
+  const closeMinutes = ch * 60 + cm;
+  // Plage nocturne (ex: 20:00 -> 06:00, fermeture le lendemain) : ouvert si on
+  // est après l'heure d'ouverture OU avant l'heure de fermeture. Sans ce cas,
+  // une station qui ferme après minuit apparaissait "Fermé" 24h/24.
+  if (closeMinutes <= openMinutes) return nowMinutes >= openMinutes || nowMinutes < closeMinutes;
+  return nowMinutes >= openMinutes && nowMinutes < closeMinutes;
 }
 
 // Position dans la file (1 = prochain) et temps d'attente estimé pour UNE
@@ -129,16 +135,14 @@ export function estimateItemWaitTime(stationId, itemCreatedAt) {
     .filter((r) => r.station_id === stationId && r.status === 'attente' && new Date(r.created_at).getTime() < t)
     .forEach((r) => { total += timeFor(r); });
 
-  // Capacité de lavage en parallèle : basée sur le nombre de véhicules
-  // RÉELLEMENT en cours de lavage en même temps (activeWashes.length), pas sur
-  // le nombre d'employés "présents" aujourd'hui (station_public_stats.active_employees).
-  // Ce dernier inclut souvent du personnel qui ne lave pas de voiture en
-  // parallèle (caissier, gardien...) — diviser par ce total gonflait
-  // artificiellement la capacité et sous-estimait fortement l'attente réelle
-  // (ex : 1 seul lavage en cours mais 6 employés présents => attente divisée
-  // par 6, alors qu'une seule voiture à la fois est réellement lavée).
-  const parallelCapacity = Math.max(1, activeWashes.length);
-  return Math.round(total / parallelCapacity);
+  // Pas de division par une "capacité parallèle" : le temps d'attente est la
+  // somme du temps restant des véhicules en lavage + le temps de lavage de
+  // chacun des véhicules devant nous dans la file (formule confirmée par le
+  // gérant). Diviser par le nombre d'employés "présents" aujourd'hui
+  // (station_public_stats.active_employees) sous-estimait fortement l'attente,
+  // ce chiffre incluant souvent du personnel qui ne lave pas en parallèle
+  // (caissier, gardien...) alors qu'une seule voiture à la fois est lavée.
+  return Math.round(total);
 }
 
 // ─── Réservation / encaissement (écriture côté client) ───────────────────

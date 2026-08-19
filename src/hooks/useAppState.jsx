@@ -718,14 +718,13 @@ export function AppStateProvider({ children }) {
             totalWaitTime += time;
         }
 
-        // Capacité de lavage en parallèle : basée sur le nombre de véhicules
-        // RÉELLEMENT en cours de lavage en même temps, pas sur le nombre
-        // d'employés "présents" aujourd'hui — ce dernier inclut souvent du
-        // personnel qui ne lave pas de voiture en parallèle (caissier, gardien...)
-        // et gonflait artificiellement la capacité, sous-estimant l'attente réelle.
-        const parallelCapacity = Math.max(1, (activeWashes || []).length);
-
-        return Math.round(totalWaitTime / parallelCapacity);
+        // Pas de division par une "capacité parallèle" : le temps d'attente est
+        // la somme du temps restant des véhicules en lavage + le temps de lavage
+        // de chacun des véhicules devant lui dans la file (formule confirmée par
+        // le gérant). Diviser par le nombre d'employés "présents" sous-estimait
+        // fortement l'attente (ce chiffre inclut souvent du personnel qui ne
+        // lave pas en parallèle — caissier, gardien...).
+        return Math.round(totalWaitTime);
     };
 
     // ─── Nettoyage ciblé des données fictives ────────────────────────────────

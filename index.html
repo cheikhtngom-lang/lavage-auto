@@ -619,10 +619,11 @@
          filtrer côté client. -->
     <script type="module">
         import { supabase } from '/src/lib/supabaseClient.js';
+        import { isStationOpenNow } from '/src/lib/stationData.js';
 
         async function loadPublicStations() {
             const [{ data: stations }, { data: reviews }] = await Promise.all([
-                supabase.from('stations').select('id, name, quartier, region, city, address, status, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
+                supabase.from('stations').select('id, name, quartier, region, city, address, status, open_time, close_time, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
                 supabase.from('station_reviews').select('station_id, rating'),
             ]);
             const ratingByStation = {};
@@ -632,8 +633,15 @@
                 cur.count += 1;
                 ratingByStation[r.station_id] = cur;
             });
+            // "Actif" (station.status) veut dire "validée sur la plateforme", pas
+            // "ouverte en ce moment" — la requête ci-dessus filtre déjà à
+            // status='active', donc toutes les stations affichées l'étaient de
+            // toute façon : le badge affichait "Actif" pour 100% d'entre elles,
+            // même fermées. On calcule ici le VRAI statut horaire (isStationOpenNow,
+            // même logique que /stations et Mes Stations) pour l'afficher à la place.
             window.__publicStations = (stations || []).map((s) => ({
                 ...s,
+                _open: isStationOpenNow({ openTime: s.open_time, closeTime: s.close_time }),
                 _rating: ratingByStation[s.id] ? { average: ratingByStation[s.id].sum / ratingByStation[s.id].count, count: ratingByStation[s.id].count } : null,
             }));
             window.dispatchEvent(new Event('ccg:public-stations-ready'));
@@ -761,9 +769,14 @@
             { emoji: '💧', bg: 'bg-cyan-500/20' },
             { emoji: '🧽', bg: 'bg-emerald-500/20' },
         ];
-        const STATUS_BADGES = {
-            active: { label: 'Actif', class: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
-            en_attente: { label: 'Nouveau', class: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+        // Statut horaire réel (voir isStationOpenNow, calculé au chargement dans
+        // window.__publicStations) — remplace l'ancien badge "Actif" qui reflétait
+        // le statut de validation de la station sur la plateforme, pas ses
+        // horaires : comme la requête ne renvoie déjà que des stations validées,
+        // ce badge affichait "Actif" pour 100% des cartes, ouvertes ou non.
+        const OPEN_BADGES = {
+            true: { label: 'Ouvert', class: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+            false: { label: 'Fermé', class: 'bg-red-500/20 text-red-400 border-red-500/30' },
         };
 
         const REGION_LABELS = {
@@ -819,7 +832,7 @@
 
         function stationCardHTML(station, index) {
             const icon = STATION_ICONS[index % STATION_ICONS.length];
-            const badge = STATUS_BADGES[station.status] || STATUS_BADGES.en_attente;
+            const badge = OPEN_BADGES[station._open];
             const location = station.quartier
                 ? `${station.quartier}${station.region ? ', ' + (REGION_LABELS[station.region] || station.region) : ''}`
                 : (station.city || station.address || 'Sénégal');
