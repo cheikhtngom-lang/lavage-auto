@@ -701,12 +701,13 @@ export function AppStateProvider({ children }) {
 
         let totalWaitTime = 0;
 
-        // 1. Temps des véhicules en cours (estimation moyenne restante)
-        // Pour simplifier, on ajoute 50% du temps total des véhicules actuellement lavés
+        // 1. Temps RÉELLEMENT restant des véhicules en cours (durée - temps déjà
+        // écoulé depuis startedAt), pas une estimation à plat à 50% du temps total.
         (activeWashes || []).forEach(wash => {
             const cat = wash.category || "Particulier";
             const time = (durationConfig[cat] && durationConfig[cat][wash.service]) ? durationConfig[cat][wash.service] : 30;
-            totalWaitTime += (time / 2); // on suppose qu'ils sont à mi-chemin
+            const elapsedMin = wash.startedAt ? (Date.now() - new Date(wash.startedAt).getTime()) / 60000 : time / 2;
+            totalWaitTime += Math.max(0, time - elapsedMin);
         });
 
         // 2. Temps des véhicules devant lui dans la file d'attente
@@ -717,10 +718,14 @@ export function AppStateProvider({ children }) {
             totalWaitTime += time;
         }
 
-        // On divise par le nombre d'employés présents s'il y en a plusieurs (pour simuler la capacité parallèle)
-        const activeEmployees = (employees || []).filter(e => e?.present || e?.dailyStatus === 'present').length || 1;
-        
-        return Math.round(totalWaitTime / activeEmployees);
+        // Capacité de lavage en parallèle : basée sur le nombre de véhicules
+        // RÉELLEMENT en cours de lavage en même temps, pas sur le nombre
+        // d'employés "présents" aujourd'hui — ce dernier inclut souvent du
+        // personnel qui ne lave pas de voiture en parallèle (caissier, gardien...)
+        // et gonflait artificiellement la capacité, sous-estimant l'attente réelle.
+        const parallelCapacity = Math.max(1, (activeWashes || []).length);
+
+        return Math.round(totalWaitTime / parallelCapacity);
     };
 
     // ─── Nettoyage ciblé des données fictives ────────────────────────────────

@@ -8,7 +8,7 @@ import { getPricingCategory } from '../../lib/vehicleBrands';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
 import {
   getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, getStationPricing, getStationOperationalProfile,
-  getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT,
+  getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
 import { SENEGAL_REGIONS, regionLabel } from '../../lib/regions';
@@ -363,7 +363,7 @@ export default function Stations() {
           reservationId: reservation.id, clientId: account.id, clientName: account.name, vehicleLabel, service, method, amount,
         });
       }
-      createdEntries.push({ vehicle: vehicleLabel, position: waitingBefore + idx + 1, amount });
+      createdEntries.push({ vehicle: vehicleLabel, position: waitingBefore + idx + 1, amount, wait: estimateItemWaitTime(selectedStation.id, reservation.created_at) });
     }
     unhideStation(selectedStation.id);
     refreshActivity();
@@ -376,7 +376,11 @@ export default function Stations() {
       client: account.name, vehicles: createdEntries, service,
       station: selectedStation.name, stationAddress: selectedStation.address, stationPhone: stationProfile?.phone || '',
       stationLogo: stationProfile?.logo || null, stationCachet: stationProfile?.cachet || null,
-      estimatedWait: (waitingBefore + selectedVehicles.length) * 20,
+      // Le pire des cas parmi les véhicules réservés (le dernier de la file
+      // attend forcément le plus longtemps) — même calcul réel que celui
+      // affiché ensuite sur le suivi en direct (Client/Dashboard.jsx), au lieu
+      // d'une estimation à plat (position × 20 min) déconnectée de la réalité.
+      estimatedWait: Math.max(0, ...createdEntries.map(e => e.wait)),
       ticketNumber: `TK-${Date.now().toString().slice(-5)}`,
       dateLabel, total: paid ? servicePrice : null,
       paid, method,

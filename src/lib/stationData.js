@@ -115,23 +115,30 @@ export function estimateItemWaitTime(stationId, itemCreatedAt) {
   const durationConfig = getStationDurationConfig(stationId);
   const timeFor = (r) => durationConfig?.[r.category]?.[r.service] ?? 30;
 
+  const activeWashes = queueSnapshot.filter((r) => r.station_id === stationId && r.status === 'en_cours');
   let total = 0;
-  queueSnapshot
-    .filter((r) => r.station_id === stationId && r.status === 'en_cours')
-    .forEach((r) => {
-      // Temps RÉELLEMENT restant (durée - temps déjà écoulé depuis started_at),
-      // pas une estimation à plat — sinon un lavage commencé il y a 18 min sur
-      // 20 comptait encore pour 10 min restantes dans l'attente affichée au client.
-      const durationMin = timeFor(r);
-      const elapsedMin = r.started_at ? (Date.now() - new Date(r.started_at).getTime()) / 60000 : durationMin / 2;
-      total += Math.max(0, durationMin - elapsedMin);
-    });
+  activeWashes.forEach((r) => {
+    // Temps RÉELLEMENT restant (durée - temps déjà écoulé depuis started_at),
+    // pas une estimation à plat — sinon un lavage commencé il y a 18 min sur
+    // 20 comptait encore pour 10 min restantes dans l'attente affichée au client.
+    const durationMin = timeFor(r);
+    const elapsedMin = r.started_at ? (Date.now() - new Date(r.started_at).getTime()) / 60000 : durationMin / 2;
+    total += Math.max(0, durationMin - elapsedMin);
+  });
   queueSnapshot
     .filter((r) => r.station_id === stationId && r.status === 'attente' && new Date(r.created_at).getTime() < t)
     .forEach((r) => { total += timeFor(r); });
 
-  const activeEmployees = publicStats[stationId]?.activeEmployees || 1;
-  return Math.round(total / Math.max(1, activeEmployees));
+  // Capacité de lavage en parallèle : basée sur le nombre de véhicules
+  // RÉELLEMENT en cours de lavage en même temps (activeWashes.length), pas sur
+  // le nombre d'employés "présents" aujourd'hui (station_public_stats.active_employees).
+  // Ce dernier inclut souvent du personnel qui ne lave pas de voiture en
+  // parallèle (caissier, gardien...) — diviser par ce total gonflait
+  // artificiellement la capacité et sous-estimait fortement l'attente réelle
+  // (ex : 1 seul lavage en cours mais 6 employés présents => attente divisée
+  // par 6, alors qu'une seule voiture à la fois est réellement lavée).
+  const parallelCapacity = Math.max(1, activeWashes.length);
+  return Math.round(total / parallelCapacity);
 }
 
 // ─── Réservation / encaissement (écriture côté client) ───────────────────
