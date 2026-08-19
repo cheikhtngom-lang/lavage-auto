@@ -5,13 +5,8 @@ import {
   Crown, MapPin, Repeat, Sparkles, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-
-const GRANULARITIES = [
-  { key: 'jour', label: 'Jour' },
-  { key: 'semaine', label: 'Semaine' },
-  { key: 'mois', label: 'Mois' },
-  { key: 'annee', label: 'Année' },
-];
+import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
+import LineChart from '../../components/ui/LineChart';
 
 const STATUS_META = {
   a_jour: { label: 'À jour', color: '#10b981' },
@@ -21,54 +16,13 @@ const STATUS_META = {
 
 const PLAN_COLORS = ['#a855f7', '#3b82f6', '#f59e0b', '#10b981', '#ec4899'];
 
-function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
-function startOfWeek(d) {
-  const x = startOfDay(d);
-  const day = (x.getDay() + 6) % 7; // lundi = 0
-  x.setDate(x.getDate() - day);
-  return x;
-}
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+const MRR_PERIODS = [
+  { key: 'trimestre', label: 'Trimestre', months: 3 },
+  { key: 'semestre', label: 'Semestre', months: 6 },
+  { key: 'annuelle', label: 'Année', months: 12 },
+];
+
 function addMonths(d, n) { const x = new Date(d); x.setMonth(x.getMonth() + n); return x; }
-
-function buildBuckets(granularity) {
-  const now = new Date();
-  if (granularity === 'jour') {
-    return Array.from({ length: 14 }).map((_, i) => {
-      const start = addDays(startOfDay(now), i - 13);
-      const end = addDays(start, 1);
-      return { start, end, label: start.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) };
-    });
-  }
-  if (granularity === 'semaine') {
-    return Array.from({ length: 8 }).map((_, i) => {
-      const start = addDays(startOfWeek(now), (i - 7) * 7);
-      const end = addDays(start, 7);
-      return { start, end, label: `${start.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}` };
-    });
-  }
-  if (granularity === 'annee') {
-    return Array.from({ length: 5 }).map((_, i) => {
-      const year = now.getFullYear() - (4 - i);
-      const start = new Date(year, 0, 1);
-      const end = new Date(year + 1, 0, 1);
-      return { start, end, label: String(year) };
-    });
-  }
-  // mois (défaut)
-  return Array.from({ length: 12 }).map((_, i) => {
-    const start = addMonths(new Date(now.getFullYear(), now.getMonth(), 1), i - 11);
-    const end = addMonths(start, 1);
-    return { start, end, label: start.toLocaleDateString('fr-FR', { month: 'short' }) };
-  });
-}
-
-function countInBuckets(buckets, items, dateField) {
-  return buckets.map(b => items.filter(it => {
-    const d = new Date(it[dateField]);
-    return d >= b.start && d < b.end;
-  }).length);
-}
 
 const fmtFCFA = (n) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
 
@@ -79,6 +33,7 @@ function AnimatedNumber({ value }) {
 export default function SuperAdminAnalytics() {
   const { stations, clientAccounts, PLANS } = useSuperAdminState();
   const [granularity, setGranularity] = useState('mois');
+  const [mrrPeriod, setMrrPeriod] = useState('semestre');
 
   const now = new Date();
   const activeStations = stations.filter(s => s.status === 'active');
@@ -128,16 +83,17 @@ export default function SuperAdminAnalytics() {
   }));
   const totalStatusCount = Math.max(1, statusDistribution.reduce((s, p) => s + p.count, 0));
 
-  // MRR mois par mois sur 6 mois, basé sur les stations déjà inscrites à cette date-là.
-  const mrrMonths = Array.from({ length: 6 }).map((_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+  // MRR mois par mois sur la période choisie (trimestre/semestre/année),
+  // basé sur les stations déjà inscrites à cette date-là.
+  const mrrMonthsCount = MRR_PERIODS.find(p => p.key === mrrPeriod)?.months || 6;
+  const mrrMonths = useMemo(() => Array.from({ length: mrrMonthsCount }).map((_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (mrrMonthsCount - 1 - i), 1);
     const end = addMonths(d, 1);
     const value = stations
       .filter(s => new Date(s.joinedAt) < end && s.status !== 'suspendue')
       .reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
-    return { label: d.toLocaleDateString('fr-FR', { month: 'short' }), value };
-  });
-  const maxMrr = Math.max(1, ...mrrMonths.map(m => m.value));
+    return { label: d.toLocaleDateString('fr-FR', { month: 'short', ...(mrrMonthsCount > 12 ? { year: '2-digit' } : {}) }), value };
+  }), [mrrMonthsCount, stations, PLANS]);
 
   const topStationsByClients = [...stations].sort((a, b) => (b.clientsCount || 0) - (a.clientsCount || 0)).slice(0, 5);
 
@@ -370,26 +326,26 @@ export default function SuperAdminAnalytics() {
 
       {/* Recettes : évolution du MRR */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="glass-card rounded-2xl p-8 mb-10">
-        <div className="flex items-center gap-2 mb-8">
-          <TrendingUp className="w-5 h-5 text-amber-400" />
-          <h2 className="text-xl font-bold text-white">Évolution des recettes d'abonnement (MRR, 6 derniers mois)</h2>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-amber-400" />
+            <h2 className="text-xl font-bold text-white">Évolution des recettes d'abonnement (MRR)</h2>
+          </div>
+          <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
+            {MRR_PERIODS.map(p => (
+              <button
+                key={p.key}
+                onClick={() => setMrrPeriod(p.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  mrrPeriod === p.key ? 'bg-amber-500 text-neutral-950 shadow-lg shadow-amber-500/30' : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="h-56 w-full flex items-end justify-between gap-3">
-          {mrrMonths.map((m, i) => (
-            <div key={i} className="w-full flex flex-col items-center gap-2 group">
-              <span className="text-[11px] text-neutral-400 opacity-0 group-hover:opacity-100 transition-opacity">{fmtFCFA(m.value)}</span>
-              <div className="w-full bg-neutral-900 rounded-t-lg relative h-40 flex items-end overflow-hidden">
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: `${(m.value / maxMrr) * 100}%` }}
-                  transition={{ duration: 0.8, delay: 0.06 * i }}
-                  className="w-full bg-gradient-to-t from-amber-600/50 to-amber-400/70 rounded-t-lg group-hover:from-amber-500 group-hover:to-amber-300 transition-colors"
-                />
-              </div>
-              <span className="text-xs text-neutral-500 capitalize">{m.label}</span>
-            </div>
-          ))}
-        </div>
+        <LineChart points={mrrMonths} color="#f59e0b" height={260} formatValue={fmtFCFA} />
       </motion.div>
 
       {/* Leaderboards */}

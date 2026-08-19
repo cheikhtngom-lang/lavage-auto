@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
+import LineChart from '../../components/ui/LineChart';
 
 const AnimatedCounter = ({ value, prefix = "", suffix = "" }) => {
   const [count, setCount] = useState(0);
@@ -35,6 +37,7 @@ const AnimatedCounter = ({ value, prefix = "", suffix = "" }) => {
 
 export default function SuperAdminDashboard() {
   const { stations, PLANS } = useSuperAdminState();
+  const [granularity, setGranularity] = useState('mois');
 
   const activeStations = stations.filter(s => s.status === 'active');
   const pendingStations = stations.filter(s => s.status === 'en_attente');
@@ -49,17 +52,12 @@ export default function SuperAdminDashboard() {
     { title: "Revenu Récurrent (MRR)", value: mrr, suffix: " FCFA", icon: CreditCard, color: "text-purple-400", bg: "bg-purple-500/10" }
   ];
 
-  // Croissance réelle : nombre de stations inscrites par mois (6 derniers mois)
-  const now = new Date();
-  const months = Array.from({ length: 6 }).map((_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    return { key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString('fr-FR', { month: 'short' }) };
-  });
-  const counts = months.map(m => stations.filter(s => {
-    const j = new Date(s.joinedAt);
-    return `${j.getFullYear()}-${j.getMonth()}` === m.key;
-  }).length);
-  const maxCount = Math.max(1, ...counts);
+  // Croissance réelle : nouvelles stations inscrites, groupées selon la
+  // granularité choisie (jour/semaine/mois/année) — même logique de buckets
+  // que le graphique d'Analytique (src/lib/dateBuckets.js).
+  const buckets = useMemo(() => buildBuckets(granularity), [granularity]);
+  const newStationsSeries = useMemo(() => countInBuckets(buckets, stations, 'joinedAt'), [buckets, stations]);
+  const newStationsPoints = buckets.map((b, i) => ({ label: b.label, value: newStationsSeries[i] }));
 
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
@@ -136,26 +134,24 @@ export default function SuperAdminDashboard() {
         transition={{ delay: 0.4 }}
         className="glass-card rounded-2xl p-8 border-t border-t-white/10 mb-12"
       >
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="text-xl font-bold text-white">Nouvelles stations inscrites (6 derniers mois)</h2>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <h2 className="text-xl font-bold text-white">Nouvelles stations inscrites</h2>
+          <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
+            {GRANULARITIES.map(g => (
+              <button
+                key={g.key}
+                onClick={() => setGranularity(g.key)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                  granularity === g.key ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="h-64 w-full flex items-end justify-between gap-2">
-          {counts.map((count, i) => (
-            <div key={i} className="w-full flex flex-col items-center gap-2 group">
-              <span className="text-xs text-neutral-400">{count}</span>
-              <div className="w-full bg-neutral-900 rounded-t-lg relative h-full flex items-end overflow-hidden">
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: `${(count / maxCount) * 100}%` }}
-                  transition={{ duration: 0.8, delay: 0.1 * i }}
-                  className="w-full bg-gradient-to-t from-purple-600/50 to-blue-500/50 rounded-t-lg group-hover:from-purple-500 group-hover:to-blue-400 transition-colors"
-                ></motion.div>
-              </div>
-              <span className="text-xs text-neutral-500 capitalize">{months[i].label}</span>
-            </div>
-          ))}
-        </div>
+        <LineChart points={newStationsPoints} color="#a855f7" height={260} formatValue={(v) => `${v} nouvelle${v > 1 ? 's' : ''}`} />
       </motion.div>
 
       {/* Dernières stations inscrites */}
