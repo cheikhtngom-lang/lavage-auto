@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, LogOut, Droplets, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, LogOut, Droplets, Menu, X, Crown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { clearSession } from '../../lib/accounts';
 import ClientOnboarding from '../onboarding/ClientOnboarding';
+import SuperUserWelcomeOverlay from '../client/SuperUserWelcomeOverlay';
 
 export default function ClientLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { account, loading } = useClientAccount();
+  const { account, loading, superUserStatus } = useClientAccount();
+  const isSuperUser = superUserStatus === 'ACTIVE';
 
   // Pas de compte automobiliste connecté : direction la page de connexion
   // (login.html — page statique hors du routeur React). On attend la fin du
@@ -49,6 +51,7 @@ export default function ClientLayout() {
   return (
     <div className="flex h-screen bg-neutral-950 text-white overflow-hidden font-sans">
       <ClientOnboarding />
+      <SuperUserWelcomeOverlay />
 
       {/* Header Mobile */}
       <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 z-30 flex items-center px-4">
@@ -60,11 +63,13 @@ export default function ClientLayout() {
         </button>
         <div className="flex items-center">
           {account.photoUrl ? (
-            <img src={account.photoUrl} alt="" className="w-7 h-7 rounded-full object-cover mr-2 flex-shrink-0" />
+            <img src={account.photoUrl} alt="" className={cn("w-7 h-7 rounded-full object-cover mr-2 flex-shrink-0", isSuperUser && "ring-2 ring-amber-400")} />
+          ) : isSuperUser ? (
+            <Crown className="w-6 h-6 text-amber-400 mr-2" />
           ) : (
             <Droplets className="w-6 h-6 text-blue-400 mr-2" />
           )}
-          <span className="font-bold text-lg truncate max-w-[160px]">{account.name}</span>
+          <span className={cn("font-bold text-lg truncate max-w-[160px]", isSuperUser && "text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400")}>{account.name}</span>
         </div>
       </div>
 
@@ -90,16 +95,31 @@ export default function ClientLayout() {
         <div className="hidden md:block absolute -top-24 left-1/2 -translate-x-1/2 w-40 h-40 bg-white/[0.04] rounded-full blur-3xl pointer-events-none" />
 
         <div className="h-20 flex items-center px-6 border-b border-white/5 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center mr-3 shadow-lg shadow-blue-500/20 overflow-hidden flex-shrink-0">
+          <div className={cn(
+            "w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-lg overflow-hidden flex-shrink-0",
+            isSuperUser ? "bg-gradient-to-tr from-amber-400 to-orange-500 shadow-amber-500/30 ring-2 ring-amber-400/60" : "bg-gradient-to-tr from-blue-600 to-emerald-500 shadow-blue-500/20"
+          )}>
             {account.photoUrl ? (
               <img src={account.photoUrl} alt="" className="w-full h-full object-cover" />
+            ) : isSuperUser ? (
+              <Crown className="w-5 h-5 text-white" />
             ) : (
               <Droplets className="w-5 h-5 text-white" />
             )}
           </div>
-          <span className="font-bold text-lg tracking-wide truncate max-w-[140px] text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400">
-            {account.name}
-          </span>
+          <div className="min-w-0">
+            <span className={cn(
+              "font-bold text-lg tracking-wide truncate max-w-[140px] block text-transparent bg-clip-text",
+              isSuperUser ? "bg-gradient-to-r from-amber-300 to-orange-400" : "bg-gradient-to-r from-white to-neutral-400"
+            )}>
+              {account.name}
+            </span>
+            {isSuperUser && (
+              <span className="text-[10px] font-bold text-amber-400 tracking-wider flex items-center gap-1">
+                <Crown className="w-3 h-3" /> SUPER USER
+              </span>
+            )}
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-8 px-4 space-y-2 relative z-10">

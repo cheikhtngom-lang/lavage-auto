@@ -4,10 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Sparkles, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
+import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import SuperUserNotifBell from '../superadmin/SuperUserNotifBell';
 
 export default function SuperAdminLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { superUserSubscriptions } = useSuperAdminState();
+  const pendingSuperUserCount = superUserSubscriptions.filter((s) => s.status === 'PENDING').length;
 
   useEffect(() => {
     if (getCurrentRole() !== 'super_admin') {
@@ -45,6 +49,9 @@ export default function SuperAdminLayout() {
         <div className="flex items-center">
           <Sparkles className="w-6 h-6 text-purple-400 mr-2" />
           <span className="font-bold text-lg">Super Admin</span>
+        </div>
+        <div className="ml-auto">
+          <SuperUserNotifBell />
         </div>
       </div>
 
@@ -102,7 +109,12 @@ export default function SuperAdminLayout() {
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-purple-500/0 to-purple-500/0 group-hover:from-purple-500/10 group-hover:via-transparent transition-all duration-500 rounded-2xl"></div>
                 )}
                 <item.icon className={cn("w-5 h-5 mr-3 relative z-10 transition-colors", isActive ? "text-purple-400" : "text-neutral-500 group-hover:text-purple-400")} />
-                <span className="relative z-10">{item.name}</span>
+                <span className="relative z-10 flex-1">{item.name}</span>
+                {item.href === '/superadmin/super-users' && pendingSuperUserCount > 0 && (
+                  <span className="relative z-10 ml-2 min-w-[20px] h-5 px-1 rounded-full bg-amber-500 text-neutral-950 text-[11px] font-bold flex items-center justify-center">
+                    {pendingSuperUserCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -123,6 +135,10 @@ export default function SuperAdminLayout() {
       <main className="flex-1 relative overflow-y-auto overflow-x-hidden pt-16 md:pt-0">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div className="hidden md:block fixed top-8 right-8 z-40">
+          <SuperUserNotifBell />
+        </div>
 
         <div className="relative z-10 min-h-full">
           <Outlet />
