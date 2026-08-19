@@ -257,9 +257,14 @@ export default function Stations() {
   const handleSearch = () => setAppliedSearch({ query: searchInput.trim().toLowerCase(), region: regionInput });
   const handleResetSearch = () => { setSearchInput(''); setRegionInput(''); setAppliedSearch(null); };
 
+  // Pré-rempli avec le numéro enregistré à l'inscription (profiles.phone) —
+  // évite de le retaper à chaque réservation. Reste un champ texte librement
+  // modifiable : un client avec un second compte Wave/Orange Money, ou qui a
+  // changé de numéro, peut le remplacer manuellement pour ce paiement précis
+  // sans que ça touche son numéro de compte.
   const resetPaymentState = () => {
     setPaymentMethod(null);
-    setPaymentPhone('');
+    setPaymentPhone(account?.phone || '');
     setPaymentProcessing(false);
   };
 
@@ -747,6 +752,9 @@ export default function Stations() {
                         <input type="tel" placeholder="+221 77 000 00 00" value={paymentPhone}
                           onChange={(e) => setPaymentPhone(e.target.value)}
                           className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
+                        {account?.phone && paymentPhone === account.phone && (
+                          <p className="text-neutral-500 text-xs mt-1.5">Numéro de votre compte — modifiez-le si vous payez depuis un autre numéro.</p>
+                        )}
                       </div>
                       <button type="button" onClick={handlePayOnline} disabled={paymentPhone.trim().length < 6}
                         className={`w-full font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-white disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed ${paymentMethod === 'wave' ? 'bg-[#1DC8E0] hover:bg-[#17aec3]' : 'bg-[#FF7900] hover:bg-[#e56b00]'}`}>

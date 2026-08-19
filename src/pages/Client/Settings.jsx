@@ -102,9 +102,11 @@ export default function Settings() {
     setTimeout(() => setPasswordSaved(false), 2500);
   };
 
+  // Même logique que la réservation (Stations.jsx) : pré-rempli avec le
+  // numéro du compte, modifiable pour payer depuis un autre numéro Wave/OM.
   const openPaymentModal = () => {
     setPaymentMethod(null);
-    setPaymentPhone('');
+    setPaymentPhone(account?.phone || '');
     setPaymentError('');
     setPaymentJustSubmitted(false);
     setShowPaymentModal(true);
@@ -335,6 +337,9 @@ export default function Settings() {
                       <input type="tel" placeholder="+221 77 000 00 00" value={paymentPhone}
                         onChange={(e) => setPaymentPhone(e.target.value)}
                         className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
+                      {account?.phone && paymentPhone === account.phone && (
+                        <p className="text-neutral-500 text-xs mt-1.5">Numéro de votre compte — modifiez-le si vous payez depuis un autre numéro.</p>
+                      )}
                     </div>
                     {paymentError && <p className="text-sm text-red-400">{paymentError}</p>}
                     <button type="button" onClick={handleSubmitPayment} disabled={paymentPhone.trim().length < 6}
