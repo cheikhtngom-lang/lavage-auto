@@ -607,6 +607,40 @@
 
     </main>
 
+    <!-- Stations partenaires + avis : lues depuis Supabase (la marquee lisait
+         encore localStorage.saasStations/stationReviews_*, des clés qui
+         n'existent plus depuis la migration complète hors localStorage —
+         voir [[backend_migration]]). Script module séparé (pas fusionné au
+         script ci-dessous, qui reste un script classique pour ne pas changer
+         son timing d'exécution) : il pose window.__publicStations une fois
+         la requête résolue, puis déclenche un ré-affichage. RLS ne renvoie de
+         toute façon que les stations status='active' à un visiteur anonyme
+         (voir stations_select dans supabase/schema.sql) — pas besoin de
+         filtrer côté client. -->
+    <script type="module">
+        import { supabase } from '/src/lib/supabaseClient.js';
+
+        async function loadPublicStations() {
+            const [{ data: stations }, { data: reviews }] = await Promise.all([
+                supabase.from('stations').select('id, name, quartier, region, city, address, status, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
+                supabase.from('station_reviews').select('station_id, rating'),
+            ]);
+            const ratingByStation = {};
+            (reviews || []).forEach((r) => {
+                const cur = ratingByStation[r.station_id] || { sum: 0, count: 0 };
+                cur.sum += r.rating;
+                cur.count += 1;
+                ratingByStation[r.station_id] = cur;
+            });
+            window.__publicStations = (stations || []).map((s) => ({
+                ...s,
+                _rating: ratingByStation[s.id] ? { average: ratingByStation[s.id].sum / ratingByStation[s.id].count, count: ratingByStation[s.id].count } : null,
+            }));
+            window.dispatchEvent(new Event('ccg:public-stations-ready'));
+        }
+        loadPublicStations();
+    </script>
+
     <!-- Script pour gérer l'état de connexion sur la page d'accueil -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -631,6 +665,16 @@
             initScrollReveal();
             initSpotlights();
             initCountUp();
+        });
+
+        // Les stations arrivent de façon asynchrone (voir le script module
+        // juste au-dessus) : au premier rendu, window.__publicStations n'est
+        // pas encore prêt, donc renderPartnerStations() ci-dessus affiche
+        // l'état vide. Ce ré-affichage arrive dès que la requête Supabase
+        // aboutit (généralement <1s) — ré-exécute aussi la recherche en cours
+        // si le visiteur avait déjà lancé une recherche.
+        window.addEventListener('ccg:public-stations-ready', () => {
+            searchActive ? searchStations() : renderPartnerStations();
         });
 
         // ============ MENU MOBILE (header) ============
@@ -742,10 +786,10 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
 
+        // Peuplé par le script module ci-dessus (window.__publicStations) —
+        // déjà filtré à status='active' côté Supabase/RLS pour un visiteur anonyme.
         function getActiveStations() {
-            let stations = [];
-            try { stations = JSON.parse(localStorage.getItem('saasStations')) || []; } catch { stations = []; }
-            return stations.filter(s => s.status !== 'suspendue');
+            return window.__publicStations || [];
         }
 
         // Calcule (si possible) et trie par distance ; laisse l'ordre inchangé sinon.
@@ -767,11 +811,8 @@
         }
 
         function getStationRating(stationId) {
-            let reviews = [];
-            try { reviews = JSON.parse(localStorage.getItem(`stationReviews_${stationId}`)) || []; } catch { reviews = []; }
-            if (reviews.length === 0) return null;
-            const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
-            return { average: sum / reviews.length, count: reviews.length };
+            const station = (window.__publicStations || []).find(s => s.id === stationId);
+            return station?._rating || null;
         }
 
         const STAR_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9"></polygon></svg>';
