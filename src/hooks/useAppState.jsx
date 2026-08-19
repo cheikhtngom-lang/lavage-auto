@@ -216,13 +216,30 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
+    // Historique des pubs de CETTE station, tous statuts (PENDING/ACTIVE/...) —
+    // pour l'onglet "Publicité" de Paramètres. Le paiement lui-même (insert
+    // PENDING) se fait directement via createAdPayment (src/lib/ads.js), pas
+    // ici — voir loadStationAds côté useSuperAdminState.jsx pour la lecture
+    // cross-station (Super Admin + fil des pubs ACTIVE côté client).
+    const [stationAds, setStationAds] = useState([]);
+    const loadStationAds = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setStationAds([]); return; }
+        const { data } = await supabase.from('station_ads').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
+        setStationAds((data || []).map((row) => ({
+            id: row.id, message: row.message, imageUrl: row.image_url, status: row.status, amount: row.amount,
+            method: row.method, reference: row.reference, startsAt: row.starts_at, expiresAt: row.expires_at,
+            confirmedAt: row.confirmed_at, createdAt: row.created_at,
+        })));
+    }, [stationId]);
+
     useEffect(() => {
         loadReservations();
         loadTransactions();
         loadEmployees();
         loadCustomVehicleTypes();
         loadShiftTemplates();
-        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); };
+        loadStationAds();
+        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees` sont dans la publication
         // supabase_realtime (voir schema.sql) : un client qui réserve depuis son
@@ -241,7 +258,7 @@ export function AppStateProvider({ children }) {
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, stationId]);
+    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -755,6 +772,7 @@ export function AppStateProvider({ children }) {
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
             scheduleByDate, loadScheduleRange, setShiftForDay,
+            stationAds, loadStationAds,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely

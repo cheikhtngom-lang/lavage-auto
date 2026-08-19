@@ -32,6 +32,7 @@ export function ClientAccountProvider({ children }) {
             vehicles: (vehicles || []).map((v) => ({ id: v.id, category: v.category, brand: v.brand, plate: v.plate })),
             favoriteStationIds: profile.favorite_station_ids || [],
             hiddenStationIds: profile.hidden_station_ids || [],
+            dismissedAdIds: profile.dismissed_ad_ids || [],
             photoUrl: profile.photo_url || null,
         });
         setLoading(false);
@@ -87,6 +88,7 @@ export function ClientAccountProvider({ children }) {
         if (patch.phone !== undefined) dbPatch.phone = patch.phone;
         if (patch.favoriteStationIds !== undefined) dbPatch.favorite_station_ids = patch.favoriteStationIds;
         if (patch.hiddenStationIds !== undefined) dbPatch.hidden_station_ids = patch.hiddenStationIds;
+        if (patch.dismissedAdIds !== undefined) dbPatch.dismissed_ad_ids = patch.dismissedAdIds;
         if (patch.photoUrl !== undefined) dbPatch.photo_url = patch.photoUrl;
         if (Object.keys(dbPatch).length > 0) {
             await supabase.from('profiles').update(dbPatch).eq('id', account.id);
@@ -136,9 +138,19 @@ export function ClientAccountProvider({ children }) {
         updateProfile({ hiddenStationIds: hidden.filter((id) => id !== stationId) });
     };
 
+    // Une pub ignorée ne réapparaît plus pour CE client (persistant, pas juste
+    // localStorage — voir profiles.dismissed_ad_ids) mais reste visible pour
+    // les autres automobilistes de la plateforme (voir Dashboard.jsx).
+    const dismissAd = (adId) => {
+        if (!account) return;
+        const dismissed = account.dismissedAdIds || [];
+        if (dismissed.includes(adId)) return;
+        updateProfile({ dismissedAdIds: [...dismissed, adId] });
+    };
+
     return (
         <ClientAccountContext.Provider value={{
-            account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation,
+            account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation, dismissAd,
             reservations, myTransactions, refreshActivity,
             superUserSub, superUserStatus, refreshSuperUser,
         }}>

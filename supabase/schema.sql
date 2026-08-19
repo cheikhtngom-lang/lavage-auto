@@ -62,6 +62,7 @@ create table public.profiles (
   phone text,
   favorite_station_ids uuid[] not null default '{}',
   hidden_station_ids uuid[] not null default '{}',
+  dismissed_ad_ids uuid[] not null default '{}',
   photo_url text,
   created_at timestamptz not null default now()
 );
@@ -136,6 +137,28 @@ as $$
     where client_id = uid and status = 'ACTIVE' and expires_at > now()
   );
 $$;
+
+-- ─── Publicités payantes des stations (broadcast plateforme) ────────────
+-- Distinct du bandeau promo gratuit (stations.promo_config, visible
+-- uniquement sur la fiche de LA station) : une pub payante est diffusée sur
+-- le tableau de bord de TOUS les automobilistes de la plateforme. Même
+-- logique de confirmation manuelle que super_user_subscriptions ci-dessus
+-- (pas de vraie passerelle Wave/OM sur ce projet) : le paiement crée une
+-- ligne PENDING, seul le Super Admin la fait passer à ACTIVE.
+create table public.station_ads (
+  id uuid primary key default gen_random_uuid(),
+  station_id uuid not null references public.stations(id) on delete cascade,
+  message text not null,
+  image_url text,
+  status text not null default 'PENDING' check (status in ('PENDING', 'ACTIVE', 'REJECTED', 'EXPIRED', 'CANCELLED')),
+  amount integer not null default 10000,
+  method text,
+  reference text,
+  starts_at timestamptz,
+  expires_at timestamptz,
+  confirmed_at timestamptz,
+  created_at timestamptz not null default now()
+);
 
 -- ─── Employés (laveurs/équipe station — pas de login propre) ────────────
 create table public.employees (
@@ -328,6 +351,7 @@ alter table public.station_billing enable row level security;
 alter table public.profiles enable row level security;
 alter table public.vehicles enable row level security;
 alter table public.super_user_subscriptions enable row level security;
+alter table public.station_ads enable row level security;
 alter table public.employees enable row level security;
 alter table public.attendance_records enable row level security;
 alter table public.shift_templates enable row level security;
@@ -415,6 +439,22 @@ create policy "super_user_subscriptions_select" on public.super_user_subscriptio
 create policy "super_user_subscriptions_insert" on public.super_user_subscriptions for insert
   with check (client_id = auth.uid());
 create policy "super_user_subscriptions_update" on public.super_user_subscriptions for update
+  using (app_role() = 'super_admin');
+
+-- station_ads : la station voit/crée ses propres pubs (paiement = insert
+-- PENDING, comme super_user_subscriptions) ; n'importe quel client connecté
+-- peut lire les pubs ACTIVE non expirées pour les afficher sur son tableau de
+-- bord (broadcast plateforme, pas limité à une station) ; seul le Super Admin
+-- fait évoluer le statut (confirmer -> ACTIVE, rejeter -> REJECTED).
+create policy "station_ads_select" on public.station_ads for select
+  using (
+    station_id = current_station_id()
+    or app_role() = 'super_admin'
+    or (status = 'ACTIVE' and (expires_at is null or expires_at > now()))
+  );
+create policy "station_ads_insert" on public.station_ads for insert
+  with check (station_id = current_station_id());
+create policy "station_ads_update" on public.station_ads for update
   using (app_role() = 'super_admin');
 
 -- employees / attendance_records : gérés uniquement par l'admin de LEUR station.

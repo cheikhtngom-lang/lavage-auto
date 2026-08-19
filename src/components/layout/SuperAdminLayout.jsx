@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Sparkles, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown } from 'lucide-react';
+import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Sparkles, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -10,8 +10,9 @@ import SuperUserNotifBell from '../superadmin/SuperUserNotifBell';
 export default function SuperAdminLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { superUserSubscriptions } = useSuperAdminState();
+  const { superUserSubscriptions, stationAds } = useSuperAdminState();
   const pendingSuperUserCount = superUserSubscriptions.filter((s) => s.status === 'PENDING').length;
+  const pendingAdsCount = stationAds.filter((a) => a.status === 'PENDING').length;
 
   useEffect(() => {
     if (getCurrentRole() !== 'super_admin') {
@@ -25,6 +26,7 @@ export default function SuperAdminLayout() {
     { name: 'Stations', href: '/superadmin/stations', icon: Building2 },
     { name: 'Automobilistes', href: '/superadmin/automobilistes', icon: Users },
     { name: 'Abonnements Super User', href: '/superadmin/super-users', icon: Crown },
+    { name: 'Publicités', href: '/superadmin/ads', icon: Megaphone },
     { name: 'Facturation', href: '/superadmin/billing', icon: CreditCard },
     { name: 'Support', href: '/superadmin/support', icon: LifeBuoy },
     { name: 'Paramètres', href: '/superadmin/settings', icon: SettingsIcon },
@@ -113,6 +115,11 @@ export default function SuperAdminLayout() {
                 {item.href === '/superadmin/super-users' && pendingSuperUserCount > 0 && (
                   <span className="relative z-10 ml-2 min-w-[20px] h-5 px-1 rounded-full bg-amber-500 text-neutral-950 text-[11px] font-bold flex items-center justify-center">
                     {pendingSuperUserCount}
+                  </span>
+                )}
+                {item.href === '/superadmin/ads' && pendingAdsCount > 0 && (
+                  <span className="relative z-10 ml-2 min-w-[20px] h-5 px-1 rounded-full bg-amber-500 text-neutral-950 text-[11px] font-bold flex items-center justify-center">
+                    {pendingAdsCount}
                   </span>
                 )}
               </Link>

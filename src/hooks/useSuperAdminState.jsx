@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '../lib/supabaseClient';
 import { setStationsCache, setWashPricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
+import { AD_CAMPAIGN_DAYS } from '../lib/ads';
 
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
 // une ligne par clé ; sert de secours si la table est vide/pas encore lue).
@@ -95,6 +96,27 @@ const rowToSuperUserSub = (row) => ({
     createdAt: row.created_at,
 });
 
+// Publicités payantes — jamais mélangées avec super_user_subscriptions/PLANS
+// (flux financier distinct, voir supabase/schema.sql, station_ads). Exposée
+// ici (pas seulement dans useAppState) car ce provider tourne sur toute
+// l'app : les pages automobiliste en ont besoin pour lire les pubs ACTIVE de
+// toutes les stations (RLS ne leur laisse voir que celles-là, voir schema.sql).
+const rowToAd = (row) => ({
+    id: row.id,
+    stationId: row.station_id,
+    stationName: row.stations?.name || '',
+    message: row.message,
+    imageUrl: row.image_url,
+    status: row.status,
+    amount: row.amount,
+    method: row.method,
+    reference: row.reference,
+    startsAt: row.starts_at,
+    expiresAt: row.expires_at,
+    confirmedAt: row.confirmed_at,
+    createdAt: row.created_at,
+});
+
 const SuperAdminStateContext = createContext(null);
 
 export function SuperAdminStateProvider({ children }) {
@@ -104,6 +126,7 @@ export function SuperAdminStateProvider({ children }) {
     const [plans, setPlans] = useState(DEFAULT_PLANS);
     const [clientAccounts, setClientAccounts] = useState([]);
     const [superUserSubscriptions, setSuperUserSubscriptions] = useState([]);
+    const [stationAds, setStationAds] = useState([]);
 
     const loadDisputes = useCallback(async () => {
         const { data } = await supabase.from('disputes').select('*').order('created_at', { ascending: false });
@@ -137,6 +160,16 @@ export function SuperAdminStateProvider({ children }) {
     const loadSuperUserSubscriptions = useCallback(async () => {
         const { data } = await supabase.from('super_user_subscriptions').select('*, profiles(full_name, email, phone)').order('created_at', { ascending: false });
         setSuperUserSubscriptions((data || []).map(rowToSuperUserSub));
+    }, []);
+
+    // Pour un rôle Super Admin : toutes les pubs, tous statuts (confirmation).
+    // Pour un rôle automobiliste : seulement les ACTIVE non expirées, toutes
+    // stations confondues — RLS filtre déjà côté serveur (voir schema.sql),
+    // ce `select('*')` renvoie donc naturellement le bon sous-ensemble selon
+    // qui est connecté, sans logique conditionnelle ici.
+    const loadStationAds = useCallback(async () => {
+        const { data } = await supabase.from('station_ads').select('*, stations(name)').order('created_at', { ascending: false });
+        setStationAds((data || []).map(rowToAd));
     }, []);
 
     // Grille tarifaire de TOUTES les stations (lecture publique) — alimente le
@@ -185,14 +218,15 @@ export function SuperAdminStateProvider({ children }) {
         loadPlans();
         loadVehicleBrands();
         loadSuperUserSubscriptions();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); };
+        loadStationAds();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); };
         window.addEventListener('focus', refresh);
         const interval = setInterval(refresh, 8000);
         return () => {
             window.removeEventListener('focus', refresh);
             clearInterval(interval);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds]);
 
     // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
     // et persiste en tâche de fond — appelée en fire-and-forget après quasi
@@ -292,6 +326,27 @@ export function SuperAdminStateProvider({ children }) {
         if (sub) logAction(`Paiement Super User rejeté : ${sub.clientName || sub.clientEmail}`);
     };
 
+    // Confirme le paiement d'une pub (PENDING -> ACTIVE) une fois l'argent
+    // reçu — jamais automatique (voir src/lib/ads.js). Diffusion de
+    // AD_CAMPAIGN_DAYS jours à partir de maintenant.
+    const confirmAdPayment = async (id) => {
+        const ad = stationAds.find((a) => a.id === id);
+        const startedAt = new Date();
+        const expiresAt = new Date(startedAt);
+        expiresAt.setDate(expiresAt.getDate() + AD_CAMPAIGN_DAYS);
+        const patch = { status: 'ACTIVE', started_at: startedAt.toISOString(), expires_at: expiresAt.toISOString(), confirmed_at: startedAt.toISOString() };
+        await supabase.from('station_ads').update({ status: 'ACTIVE', starts_at: patch.started_at, expires_at: patch.expires_at, confirmed_at: patch.confirmed_at }).eq('id', id);
+        setStationAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'ACTIVE', startsAt: patch.started_at, expiresAt: patch.expires_at, confirmedAt: patch.confirmed_at } : a)));
+        if (ad) logAction(`Publicité confirmée : ${ad.stationName}`);
+    };
+
+    const rejectAdPayment = async (id) => {
+        const ad = stationAds.find((a) => a.id === id);
+        await supabase.from('station_ads').update({ status: 'REJECTED' }).eq('id', id);
+        setStationAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'REJECTED' } : a)));
+        if (ad) logAction(`Publicité rejetée : ${ad.stationName}`);
+    };
+
     const sendBillingReminder = (id) => {
         const station = stations.find((s) => s.id === id);
         if (station) logAction(`Relance de facturation envoyée à : ${station.name}`);
@@ -356,6 +411,7 @@ export function SuperAdminStateProvider({ children }) {
             addDispute, resolveDispute, refundDispute, impersonateStation, logAction,
             updatePlan, resetPlans,
             superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,
+            stationAds, confirmAdPayment, rejectAdPayment,
         }}>
             {children}
         </SuperAdminStateContext.Provider>

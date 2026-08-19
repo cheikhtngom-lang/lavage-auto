@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket } from 'lucide-react';
+import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { SENEGAL_REGIONS } from '../../lib/regions';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
+import { AD_CAMPAIGN_PRICE, AD_CAMPAIGN_DAYS, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses 3 prestations.
 // Trois grilles distinctes, dans l'ordre où l'admin pense ses véhicules :
@@ -36,7 +37,7 @@ const PROMO_CATEGORIES = ['Moto', 'Particulier', 'Transport', 'Camion'];
 const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Simple'] : PRICING_SERVICES);
 
 export default function Settings() {
-  const { stationProfile, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely } = useAppState();
+  const { stationProfile, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds } = useAppState();
   const { stations, updateStation } = useSuperAdminState();
   const navigate = useNavigate();
   const isNewStation = !stationProfile?.name || stationProfile.name.trim() === '';
@@ -90,6 +91,18 @@ export default function Settings() {
   // État pour la rubrique Promotions
   const [promo, setPromo] = useState(promoConfig);
   const [promoSaved, setPromoSaved] = useState(false);
+
+  // État pour la rubrique Publicité (campagne payante, diffusée à tous les
+  // automobilistes de la plateforme — voir src/lib/ads.js / station_ads).
+  const [adMessage, setAdMessage] = useState('');
+  const [adImage, setAdImage] = useState(null);
+  const [adImageError, setAdImageError] = useState('');
+  const [adPaymentMethod, setAdPaymentMethod] = useState(null); // null | 'wave' | 'orange_money'
+  const [adPaymentPhone, setAdPaymentPhone] = useState('');
+  const [adSubmitting, setAdSubmitting] = useState(false);
+  const [adError, setAdError] = useState('');
+  const [adJustSubmitted, setAdJustSubmitted] = useState(false);
+  useEffect(() => { setAdPaymentPhone(stationProfile?.phone || ''); }, [stationProfile?.phone]);
 
   const handleSave = () => {
     setIsSaving(true);
@@ -311,6 +324,55 @@ export default function Settings() {
     setTimeout(() => setPromoSaved(false), 2500);
   };
 
+  // Même pattern que le logo/cachet (handleLogoUpload ci-dessus) : Data URL,
+  // pas de Supabase Storage sur ce projet.
+  const handleAdImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setAdImageError('');
+    if (!file.type.startsWith('image/')) { setAdImageError('Veuillez choisir un fichier image (PNG, JPG...).'); return; }
+    if (file.size > MAX_AD_IMAGE_SIZE) { setAdImageError('Cette image est trop lourde (max 1,5 Mo).'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setAdImage(reader.result);
+    reader.readAsDataURL(file);
+  };
+  const handleRemoveAdImage = () => setAdImage(null);
+
+  const resetAdForm = () => {
+    setAdMessage(''); setAdImage(null); setAdImageError('');
+    setAdPaymentMethod(null); setAdPaymentPhone(stationProfile?.phone || '');
+    setAdError(''); setAdJustSubmitted(false);
+  };
+
+  // Le clic "Payer" ne diffuse JAMAIS la pub tout seul : il crée une ligne
+  // PENDING, que seul le Super Admin confirme une fois l'argent reçu (même
+  // logique que l'abonnement Super User côté client, voir src/lib/ads.js).
+  const handleSubmitAd = async () => {
+    if (!adPaymentMethod || adPaymentPhone.trim().length < 6 || !adMessage.trim() || !stationId) return;
+    setAdSubmitting(true);
+    setAdError('');
+    try {
+      await createAdPayment(stationId, {
+        message: adMessage, imageUrl: adImage,
+        method: adPaymentMethod === 'wave' ? 'Wave' : 'Orange Money',
+        reference: adPaymentPhone.trim(),
+      });
+      await loadStationAds();
+      setAdJustSubmitted(true);
+    } catch (err) {
+      setAdError(err.message || "Impossible d'enregistrer le paiement, réessayez.");
+    } finally {
+      setAdSubmitting(false);
+    }
+  };
+
+  const adStatusBadge = { PENDING: { label: 'En attente de confirmation', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }, ACTIVE: { label: 'En cours de diffusion', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }, REJECTED: { label: 'Paiement rejeté', className: 'bg-red-500/10 text-red-400 border-red-500/20' }, EXPIRED: { label: 'Terminée', className: 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20' }, CANCELLED: { label: 'Annulée', className: 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20' } };
+  const latestAd = stationAds[0] || null;
+  const latestAdStatus = latestAd ? deriveAdStatus(latestAd) : null;
+  const adFormLocked = latestAdStatus === 'PENDING' || latestAdStatus === 'ACTIVE';
+  const adFormatDate = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
       {/* Banner d'onboarding si la station n'est pas encore configurée */}
@@ -360,6 +422,7 @@ export default function Settings() {
             { id: 'temps', label: 'Temps Estimés', icon: Clock },
             { id: 'tarifs', label: 'Grille Tarifaire', icon: CreditCard },
             { id: 'promotions', label: 'Promotions', icon: Megaphone },
+            { id: 'publicite', label: 'Passer une pub', icon: Camera },
             { id: 'securite', label: 'Sécurité & Accès', icon: Shield },
           ].map(tab => (
             <button
@@ -874,6 +937,140 @@ export default function Settings() {
                     )}
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'publicite' && (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-8 max-w-2xl">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Camera className="w-5 h-5 text-blue-400" /> Passer une pub</h2>
+                <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">
+                  Diffusez un message sur le tableau de bord de <strong className="text-white">tous les automobilistes de la plateforme</strong> — {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA pour {AD_CAMPAIGN_DAYS} jours.
+                  Contrairement aux Promotions (visibles uniquement sur votre fiche station), une pub touche même les clients qui n'ont jamais réservé chez vous.
+                </p>
+
+                {adJustSubmitted ? (
+                  <div className="text-center py-6">
+                    <div className="w-14 h-14 rounded-full bg-blue-500/20 border-2 border-blue-400 flex items-center justify-center mx-auto mb-4">
+                      <Clock3 className="w-7 h-7 text-blue-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Paiement enregistré</h3>
+                    <p className="text-neutral-400 text-sm mb-6">Votre demande est en attente de validation par notre équipe. La diffusion démarrera automatiquement dès confirmation.</p>
+                    <button onClick={resetAdForm} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl transition-colors">Fermer</button>
+                  </div>
+                ) : adFormLocked ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-5">
+                      <span className={`text-xs font-medium px-3 py-1 rounded-full border ${adStatusBadge[latestAdStatus]?.className}`}>{adStatusBadge[latestAdStatus]?.label}</span>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
+                      {latestAd.imageUrl && <img src={latestAd.imageUrl} alt="" className="w-full max-h-48 object-cover rounded-lg mb-3" />}
+                      <p className="text-white">{latestAd.message}</p>
+                      {latestAdStatus === 'ACTIVE' && (
+                        <p className="text-neutral-500 text-xs mt-3">Diffusée jusqu'au {adFormatDate(latestAd.expiresAt)}.</p>
+                      )}
+                      {latestAdStatus === 'PENDING' && (
+                        <p className="text-neutral-500 text-xs mt-3">Paiement en attente de confirmation par notre équipe — la diffusion démarrera automatiquement dès validation.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {latestAd && (latestAdStatus === 'REJECTED' || latestAdStatus === 'EXPIRED' || latestAdStatus === 'CANCELLED') && (
+                      <div className="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3.5">
+                        <span className={`text-xs font-medium px-3 py-1 rounded-full border flex-shrink-0 ${adStatusBadge[latestAdStatus]?.className}`}>{adStatusBadge[latestAdStatus]?.label}</span>
+                        <p className="text-sm text-neutral-400">Dernière campagne : "{latestAd.message}" — vous pouvez en lancer une nouvelle ci-dessous.</p>
+                      </div>
+                    )}
+
+                    {!adPaymentMethod ? (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-neutral-400">Message de la publicité</label>
+                          <textarea maxLength={150} rows={3} placeholder="Ex: Nouvelle station Clean Car Galsen à Sacré-Cœur, -15% pour toute réservation cette semaine !"
+                            value={adMessage} onChange={e => setAdMessage(e.target.value)}
+                            className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 resize-none" />
+                          <p className="text-neutral-500 text-xs text-right">{adMessage.length}/150</p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-neutral-400">Image <span className="text-neutral-600">(optionnel)</span></label>
+                          {adImage ? (
+                            <div className="relative w-fit">
+                              <img src={adImage} alt="" className="max-h-40 rounded-xl border border-white/10" />
+                              <button type="button" onClick={handleRemoveAdImage} className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-400 text-white rounded-full p-1"><X className="w-3.5 h-3.5" /></button>
+                            </div>
+                          ) : (
+                            <label className="cursor-pointer inline-flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-colors">
+                              <Camera className="w-4 h-4" /> Ajouter une image
+                              <input type="file" accept="image/*" onChange={handleAdImageUpload} className="hidden" />
+                            </label>
+                          )}
+                          {adImageError && <p className="text-red-400 text-xs">{adImageError}</p>}
+                        </div>
+                        <button type="button" disabled={!adMessage.trim()} onClick={() => setAdPaymentMethod('choose')}
+                          className="bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl transition-colors">
+                          Continuer vers le paiement — {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA
+                        </button>
+                      </>
+                    ) : adPaymentMethod === 'choose' ? (
+                      <div className="space-y-3">
+                        <button type="button" onClick={() => setAdPaymentMethod(null)} className="text-xs text-neutral-400 hover:text-white transition-colors mb-2">← Revenir au message</button>
+                        <button type="button" onClick={() => setAdPaymentMethod('wave')}
+                          className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-white/10 bg-white/5 hover:border-[#1DC8E0]/50 hover:bg-[#1DC8E0]/10 transition-colors text-left">
+                          <div className="w-11 h-11 rounded-xl bg-[#1DC8E0]/20 flex items-center justify-center flex-shrink-0"><Smartphone className="w-5 h-5 text-[#1DC8E0]" /></div>
+                          <div className="flex-1"><p className="text-white font-bold">Wave</p><p className="text-neutral-500 text-xs">Payer {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA</p></div>
+                        </button>
+                        <button type="button" onClick={() => setAdPaymentMethod('orange_money')}
+                          className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-white/10 bg-white/5 hover:border-[#FF7900]/50 hover:bg-[#FF7900]/10 transition-colors text-left">
+                          <div className="w-11 h-11 rounded-xl bg-[#FF7900]/20 flex items-center justify-center flex-shrink-0"><Smartphone className="w-5 h-5 text-[#FF7900]" /></div>
+                          <div className="flex-1"><p className="text-white font-bold">Orange Money</p><p className="text-neutral-500 text-xs">Payer {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA</p></div>
+                        </button>
+                      </div>
+                    ) : adSubmitting ? (
+                      <div className="flex flex-col items-center justify-center py-10 gap-3">
+                        <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                        <p className="text-neutral-300 text-sm">Enregistrement du paiement...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <button type="button" onClick={() => setAdPaymentMethod('choose')} className="text-xs text-neutral-400 hover:text-white transition-colors">← Changer de mode de paiement</button>
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-400 mb-1.5">Numéro {adPaymentMethod === 'wave' ? 'Wave' : 'Orange Money'} <span className="text-red-400">*</span></label>
+                          <input type="tel" placeholder="+221 77 000 00 00" value={adPaymentPhone}
+                            onChange={(e) => setAdPaymentPhone(e.target.value)}
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
+                        </div>
+                        {adError && <p className="text-sm text-red-400">{adError}</p>}
+                        <button type="button" onClick={handleSubmitAd} disabled={adPaymentPhone.trim().length < 6}
+                          className={`w-full font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-white disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed ${adPaymentMethod === 'wave' ? 'bg-[#1DC8E0] hover:bg-[#17aec3]' : 'bg-[#FF7900] hover:bg-[#e56b00]'}`}>
+                          <Smartphone className="w-5 h-5" /> Payer {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA via {adPaymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {stationAds.length > 0 && (
+                  <div className="mt-10 pt-6 border-t border-white/10">
+                    <h3 className="text-sm font-bold text-neutral-400 mb-4">Historique des campagnes</h3>
+                    <div className="space-y-2">
+                      {stationAds.map((ad) => {
+                        const status = deriveAdStatus(ad);
+                        const badge = adStatusBadge[status] || adStatusBadge.PENDING;
+                        return (
+                          <div key={ad.id} className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                            <div className="min-w-0">
+                              <p className="text-white text-sm truncate">{ad.message}</p>
+                              <p className="text-neutral-500 text-xs">{adFormatDate(ad.createdAt)}</p>
+                            </div>
+                            <span className={`text-xs font-medium px-3 py-1 rounded-full border flex-shrink-0 ${badge.className}`}>{badge.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

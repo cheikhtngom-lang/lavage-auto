@@ -2,14 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '../../components/ui/Badge';
 import { StarRatingDisplay, StarRatingInput } from '../../components/ui/StarRating';
-import { Car, Receipt, ArrowRight, Droplets, MapPin, Sparkles, Clock, Bell, X, Gift, Star, Download } from 'lucide-react';
+import { Car, Receipt, ArrowRight, Droplets, MapPin, Sparkles, Clock, Bell, X, Gift, Star, Download, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import {
   getItemPosition, estimateItemWaitTime,
-  addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile,
+  addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile, getStationPromo,
 } from '../../lib/stationData';
+import { isBannerActive } from '../../lib/promoDefaults';
+import { deriveAdStatus } from '../../lib/ads';
 import { downloadReceiptPdf } from '../../lib/receipt';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { getLoginCount } from '../../lib/accounts';
@@ -103,8 +105,8 @@ function LiveStatusCard({ reservation }) {
 
 export default function ClientOverview() {
   const navigate = useNavigate();
-  const { account, reservations: myReservations, myTransactions: rawTransactions } = useClientAccount();
-  const { stations: registry } = useSuperAdminState();
+  const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd } = useClientAccount();
+  const { stations: registry, stationAds } = useSuperAdminState();
 
   const myName = account?.name || '';
   const firstName = myName.split(' ')[0] || 'là';
@@ -203,6 +205,26 @@ export default function ClientOverview() {
     return { station, count, threshold, inCycle, eligible };
   }).filter(Boolean).sort((a, b) => b.count - a.count);
 
+  // Publicités actives (broadcast plateforme, payantes — voir Admin > Passer
+  // une pub) : visibles par TOUS les automobilistes, mais un client peut en
+  // ignorer une (dismissAd), elle disparaît alors pour lui uniquement
+  // (profiles.dismissed_ad_ids), pas pour les autres clients.
+  const dismissedAdIds = account?.dismissedAdIds || [];
+  const activeAds = stationAds.filter(a => deriveAdStatus(a) === 'ACTIVE' && !dismissedAdIds.includes(a.id));
+
+  // Offres des stations où le client a déjà une relation (lavage payé au
+  // moins une fois, ou véhicule actuellement dans une file) — contrairement
+  // aux publicités ci-dessus, ce n'est PAS un broadcast plateforme : le
+  // bandeau promo gratuit (Admin > Promotions) n'est montré ici qu'aux
+  // clients déjà passés par CETTE station.
+  const historyStationIds = new Set([...Object.keys(loyaltyByStation), ...reservations.map(r => String(r.station.id))]);
+  const promoOffers = [...historyStationIds].map(id => {
+    const station = activeStations.find(s => String(s.id) === id);
+    const promo = station ? getStationPromo(id) : null;
+    if (!station || !isBannerActive(promo)) return null;
+    return { stationId: id, stationName: station.name, message: promo.banner.message };
+  }).filter(Boolean);
+
   const openReview = (tx) => { setReviewingTx(tx); setReviewRating(0); setReviewComment(''); };
   const submitReview = async () => {
     if (!reviewingTx || reviewRating === 0 || !account) return;
@@ -253,6 +275,39 @@ export default function ClientOverview() {
           <button onClick={dismissGarageTip} className="text-neutral-500 hover:text-white flex-shrink-0" aria-label="Fermer">
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* Publicités des stations (broadcast plateforme, ignorable) */}
+      {activeAds.length > 0 && (
+        <div className="mb-8 space-y-3">
+          {activeAds.map((ad) => (
+            <div key={ad.id} className="w-full flex items-center gap-4 bg-gradient-to-r from-amber-950/40 to-orange-950/20 border border-amber-500/20 rounded-2xl px-5 py-4">
+              {ad.imageUrl && <img src={ad.imageUrl} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />}
+              <Megaphone className="w-5 h-5 text-amber-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-amber-100">{ad.message}</p>
+                <p className="text-xs text-amber-400/70 mt-0.5">{ad.stationName}</p>
+              </div>
+              <button onClick={() => dismissAd(ad.id)} className="text-amber-400/60 hover:text-white flex-shrink-0" aria-label="Ignorer cette publicité">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Offres des stations où j'ai déjà réservé */}
+      {promoOffers.length > 0 && (
+        <div className="mb-8 space-y-3">
+          {promoOffers.map((offer) => (
+            <div key={offer.stationId} className="w-full flex items-center gap-3 bg-blue-950/30 border border-blue-500/20 rounded-2xl px-5 py-4">
+              <Gift className="w-5 h-5 text-blue-400 flex-shrink-0" />
+              <span className="text-sm text-blue-200/80 flex-1">
+                <strong className="text-blue-400">{offer.stationName} :</strong> {offer.message}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
