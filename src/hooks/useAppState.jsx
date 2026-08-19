@@ -568,6 +568,46 @@ export function AppStateProvider({ children }) {
         recordDailyAttendance(id, patch);
     };
 
+    // Coupure automatique du pointage à l'heure de fermeture (Réglages > Horaires
+    // d'ouverture, `stationProfile.closeTime`) : un laveur encore "Actif" une fois
+    // cette heure dépassée est clôturé directement en "Fin de service" — même
+    // effet que si le gérant avait cliqué "Descendre" puis "Fin de service" à la
+    // main — sans quoi le compteur de temps travaillé continue de tourner
+    // indéfiniment tant que personne n'intervient. Le temps total est calculé
+    // jusqu'à l'heure de fermeture pile (pas jusqu'au moment de la vérification,
+    // qui tourne toutes les minutes) pour refléter le vrai horaire de fermeture.
+    // Vérifié au montage puis chaque minute — tourne tant que l'appli reste
+    // ouverte (pas de tâche serveur, cette appli n'a pas de backend applicatif).
+    useEffect(() => {
+        const checkAutoFinDeService = () => {
+            if (!stationId || stationId === 'default' || !stationProfile?.closeTime) return;
+            const [closeH, closeM] = stationProfile.closeTime.split(':').map(Number);
+            if (Number.isNaN(closeH) || Number.isNaN(closeM)) return;
+            const now = new Date();
+            const closeAt = new Date(now);
+            closeAt.setHours(closeH, closeM, 0, 0);
+            if (now < closeAt) return;
+            const localDateKey = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+            const todayKey = localDateKey(now);
+            const toClose = employees.filter((e) =>
+                e.role === 'Laveur' && e.status === 'Actif' && e.clockInAt && localDateKey(new Date(e.clockInAt)) === todayKey
+            );
+            if (toClose.length === 0) return;
+            const display = closeAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            toClose.forEach((w) => {
+                const totalMinutes = Math.max(0, Math.round((closeAt.getTime() - new Date(w.clockInAt).getTime()) / 60000));
+                const total = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
+                const patch = { status: 'Fin de service', clockOut: display, clockOutAt: closeAt.toISOString(), totalTime: total };
+                updateEmployee(w.id, patch);
+                recordDailyAttendance(w.id, patch);
+            });
+        };
+        checkAutoFinDeService();
+        const interval = setInterval(checkAutoFinDeService, 60000);
+        return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime, stationId]);
+
     const startWash = (id, employeeId) => {
         const emp = (employees || []).find(e => e.id === employeeId);
         supabase.from('reservations').update({
