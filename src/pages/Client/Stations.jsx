@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download } from 'lucide-react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { getPricingCategory } from '../../lib/vehicleBrands';
@@ -218,6 +218,8 @@ export default function Stations() {
         address: location,
         quartier: s.quartier || '',
         region: s.region || '',
+        lat: typeof s.lat === 'number' ? s.lat : null,
+        lng: typeof s.lng === 'number' ? s.lng : null,
         open: isStationOpenNow(profile),
         waitingCount: getStationWaitingCount(s.id),
         // Distinct de waitingCount : véhicules déjà en cours de lavage — sans ça,
@@ -253,6 +255,14 @@ export default function Stations() {
   const cameFromOnboarding = searchParams.get('onboarding') === '1';
   const hasSearched = !!appliedSearch || userPos !== null || favoritesOnly || cameFromOnboarding;
   const showStationsList = !isDashboardContext || hasSearched;
+
+  // Titre de page dédié pour la version publique (/stations, servie via
+  // dashboard.html — voir vite.config.js) : sinon les moteurs de recherche ne
+  // voient que le titre générique "Clean Car Galsen - Dashboards" partagé par
+  // tout le SPA. Inutile en contexte connecté (/dashboard/stations, non indexé).
+  useEffect(() => {
+    if (!isDashboardContext) document.title = 'Trouver une station de lavage - Clean Car Galsen';
+  }, [isDashboardContext]);
 
   const handleSearch = () => setAppliedSearch({ query: searchInput.trim().toLowerCase(), region: regionInput });
   const handleResetSearch = () => { setSearchInput(''); setRegionInput(''); setAppliedSearch(null); };
@@ -468,6 +478,13 @@ export default function Stations() {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl relative z-10">
+      {!isDashboardContext && (
+        <nav aria-label="Fil d'Ariane" className="mb-6 text-sm text-neutral-500 flex items-center gap-2">
+          <Link to="/" className="hover:text-white transition-colors">Accueil</Link>
+          <span>/</span>
+          <span className="text-neutral-300">Trouver une station</span>
+        </nav>
+      )}
       <div className="text-center mb-10">
         <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight text-white">L&apos;Espace <span className="text-blue-400">Stations Partenaires</span></h1>
         <p className="text-neutral-400 text-lg max-w-2xl mx-auto">Trouvez la station la plus proche et réservez votre place en quelques secondes.</p>
@@ -603,6 +620,22 @@ export default function Stations() {
                       </button>
                     )}
                   </div>
+                  {selectedStation.lat != null && selectedStation.lng != null && (
+                    <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
+                      <iframe
+                        title={`Carte - ${selectedStation.name}`}
+                        src={`https://www.google.com/maps?q=${selectedStation.lat},${selectedStation.lng}&z=15&output=embed`}
+                        className="w-full h-40 border-0"
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                      <a href={`https://www.google.com/maps/dir/?api=1&destination=${selectedStation.lat},${selectedStation.lng}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-blue-400 hover:text-white text-sm font-medium py-2.5 transition-colors">
+                        <Navigation className="w-4 h-4" /> Voir l'itinéraire
+                      </a>
+                    </div>
+                  )}
                   {selectedStation.promoMessage && (
                     <div className="mb-4 flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                       <Megaphone className="w-4 h-4 text-amber-400 flex-shrink-0" />

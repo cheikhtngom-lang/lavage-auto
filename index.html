@@ -4,6 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Clean Car Galsen - Le Futur du Lavage Auto</title>
+    <meta name="description" content="Clean Car Galsen : plateforme SaaS de gestion de file d'attente pour stations de lavage auto au Sénégal. Réservez en ligne, payez par Wave ou Orange Money, suivez votre lavage en direct.">
+    <link rel="canonical" href="https://gestionimmo.site/">
+
+    <!-- Réseaux sociaux (partage) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Clean Car Galsen">
+    <meta property="og:title" content="Clean Car Galsen - Le Futur du Lavage Auto">
+    <meta property="og:description" content="La première plateforme SaaS de gestion de file d'attente virtuelle pour les stations de lavage au Sénégal.">
+    <meta property="og:image" content="https://gestionimmo.site/images/hero-wash-mockup.jpg">
+    <meta property="og:url" content="https://gestionimmo.site/">
+    <meta property="og:locale" content="fr_SN">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Clean Car Galsen - Le Futur du Lavage Auto">
+    <meta name="twitter:description" content="La première plateforme SaaS de gestion de file d'attente virtuelle pour les stations de lavage au Sénégal.">
+    <meta name="twitter:image" content="https://gestionimmo.site/images/hero-wash-mockup.jpg">
+
+    <!-- Temps de réponse : connexions anticipées vers les domaines externes utilisés -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+
+    <!-- Google Analytics (GA4) — remplacez G-XXXXXXXXXX par votre identifiant de mesure réel
+         (Google Analytics > Admin > Flux de données > ID de mesure) pour activer le suivi. -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');
+    </script>
+
+    <!-- Données structurées (SEO local) — adressez le champ "address" avec vos vraies
+         coordonnées d'entreprise avant mise en production. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "LocalBusiness",
+      "name": "Clean Car Galsen",
+      "description": "Plateforme de gestion de file d'attente et réservation en ligne pour stations de lavage automobile au Sénégal.",
+      "url": "https://gestionimmo.site/",
+      "image": "https://gestionimmo.site/images/hero-wash-mockup.jpg",
+      "areaServed": { "@type": "Country", "name": "Sénégal" },
+      "address": { "@type": "PostalAddress", "addressCountry": "SN", "addressLocality": "Dakar" },
+      "priceRange": "15000-35000 FCFA"
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Clean Car Galsen",
+      "url": "https://gestionimmo.site/"
+    }
+    </script>
 
     <!-- PWA : installable comme une application sur mobile/tablette -->
     <link rel="manifest" href="/manifest.webmanifest">
@@ -106,7 +160,18 @@
         </nav>
     </header>
 
-    <main class="w-full flex flex-col items-center">
+    <!-- CTA sticky mobile : barre fixe en bas d'écran, visible uniquement sur mobile -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-neutral-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex items-center gap-3" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
+        <div class="flex-1 min-w-0">
+            <p class="text-sm font-bold text-white truncate">Prêt à réserver ?</p>
+            <p class="text-xs text-neutral-500 truncate">Trouvez une station en 10 secondes</p>
+        </div>
+        <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full text-sm font-bold transition-colors shadow-lg shadow-blue-500/30 flex-shrink-0 whitespace-nowrap">
+            Trouver une station
+        </button>
+    </div>
+
+    <main class="w-full flex flex-col items-center pb-20 md:pb-0">
         <!-- Section Hero (Avec Mockup Interactif) -->
         <section id="accueil" class="w-full min-h-[90vh] flex flex-col md:flex-row items-center justify-between px-4 max-w-7xl mx-auto py-20 gap-12">
             <div class="flex-1 flex flex-col items-start text-left animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
@@ -410,6 +475,37 @@
             </div>
         </section>
 
+        <!-- Études de cas -->
+        <section id="etudes-de-cas" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
+            <div class="reveal-item text-center mb-16">
+                <span class="text-blue-400 font-bold tracking-wider uppercase text-sm mb-2 block">Résultats concrets</span>
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Études de cas</h2>
+                <p class="text-neutral-400 max-w-2xl mx-auto">Deux exemples de stations qui ont digitalisé leur file d'attente avec Clean Car Galsen.</p>
+            </div>
+
+            <div class="reveal-item grid md:grid-cols-2 gap-8">
+                <div class="spotlight glass-card p-8 rounded-3xl border border-white/5 shadow-2xl">
+                    <h3 class="text-xl font-bold text-white mb-1">Station Wash Express — Sacré-Cœur</h3>
+                    <p class="text-neutral-500 text-sm mb-6">Station de quartier à fort trafic le week-end</p>
+                    <div class="space-y-4 text-sm">
+                        <div><span class="text-blue-400 font-bold block mb-1">Le défi</span><p class="text-neutral-300">Files d'attente désorganisées le samedi, clients repartant sans être servis, encaissements manuels difficiles à suivre.</p></div>
+                        <div><span class="text-blue-400 font-bold block mb-1">La solution</span><p class="text-neutral-300">Passage à la réservation en ligne avec paiement Wave/Orange Money et suivi de file en temps réel.</p></div>
+                        <div><span class="text-blue-400 font-bold block mb-1">Le résultat</span><p class="text-neutral-300">Plus de clients servis chaque week-end, moins de temps passé sur la gestion des encaissements en espèces.</p></div>
+                    </div>
+                </div>
+
+                <div class="spotlight glass-card p-8 rounded-3xl border border-white/5 shadow-2xl">
+                    <h3 class="text-xl font-bold text-white mb-1">Auto Clean VIP — Almadies</h3>
+                    <p class="text-neutral-500 text-sm mb-6">Station premium avec plusieurs laveurs</p>
+                    <div class="space-y-4 text-sm">
+                        <div><span class="text-blue-400 font-bold block mb-1">Le défi</span><p class="text-neutral-300">Aucune visibilité sur les heures travaillées par les laveurs, reçus papier facilement perdus par les clients.</p></div>
+                        <div><span class="text-blue-400 font-bold block mb-1">La solution</span><p class="text-neutral-300">Module de pointage des laveurs et reçus numériques envoyés automatiquement au client à chaque lavage.</p></div>
+                        <div><span class="text-blue-400 font-bold block mb-1">Le résultat</span><p class="text-neutral-300">Paie des laveurs simplifiée avec l'export automatique, et une image plus professionnelle auprès des clients.</p></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Tarifs SaaS pour Gérants -->
         <section id="tarifs" class="w-full bg-neutral-900/50 py-24 border-t border-white/5 relative overflow-hidden reveal-group">
             <div class="absolute bottom-0 left-0 w-[800px] h-[800px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none z-0"></div>
@@ -506,6 +602,7 @@
                 <span class="font-bold text-lg tracking-tight text-white">Clean Car Galsen</span>
             </div>
             <p>&copy; 2024 Clean Car Galsen. Tous droits réservés.</p>
+            <p class="mt-3"><a href="/confidentialite.html" class="hover:text-white transition-colors">Politique de confidentialité</a></p>
         </footer>
 
     </main>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Page introuvable - Clean Car Galsen</title>
+    <meta name="robots" content="noindex">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center px-4">
+    <div class="absolute top-0 -left-10 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 pointer-events-none"></div>
+    <div class="absolute top-0 -right-10 w-96 h-96 bg-emerald-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 pointer-events-none"></div>
+
+    <div class="relative max-w-lg w-full text-center">
+        <div class="text-8xl mb-6">💧</div>
+        <h1 class="text-6xl md:text-7xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">404</h1>
+        <h2 class="text-2xl font-bold mb-4">Cette page a pris un autre chemin</h2>
+        <p class="text-neutral-400 text-lg mb-10">
+            La page que vous cherchez n'existe pas ou plus. Retournez à l'accueil ou trouvez une station de lavage près de chez vous.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <button onclick="window.location.href='/'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white rounded-full px-8 py-4 font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95">
+                Retour à l'accueil
+            </button>
+            <button onclick="window.location.href='/stations'" class="bg-white/5 border border-white/10 hover:bg-white/10 rounded-full px-8 py-4 font-semibold transition-transform active:scale-95">
+                Trouver une station
+            </button>
+        </div>
+    </div>
+</body>
+</html>

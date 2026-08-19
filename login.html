@@ -4,6 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Authentification - Clean Car Galsen</title>
+    <meta name="description" content="Connectez-vous ou créez votre compte Clean Car Galsen : automobiliste ou station de lavage partenaire au Sénégal.">
+    <meta name="robots" content="noindex">
+
+    <!-- Google Analytics (GA4) — remplacez G-XXXXXXXXXX par votre identifiant de mesure réel. -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');
+    </script>
 
     <!-- PWA : installable comme une application sur mobile/tablette -->
     <link rel="manifest" href="/manifest.webmanifest">
@@ -834,8 +845,7 @@
             try {
                 const station = await createStationAccount({ name, address, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat: stationLat, lng: stationLng });
                 setSession({ role: 'admin', remember: true, stationId: station.id });
-                alert('🏪 Votre espace station a été créé et est déjà actif ! Ajoutez votre premier laveur pour pouvoir démarrer des lavages.');
-                window.location.href = '/admin/queue';
+                window.location.href = '/merci.html';
             } catch (err) {
                 errorEl.textContent = err.message;
                 errorEl.classList.remove('hidden');

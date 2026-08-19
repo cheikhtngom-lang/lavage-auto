@@ -4,12 +4,17 @@
 # dashboard.html (app React : espace client, admin station, super admin).
 # Les règles ci-dessous servent dashboard.html (avec code 200, donc l'URL
 # affichée reste inchangée) pour les chemins gérés par React Router, afin
-# qu'un accès direct ou un rafraîchissement fonctionne. Tout le reste
-# retombe sur index.html pour que BrowserRouter/la page vitrine fonctionnent.
+# qu'un accès direct ou un rafraîchissement fonctionne.
+#
+# Tout chemin inconnu (ni un de ceux listés ci-dessous, ni un fichier statique
+# réel comme /robots.txt, /assets/*, /icons/*, qui sont toujours servis en
+# priorité par l'hébergeur avant d'évaluer ces règles) tombe sur une vraie
+# page 404 personnalisée — avant, il retombait silencieusement sur
+# index.html (code 200), donc aucune URL cassée n'était jamais détectable.
 
 /admin/*        /dashboard.html   200
 /superadmin/*   /dashboard.html   200
 /dashboard/*    /dashboard.html   200
 /stations       /dashboard.html   200
 /dashboard      /dashboard.html   200
-/*              /index.html       200
+/*              /404.html         404
