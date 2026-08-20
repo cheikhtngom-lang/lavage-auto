@@ -465,9 +465,16 @@ export default function Washers() {
                                 )}
                                 {pointageStatus === 'Terminé' && (
                                   <>
-                                    <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
-                                      Reprendre service
-                                    </button>
+                                    {(!stationProfile?.closeTime || (() => {
+                                      const [closeH, closeM] = stationProfile.closeTime.split(':').map(Number);
+                                      if (Number.isNaN(closeH)) return true;
+                                      const closeAt = new Date(); closeAt.setHours(closeH, closeM, 0, 0);
+                                      return new Date() < closeAt;
+                                    })()) && (
+                                      <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
+                                        Reprendre service
+                                      </button>
+                                    )}
                                     <button onClick={() => finishService(member.id)} className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold text-xs transition-colors">
                                       Fin de service
                                     </button>

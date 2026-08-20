@@ -267,12 +267,26 @@ export default function StationDashboard() {
     return (pricingConfig?.[cat]?.[item?.service]) || 0;
   };
 
+  const isStationClosed = () => {
+    if (!stationProfile?.closeTime) return false;
+    const [closeH, closeM] = stationProfile.closeTime.split(':').map(Number);
+    if (Number.isNaN(closeH) || Number.isNaN(closeM)) return false;
+    const now = new Date();
+    const closeAt = new Date(now);
+    closeAt.setHours(closeH, closeM, 0, 0);
+    return now >= closeAt;
+  };
+
   const handleGoClick = (item) => {
     // Bouton laissé cliquable (même visuellement grisé) plutôt que `disabled`,
     // pour que le message d'explication s'affiche aussi au tap sur tablette/mobile
     // — un `disabled` natif n'aurait déclenché aucun retour sur ces appareils.
     if (!item.paid) {
       alert('Validez le paiement avant de lancer le lavage.');
+      return;
+    }
+    if (isStationClosed()) {
+      alert("Impossible : la station est actuellement fermée. Les laveurs ne peuvent plus être assignés.");
       return;
     }
     if (availableEmployees.length === 0) {
