@@ -159,10 +159,13 @@ export async function createReservation(stationId, { clientId, clientName, vehic
 // Utilisé quand le client paie en ligne (Wave / Orange Money) au moment de la
 // réservation, plutôt que via l'encaissement sur place côté station.
 export async function recordClientTransaction(stationId, { reservationId, clientId, clientName, vehicleLabel, service, method, amount }) {
-  await supabase.from('transactions').insert({
+  const { error } = await supabase.from('transactions').insert({
     station_id: stationId, reservation_id: reservationId, client_id: clientId, client_name: clientName,
     vehicle_label: vehicleLabel, service, method, amount,
   });
+  if (error) {
+    console.error("Erreur lors de l'insertion de la transaction:", error);
+  }
 }
 
 // ─── Avis & notes ─────────────────────────────────────────────────────--

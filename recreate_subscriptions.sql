@@ -84,7 +84,10 @@ begin
     select id, balance into v_sub_id, v_balance 
     from public.station_client_subscriptions 
     where station_id = new.station_id 
-      and client_id = new.client_id 
+      and (
+        client_id = new.client_id 
+        or client_phone = (select phone from public.profiles where id = new.client_id)
+      )
       and status = 'actif'
     limit 1;
 
