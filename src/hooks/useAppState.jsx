@@ -239,18 +239,19 @@ export function AppStateProvider({ children }) {
     const loadSubscriptions = useCallback(async () => {
         if (!stationId || stationId === 'default') { setClientSubscriptions([]); setClientSubscriptionInvoices([]); return; }
         
-        // Charger les abonnements
+        // Charger les abonnements (CRM)
         const { data: subsData } = await supabase.from('station_client_subscriptions')
-            .select('*, client:profiles!client_id(name, email, phone)')
+            .select('*')
             .eq('station_id', stationId)
             .order('created_at', { ascending: false });
         
         setClientSubscriptions((subsData || []).map(row => ({
             id: row.id,
-            clientId: row.client_id,
-            clientName: row.client?.name || 'Inconnu',
-            clientPhone: row.client?.phone || '',
-            clientEmail: row.client?.email || '',
+            clientId: row.client_id, // Peut être null
+            clientName: row.client_name,
+            clientPhone: row.client_phone,
+            clientEmail: row.client_email,
+            clientAddress: row.client_address,
             status: row.status,
             price: row.price,
             startedAt: row.started_at,
@@ -259,16 +260,15 @@ export function AppStateProvider({ children }) {
 
         // Charger les factures d'abonnement
         const { data: invData } = await supabase.from('station_subscription_invoices')
-            .select('*, client:profiles!client_id(name, phone)')
+            .select('*')
             .eq('station_id', stationId)
             .order('created_at', { ascending: false });
             
         setClientSubscriptionInvoices((invData || []).map(row => ({
             id: row.id,
             subscriptionId: row.subscription_id,
-            clientId: row.client_id,
-            clientName: row.client?.name || 'Inconnu',
-            clientPhone: row.client?.phone || '',
+            clientName: row.client_name,
+            clientPhone: row.client_phone,
             amount: row.amount,
             status: row.status,
             billingMonth: row.billing_month,
@@ -277,10 +277,16 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
-    const addClientSubscription = async (clientId, price) => {
+    const addClientSubscription = async (clientData, price) => {
         if (!stationId || stationId === 'default') return;
         const { error } = await supabase.from('station_client_subscriptions').insert({
-            station_id: stationId, client_id: clientId, price, status: 'actif'
+            station_id: stationId, 
+            client_name: clientData.name,
+            client_phone: clientData.phone,
+            client_email: clientData.email,
+            client_address: clientData.address,
+            price, 
+            status: 'actif'
         });
         if (!error) await loadSubscriptions();
         return error;
@@ -294,7 +300,8 @@ export function AppStateProvider({ children }) {
     const generateSubscriptionInvoice = async (sub, billingMonth) => {
         if (!stationId || stationId === 'default') return;
         const { error } = await supabase.from('station_subscription_invoices').insert({
-            station_id: stationId, client_id: sub.clientId, subscription_id: sub.id,
+            station_id: stationId, subscription_id: sub.id, client_id: sub.clientId,
+            client_name: sub.clientName, client_phone: sub.clientPhone,
             amount: sub.price, billing_month: billingMonth, status: 'a_payer'
         });
         if (!error) await loadSubscriptions();

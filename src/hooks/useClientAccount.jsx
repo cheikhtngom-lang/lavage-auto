@@ -39,12 +39,12 @@ export function ClientAccountProvider({ children }) {
         setLoading(false);
     }, []);
 
-    const loadActivity = useCallback(async (clientId) => {
+    const loadActivity = useCallback(async (clientId, clientPhone) => {
         if (!clientId) { setReservations([]); setMyTransactions([]); setMyStationSubscriptions([]); return; }
         const [{ data: resData }, { data: txData }, { data: subData }] = await Promise.all([
             supabase.from('reservations').select('*, stations(name, quartier, region)').eq('client_id', clientId).in('status', ['attente', 'en_cours']).order('created_at'),
             supabase.from('transactions').select('*, stations(name)').eq('client_id', clientId).order('created_at', { ascending: false }),
-            supabase.from('station_client_subscriptions').select('*, stations(name)').eq('client_id', clientId).eq('status', 'actif'),
+            supabase.from('station_client_subscriptions').select('*, stations(name)').eq('client_phone', clientPhone).eq('status', 'actif'),
         ]);
         setReservations(resData || []);
         setMyTransactions(txData || []);
@@ -60,9 +60,9 @@ export function ClientAccountProvider({ children }) {
 
     useEffect(() => {
         if (!account?.id) return;
-        loadActivity(account.id);
+        loadActivity(account.id, account.phone);
         loadSuperUserSub(account.id);
-        const refresh = () => { loadActivity(account.id); loadSuperUserSub(account.id); };
+        const refresh = () => { loadActivity(account.id, account.phone); loadSuperUserSub(account.id); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions` sont dans la publication supabase_realtime
         // (voir schema.sql) : la position en file/le passage en lavage arrivent en
@@ -78,9 +78,9 @@ export function ClientAccountProvider({ children }) {
             .subscribe();
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
-    }, [account?.id, loadActivity, loadSuperUserSub]);
+    }, [account?.id, account?.phone, loadActivity, loadSuperUserSub]);
 
-    const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id); }, [account?.id, loadActivity]);
+    const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id, account.phone); }, [account?.id, account?.phone, loadActivity]);
     const refreshSuperUser = useCallback(() => { if (account?.id) loadSuperUserSub(account.id); }, [account?.id, loadSuperUserSub]);
     const superUserStatus = deriveSuperUserStatus(superUserSub);
 

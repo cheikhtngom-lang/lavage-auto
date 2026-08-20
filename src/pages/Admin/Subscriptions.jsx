@@ -9,35 +9,25 @@ export default function Subscriptions() {
   const { clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid } = useAppState();
   
   const [showAddModal, setShowAddModal] = useState(false);
-  const [searchPhone, setSearchPhone] = useState('');
-  const [searchResult, setSearchResult] = useState(null);
+  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', address: '' });
   const [subPrice, setSubPrice] = useState(15000);
   const [searchLoading, setSearchLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSearchClient = async (e) => {
+  const handleCreateSub = async (e) => {
     e.preventDefault();
-    if (!searchPhone) return;
+    if (!newClient.name || !newClient.phone) return;
     setSearchLoading(true);
     setErrorMsg('');
-    
-    // On cherche un client avec ce téléphone
-    const { data } = await supabase.from('profiles').select('id, name, phone, email').eq('phone', searchPhone).single();
-    if (data) {
-      setSearchResult(data);
-    } else {
-      setSearchResult(null);
-      setErrorMsg('Aucun client trouvé avec ce numéro. Il doit d\'abord s\'inscrire sur l\'application.');
+    try {
+      await addClientSubscription(newClient, subPrice);
+      setShowAddModal(false);
+      setNewClient({ name: '', phone: '', email: '', address: '' });
+    } catch (err) {
+      setErrorMsg('Erreur lors de la création. Ce numéro a peut-être déjà un abonnement actif.');
+    } finally {
+      setSearchLoading(false);
     }
-    setSearchLoading(false);
-  };
-
-  const handleCreateSub = async () => {
-    if (!searchResult) return;
-    await addClientSubscription(searchResult.id, subPrice);
-    setShowAddModal(false);
-    setSearchPhone('');
-    setSearchResult(null);
   };
 
   const currentMonthStr = new Date().toISOString().slice(0, 7); // ex: 2026-08
@@ -151,56 +141,81 @@ export default function Subscriptions() {
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
-            <h2 className="text-xl font-bold text-white mb-6">Nouvel Abonnement</h2>
+            <h2 className="text-xl font-bold text-white mb-6">Nouvel Abonnement (Créer compte)</h2>
             
-            <form onSubmit={handleSearchClient} className="mb-4">
-              <label className="block text-sm font-medium text-neutral-400 mb-1.5">Téléphone du client existant</label>
-              <div className="flex gap-2">
+            <form onSubmit={handleCreateSub} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5">Prénom et Nom <span className="text-red-400">*</span></label>
                 <input 
                   type="text" 
-                  value={searchPhone} 
-                  onChange={e => setSearchPhone(e.target.value)} 
-                  placeholder="+221 77 000 00 00" 
-                  className="flex-1 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-emerald-500 outline-none" 
+                  value={newClient.name} 
+                  onChange={e => setNewClient({...newClient, name: e.target.value})} 
+                  placeholder="Ex: Moussa Diop" 
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-emerald-500 outline-none" 
                   required 
                 />
-                <button type="submit" className="bg-white/10 hover:bg-white/20 text-white px-4 py-2.5 rounded-xl font-bold transition-colors">
-                  <Search className="w-5 h-5" />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5">Téléphone <span className="text-red-400">*</span></label>
+                <input 
+                  type="text" 
+                  value={newClient.phone} 
+                  onChange={e => setNewClient({...newClient, phone: e.target.value})} 
+                  placeholder="+221 77 000 00 00" 
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-emerald-500 outline-none" 
+                  required 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5">Email</label>
+                <input 
+                  type="email" 
+                  value={newClient.email} 
+                  onChange={e => setNewClient({...newClient, email: e.target.value})} 
+                  placeholder="moussa@example.com" 
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-emerald-500 outline-none" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5">Adresse</label>
+                <input 
+                  type="text" 
+                  value={newClient.address} 
+                  onChange={e => setNewClient({...newClient, address: e.target.value})} 
+                  placeholder="Ex: Dakar, Point E" 
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-emerald-500 outline-none" 
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5">Prix mensuel convenu (FCFA) <span className="text-red-400">*</span></label>
+                <input 
+                  type="number" 
+                  value={subPrice} 
+                  onChange={e => setSubPrice(parseInt(e.target.value) || 0)} 
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-emerald-500 outline-none" 
+                  required
+                />
+              </div>
+
+              {errorMsg && <p className="text-red-400 text-sm mt-2 flex items-center gap-1"><AlertCircle className="w-4 h-4"/> {errorMsg}</p>}
+
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+                <button type="button" onClick={() => {setShowAddModal(false); setNewClient({name: '', phone: '', email: '', address: ''}); setErrorMsg('');}} className="px-4 py-2 rounded-xl text-neutral-400 hover:text-white font-bold transition-colors">
+                  Annuler
+                </button>
+                <button 
+                  type="submit"
+                  disabled={!newClient.name || !newClient.phone || searchLoading}
+                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl font-bold transition-colors"
+                >
+                  {searchLoading ? 'Création...' : 'Activer l\'abonnement'}
                 </button>
               </div>
-              {errorMsg && <p className="text-red-400 text-sm mt-2 flex items-center gap-1"><AlertCircle className="w-4 h-4"/> {errorMsg}</p>}
             </form>
-
-            {searchResult && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mb-4">
-                <p className="text-sm text-emerald-400 font-bold mb-1">Client trouvé :</p>
-                <p className="text-white font-bold text-lg">{searchResult.name}</p>
-                <p className="text-neutral-400 text-sm">{searchResult.phone}</p>
-                
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">Prix mensuel convenu (FCFA)</label>
-                  <input 
-                    type="number" 
-                    value={subPrice} 
-                    onChange={e => setSubPrice(parseInt(e.target.value) || 0)} 
-                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-emerald-500 outline-none" 
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => {setShowAddModal(false); setSearchResult(null); setSearchPhone(''); setErrorMsg('');}} className="px-4 py-2 rounded-xl text-neutral-400 hover:text-white font-bold transition-colors">
-                Annuler
-              </button>
-              <button 
-                onClick={handleCreateSub} 
-                disabled={!searchResult}
-                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl font-bold transition-colors"
-              >
-                Activer l'abonnement
-              </button>
-            </div>
           </div>
         </div>
       )}

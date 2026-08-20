@@ -1,3 +1,6 @@
+drop table if exists public.station_subscription_invoices cascade;
+drop table if exists public.station_client_subscriptions cascade;
+
 -- ─── Abonnements Clients dans une Station ────────────────────────────────────
 create table public.station_client_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -19,6 +22,7 @@ create table public.station_subscription_invoices (
   id uuid primary key default gen_random_uuid(),
   station_id uuid not null references public.stations(id) on delete cascade,
   subscription_id uuid not null references public.station_client_subscriptions(id) on delete cascade,
+  client_id uuid references public.profiles(id) on delete set null,
   client_name text not null,
   client_phone text not null,
   amount integer not null,
