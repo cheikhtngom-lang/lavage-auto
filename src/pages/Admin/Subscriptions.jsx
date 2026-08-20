@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Sparkles, Search, UserPlus, CheckCircle2, XCircle, Send, MessageCircle, FileText, AlertCircle, BatteryCharging } from 'lucide-react';
+import { Sparkles, Search, UserPlus, CheckCircle2, XCircle, Send, MessageCircle, FileText, AlertCircle, BatteryCharging, Trash2 } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { supabase } from '../../lib/supabaseClient';
 
 export default function Subscriptions() {
-  const { clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription } = useAppState();
+  const { clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, deleteClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription } = useAppState();
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', address: '' });
@@ -96,6 +96,17 @@ export default function Subscriptions() {
                         className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors flex items-center gap-1.5"
                       >
                         <FileText className="w-5 h-5" /> <span className="text-sm font-bold">Facturer {currentMonthStr}</span>
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if(window.confirm(`Êtes-vous sûr de vouloir supprimer définitivement l'abonnement de ${sub.clientName} ?`)) {
+                            deleteClientSubscription(sub.id);
+                          }
+                        }}
+                        className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+                        title="Supprimer l'abonnement"
+                      >
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
                   </div>

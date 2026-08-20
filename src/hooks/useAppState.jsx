@@ -301,6 +301,12 @@ export function AppStateProvider({ children }) {
         return error;
     };
 
+    const deleteClientSubscription = async (subId) => {
+        const { error } = await supabase.from('station_client_subscriptions').delete().eq('id', subId);
+        if (!error) await loadSubscriptions();
+        return error;
+    };
+
     const updateSubscriptionStatus = async (subId, status) => {
         await supabase.from('station_client_subscriptions').update({ status }).eq('id', subId);
         await loadSubscriptions();
@@ -888,7 +894,7 @@ export function AppStateProvider({ children }) {
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
             scheduleByDate, loadScheduleRange, setShiftForDay,
-            clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription,
+            clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, deleteClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription,
             stationAds, loadStationAds,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
