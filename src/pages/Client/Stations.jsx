@@ -287,6 +287,34 @@ export default function Stations() {
     resetPaymentState();
   };
 
+  useEffect(() => {
+    const targetStationId = searchParams.get('station');
+    if (targetStationId && registry && registry.length > 0 && account !== undefined) {
+      const st = allStations.find(s => String(s.id) === targetStationId);
+      if (st) {
+        if (account) {
+           const activeCount = reservations.filter(r => String(r.station_id) === targetStationId).length;
+           if (activeCount >= effectiveVehicleCap) {
+             if (!isSuperUser) { setShowUpsellModal(true); } 
+             else { setSelectedStation(st); setModalStep('limit'); }
+           } else {
+             setSelectedStation(st);
+             setModalStep('form');
+             setSelectedVehicleIds([]);
+             setService('Lavage Simple');
+             setPromoCodeInput('');
+             resetPaymentState();
+           }
+        } else {
+             sessionStorage.setItem('pendingReservationStationId', String(st.id));
+             window.location.href = '/login.html?mode=register&role=automobiliste&returnTo=reserve';
+        }
+        searchParams.delete('station');
+        navigate({ search: searchParams.toString() }, { replace: true });
+      }
+    }
+  }, [searchParams, registry, account, reservations, effectiveVehicleCap, isSuperUser, navigate]);
+
   const handleReserveClick = () => {
     if (!selectedStation) return;
     if (account) {

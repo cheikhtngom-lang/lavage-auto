@@ -341,7 +341,7 @@ export default function ClientOverview() {
                         <p className="text-xl font-black text-white mt-2">Solde: {(sub.balance || 0).toLocaleString()} FCFA</p>
                         <p className="text-neutral-400 text-sm mt-1">Vos lavages seront déduits de ce crédit.</p>
                       </div>
-                      <button onClick={() => navigate('/dashboard/stations')} className="mt-4 text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 w-fit">
+                      <button onClick={() => navigate(`/dashboard/stations?station=${sub.station_id}`)} className="mt-4 text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 w-fit">
                         Réserver maintenant <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
