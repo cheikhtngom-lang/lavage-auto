@@ -109,27 +109,68 @@ export default function Accounting() {
               </div>
             </div>
             
-            {/* CSS Mock Chart */}
-            <div className="h-64 flex items-end justify-between gap-2 md:gap-4 mt-8 pb-4 border-b border-white/10 relative">
+            {/* SVG Line Chart */}
+            <div className="h-64 mt-8 pb-4 border-b border-white/10 relative w-full">
               {/* Lignes horizontales pour donner l'effet de grille */}
-              <div className="absolute w-full top-0 border-t border-white/5 border-dashed"></div>
-              <div className="absolute w-full top-1/4 border-t border-white/5 border-dashed"></div>
-              <div className="absolute w-full top-2/4 border-t border-white/5 border-dashed"></div>
-              <div className="absolute w-full top-3/4 border-t border-white/5 border-dashed"></div>
+              <div className="absolute w-full top-0 border-t border-white/5 border-dashed pointer-events-none"></div>
+              <div className="absolute w-full top-1/4 border-t border-white/5 border-dashed pointer-events-none"></div>
+              <div className="absolute w-full top-2/4 border-t border-white/5 border-dashed pointer-events-none"></div>
+              <div className="absolute w-full top-3/4 border-t border-white/5 border-dashed pointer-events-none"></div>
               
-              {[45, 60, 30, 80, 50, 95, 70].map((height, i) => (
-                <div key={i} className="w-full relative group">
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-neutral-800 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-20">
-                    {height * 1000} FCFA
-                  </div>
-                  <motion.div 
-                    initial={{ height: 0 }}
-                    animate={{ height: `${height}%` }}
-                    transition={{ duration: 1, delay: i * 0.1, type: "spring" }}
-                    className="w-full bg-gradient-to-t from-blue-600/50 to-blue-400 rounded-t-md relative z-10 shadow-[0_0_15px_rgba(59,130,246,0.3)] group-hover:brightness-125 transition-all"
-                  ></motion.div>
-                </div>
-              ))}
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+                <defs>
+                  <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(59,130,246,0.3)" />
+                    <stop offset="100%" stopColor="rgba(59,130,246,0.0)" />
+                  </linearGradient>
+                  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="2" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                  </filter>
+                </defs>
+                
+                {/* Area fill */}
+                <motion.path
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 1 }}
+                  d={`M 0 ${100 - 45} L ${100/6 * 1} ${100 - 60} L ${100/6 * 2} ${100 - 30} L ${100/6 * 3} ${100 - 80} L ${100/6 * 4} ${100 - 50} L ${100/6 * 5} ${100 - 95} L 100 ${100 - 70} L 100 100 L 0 100 Z`}
+                  fill="url(#lineGradient)"
+                />
+                
+                {/* Line stroke */}
+                <motion.path
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 1.5, ease: "easeInOut" }}
+                  d={`M 0 ${100 - 45} L ${100/6 * 1} ${100 - 60} L ${100/6 * 2} ${100 - 30} L ${100/6 * 3} ${100 - 80} L ${100/6 * 4} ${100 - 50} L ${100/6 * 5} ${100 - 95} L 100 ${100 - 70}`}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth="3"
+                  vectorEffect="non-scaling-stroke"
+                  filter="url(#glow)"
+                />
+                
+                {/* Data points */}
+                {[45, 60, 30, 80, 50, 95, 70].map((val, i) => (
+                  <motion.circle
+                    key={i}
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 1 + i * 0.1 }}
+                    cx={`${(100/6) * i}`}
+                    cy={`${100 - val}`}
+                    r="5"
+                    fill="#0f172a"
+                    stroke="#60a5fa"
+                    strokeWidth="2.5"
+                    vectorEffect="non-scaling-stroke"
+                    className="cursor-pointer hover:fill-blue-500 transition-colors"
+                  >
+                    <title>{val * 1000} FCFA</title>
+                  </motion.circle>
+                ))}
+              </svg>
             </div>
             <div className="flex justify-between mt-2 text-xs text-neutral-500 font-medium">
               <span>Lun</span>
