@@ -280,8 +280,15 @@ export function AppStateProvider({ children }) {
 
     const addClientSubscription = async (clientData, price) => {
         if (!stationId || stationId === 'default') return;
+        let clientId = null;
+        try {
+            const { data: profile } = await supabase.from('profiles').select('id').eq('phone', clientData.phone).single();
+            if (profile) clientId = profile.id;
+        } catch(e) {}
+
         const { error } = await supabase.from('station_client_subscriptions').insert({
             station_id: stationId, 
+            client_id: clientId,
             client_name: clientData.name,
             client_phone: clientData.phone,
             client_email: clientData.email,
