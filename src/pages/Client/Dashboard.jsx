@@ -341,8 +341,8 @@ export default function ClientOverview() {
                             {sub.stations?.name}
                           </h3>
                           <p className="text-xl font-black text-white mt-2">Solde: {(sub.balance || 0).toLocaleString()} FCFA</p>
-                          <div className="w-full bg-black/40 rounded-full h-2 mt-3 overflow-hidden border border-white/5">
-                            <div className="bg-emerald-500 h-2 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+                          <div className="w-full bg-black rounded-full h-4 mt-4 overflow-hidden border border-emerald-900/50 shadow-inner">
+                            <div className="bg-emerald-400 h-full rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(52,211,153,0.5)]" style={{ width: `${percentage}%` }}></div>
                           </div>
                           <p className="text-neutral-400 text-xs mt-2">Vos lavages sont déduits de ce crédit.</p>
                         </div>
