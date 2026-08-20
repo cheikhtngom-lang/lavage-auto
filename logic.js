@@ -95,12 +95,12 @@ function renderAdminQueue() {
             : `<span class="bg-neutral-800 text-neutral-300 border border-white/10 px-2 py-1 rounded-full text-xs font-bold">💵 Sur place</span>`;
 
         const encaisseButton = !item.paid 
-            ? `<button onclick="validatePayment(${item.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors mr-2 shadow-lg shadow-emerald-500/20">💰 Encaisser</button>`
+            ? `<button onclick="validatePayment('${item.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors mr-2 shadow-lg shadow-emerald-500/20">💰 Encaisser</button>`
             : '';
 
-        const actionButtons = encaisseButton + `<button onclick="startWash(${item.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors mr-2 shadow-lg shadow-blue-500/20">▶ Démarrer</button>`;
+        const actionButtons = encaisseButton + `<button onclick="startWash('${item.id}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-md transition-colors mr-2 shadow-lg shadow-blue-500/20">▶ Démarrer</button>`;
 
-        const skipButton = `<button onclick="skipTurn(${item.id})" class="border border-white/10 text-neutral-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">Absent</button>`;
+        const skipButton = `<button onclick="skipTurn('${item.id}')" class="border border-white/10 text-neutral-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">Absent</button>`;
 
         queueContainer.innerHTML += `
             <tr class="border-b border-white/5 hover:bg-white/5 transition-colors group">
@@ -156,8 +156,8 @@ function renderActiveWash() {
                     </span>
                 </div>
                 <div class="flex gap-2">
-                    ${!wash.paid ? `<button onclick="validatePayment(${wash.id})" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-transform active:scale-95 shadow-lg shadow-emerald-900/50">💰 Encaisser</button>` : ''}
-                    <button onclick="endWash(${wash.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-transform active:scale-95 shadow-lg shadow-blue-900/50">
+                    ${!wash.paid ? `<button onclick="validatePayment('${wash.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-transform active:scale-95 shadow-lg shadow-emerald-900/50">💰 Encaisser</button>` : ''}
+                    <button onclick="endWash('${wash.id}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-transform active:scale-95 shadow-lg shadow-blue-900/50">
                         ✅ Terminer
                     </button>
                 </div>
@@ -373,7 +373,7 @@ function renderTeam() {
                         <p class="text-neutral-400 text-sm">${emp.role}</p>
                     </div>
                 </div>
-                <button onclick="togglePresence(${emp.id})" class="px-3 py-1 rounded-full text-xs font-bold border transition-colors ${emp.present ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:bg-neutral-700'}">
+                <button onclick="togglePresence('${emp.id}')" class="px-3 py-1 rounded-full text-xs font-bold border transition-colors ${emp.present ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:bg-neutral-700'}">
                     ${emp.present ? 'Présent' : 'Absent'}
                 </button>
             </div>
