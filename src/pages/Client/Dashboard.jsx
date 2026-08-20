@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '../../components/ui/Badge';
 import { StarRatingDisplay, StarRatingInput } from '../../components/ui/StarRating';
-import { Car, Receipt, ArrowRight, Droplets, MapPin, Sparkles, Clock, Bell, X, Gift, Star, Download, Megaphone } from 'lucide-react';
+import { Car, Receipt, ArrowRight, Droplets, MapPin, Sparkles, Clock, Bell, X, Gift, Star, Download, Megaphone, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
@@ -105,7 +105,7 @@ function LiveStatusCard({ reservation }) {
 
 export default function ClientOverview() {
   const navigate = useNavigate();
-  const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd } = useClientAccount();
+  const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd, myStationSubscriptions } = useClientAccount();
   const { stations: registry, stationAds } = useSuperAdminState();
 
   const myName = account?.name || '';
@@ -321,11 +321,56 @@ export default function ClientOverview() {
           <span className="text-xs text-neutral-600">Mis à jour {Math.max(0, Math.round((Date.now() - lastUpdated) / 1000))}s</span>
         </div>
 
-        {reservations.length > 0 ? (
-          <div className={`grid grid-cols-1 gap-6 ${reservations.length > 1 ? 'md:grid-cols-2' : ''}`}>
-            {reservations.map((res) => (
-              <LiveStatusCard key={res.item.id} reservation={res} />
-            ))}
+        {(reservations.length > 0 || (myStationSubscriptions && myStationSubscriptions.length > 0)) ? (
+          <div className="grid grid-cols-1 gap-8">
+            {myStationSubscriptions && myStationSubscriptions.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  Vos Abonnements
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {myStationSubscriptions.map(sub => (
+                    <div key={sub.id} className="p-4 rounded-xl bg-gradient-to-br from-emerald-900/20 to-black border border-emerald-500/20 flex flex-col justify-between">
+                      <div>
+                        <Badge className="mb-2 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Abonnement Actif</Badge>
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-emerald-400" />
+                          {sub.stations?.name}
+                        </h3>
+                        <p className="text-neutral-400 text-sm mt-1">Vous pouvez réserver des lavages sans frais immédiats grâce à votre forfait mensuel.</p>
+                      </div>
+                      <button onClick={() => navigate('/dashboard/stations')} className="mt-4 text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 w-fit">
+                        Réserver maintenant <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {reservations.length > 0 ? (
+              <div className="space-y-4">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  Lavage en cours
+                </h2>
+                <div className={`grid grid-cols-1 gap-6 ${reservations.length > 1 ? 'md:grid-cols-2' : ''}`}>
+                  {reservations.map((res) => (
+                    <LiveStatusCard key={res.item.id} reservation={res} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10 hover:border-blue-500/30 transition-colors">
+                <Car className="w-16 h-16 text-neutral-600 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-white mb-2">Aucun lavage en cours</h3>
+                <p className="text-neutral-400 mb-6">Vous n'avez pas de véhicule dans la file d'attente actuellement.</p>
+                <button onClick={() => navigate('/dashboard/stations')} className="btn-premium">
+                  <span className="btn-premium-shimmer"></span>
+                  <span className="btn-premium-content">Prendre Rendez-vous <ArrowRight className="w-4 h-4 ml-2" /></span>
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10 hover:border-blue-500/30 transition-colors">

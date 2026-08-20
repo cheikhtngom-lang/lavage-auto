@@ -232,6 +232,80 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
+    // Abonnements de la station
+    const [clientSubscriptions, setClientSubscriptions] = useState([]);
+    const [clientSubscriptionInvoices, setClientSubscriptionInvoices] = useState([]);
+
+    const loadSubscriptions = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setClientSubscriptions([]); setClientSubscriptionInvoices([]); return; }
+        
+        // Charger les abonnements
+        const { data: subsData } = await supabase.from('station_client_subscriptions')
+            .select('*, client:profiles!client_id(name, email, phone)')
+            .eq('station_id', stationId)
+            .order('created_at', { ascending: false });
+        
+        setClientSubscriptions((subsData || []).map(row => ({
+            id: row.id,
+            clientId: row.client_id,
+            clientName: row.client?.name || 'Inconnu',
+            clientPhone: row.client?.phone || '',
+            clientEmail: row.client?.email || '',
+            status: row.status,
+            price: row.price,
+            startedAt: row.started_at,
+            createdAt: row.created_at
+        })));
+
+        // Charger les factures d'abonnement
+        const { data: invData } = await supabase.from('station_subscription_invoices')
+            .select('*, client:profiles!client_id(name, phone)')
+            .eq('station_id', stationId)
+            .order('created_at', { ascending: false });
+            
+        setClientSubscriptionInvoices((invData || []).map(row => ({
+            id: row.id,
+            subscriptionId: row.subscription_id,
+            clientId: row.client_id,
+            clientName: row.client?.name || 'Inconnu',
+            clientPhone: row.client?.phone || '',
+            amount: row.amount,
+            status: row.status,
+            billingMonth: row.billing_month,
+            paidAt: row.paid_at,
+            createdAt: row.created_at
+        })));
+    }, [stationId]);
+
+    const addClientSubscription = async (clientId, price) => {
+        if (!stationId || stationId === 'default') return;
+        const { error } = await supabase.from('station_client_subscriptions').insert({
+            station_id: stationId, client_id: clientId, price, status: 'actif'
+        });
+        if (!error) await loadSubscriptions();
+        return error;
+    };
+
+    const updateSubscriptionStatus = async (subId, status) => {
+        await supabase.from('station_client_subscriptions').update({ status }).eq('id', subId);
+        await loadSubscriptions();
+    };
+
+    const generateSubscriptionInvoice = async (sub, billingMonth) => {
+        if (!stationId || stationId === 'default') return;
+        const { error } = await supabase.from('station_subscription_invoices').insert({
+            station_id: stationId, client_id: sub.clientId, subscription_id: sub.id,
+            amount: sub.price, billing_month: billingMonth, status: 'a_payer'
+        });
+        if (!error) await loadSubscriptions();
+        return error;
+    };
+
+    const markSubscriptionInvoicePaid = async (invoiceId) => {
+        await supabase.from('station_subscription_invoices').update({ status: 'paye', paid_at: new Date().toISOString() }).eq('id', invoiceId);
+        await loadSubscriptions();
+    };
+
     useEffect(() => {
         loadReservations();
         loadTransactions();
@@ -239,7 +313,8 @@ export function AppStateProvider({ children }) {
         loadCustomVehicleTypes();
         loadShiftTemplates();
         loadStationAds();
-        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); };
+        loadSubscriptions();
+        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees` sont dans la publication
         // supabase_realtime (voir schema.sql) : un client qui réserve depuis son
@@ -786,6 +861,7 @@ export function AppStateProvider({ children }) {
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
             scheduleByDate, loadScheduleRange, setShiftForDay,
+            clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid,
             stationAds, loadStationAds,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,

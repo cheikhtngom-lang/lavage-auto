@@ -46,6 +46,7 @@ export default function AdminLayout() {
     { name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers' },
     { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions' },
     { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator },
+    { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles },
     { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics' },
     { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team' },
     { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings' },

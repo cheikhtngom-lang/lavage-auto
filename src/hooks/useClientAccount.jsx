@@ -12,6 +12,7 @@ export function ClientAccountProvider({ children }) {
     // aux données des AUTRES clients (voir lib/stationData.js pour ça).
     const [reservations, setReservations] = useState([]);
     const [myTransactions, setMyTransactions] = useState([]);
+    const [myStationSubscriptions, setMyStationSubscriptions] = useState([]);
     const [superUserSub, setSuperUserSub] = useState(null);
 
     const load = useCallback(async () => {
@@ -39,13 +40,15 @@ export function ClientAccountProvider({ children }) {
     }, []);
 
     const loadActivity = useCallback(async (clientId) => {
-        if (!clientId) { setReservations([]); setMyTransactions([]); return; }
-        const [{ data: resData }, { data: txData }] = await Promise.all([
+        if (!clientId) { setReservations([]); setMyTransactions([]); setMyStationSubscriptions([]); return; }
+        const [{ data: resData }, { data: txData }, { data: subData }] = await Promise.all([
             supabase.from('reservations').select('*, stations(name, quartier, region)').eq('client_id', clientId).in('status', ['attente', 'en_cours']).order('created_at'),
             supabase.from('transactions').select('*, stations(name)').eq('client_id', clientId).order('created_at', { ascending: false }),
+            supabase.from('station_client_subscriptions').select('*, stations(name)').eq('client_id', clientId).eq('status', 'actif'),
         ]);
         setReservations(resData || []);
         setMyTransactions(txData || []);
+        setMyStationSubscriptions(subData || []);
     }, []);
 
     useEffect(() => { load(); }, [load]);
@@ -151,7 +154,7 @@ export function ClientAccountProvider({ children }) {
     return (
         <ClientAccountContext.Provider value={{
             account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation, dismissAd,
-            reservations, myTransactions, refreshActivity,
+            reservations, myTransactions, myStationSubscriptions, refreshActivity,
             superUserSub, superUserStatus, refreshSuperUser,
         }}>
             {children}

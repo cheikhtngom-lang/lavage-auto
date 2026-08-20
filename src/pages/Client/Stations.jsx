@@ -142,7 +142,7 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
 
 export default function Stations() {
   const { stations: registry } = useSuperAdminState();
-  const { account, toggleFavorite, unhideStation, reservations, refreshActivity, superUserStatus } = useClientAccount();
+  const { account, toggleFavorite, unhideStation, reservations, refreshActivity, superUserStatus, myStationSubscriptions } = useClientAccount();
   const isSuperUser = superUserStatus === 'ACTIVE';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -320,6 +320,14 @@ export default function Stations() {
   const goToPayment = (e) => {
     e.preventDefault();
     if (selectedVehicles.length === 0 || !account || !selectedStation) return;
+    
+    // Si le client a un abonnement actif pour cette station, on saute l'étape de paiement
+    const isSubscribed = myStationSubscriptions?.some(sub => String(sub.station_id) === String(selectedStation.id));
+    if (isSubscribed) {
+      finalizeReservation({ paid: true, method: 'Abonnement' });
+      return;
+    }
+    
     setModalStep('payment');
   };
 

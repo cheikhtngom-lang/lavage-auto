@@ -2,13 +2,14 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 
 export default function Accounting() {
-  const { transactions, stationProfile } = useAppState();
+  const { transactions, stationProfile, clientSubscriptionInvoices } = useAppState();
 
   const totalRevenue = transactions.reduce((acc, curr) => acc + (parseInt(curr.amount) || 0), 0);
+  const totalSubRevenue = (clientSubscriptionInvoices || []).filter(inv => inv.status === 'paye').reduce((acc, curr) => acc + (parseInt(curr.amount) || 0), 0);
   // Configurable par l'admin dans Paramètres > Objectif de revenus (voir
   // Admin/Settings.jsx) — plus une valeur figée dans le code.
   const dailyTarget = stationProfile?.dailyRevenueTarget || 50000;
@@ -28,7 +29,7 @@ export default function Accounting() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <Card className="border-white/5 bg-gradient-to-br from-blue-900/20 to-black relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors"></div>
           <CardContent className="p-6 relative z-10">
@@ -58,6 +59,19 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Revenus de la semaine</p>
             <h3 className="text-3xl font-bold text-white">142 500 FCFA</h3>
+          </CardContent>
+        </Card>
+
+        <Card className="border-white/5 bg-gradient-to-br from-purple-900/20 to-black relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-colors"></div>
+          <CardContent className="p-6 relative z-10">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-3 bg-purple-500/20 rounded-xl">
+                <Sparkles className="w-6 h-6 text-purple-400" />
+              </div>
+            </div>
+            <p className="text-neutral-400 text-sm font-medium mb-1">Recettes Abonnements</p>
+            <h3 className="text-3xl font-bold text-white">{totalSubRevenue.toLocaleString('fr-FR')} FCFA</h3>
           </CardContent>
         </Card>
 

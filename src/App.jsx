@@ -28,6 +28,7 @@ import Analytics from './pages/Admin/Analytics';
 import Team from './pages/Admin/Team';
 import Washers from './pages/Admin/Washers';
 import Settings from './pages/Admin/Settings';
+import Subscriptions from './pages/Admin/Subscriptions';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
@@ -87,6 +88,7 @@ function App() {
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="team" element={<Team />} />
                 <Route path="washers" element={<Washers />} />
+                <Route path="subscriptions" element={<Subscriptions />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
 
