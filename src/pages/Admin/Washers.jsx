@@ -246,12 +246,15 @@ export default function Washers() {
     setExporting(false);
 
     let csvContent = "ID Employé;Prénom & Nom;Rôle;";
-    for (let i = 1; i <= daysInMonth; i++) csvContent += `Jour ${i};`;
-    csvContent += "Total Heures;Jours Repos;Jours Congé;Jours Maladie;Jours Absence\n";
+    for (let i = 1; i <= daysInMonth; i++) {
+      const d = new Date(year, month, i);
+      csvContent += `${d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' })};`;
+    }
+    csvContent += "Total Heures;Jours Travaillés;Jours Repos;Jours Congé;Jours Maladie;Jours Absence\n";
 
     washersList.forEach(washer => {
       let totalMinutes = 0;
-      let countRepos = 0, countConge = 0, countMaladie = 0, countAbsence = 0;
+      let countTravail = 0, countRepos = 0, countConge = 0, countMaladie = 0, countAbsence = 0;
       let row = `${washer.id};${washer.name};${washer.role};`;
 
       for (let i = 1; i <= daysInMonth; i++) {
@@ -268,6 +271,7 @@ export default function Washers() {
           if (rec.totalTime) minutes = parseDurationToMinutes(rec.totalTime);
           else if (rec.clockInAt && !rec.clockOutAt) minutes = Math.max(0, Math.round((now.getTime() - new Date(rec.clockInAt).getTime()) / 60000));
           totalMinutes += minutes;
+          countTravail++;
           row += `${formatMinutesToHM(minutes)};`;
         } else {
           row += `${STATUS_LETTER[rec.dailyStatus] || 'A'};`;
@@ -278,7 +282,7 @@ export default function Washers() {
         }
       }
 
-      row += `${formatMinutesToHM(totalMinutes)};${countRepos};${countConge};${countMaladie};${countAbsence}\n`;
+      row += `${formatMinutesToHM(totalMinutes)};${countTravail};${countRepos};${countConge};${countMaladie};${countAbsence}\n`;
       csvContent += row;
     });
 
