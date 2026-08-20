@@ -41,7 +41,12 @@ alter table public.station_subscription_invoices enable row level security;
 
 -- L'administrateur de la station voit, crée et modifie les abonnements de SA station
 create policy "station_client_subscriptions_select" on public.station_client_subscriptions for select
-  using (station_id = public.current_station_id() or client_id = auth.uid() or public.app_role() = 'super_admin');
+  using (
+    station_id = public.current_station_id() 
+    or client_id = auth.uid() 
+    or client_phone = (select phone from public.profiles where id = auth.uid())
+    or public.app_role() = 'super_admin'
+  );
 
 create policy "station_client_subscriptions_insert" on public.station_client_subscriptions for insert
   with check (station_id = public.current_station_id() or public.app_role() = 'super_admin');
