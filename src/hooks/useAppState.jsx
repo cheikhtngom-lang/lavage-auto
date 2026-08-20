@@ -254,6 +254,7 @@ export function AppStateProvider({ children }) {
             clientAddress: row.client_address,
             status: row.status,
             price: row.price,
+            balance: row.balance,
             startedAt: row.started_at,
             createdAt: row.created_at
         })));
@@ -286,6 +287,7 @@ export function AppStateProvider({ children }) {
             client_email: clientData.email,
             client_address: clientData.address,
             price, 
+            balance: price,
             status: 'actif'
         });
         if (!error) await loadSubscriptions();
@@ -295,6 +297,17 @@ export function AppStateProvider({ children }) {
     const updateSubscriptionStatus = async (subId, status) => {
         await supabase.from('station_client_subscriptions').update({ status }).eq('id', subId);
         await loadSubscriptions();
+    };
+
+    const rechargeSubscription = async (subId, amountToAdd) => {
+        const { data: sub } = await supabase.from('station_client_subscriptions').select('balance').eq('id', subId).single();
+        if (sub) {
+            await supabase.from('station_client_subscriptions').update({ 
+                balance: sub.balance + amountToAdd,
+                status: 'actif' 
+            }).eq('id', subId);
+            await loadSubscriptions();
+        }
     };
 
     const generateSubscriptionInvoice = async (sub, billingMonth) => {
@@ -853,8 +866,8 @@ export function AppStateProvider({ children }) {
         if (stationId && stationId !== 'default') {
             supabase.from('wash_pricing').delete().eq('station_id', stationId).then(() => {});
             supabase.from('stations').update({ promo_config: {} }).eq('id', stationId).then(() => {});
-            supabase.from('reservations').delete().eq('station_id', stationId).then(() => {});
-            supabase.from('transactions').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
+            supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
             supabase.from('employees').delete().eq('station_id', stationId).then(() => {});
             supabase.from('attendance_records').delete().eq('station_id', stationId).then(() => {});
         }
@@ -868,7 +881,7 @@ export function AppStateProvider({ children }) {
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
             scheduleByDate, loadScheduleRange, setShiftForDay,
-            clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid,
+            clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription,
             stationAds, loadStationAds,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,

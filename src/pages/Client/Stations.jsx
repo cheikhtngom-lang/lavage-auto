@@ -321,11 +321,16 @@ export default function Stations() {
     e.preventDefault();
     if (selectedVehicles.length === 0 || !account || !selectedStation) return;
     
-    // Si le client a un abonnement actif pour cette station, on saute l'étape de paiement
-    const isSubscribed = myStationSubscriptions?.some(sub => String(sub.station_id) === String(selectedStation.id));
-    if (isSubscribed) {
+    // Si le client a un abonnement actif pour cette station avec un solde suffisant, on saute l'étape de paiement
+    const activeSub = myStationSubscriptions?.find(sub => String(sub.station_id) === String(selectedStation.id));
+    if (activeSub && activeSub.balance >= servicePrice) {
       finalizeReservation({ paid: true, method: 'Abonnement' });
       return;
+    }
+    
+    // Si l'abonnement existe mais solde insuffisant, on peut soit l'alerter soit le laisser payer normalement
+    if (activeSub && activeSub.balance < servicePrice) {
+      alert(`Votre solde d'abonnement (${(activeSub.balance || 0).toLocaleString()} FCFA) est insuffisant pour ce lavage de ${servicePrice.toLocaleString()} FCFA. Veuillez choisir un autre moyen de paiement.`);
     }
     
     setModalStep('payment');

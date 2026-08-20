@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Sparkles, Search, UserPlus, CheckCircle2, XCircle, Send, MessageCircle, FileText, AlertCircle } from 'lucide-react';
+import { Sparkles, Search, UserPlus, CheckCircle2, XCircle, Send, MessageCircle, FileText, AlertCircle, BatteryCharging } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { supabase } from '../../lib/supabaseClient';
 
 export default function Subscriptions() {
-  const { clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid } = useAppState();
+  const { clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription } = useAppState();
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', address: '' });
@@ -20,9 +20,13 @@ export default function Subscriptions() {
     setSearchLoading(true);
     setErrorMsg('');
     try {
-      await addClientSubscription(newClient, subPrice);
-      setShowAddModal(false);
-      setNewClient({ name: '', phone: '', email: '', address: '' });
+      const error = await addClientSubscription(newClient, subPrice);
+      if (error) {
+        setErrorMsg('Erreur lors de la création: ' + error.message);
+      } else {
+        setShowAddModal(false);
+        setNewClient({ name: '', phone: '', email: '', address: '' });
+      }
     } catch (err) {
       setErrorMsg('Erreur lors de la création. Ce numéro a peut-être déjà un abonnement actif.');
     } finally {
@@ -66,6 +70,7 @@ export default function Subscriptions() {
                           {sub.status === 'actif' ? 'Actif' : 'Suspendu'}
                         </Badge>
                         <span className="text-xs font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">{sub.price.toLocaleString()} FCFA/mois</span>
+                        <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">Solde: {(sub.balance || 0).toLocaleString()} FCFA</span>
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -74,6 +79,17 @@ export default function Subscriptions() {
                         className={`p-2 rounded-lg transition-colors ${sub.status === 'actif' ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'}`}
                       >
                         {sub.status === 'actif' ? <XCircle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if(window.confirm(`Voulez-vous vraiment recharger le solde de ${sub.price} FCFA ?`)) {
+                            rechargeSubscription(sub.id, sub.price);
+                          }
+                        }}
+                        className="p-2 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                        title="Recharger le solde (rajoute le prix mensuel au solde actuel)"
+                      >
+                        <BatteryCharging className="w-5 h-5" />
                       </button>
                       <button 
                         onClick={() => generateSubscriptionInvoice(sub, currentMonthStr)}

@@ -12,6 +12,7 @@ create table public.station_client_subscriptions (
   client_address text,
   status text not null default 'actif' check (status in ('actif', 'suspendu')),
   price integer not null default 15000,
+  balance integer not null default 0,
   started_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   unique (station_id, client_phone)
@@ -63,3 +64,38 @@ create policy "station_subscription_invoices_update" on public.station_subscript
 
 create policy "station_subscription_invoices_delete" on public.station_subscription_invoices for delete
   using (station_id = public.current_station_id() or public.app_role() = 'super_admin');
+
+-- ══════════════════════════════════════════════════════════════════════
+-- Trigger pour déduire le solde automatiquement
+-- ══════════════════════════════════════════════════════════════════════
+create or replace function public.deduct_subscription_balance()
+returns trigger as $$
+declare
+  v_sub_id uuid;
+  v_balance integer;
+begin
+  if new.payment_method = 'Abonnement' then
+    -- Trouver l'abonnement actif pour ce client et cette station
+    select id, balance into v_sub_id, v_balance 
+    from public.station_client_subscriptions 
+    where station_id = new.station_id 
+      and client_id = new.client_id 
+      and status = 'actif'
+    limit 1;
+
+    if found then
+      -- Déduire le montant
+      update public.station_client_subscriptions 
+      set balance = balance - new.amount,
+          status = case when (balance - new.amount) <= 0 then 'suspendu' else status end
+      where id = v_sub_id;
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists deduct_subscription_balance_trigger on public.transactions;
+create trigger deduct_subscription_balance_trigger
+after insert on public.transactions
+for each row execute function public.deduct_subscription_balance();
