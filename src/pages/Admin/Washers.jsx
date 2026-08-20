@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X, Eye } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 
 // Formate une durée en minutes en "Xh YYm" (ex: 8h 02m) pour le pointage.
@@ -530,6 +530,21 @@ export default function Washers() {
               Aujourd'hui
             </button>
           </div>
+
+          {shiftTemplates.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6 p-3 rounded-lg bg-neutral-900/50 border border-white/5">
+              <div className="w-full flex items-center gap-2 mb-1">
+                <Eye className="w-4 h-4 text-neutral-400" />
+                <span className="text-xs font-bold text-neutral-400 uppercase tracking-wide">Aperçu des créneaux</span>
+              </div>
+              {shiftTemplates.map(t => (
+                <div key={t.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border" style={{backgroundColor: `${t.color}15`, borderColor: `${t.color}33`}}>
+                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor: t.color}} />
+                   <span className="text-xs font-medium text-white">{t.label} <span className="text-neutral-400">({t.startTime} - {t.endTime})</span></span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {washersList.length === 0 ? (
             <p className="text-center text-neutral-500 py-8">Ajoutez des laveurs pour planifier leurs horaires.</p>
