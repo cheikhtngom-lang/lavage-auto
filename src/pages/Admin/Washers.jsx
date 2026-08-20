@@ -91,7 +91,7 @@ const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
 export default function Washers() {
   const {
     employees, updateEmployee, resumeEmployee, finishService, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
-    shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate, scheduleByDate, loadScheduleRange, setShiftForDay,
+    shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate, scheduleByDate, loadScheduleRange, setShiftForDay, stationProfile
   } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayKey());
