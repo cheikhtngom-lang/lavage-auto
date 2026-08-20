@@ -79,7 +79,7 @@ declare
   v_sub_id uuid;
   v_balance integer;
 begin
-  if new.payment_method = 'Abonnement' then
+  if new.method = 'Abonnement' then
     -- Trouver l'abonnement actif pour ce client et cette station
     select id, balance into v_sub_id, v_balance 
     from public.station_client_subscriptions 

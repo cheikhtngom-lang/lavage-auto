@@ -330,22 +330,28 @@ export default function ClientOverview() {
                   Vos Abonnements
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {myStationSubscriptions.map(sub => (
-                    <div key={sub.id} className="p-4 rounded-xl bg-gradient-to-br from-emerald-900/20 to-black border border-emerald-500/20 flex flex-col justify-between">
-                      <div>
-                        <Badge className="mb-2 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Abonnement Actif</Badge>
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-emerald-400" />
-                          {sub.stations?.name}
-                        </h3>
-                        <p className="text-xl font-black text-white mt-2">Solde: {(sub.balance || 0).toLocaleString()} FCFA</p>
-                        <p className="text-neutral-400 text-sm mt-1">Vos lavages seront déduits de ce crédit.</p>
+                  {myStationSubscriptions.map(sub => {
+                    const percentage = Math.max(0, Math.min(100, (sub.balance / sub.price) * 100));
+                    return (
+                      <div key={sub.id} className="p-4 rounded-xl bg-gradient-to-br from-emerald-900/20 to-black border border-emerald-500/20 flex flex-col justify-between">
+                        <div>
+                          <Badge className="mb-2 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Abonnement Actif</Badge>
+                          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-emerald-400" />
+                            {sub.stations?.name}
+                          </h3>
+                          <p className="text-xl font-black text-white mt-2">Solde: {(sub.balance || 0).toLocaleString()} FCFA</p>
+                          <div className="w-full bg-black/40 rounded-full h-2 mt-3 overflow-hidden border border-white/5">
+                            <div className="bg-emerald-500 h-2 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+                          </div>
+                          <p className="text-neutral-400 text-xs mt-2">Vos lavages sont déduits de ce crédit.</p>
+                        </div>
+                        <button onClick={() => navigate(`/dashboard/stations?station=${sub.station_id}`)} className="mt-4 text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 w-fit">
+                          Réserver maintenant <ArrowRight className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button onClick={() => navigate(`/dashboard/stations?station=${sub.station_id}`)} className="mt-4 text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 w-fit">
-                        Réserver maintenant <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
