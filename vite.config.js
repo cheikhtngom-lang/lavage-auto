@@ -23,9 +23,11 @@ function reactAppDevFallback() {
   };
 }
 
+import removeConsole from 'vite-plugin-remove-console'
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), reactAppDevFallback()],
+  plugins: [react(), reactAppDevFallback(), removeConsole()],
   base: '/',           // URLs absolues pour le déploiement web
   publicDir: 'public', // Dossier des fichiers statiques (sitemap.xml, robots.txt)
   build: {
