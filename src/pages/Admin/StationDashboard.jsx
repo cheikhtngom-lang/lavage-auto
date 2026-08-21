@@ -9,7 +9,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
-import { isStationOpenNow } from '../../lib/stationData';
+import { isPastClosingTime } from '../../lib/stationData';
 import Pagination from '../../components/ui/Pagination';
 
 // Couleur d'accent stable pour une réservation groupée (plusieurs véhicules
@@ -272,7 +272,7 @@ export default function StationDashboard() {
   // Washers.jsx, qui doit rester cohérent avec cette même logique partagée
   // (isStationOpenNow dans lib/stationData.js gère le NaN et les horaires
   // nocturnes correctement, contrairement à l'ancienne copie locale ici).
-  const isStationClosed = () => stationProfile ? !isStationOpenNow(stationProfile) : false;
+  const isStationClosed = () => isPastClosingTime(stationProfile);
 
   const handleGoClick = (item) => {
     // Bouton laissé cliquable (même visuellement grisé) plutôt que `disabled`,

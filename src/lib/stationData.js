@@ -107,6 +107,21 @@ export function isStationOpenNow(profile) {
   return nowMinutes >= openMinutes && nowMinutes < closeMinutes;
 }
 
+// Utilisé côté admin (StationDashboard "Go", Washers "Reprendre service") pour
+// bloquer uniquement APRÈS l'heure de fermeture — contrairement à
+// isStationOpenNow ci-dessus (badge Ouvert/Fermé côté client), on ne bloque
+// pas avant l'heure d'ouverture : un gérant qui prépare la station ou un
+// laveur qui pointe en avance ne doit pas se retrouver bloqué.
+export function isPastClosingTime(profile) {
+  if (!profile?.closeTime) return false;
+  const [closeH, closeM] = profile.closeTime.split(':').map(Number);
+  if (Number.isNaN(closeH) || Number.isNaN(closeM)) return false;
+  const now = new Date();
+  const closeAt = new Date(now);
+  closeAt.setHours(closeH, closeM, 0, 0);
+  return now >= closeAt;
+}
+
 // Position dans la file (1 = prochain) et temps d'attente estimé pour UNE
 // réservation dont on connaît déjà l'horodatage de création (le client a accès
 // à sa propre réservation via RLS — voir useClientAccount.jsx — ce module ne

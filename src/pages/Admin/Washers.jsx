@@ -5,7 +5,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X, Eye } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
-import { isStationOpenNow } from '../../lib/stationData';
+import { isPastClosingTime } from '../../lib/stationData';
 
 // Formate une durée en minutes en "Xh YYm" (ex: 8h 02m) pour le pointage.
 function formatMinutesToHM(totalMinutes) {
@@ -470,7 +470,7 @@ export default function Washers() {
                                 )}
                                 {pointageStatus === 'Terminé' && (
                                   <>
-                                    {(!stationProfile || isStationOpenNow(stationProfile)) && (
+                                    {!isPastClosingTime(stationProfile) && (
                                       <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
                                         Reprendre service
                                       </button>
