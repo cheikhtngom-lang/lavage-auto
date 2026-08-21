@@ -44,7 +44,7 @@ export function ClientAccountProvider({ children }) {
         const [{ data: resData }, { data: txData }, { data: subData }] = await Promise.all([
             supabase.from('reservations').select('*, stations(name, quartier, region)').eq('client_id', clientId).in('status', ['attente', 'en_cours']).order('created_at'),
             supabase.from('transactions').select('*, stations(name)').eq('client_id', clientId).order('created_at', { ascending: false }),
-            supabase.from('station_client_subscriptions').select('*, stations(name)').eq('client_phone', clientPhone).eq('status', 'actif'),
+            supabase.from('station_client_subscriptions').select('*, stations(name)').or(`client_id.eq.${clientId}${clientPhone ? `,client_phone.eq.${clientPhone}` : ''}`).eq('status', 'actif'),
         ]);
         setReservations(resData || []);
         setMyTransactions(txData || []);

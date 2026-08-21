@@ -12,8 +12,9 @@ export default function AdminTransactions() {
   const [filterService, setFilterService] = useState('Tous');
   const [timeSegment, setTimeSegment] = useState('Tous');
   const [selectedReceipt, setSelectedReceipt] = useState(null);
-  const [filterYear, setFilterYear] = useState('2024');
-  const [filterMonth, setFilterMonth] = useState('08');
+  const today = new Date();
+  const [filterYear, setFilterYear] = useState(String(today.getFullYear()));
+  const [filterMonth, setFilterMonth] = useState(String(today.getMonth() + 1).padStart(2, '0'));
   const [filterDay, setFilterDay] = useState(new Date().toISOString().split('T')[0]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);

@@ -744,7 +744,8 @@
                 await requestPasswordReset(email);
                 showForgotStep('done');
             } catch (err) {
-                errorEl.textContent = "Si cet email existe, un lien a été envoyé.";
+                console.error('requestPasswordReset failed:', err);
+                errorEl.textContent = err.message || "Une erreur est survenue. Réessayez.";
                 errorEl.classList.remove('hidden');
             } finally {
                 btn.disabled = false;
@@ -783,7 +784,8 @@
                 const dest = profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role];
                 window.location.href = dest || '/dashboard';
             } catch (err) {
-                errorEl.textContent = "Identifiants invalides. Veuillez réessayer.";
+                console.error('signIn failed:', err);
+                errorEl.textContent = err.message || "Identifiants invalides. Veuillez réessayer.";
                 errorEl.classList.remove('hidden');
             } finally {
                 submitBtn.disabled = false;
@@ -814,7 +816,8 @@
                 setSession({ role: 'automobiliste', remember: true, clientId: account.id });
                 window.location.href = returnToReserve ? '/stations' : '/dashboard';
             } catch (err) {
-                errorEl.textContent = "Erreur lors de la création du compte. Vérifiez vos informations.";
+                console.error('createClientAccount failed:', err);
+                errorEl.textContent = err.message || "Erreur lors de la création du compte. Vérifiez vos informations.";
                 errorEl.classList.remove('hidden');
             }
         }
@@ -847,7 +850,8 @@
                 setSession({ role: 'admin', remember: true, stationId: station.id });
                 window.location.href = '/merci.html';
             } catch (err) {
-                errorEl.textContent = "Erreur lors de la création du compte. Vérifiez vos informations.";
+                console.error('createStationAccount failed:', err);
+                errorEl.textContent = err.message || "Erreur lors de la création du compte. Vérifiez vos informations.";
                 errorEl.classList.remove('hidden');
             }
         }

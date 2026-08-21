@@ -313,14 +313,12 @@ export function AppStateProvider({ children }) {
     };
 
     const rechargeSubscription = async (subId, amountToAdd) => {
-        const { data: sub } = await supabase.from('station_client_subscriptions').select('balance').eq('id', subId).single();
-        if (sub) {
-            await supabase.from('station_client_subscriptions').update({ 
-                balance: sub.balance + amountToAdd,
-                status: 'actif' 
-            }).eq('id', subId);
-            await loadSubscriptions();
-        }
+        // RPC atomique (balance = balance + montant en une seule requête SQL)
+        // plutôt qu'un select-puis-update côté client, qui pouvait écraser une
+        // déduction du trigger deduct_subscription_balance survenue entre les deux.
+        const { error } = await supabase.rpc('recharge_subscription', { p_sub_id: subId, p_amount: amountToAdd });
+        await loadSubscriptions();
+        return error;
     };
 
     const generateSubscriptionInvoice = async (sub, billingMonth) => {

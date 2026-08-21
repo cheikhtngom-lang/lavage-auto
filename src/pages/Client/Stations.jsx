@@ -7,7 +7,7 @@ import { useClientAccount } from '../../hooks/useClientAccount';
 import { getPricingCategory } from '../../lib/vehicleBrands';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
 import {
-  getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, getStationPricing, getStationOperationalProfile,
+  getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, markReservationUnpaid, getStationPricing, getStationOperationalProfile,
   getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
@@ -142,7 +142,7 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
 
 export default function Stations() {
   const { stations: registry } = useSuperAdminState();
-  const { account, toggleFavorite, unhideStation, reservations, refreshActivity, superUserStatus, myStationSubscriptions } = useClientAccount();
+  const { account, loading: accountLoading, toggleFavorite, unhideStation, reservations, refreshActivity, superUserStatus, myStationSubscriptions } = useClientAccount();
   const isSuperUser = superUserStatus === 'ACTIVE';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -289,7 +289,7 @@ export default function Stations() {
 
   useEffect(() => {
     const targetStationId = searchParams.get('station');
-    if (targetStationId && registry && registry.length > 0 && account !== undefined) {
+    if (targetStationId && registry && registry.length > 0 && !accountLoading) {
       const st = allStations.find(s => String(s.id) === targetStationId);
       if (st) {
         if (account) {
@@ -313,7 +313,7 @@ export default function Stations() {
         navigate({ search: searchParams.toString() }, { replace: true });
       }
     }
-  }, [searchParams, registry, account, reservations, effectiveVehicleCap, isSuperUser, navigate]);
+  }, [searchParams, registry, account, accountLoading, reservations, effectiveVehicleCap, isSuperUser, navigate]);
 
   const handleReserveClick = () => {
     if (!selectedStation) return;
@@ -400,9 +400,18 @@ export default function Stations() {
         reservationGroupId, groupSize: selectedVehicles.length,
       });
       if (paid) {
-        await recordClientTransaction(selectedStation.id, {
-          reservationId: reservation.id, clientId: account.id, clientName: account.name, vehicleLabel, service, method, amount,
-        });
+        try {
+          await recordClientTransaction(selectedStation.id, {
+            reservationId: reservation.id, clientId: account.id, clientName: account.name, vehicleLabel, service, method, amount,
+          });
+        } catch (err) {
+          await markReservationUnpaid(reservation.id);
+          refreshActivity();
+          alert(method === 'Abonnement'
+            ? "Paiement par abonnement refusé (solde insuffisant ou abonnement introuvable). Veuillez choisir un autre moyen de paiement."
+            : "Le paiement n'a pas pu être enregistré. Veuillez réessayer ou choisir un autre moyen de paiement.");
+          return;
+        }
       }
       createdEntries.push({ vehicle: vehicleLabel, position: waitingBefore + idx + 1, amount, wait: estimateItemWaitTime(selectedStation.id, reservation.created_at) });
     }

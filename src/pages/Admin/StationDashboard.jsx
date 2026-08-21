@@ -9,6 +9,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
+import { isStationOpenNow } from '../../lib/stationData';
 import Pagination from '../../components/ui/Pagination';
 
 // Couleur d'accent stable pour une réservation groupée (plusieurs véhicules
@@ -267,15 +268,11 @@ export default function StationDashboard() {
     return (pricingConfig?.[cat]?.[item?.service]) || 0;
   };
 
-  const isStationClosed = () => {
-    if (!stationProfile?.closeTime) return false;
-    const [closeH, closeM] = stationProfile.closeTime.split(':').map(Number);
-    if (Number.isNaN(closeH) || Number.isNaN(closeM)) return false;
-    const now = new Date();
-    const closeAt = new Date(now);
-    closeAt.setHours(closeH, closeM, 0, 0);
-    return now >= closeAt;
-  };
+  // Source unique pour "la station est-elle fermée maintenant" — voir aussi
+  // Washers.jsx, qui doit rester cohérent avec cette même logique partagée
+  // (isStationOpenNow dans lib/stationData.js gère le NaN et les horaires
+  // nocturnes correctement, contrairement à l'ancienne copie locale ici).
+  const isStationClosed = () => stationProfile ? !isStationOpenNow(stationProfile) : false;
 
   const handleGoClick = (item) => {
     // Bouton laissé cliquable (même visuellement grisé) plutôt que `disabled`,

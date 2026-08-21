@@ -156,6 +156,14 @@ export async function createReservation(stationId, { clientId, clientName, vehic
   return data;
 }
 
+// Repasse la réservation en "non payée" si l'encaissement échoue après coup
+// (ex: solde d'abonnement insuffisant rejeté par le trigger côté DB) — sans
+// ça la réservation resterait marquée payée sans transaction correspondante,
+// et la station pourrait lancer un lavage jamais réglé.
+export async function markReservationUnpaid(reservationId) {
+  await supabase.from('reservations').update({ paid: false, payment_method: null }).eq('id', reservationId);
+}
+
 // Utilisé quand le client paie en ligne (Wave / Orange Money) au moment de la
 // réservation, plutôt que via l'encaissement sur place côté station.
 export async function recordClientTransaction(stationId, { reservationId, clientId, clientName, vehicleLabel, service, method, amount }) {
@@ -163,9 +171,11 @@ export async function recordClientTransaction(stationId, { reservationId, client
     station_id: stationId, reservation_id: reservationId, client_id: clientId, client_name: clientName,
     vehicle_label: vehicleLabel, service, method, amount,
   });
-  if (error) {
-    console.error("Erreur lors de l'insertion de la transaction:", error);
-  }
+  // Pour un paiement 'Abonnement', le trigger deduct_subscription_balance
+  // (voir recreate_subscriptions.sql) rejette l'insertion si le solde est
+  // insuffisant ou si aucun abonnement actif ne correspond — il ne faut donc
+  // plus avaler l'erreur ici, sinon le client croit avoir payé pour rien.
+  if (error) throw new Error(error.message);
 }
 
 // ─── Avis & notes ─────────────────────────────────────────────────────--

@@ -18,7 +18,7 @@ create policy "storage_public_insert" on storage.objects for insert
     bucket_id = 'public'
     and auth.uid() is not null
     and ((select role from public.profiles where id = auth.uid()) = 'admin' or (select role from public.profiles where id = auth.uid()) = 'super_admin')
-    and (length(coalesce(metadata->>'size', '0'))::integer < 2097152) 
+    and (coalesce((metadata->>'size')::bigint, 0) < 2097152)
     and (metadata->>'mimetype' like 'image/%')
   );
 
