@@ -70,6 +70,26 @@ export function getStationOperationalProfile(stationId) {
   };
 }
 
+// Nom de station à afficher (ex: notification "votre lavage a été
+// enregistré") sans avoir à recomposer tout le profil opérationnel.
+export function getStationName(stationId) {
+  return stationsCache[stationId]?.name || 'la station';
+}
+
+// Retrouve le compte automobiliste propriétaire d'une plaque (véhicule déjà
+// enregistré dans son garage) — utilisé quand une station saisit un lavage
+// manuellement pour un client de passage, afin de relier automatiquement la
+// réservation à son compte s'il est déjà "habitué" (voir find_vehicle_owner,
+// add_plate_lookup.sql : security definer, contourne RLS vehicles_select
+// qui bloquerait sinon la lecture du véhicule d'un autre par l'admin).
+export async function findVehicleOwnerByPlate(plate) {
+  if (!plate || !plate.trim()) return null;
+  const { data, error } = await supabase.rpc('find_vehicle_owner', { p_plate: plate.trim() });
+  if (error || !data || data.length === 0) return null;
+  const row = data[0];
+  return { ownerId: row.owner_id, ownerName: row.owner_name, vehicleId: row.vehicle_id, category: row.category, brand: row.brand };
+}
+
 export function getStationPricing(stationId) {
   return pricingCache[stationId]?.pricing || DEFAULT_PRICING;
 }

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getLatestSubscription, deriveSuperUserStatus } from '../lib/superUser';
+import { getStationName } from '../lib/stationData';
 
 const ClientAccountContext = createContext(null);
 
@@ -71,9 +72,26 @@ export function ClientAccountProvider({ children }) {
         // paiement confirmé par le Super Admin est un événement rare) — elle
         // profite quand même du même refresh sur focus/interval ci-dessus.
         // Le setInterval restant sert de filet de sécurité (reconnexion ratée).
+        // Sur INSERT uniquement (pas UPDATE/DELETE) : une réservation vient de
+        // naître avec notre client_id — typiquement une station qui vient de
+        // reconnaître ce compte via sa plaque pendant un paiement manuel sur
+        // place (voir StationDashboard.jsx handlePlateBlur). On ne touche pas
+        // à l'effet de notification "changement de position" de Dashboard.jsx
+        // (celui-ci ignore volontairement le premier item.id vu, pour éviter
+        // un faux positif sur un déplacement interne de réservation) — cette
+        // notification-ci est un déclencheur distinct, spécifique à l'INSERT.
+        const notifyNewReservation = (payload) => {
+            if (payload.eventType === 'INSERT' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                const n = new Notification('Lavage enregistré !', {
+                    body: `${getStationName(payload.new.station_id)} a enregistré votre lavage — suivez-le en direct.`,
+                });
+                n.onclick = () => window.focus();
+            }
+            refresh();
+        };
         const channel = supabase
             .channel(`client-live-${account.id}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `client_id=eq.${account.id}` }, refresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `client_id=eq.${account.id}` }, notifyNewReservation)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `client_id=eq.${account.id}` }, refresh)
             .subscribe();
         const interval = setInterval(refresh, 45000);

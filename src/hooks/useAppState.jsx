@@ -663,6 +663,10 @@ export function AppStateProvider({ children }) {
         supabase.from('reservations').insert({
             station_id: stationId, client_name: washData.client, vehicle_label: washData.vehicle,
             category: washData.category, service: washData.service, paid: !!washData.paid, status: 'attente',
+            // Reconnaissance par plaque (StationDashboard.jsx) : si ce client de
+            // passage a déjà un compte automobiliste, on relie la réservation
+            // pour qu'elle apparaisse en direct sur son tableau de bord.
+            client_id: washData.clientId || null,
         }).then(() => loadReservations());
     };
 

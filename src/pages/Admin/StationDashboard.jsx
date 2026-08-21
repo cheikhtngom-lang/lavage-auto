@@ -9,7 +9,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
-import { isPastClosingTime } from '../../lib/stationData';
+import { isPastClosingTime, findVehicleOwnerByPlate } from '../../lib/stationData';
 import Pagination from '../../components/ui/Pagination';
 
 // Couleur d'accent stable pour une réservation groupée (plusieurs véhicules
@@ -225,7 +225,24 @@ export default function StationDashboard() {
   };
 
   const [showAddModal, setShowAddModal] = React.useState(false);
-  const [newWash, setNewWash] = React.useState({ client: '', vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false });
+  const [newWash, setNewWash] = React.useState({ client: '', vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false, plate: '', clientId: null });
+  // Reconnaissance d'un client de passage déjà automobiliste, via sa plaque
+  // (voir lib/stationData.js findVehicleOwnerByPlate) — 'idle' | 'checking' | 'found' | 'not_found'.
+  const [plateLookupStatus, setPlateLookupStatus] = React.useState('idle');
+
+  const handlePlateBlur = async () => {
+    const plate = newWash.plate.trim();
+    if (!plate) { setPlateLookupStatus('idle'); setNewWash((w) => ({ ...w, clientId: null })); return; }
+    setPlateLookupStatus('checking');
+    const match = await findVehicleOwnerByPlate(plate);
+    if (match) {
+      setNewWash((w) => ({ ...w, client: match.ownerName, category: match.category || w.category, vehicle: match.brand || w.vehicle, clientId: match.ownerId }));
+      setPlateLookupStatus('found');
+    } else {
+      setNewWash((w) => ({ ...w, clientId: null }));
+      setPlateLookupStatus('not_found');
+    }
+  };
 
   // Modal sélection laveur
   const [showWorkerModal, setShowWorkerModal] = React.useState(false);
@@ -321,10 +338,12 @@ export default function StationDashboard() {
         vehicle: newWash.vehicle || "Véhicule",
         category: newWash.category,
         service: newWash.service,
-        paid: newWash.paid
+        paid: newWash.paid,
+        clientId: newWash.clientId,
     });
     setShowAddModal(false);
-    setNewWash({ client: '', vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false });
+    setNewWash({ client: '', vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false, plate: '', clientId: null });
+    setPlateLookupStatus('idle');
   };
 
   const waitingQueue = (queue || []).filter(q => q.status === 'attente');
@@ -868,9 +887,29 @@ export default function StationDashboard() {
               
               <form onSubmit={handleAddWash} className="space-y-4">
                 <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1">Plaque d'immatriculation (Optionnel)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: DK-1234-AB"
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    value={newWash.plate}
+                    onChange={(e) => setNewWash({ ...newWash, plate: e.target.value })}
+                    onBlur={handlePlateBlur}
+                  />
+                  {plateLookupStatus === 'checking' && (
+                    <p className="text-xs text-neutral-500 mt-1">Recherche du client...</p>
+                  )}
+                  {plateLookupStatus === 'found' && (
+                    <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Client reconnu : {newWash.client} — nom et véhicule pré-remplis, modifiables si besoin.</p>
+                  )}
+                  {plateLookupStatus === 'not_found' && (
+                    <p className="text-xs text-neutral-500 mt-1">Aucun compte trouvé pour cette plaque — le lavage sera enregistré sans compte lié.</p>
+                  )}
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1">Nom du client (Optionnel)</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Ex: Client de passage"
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
                     value={newWash.client}
