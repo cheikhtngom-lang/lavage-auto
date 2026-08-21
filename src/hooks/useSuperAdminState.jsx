@@ -221,10 +221,36 @@ export function SuperAdminStateProvider({ children }) {
         loadStationAds();
         const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); };
         window.addEventListener('focus', refresh);
-        const interval = setInterval(refresh, 8000);
+        // Toutes ces tables sont maintenant dans la publication supabase_realtime
+        // (voir schema.sql) : un changement pendant qu'un autre onglet Super
+        // Admin regarde l'écran (nouvelle station, litige, paiement Super User...)
+        // apparaît en direct au lieu d'attendre le sondage. `station_billing`
+        // n'a pas sa propre colonne dans l'UI mais est jointe dans `loadStations`
+        // (plan/statut d'abonnement) — on la recharge donc aussi sur ce canal.
+        // `all_stations_queue_snapshot`/`station_public_stats` restent en
+        // polling : ce sont des fonctions RPC, pas des tables, non abonnables.
+        const channel = supabase
+            .channel('superadmin-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, loadStations)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'station_billing' }, loadStations)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadClientAccounts)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'wash_pricing' }, loadWashPricing)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'disputes' }, loadDisputes)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_log' }, loadAuditLog)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, loadPlans)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'custom_vehicle_brands' }, loadVehicleBrands)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'super_user_subscriptions' }, loadSuperUserSubscriptions)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'station_ads' }, loadStationAds)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews' }, loadReviews)
+            .subscribe();
+        // Filet de sécurité (reconnexion Realtime manquée) — plus espacé
+        // maintenant que le direct fait le gros du travail, même logique que
+        // useAppState.jsx.
+        const interval = setInterval(refresh, 45000);
         return () => {
             window.removeEventListener('focus', refresh);
             clearInterval(interval);
+            supabase.removeChannel(channel);
         };
     }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds]);
 

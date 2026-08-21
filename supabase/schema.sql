@@ -179,6 +179,16 @@ create table public.employees (
   created_at timestamptz not null default now()
 );
 
+-- ─── Dépenses (Comptabilité > carte "Dépenses") ─────────────────────────
+create table public.expenses (
+  id uuid primary key default gen_random_uuid(),
+  station_id uuid not null references public.stations(id) on delete cascade,
+  label text not null,
+  amount integer not null,
+  category text not null default 'Autre', -- Savon, Eau, Électricité, Matériel, Autre
+  created_at timestamptz not null default now()
+);
+
 -- ─── Planning de poste (prévisionnel, indépendant du pointage réel) ─────
 -- Créneaux nommés configurables par station (ex: "Matin" 08:00-14:00) —
 -- le manager assigne un créneau par (laveur, jour) dans shift_schedule ci-
@@ -355,6 +365,7 @@ alter table public.super_user_subscriptions enable row level security;
 alter table public.station_ads enable row level security;
 alter table public.employees enable row level security;
 alter table public.attendance_records enable row level security;
+alter table public.expenses enable row level security;
 alter table public.shift_templates enable row level security;
 alter table public.shift_schedule enable row level security;
 alter table public.custom_vehicle_types enable row level security;
@@ -465,6 +476,9 @@ create policy "employees_all" on public.employees for all
 create policy "attendance_all" on public.attendance_records for all
   using (station_id = current_station_id() or app_role() = 'super_admin')
   with check (station_id = current_station_id() or app_role() = 'super_admin');
+create policy "expenses_all" on public.expenses for all
+  using (station_id = current_station_id() or app_role() = 'super_admin')
+  with check (station_id = current_station_id() or app_role() = 'super_admin');
 create policy "custom_vehicle_types_all" on public.custom_vehicle_types for all
   using (station_id = current_station_id() or app_role() = 'super_admin')
   with check (station_id = current_station_id() or app_role() = 'super_admin');
@@ -548,6 +562,23 @@ alter publication supabase_realtime add table public.transactions;
 -- Statut de présence/pointage d'un laveur affecté à un lavage : la station
 -- doit voir "occupé"/"présent" changer en direct sans attendre le sondage.
 alter publication supabase_realtime add table public.employees;
+alter publication supabase_realtime add table public.expenses;
+
+-- Côté Super Admin (useSuperAdminState.jsx) : mêmes tables lues en polling
+-- 8s jusqu'ici, maintenant poussées en direct. `all_stations_queue_snapshot`/
+-- `station_public_stats` restent en polling — ce sont des fonctions RPC, pas
+-- des tables, donc pas abonnables de la même façon.
+alter publication supabase_realtime add table public.stations;
+alter publication supabase_realtime add table public.station_billing;
+alter publication supabase_realtime add table public.profiles;
+alter publication supabase_realtime add table public.wash_pricing;
+alter publication supabase_realtime add table public.disputes;
+alter publication supabase_realtime add table public.audit_log;
+alter publication supabase_realtime add table public.plans;
+alter publication supabase_realtime add table public.custom_vehicle_brands;
+alter publication supabase_realtime add table public.super_user_subscriptions;
+alter publication supabase_realtime add table public.station_ads;
+alter publication supabase_realtime add table public.station_reviews;
 
 -- ══════════════════════════════════════════════════════════════════════
 -- Fonctions publiques agrégées (contournent volontairement RLS via

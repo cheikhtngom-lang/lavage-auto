@@ -30,6 +30,9 @@ export default function AdminTransactions() {
     const matchSearch = t.client.toLowerCase().includes(searchTerm.toLowerCase());
     const matchService = filterService === 'Tous' || t.service === filterService;
     
+    // `t.createdAt` est l'horodatage réel (ISO) — présent sur 100% des lignes
+    // depuis Supabase (voir useAppState.jsx:loadTransactions). `t.date` reste
+    // un texte d'affichage ("Aujourd'hui, HH:MM"), jamais utilisé pour filtrer.
     let matchDate = true;
     if (t.createdAt) {
       const d = new Date(t.createdAt);
@@ -43,23 +46,6 @@ export default function AdminTransactions() {
         matchDate = mm === filterMonth;
       } else if (timeSegment === "Par Année") {
         matchDate = String(d.getFullYear()) === filterYear;
-      }
-    } else {
-      if (timeSegment === "Par Jour") {
-        // Pour la démo, on vérifie si la date du jour correspond grossièrement (Aujourd'hui) ou on force le match si c'est la date du jour
-        const today = new Date().toISOString().split('T')[0];
-        if (filterDay === today) {
-          matchDate = t.date.includes("Aujourd'hui") || t.date.includes("15:30"); // Mock
-        } else {
-          matchDate = false; // Normalement, on vérifierait t.date === filterDay formaté
-        }
-      } else if (timeSegment === "Par Mois") {
-        // Simulation pour mock data
-        const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-        const selectedMonthName = monthNames[parseInt(filterMonth) - 1];
-        matchDate = t.date.includes(selectedMonthName) || (selectedMonthName === "Août" && t.date.includes("Aujourd'hui"));
-      } else if (timeSegment === "Par Année") {
-        matchDate = t.date.includes(filterYear) || (filterYear === "2024" && t.date.includes("Aujourd'hui"));
       }
     }
 

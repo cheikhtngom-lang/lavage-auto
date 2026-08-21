@@ -220,6 +220,31 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
+    // Dépenses (Comptabilité > carte "Dépenses") — même schéma que transactions.
+    const [expenses, setExpenses] = useState([]);
+    const loadExpenses = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setExpenses([]); return; }
+        const { data } = await supabase.from('expenses').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
+        setExpenses((data || []).map((row) => ({ id: row.id, label: row.label, amount: row.amount, category: row.category, createdAt: row.created_at })));
+    }, [stationId]);
+
+    const addExpense = async ({ label, amount, category }) => {
+        if (!stationId || stationId === 'default') return;
+        await supabase.from('expenses').insert({ station_id: stationId, label, amount: parseInt(amount) || 0, category: category || 'Autre' });
+        await loadExpenses();
+    };
+
+    // Avis clients de CETTE station — pour le "Score Qualité" d'Analytics.jsx.
+    // `station_reviews` est déjà en lecture publique (voir schema.sql), ici on
+    // se contente de la scoper à la station courante (Super Admin la lit déjà
+    // toutes stations confondues via useSuperAdminState.jsx).
+    const [reviews, setReviews] = useState([]);
+    const loadReviews = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setReviews([]); return; }
+        const { data } = await supabase.from('station_reviews').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
+        setReviews((data || []).map((row) => ({ id: row.id, rating: row.rating, comment: row.comment, clientName: row.client_name, createdAt: row.created_at })));
+    }, [stationId]);
+
     // Historique des pubs de CETTE station, tous statuts (PENDING/ACTIVE/...) —
     // pour l'onglet "Publicité" de Paramètres. Le paiement lui-même (insert
     // PENDING) se fait directement via createAdPayment (src/lib/ads.js), pas
@@ -344,31 +369,36 @@ export function AppStateProvider({ children }) {
     useEffect(() => {
         loadReservations();
         loadTransactions();
+        loadExpenses();
+        loadReviews();
         loadEmployees();
         loadCustomVehicleTypes();
         loadShiftTemplates();
         loadStationAds();
         loadSubscriptions();
-        const refresh = () => { loadReservations(); loadTransactions(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); };
+        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); };
         window.addEventListener('focus', refresh);
-        // `reservations`/`transactions`/`employees` sont dans la publication
-        // supabase_realtime (voir schema.sql) : un client qui réserve depuis son
-        // propre appareil, ou un pointage/assignation de laveur, apparaît ici en
-        // direct, sans sonder toutes les 8s. `custom_vehicle_types` n'y est pas
-        // encore (change trop rarement pour en avoir besoin). Le setInterval
-        // restant sert de filet de sécurité (une reconnexion Realtime manquée
-        // ne doit pas figer la file indéfiniment).
+        // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
+        // sont dans la publication supabase_realtime (voir schema.sql) : un
+        // client qui réserve depuis son propre appareil, un pointage/assignation
+        // de laveur, une dépense ajoutée depuis un autre poste ou un nouvel avis
+        // apparaissent ici en direct, sans sonder toutes les 8s.
+        // `custom_vehicle_types` n'y est pas encore (change trop rarement pour
+        // en avoir besoin). Le setInterval restant sert de filet de sécurité
+        // (une reconnexion Realtime manquée ne doit pas figer la file indéfiniment).
         const channel = (stationId && stationId !== 'default')
             ? supabase
                 .channel(`station-live-${stationId}`)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `station_id=eq.${stationId}` }, loadReservations)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `station_id=eq.${stationId}` }, loadTransactions)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `station_id=eq.${stationId}` }, loadExpenses)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews', filter: `station_id=eq.${stationId}` }, loadReviews)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `station_id=eq.${stationId}` }, loadEmployees)
                 .subscribe()
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, stationId]);
+    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -915,6 +945,7 @@ export function AppStateProvider({ children }) {
         if (!stationId || stationId === 'default') return;
         supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
         supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
+        supabase.from('expenses').delete().eq('station_id', stationId).then(() => loadExpenses());
     };
 
     // Réinitialisation complète de LA STATION COURANTE uniquement (profil,
@@ -927,6 +958,7 @@ export function AppStateProvider({ children }) {
             supabase.from('stations').update({ promo_config: {} }).eq('id', stationId).then(() => {});
             supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
             supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
+            supabase.from('expenses').delete().eq('station_id', stationId).then(() => loadExpenses());
             supabase.from('employees').delete().eq('station_id', stationId).then(() => {});
             supabase.from('attendance_records').delete().eq('station_id', stationId).then(() => {});
         }
@@ -935,7 +967,7 @@ export function AppStateProvider({ children }) {
 
     return (
         <AppStateContext.Provider value={{
-            queue, activeWashes, employees, transactions, pricingConfig, durationConfig, promoConfig, stationProfile, completedWashes,
+            queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, completedWashes,
             attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
-import { Activity, Clock, Users, Car, Target, TrendingUp, Banknote, Receipt, Calendar } from 'lucide-react';
+import { Clock, Users, Car, Target, TrendingUp, Banknote, Receipt, Calendar } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
+import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 
 // Conversion Catmull-Rom -> Bézier cubique, pour tracer une courbe lissée
 // passant par tous les points (au lieu d'un polyline anguleux).
@@ -32,8 +33,73 @@ function dateKeyLocal(d) {
 }
 function todayKey() { return dateKeyLocal(new Date()); }
 
+// Une "fenêtre" décrit la période sélectionnée par le segmented control —
+// utilisée pour filtrer transactions/lavages/avis de façon cohérente partout
+// dans cette page (au lieu de dupliquer la logique de filtre par bloc).
+function matchesWindow(dateVal, win) {
+  if (!win || win.type === 'Tous') return true;
+  if (!dateVal) return false;
+  const d = new Date(dateVal);
+  if (win.type === 'Par Jour') {
+    const [y, m, day] = win.day.split('-').map(Number);
+    return d.getFullYear() === y && d.getMonth() + 1 === m && d.getDate() === day;
+  }
+  if (win.type === 'Par Mois') {
+    return d.getFullYear() === Number(win.year) && d.getMonth() + 1 === Number(win.month);
+  }
+  if (win.type === 'Par Année') {
+    return d.getFullYear() === Number(win.year);
+  }
+  return true;
+}
+
+// Période équivalente précédente (jour-1 / mois-1 / année-1) — sert au
+// "Constat de la période" pour comparer sans inventer de donnée. Pas de
+// période précédente sensée pour "Tous" (traité à part).
+function getPreviousWindow(win) {
+  if (win.type === 'Par Jour') {
+    const d = new Date(`${win.day}T00:00:00`);
+    d.setDate(d.getDate() - 1);
+    return { type: 'Par Jour', day: dateKeyLocal(d) };
+  }
+  if (win.type === 'Par Mois') {
+    let m = Number(win.month) - 1;
+    let y = Number(win.year);
+    if (m < 1) { m = 12; y -= 1; }
+    return { type: 'Par Mois', month: String(m).padStart(2, '0'), year: String(y) };
+  }
+  if (win.type === 'Par Année') {
+    return { type: 'Par Année', year: String(Number(win.year) - 1) };
+  }
+  return null;
+}
+
+function revenueByService(transactions) {
+  const map = {};
+  transactions.forEach((tx) => { const key = tx.service || 'Autre'; map[key] = (map[key] || 0) + (parseInt(tx.amount) || 0); });
+  return map;
+}
+
+const DONUT_COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'];
+const VEHICLE_CATEGORIES = [
+  { key: 'Particulier', color: 'bg-blue-500', text: 'text-blue-400' },
+  { key: 'Moto', color: 'bg-emerald-500', text: 'text-emerald-400' },
+  { key: 'Transport', color: 'bg-amber-500', text: 'text-amber-400' },
+  { key: 'Camion', color: 'bg-purple-500', text: 'text-purple-400' },
+];
+const RANK_BADGES = ['🥇', '🥈', '🥉'];
+
+function initials(name) {
+  return (name || '?').trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function formatCompact(n) {
+  if (n >= 1000) return `${Math.round(n / 100) / 10}k`;
+  return String(n);
+}
+
 export default function Analytics() {
-  const { queue, transactions, stationProfile, completedWashes, activeWashes } = useAppState();
+  const { transactions, completedWashes, activeWashes, reviews, stationProfile } = useAppState();
 
   const [timeSegment, setTimeSegment] = useState('Tous');
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
@@ -43,22 +109,11 @@ export default function Analytics() {
 
   const segments = ['Tous', 'Par Jour', 'Par Mois', 'Par Année'];
 
+  const currentWindow = { type: timeSegment, day: filterDay, month: filterMonth, year: filterYear };
+
   // `tx.createdAt` est l'horodatage réel (ISO) — contrairement à `tx.date` qui
   // est un texte d'affichage ("Aujourd'hui, HH:MM") non filtrable par date réelle.
-  const filteredTransactions = (transactions || []).filter((tx) => {
-    const txDate = new Date(tx.createdAt);
-    if (timeSegment === 'Par Jour') {
-      const [y, m, d] = filterDay.split('-').map(Number);
-      return txDate.getFullYear() === y && txDate.getMonth() + 1 === m && txDate.getDate() === d;
-    }
-    if (timeSegment === 'Par Mois') {
-      return txDate.getFullYear() === Number(filterYear) && txDate.getMonth() + 1 === Number(filterMonth);
-    }
-    if (timeSegment === 'Par Année') {
-      return txDate.getFullYear() === Number(filterYear);
-    }
-    return true; // 'Tous'
-  });
+  const filteredTransactions = (transactions || []).filter((tx) => matchesWindow(tx.createdAt, currentWindow));
   const totalRevenue = filteredTransactions.reduce((sum, tx) => sum + (tx.amount || 0), 0);
   const revenuePeriodLabel = timeSegment === 'Par Jour'
     ? new Date(`${filterDay}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -67,7 +122,95 @@ export default function Analytics() {
       : timeSegment === 'Par Année'
         ? filterYear
         : 'Toutes périodes confondues';
-  
+
+  // Lavages réellement terminés/en cours sur la fenêtre sélectionnée — bases
+  // réelles pour tous les blocs ci-dessous (plus aucune valeur inventée).
+  const filteredCompletedWashes = (completedWashes || []).filter((w) => matchesWindow(w.completedAtISO, currentWindow));
+  const filteredActiveWashes = (activeWashes || []).filter((w) => matchesWindow(w.startedAt, currentWindow));
+
+  // Temps d'attente moyen = startedAt - createdAt (la réservation a attendu en
+  // file avant que le lavage démarre), sur tout lavage démarré dans la fenêtre.
+  const waitTimesMin = [...filteredCompletedWashes, ...filteredActiveWashes]
+    .filter((w) => w.startedAt && w.createdAt)
+    .map((w) => (new Date(w.startedAt) - new Date(w.createdAt)) / 60000)
+    .filter((m) => isFinite(m) && m >= 0);
+  const avgWaitMinutes = waitTimesMin.length > 0 ? Math.round(waitTimesMin.reduce((a, b) => a + b, 0) / waitTimesMin.length) : null;
+
+  // Fidélité : parmi les clients IDENTIFIÉS (compte automobiliste lié, via
+  // clientId — les passages en espèces non liés ne sont jamais comptés,
+  // volontairement, plutôt que de fausser le taux) vus sur la fenêtre, combien
+  // ont déjà 2+ lavages sur TOUTE l'historique de la station (pas seulement la
+  // fenêtre) ? C'est la seule donnée réelle disponible pour cette métrique.
+  const allTimeWashCountByClient = {};
+  (completedWashes || []).forEach((w) => { if (w.clientId) allTimeWashCountByClient[w.clientId] = (allTimeWashCountByClient[w.clientId] || 0) + 1; });
+  const identifiedClientsInWindow = [...new Set(filteredCompletedWashes.filter((w) => w.clientId).map((w) => w.clientId))];
+  const habitues = identifiedClientsInWindow.filter((id) => (allTimeWashCountByClient[id] || 0) >= 2).length;
+  const nouveaux = identifiedClientsInWindow.length - habitues;
+  const totalIdentified = identifiedClientsInWindow.length;
+  const tauxFidelite = totalIdentified > 0 ? Math.round((habitues / totalIdentified) * 100) : null;
+
+  // Score Qualité : moyenne réelle des avis (station_reviews) postés sur la fenêtre.
+  const filteredReviews = (reviews || []).filter((r) => matchesWindow(r.createdAt, currentWindow));
+  const avgRating = filteredReviews.length > 0 ? filteredReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / filteredReviews.length : null;
+
+  const statCards = [
+    { title: "Temps d'attente moyen", value: avgWaitMinutes != null ? `${avgWaitMinutes} min` : '—', icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10', caption: waitTimesMin.length > 0 ? `${waitTimesMin.length} lavage${waitTimesMin.length > 1 ? 's' : ''} mesuré${waitTimesMin.length > 1 ? 's' : ''}` : 'Aucune donnée' },
+    { title: 'Véhicules traités', value: String(filteredCompletedWashes.length), icon: Car, color: 'text-purple-400', bg: 'bg-purple-500/10', caption: 'Lavages terminés' },
+    { title: 'Taux de fidélité', value: tauxFidelite != null ? `${tauxFidelite}%` : '—', icon: Users, color: 'text-emerald-400', bg: 'bg-emerald-500/10', caption: totalIdentified > 0 ? `${totalIdentified} client${totalIdentified > 1 ? 's' : ''} identifié${totalIdentified > 1 ? 's' : ''}` : 'Aucun client identifié' },
+    { title: 'Score Qualité', value: avgRating != null ? `${avgRating.toFixed(1)}/5` : '—', icon: Target, color: 'text-amber-400', bg: 'bg-amber-500/10', caption: `${filteredReviews.length} avis` },
+  ];
+
+  // Répartition par service — regroupement réel de filteredTransactions,
+  // s'adapte au nombre de services réellement configurés par la station
+  // (wash_pricing peut avoir plus que les 3 par défaut).
+  const serviceRevenue = revenueByService(filteredTransactions);
+  const serviceEntries = Object.entries(serviceRevenue).sort((a, b) => b[1] - a[1]);
+  const serviceTotal = serviceEntries.reduce((sum, [, amt]) => sum + amt, 0);
+
+  // Types de véhicules — les 4 vrais buckets de pricing (voir washDefaults.js),
+  // pas une taxonomie inventée.
+  const vehicleCounts = {};
+  VEHICLE_CATEGORIES.forEach(({ key }) => { vehicleCounts[key] = 0; });
+  filteredCompletedWashes.forEach((w) => { if (w.category) vehicleCounts[w.category] = (vehicleCounts[w.category] || 0) + 1; });
+  const vehicleTotal = filteredCompletedWashes.length;
+
+  // Top Laveurs — regroupement réel par `assignedTo` (nom), classement relatif
+  // au meilleur du groupe (aucun quota fixe n'existe réellement pour un laveur).
+  const washerCounts = {};
+  filteredCompletedWashes.forEach((w) => { if (w.assignedTo) washerCounts[w.assignedTo] = (washerCounts[w.assignedTo] || 0) + 1; });
+  const topWashers = Object.entries(washerCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const topWasherMax = topWashers.length > 0 ? topWashers[0][1] : 1;
+
+  // Constat de la période — remplace l'ancienne "Recommandation IA" statique :
+  // aucun pipeline IA n'existe dans ce projet, donc plutôt qu'en simuler un,
+  // ceci est un vrai calcul (comparaison de parts de service vs la période
+  // précédente équivalente), affiché sans habillage "IA" trompeur.
+  let insight = 'Pas assez de données pour établir un constat sur cette période.';
+  if (timeSegment === 'Tous') {
+    if (serviceEntries.length > 0 && serviceTotal > 0) {
+      const [topName, topAmt] = serviceEntries[0];
+      insight = `"${topName}" est votre service le plus demandé : ${Math.round((topAmt / serviceTotal) * 100)}% du chiffre d'affaires, toutes périodes confondues.`;
+    }
+  } else {
+    const previousWindow = getPreviousWindow(currentWindow);
+    const previousTransactions = (transactions || []).filter((tx) => matchesWindow(tx.createdAt, previousWindow));
+    if (filteredTransactions.length >= 3 && previousTransactions.length >= 3) {
+      const previousRevenue = revenueByService(previousTransactions);
+      const previousTotal = Object.values(previousRevenue).reduce((a, b) => a + b, 0);
+      const allServiceNames = new Set([...Object.keys(serviceRevenue), ...Object.keys(previousRevenue)]);
+      let bestService = null, bestDelta = -Infinity;
+      allServiceNames.forEach((name) => {
+        const curShare = serviceTotal > 0 ? (serviceRevenue[name] || 0) / serviceTotal : 0;
+        const prevShare = previousTotal > 0 ? (previousRevenue[name] || 0) / previousTotal : 0;
+        const delta = curShare - prevShare;
+        if (delta > bestDelta) { bestDelta = delta; bestService = name; }
+      });
+      insight = (bestService && bestDelta > 0.01)
+        ? `"${bestService}" progresse le plus cette période (+${Math.round(bestDelta * 100)} points de part du CA vs la période précédente).`
+        : 'La répartition par service est restée stable par rapport à la période précédente.';
+    }
+  }
+
   // Fréquence des lavages par heure, entre l'ouverture et la fermeture de la
   // station, pour la date sélectionnée — basé sur `startedAt` (horodatage réel
   // du démarrage de chaque lavage), sur les lavages terminés ET en cours ce jour-là.
@@ -128,14 +271,14 @@ export default function Analytics() {
             <button
               onClick={() => setTimeSegment(segment)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
-                timeSegment === segment 
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' 
+                timeSegment === segment
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
                   : 'bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10'
               } ${['Par Année', 'Par Mois', 'Par Jour'].includes(segment) && timeSegment === segment ? 'rounded-r-none pr-3' : ''}`}
             >
               {segment}
             </button>
-            
+
             {segment === 'Par Année' && timeSegment === 'Par Année' && (
               <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="bg-purple-700 text-white outline-none py-2 px-2 text-sm appearance-none cursor-pointer rounded-r-xl border-l border-purple-500 shadow-lg shadow-purple-500/30 font-bold">
                 <option value="2023">2023</option><option value="2024">2024</option><option value="2025">2025</option><option value="2026">2026</option><option value="2027">2027</option>
@@ -181,21 +324,18 @@ export default function Analytics() {
         </CardContent>
       </Card>
 
-      {/* Main Stats */}
+      {/* Main Stats — chaque valeur/légende ci-dessous est calculée depuis de
+          vraies données (voir statCards plus haut) ; "—" quand la donnée
+          n'existe pas, jamais un chiffre inventé. */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {[
-          { title: "Temps d'attente moyen", value: "18 min", icon: Clock, color: "text-blue-400", bg: "bg-blue-500/10", trend: "-2 min" },
-          { title: "Véhicules traités", value: "42", icon: Car, color: "text-purple-400", bg: "bg-purple-500/10", trend: "+5" },
-          { title: "Taux de fidélité", value: "68%", icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10", trend: "+3%" },
-          { title: "Score Qualité", value: "4.8/5", icon: Target, color: "text-amber-400", bg: "bg-amber-500/10", trend: "Stable" },
-        ].map((stat, idx) => (
+        {statCards.map((stat, idx) => (
           <Card key={idx} className="border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div className={`p-3 ${stat.bg} rounded-xl`}>
                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
                 </div>
-                <span className="text-xs font-bold text-neutral-500 bg-neutral-900 px-2 py-1 rounded-md">{stat.trend}</span>
+                <span className="text-xs font-bold text-neutral-500 bg-neutral-900 px-2 py-1 rounded-md">{stat.caption}</span>
               </div>
               <h3 className="text-2xl font-bold text-white mb-1">{stat.value}</h3>
               <p className="text-neutral-400 text-sm">{stat.title}</p>
@@ -273,64 +413,68 @@ export default function Analytics() {
           </CardContent>
         </Card>
 
-        {/* Services Distribution */}
+        {/* Services Distribution — vraie répartition de filteredTransactions par service */}
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="p-6">
             <h2 className="text-xl font-bold text-white mb-6">Répartition par Service</h2>
-            
-            <div className="relative w-48 h-48 mx-auto mb-8">
-              {/* Donut Chart SVG */}
-              <svg viewBox="0 0 42 42" className="w-full h-full transform -rotate-90 filter drop-shadow-xl">
-                <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-                
-                {/* Lavage Simple 45% */}
-                <motion.circle initial={{ strokeDasharray: "0 100" }} animate={{ strokeDasharray: "45 55" }} transition={{ duration: 1, delay: 0.2 }}
-                  cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#3b82f6" strokeWidth="6" strokeDashoffset="0" />
-                
-                {/* Lavage Complet 35% */}
-                <motion.circle initial={{ strokeDasharray: "0 100" }} animate={{ strokeDasharray: "35 65" }} transition={{ duration: 1, delay: 0.4 }}
-                  cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#10b981" strokeWidth="6" strokeDashoffset="-45" />
 
-                {/* Lavage Moteur 15% */}
-                <motion.circle initial={{ strokeDasharray: "0 100" }} animate={{ strokeDasharray: "15 85" }} transition={{ duration: 1, delay: 0.6 }}
-                  cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#a855f7" strokeWidth="6" strokeDashoffset="-80" />
-
-                {/* Lustrage 5% */}
-                <motion.circle initial={{ strokeDasharray: "0 100" }} animate={{ strokeDasharray: "5 95" }} transition={{ duration: 1, delay: 0.8 }}
-                  cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#f59e0b" strokeWidth="6" strokeDashoffset="-95" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold text-white">150k</span>
-                <span className="text-xs text-neutral-400">Total FCFA</span>
+            {serviceEntries.length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-center">
+                <p className="text-neutral-500 text-sm">Aucune transaction sur cette période.</p>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              {[
-                { name: "Lavage Simple", percent: 45, color: "bg-blue-500", text: "text-blue-400", amount: "67 500" },
-                { name: "Lavage Complet", percent: 35, color: "bg-emerald-500", text: "text-emerald-400", amount: "52 500" },
-                { name: "Lavage Moteur", percent: 15, color: "bg-purple-500", text: "text-purple-400", amount: "22 500" },
-                { name: "Lustrage", percent: 5, color: "bg-amber-500", text: "text-amber-400", amount: "7 500" }
-              ].map((service, idx) => (
-                <div key={idx} className="flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${service.color}`}></div>
-                    <span className="text-white font-medium">{service.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-neutral-400 w-8 text-right">{service.percent}%</span>
-                    <span className={`font-bold ${service.text} w-20 text-right`}>{service.amount}</span>
+            ) : (
+              <>
+                <div className="relative w-48 h-48 mx-auto mb-8">
+                  <svg viewBox="0 0 42 42" className="w-full h-full transform -rotate-90 filter drop-shadow-xl">
+                    <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+                    {(() => {
+                      let cumulative = 0;
+                      return serviceEntries.map(([name, amt], i) => {
+                        const pct = serviceTotal > 0 ? (amt / serviceTotal) * 100 : 0;
+                        const dashoffset = -cumulative;
+                        cumulative += pct;
+                        return (
+                          <motion.circle
+                            key={name}
+                            initial={{ strokeDasharray: '0 100' }}
+                            animate={{ strokeDasharray: `${pct} ${100 - pct}` }}
+                            transition={{ duration: 1, delay: 0.2 + i * 0.15 }}
+                            cx="21" cy="21" r="15.91549430918954" fill="transparent"
+                            stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth="6" strokeDashoffset={dashoffset}
+                          />
+                        );
+                      });
+                    })()}
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-bold text-white">{formatCompact(serviceTotal)}</span>
+                    <span className="text-xs text-neutral-400">Total FCFA</span>
                   </div>
                 </div>
-              ))}
-            </div>
-            
+
+                <div className="space-y-4">
+                  {serviceEntries.map(([name, amt], idx) => (
+                    <div key={name} className="flex justify-between items-center text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: DONUT_COLORS[idx % DONUT_COLORS.length] }}></div>
+                        <span className="text-white font-medium">{name}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-neutral-400 w-8 text-right">{serviceTotal > 0 ? Math.round((amt / serviceTotal) * 100) : 0}%</span>
+                        <span className="font-bold w-24 text-right" style={{ color: DONUT_COLORS[idx % DONUT_COLORS.length] }}>{amt.toLocaleString('fr-FR')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
             <div className="mt-8 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
               <div className="flex items-start gap-3">
                 <TrendingUp className="w-5 h-5 text-blue-400 mt-0.5" />
                 <p className="text-sm text-blue-200/70">
-                  <strong className="text-blue-400 block mb-1">Recommandation IA</strong>
-                  La demande pour le Lavage Complet augmente. Pensez à ajouter un laveur supplémentaire entre 12h et 14h.
+                  <strong className="text-blue-400 block mb-1">Constat de la période</strong>
+                  {insight}
                 </p>
               </div>
             </div>
@@ -338,119 +482,126 @@ export default function Analytics() {
         </Card>
       </div>
 
-      {/* Row 3: Nouveaux Graphiques (Demande Utilisateur) */}
+      {/* Row 3 : Types de véhicules réels / fidélité réelle / top laveurs réels */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-        
+
         {/* 1. Types de Véhicules */}
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="p-6">
             <h2 className="text-xl font-bold text-white mb-6">Types de Véhicules</h2>
-            <div className="space-y-5">
-              {[
-                { type: "Berlines", val: 55, num: 23, color: "bg-blue-500" },
-                { type: "Motos", val: 20, num: 8, color: "bg-emerald-500" },
-                { type: "SUV / 4x4", val: 15, num: 6, color: "bg-amber-500" },
-                { type: "Camions", val: 10, num: 5, color: "bg-purple-500" }
-              ].map((item, idx) => (
-                <div key={idx}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-neutral-300 font-medium">{item.type}</span>
-                    <span className="text-neutral-400">{item.num} <span className="text-neutral-600 text-xs">({item.val}%)</span></span>
-                  </div>
-                  <div className="w-full h-1.5 bg-neutral-900 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${item.val}%` }}
-                      transition={{ duration: 1, delay: 0.3 + (idx * 0.1) }}
-                      className={`h-full ${item.color} shadow-[0_0_10px_currentColor]`}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            {vehicleTotal === 0 ? (
+              <p className="text-neutral-500 text-sm">Aucun lavage terminé sur cette période.</p>
+            ) : (
+              <div className="space-y-5">
+                {VEHICLE_CATEGORIES.map(({ key, color }, idx) => {
+                  const count = vehicleCounts[key] || 0;
+                  const pct = vehicleTotal > 0 ? Math.round((count / vehicleTotal) * 100) : 0;
+                  return (
+                    <div key={key}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-neutral-300 font-medium">{PRICING_CATEGORY_LABELS[key] || key}</span>
+                        <span className="text-neutral-400">{count} <span className="text-neutral-600 text-xs">({pct}%)</span></span>
+                      </div>
+                      <div className="w-full h-1.5 bg-neutral-900 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ duration: 1, delay: 0.3 + (idx * 0.1) }}
+                          className={`h-full ${color} shadow-[0_0_10px_currentColor]`}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* 2. Fidélisation (Jauge) */}
+        {/* 2. Fidélisation (Jauge) — clients identifiés uniquement, voir statCards plus haut */}
         <Card className="border-white/5 bg-gradient-to-br from-emerald-900/10 to-black relative overflow-hidden">
           <div className="absolute top-0 left-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
           <CardContent className="p-6 text-center">
             <h2 className="text-xl font-bold text-white mb-2">Acquisition vs Fidélité</h2>
-            <p className="text-xs text-neutral-400 mb-8">Part de clients récurrents aujourd'hui</p>
-            
-            <div className="relative w-40 h-20 mx-auto overflow-hidden">
-              {/* Semi-circle Gauge */}
-              <svg viewBox="0 0 100 50" className="w-full h-full drop-shadow-lg">
-                <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" strokeLinecap="round" />
-                <motion.path 
-                  initial={{ strokeDasharray: "0 126" }}
-                  animate={{ strokeDasharray: "85 126" }} // 68% of 126 (pi * r)
-                  transition={{ duration: 1.5, ease: "easeOut" }}
-                  d="M 10 50 A 40 40 0 0 1 90 50" 
-                  fill="none" 
-                  stroke="#10b981" 
-                  strokeWidth="12" 
-                  strokeLinecap="round" 
-                />
-              </svg>
-              <div className="absolute bottom-0 left-0 right-0 text-center">
-                <span className="text-3xl font-bold text-white">68%</span>
-              </div>
-            </div>
-            
-            <div className="flex justify-between mt-6 px-4">
-              <div className="text-left">
-                <p className="text-sm font-bold text-emerald-400">28</p>
-                <p className="text-xs text-neutral-500">Habitués</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-blue-400">14</p>
-                <p className="text-xs text-neutral-500">Nouveaux</p>
-              </div>
-            </div>
+            <p className="text-xs text-neutral-400 mb-8">Clients identifiés sur la période</p>
+
+            {totalIdentified === 0 ? (
+              <p className="text-neutral-500 text-sm py-8">Aucun client identifié (compte lié) sur cette période.</p>
+            ) : (
+              <>
+                <div className="relative w-40 h-20 mx-auto overflow-hidden">
+                  <svg viewBox="0 0 100 50" className="w-full h-full drop-shadow-lg">
+                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" strokeLinecap="round" />
+                    <motion.path
+                      initial={{ strokeDasharray: '0 126' }}
+                      animate={{ strokeDasharray: `${(tauxFidelite / 100) * 126} 126` }}
+                      transition={{ duration: 1.5, ease: 'easeOut' }}
+                      d="M 10 50 A 40 40 0 0 1 90 50"
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="12"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute bottom-0 left-0 right-0 text-center">
+                    <span className="text-3xl font-bold text-white">{tauxFidelite}%</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between mt-6 px-4">
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-emerald-400">{habitues}</p>
+                    <p className="text-xs text-neutral-500">Habitués</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-blue-400">{nouveaux}</p>
+                    <p className="text-xs text-neutral-500">Nouveaux</p>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {/* 3. Productivité Équipe */}
+        {/* 3. Top Laveurs — regroupement réel par assignedTo, classement relatif au meilleur du groupe */}
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="p-6">
             <h2 className="text-xl font-bold text-white mb-6 flex items-center justify-between">
-              Top Laveurs 
-              <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-md">Aujourd'hui</span>
+              Top Laveurs
+              <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-md">{timeSegment}</span>
             </h2>
-            
-            <div className="space-y-4">
-              {[
-                { name: "Amadou Sarr", score: 15, target: 20, avatar: "AS", badge: "🥇" },
-                { name: "Ousmane Diallo", score: 12, target: 20, avatar: "OD", badge: "🥈" },
-                { name: "Fallou Niang", score: 8, target: 20, avatar: "FN", badge: "🥉" }
-              ].map((emp, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-neutral-800 to-neutral-700 flex items-center justify-center font-bold text-sm text-neutral-300 relative shadow-inner">
-                    {emp.avatar}
-                    <span className="absolute -top-1 -right-1 text-xs">{emp.badge}</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm font-medium text-white">{emp.name}</span>
-                      <span className="text-xs text-neutral-400 font-bold">{emp.score} / {emp.target}</span>
+
+            {topWashers.length === 0 ? (
+              <p className="text-neutral-500 text-sm">Aucun lavage assigné à un laveur sur cette période.</p>
+            ) : (
+              <div className="space-y-4">
+                {topWashers.map(([name, count], idx) => (
+                  <div key={name} className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-neutral-800 to-neutral-700 flex items-center justify-center font-bold text-sm text-neutral-300 relative shadow-inner">
+                      {initials(name)}
+                      <span className="absolute -top-1 -right-1 text-xs">{RANK_BADGES[idx]}</span>
                     </div>
-                    <div className="w-full h-1.5 bg-neutral-900 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(emp.score / emp.target) * 100}%` }}
-                        transition={{ duration: 1, delay: 0.5 + (idx * 0.1) }}
-                        className="h-full bg-amber-400"
-                      />
+                    <div className="flex-1">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm font-medium text-white">{name}</span>
+                        <span className="text-xs text-neutral-400 font-bold">{count} lavage{count > 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-neutral-900 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(count / topWasherMax) * 100}%` }}
+                          transition={{ duration: 1, delay: 0.5 + (idx * 0.1) }}
+                          className="h-full bg-amber-400"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-        
+
       </div>
     </div>
   );
