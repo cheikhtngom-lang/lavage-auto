@@ -296,6 +296,16 @@ export default function StationDashboard() {
   // nocturnes correctement, contrairement à l'ancienne copie locale ici).
   const isStationClosed = () => isPastClosingTime(stationProfile);
 
+  // Bouton laissé cliquable (pas `disabled`) pour la même raison que handleGoClick
+  // ci-dessous : le message d'explication doit s'afficher aussi au tap tactile.
+  const handleAddVehicleClick = () => {
+    if (isStationClosed()) {
+      alert("Impossible : la station est actuellement fermée.");
+      return;
+    }
+    setShowAddModal(true);
+  };
+
   const handleGoClick = (item) => {
     // Bouton laissé cliquable (même visuellement grisé) plutôt que `disabled`,
     // pour que le message d'explication s'affiche aussi au tap sur tablette/mobile
@@ -372,8 +382,8 @@ export default function StationDashboard() {
           <p className="text-neutral-400 text-lg">Gérez l'ordre de passage et encaissez en un clic.</p>
         </div>
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setShowAddModal(true)}
+          <button
+            onClick={handleAddVehicleClick}
             className="flex items-center px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20"
           >
             <Plus className="w-5 h-5 mr-2" />

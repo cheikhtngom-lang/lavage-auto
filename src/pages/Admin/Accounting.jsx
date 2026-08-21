@@ -233,9 +233,9 @@ export default function Accounting() {
                         fill="url(#lineGradient)"
                       />
                       <motion.path
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 1.5, ease: "easeInOut" }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.6 }}
                         d={line}
                         fill="none"
                         stroke="#3b82f6"
@@ -248,7 +248,7 @@ export default function Accounting() {
                           key={i}
                           initial={{ opacity: 0, scale: 0 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.5, delay: 1 + i * 0.1 }}
+                          transition={{ duration: 0.4, delay: 0.2 + i * 0.05 }}
                           cx={points[i].x}
                           cy={points[i].y}
                           r="3"
