@@ -6,24 +6,36 @@ import { UserPlus, MoreVertical, CheckCircle2, Clock, XCircle, Search, Edit2, Tr
 import { useAppState } from '../../hooks/useAppState';
 
 export default function Team() {
-  const { employees, addEmployee, deleteEmployee } = useAppState();
-  
+  const { employees, addEmployee, updateEmployee, deleteEmployee } = useAppState();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMember, setNewMember] = useState({ name: '', role: 'Caisse', access: 'Limité (Encaissements)' });
-  
+  const [editingMember, setEditingMember] = useState(null);
+
   const handleAddMember = (e) => {
     e.preventDefault();
     if (!newMember.name) return;
-    
+
     addEmployee({
       name: newMember.name,
       role: newMember.role,
       access: newMember.access,
     });
-    
+
     setShowAddModal(false);
     setNewMember({ name: '', role: 'Caisse', access: 'Limité (Encaissements)' });
+  };
+
+  const handleEditMember = (e) => {
+    e.preventDefault();
+    if (!editingMember?.name) return;
+    updateEmployee(editingMember.id, {
+      name: editingMember.name,
+      role: editingMember.role,
+      access: editingMember.access,
+    });
+    setEditingMember(null);
   };
 
   const getStatusIcon = (status) => {
@@ -131,7 +143,10 @@ export default function Team() {
                       </td>
                       <td className="p-5 text-right">
                         <div className="flex justify-end gap-2">
-                          <button className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-neutral-400 rounded-lg transition-colors">
+                          <button
+                            onClick={() => setEditingMember({ id: member.id, name: member.name, role: member.role, access: member.access })}
+                            className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-neutral-400 rounded-lg transition-colors"
+                          >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
@@ -219,6 +234,77 @@ export default function Team() {
                   >
                     <UserPlus className="w-5 h-5 mr-2" />
                     Créer le profil
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Édition Membre */}
+      <AnimatePresence>
+        {editingMember && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative"
+            >
+              <button
+                onClick={() => setEditingMember(null)}
+                className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <h2 className="text-2xl font-bold text-white mb-6">Modifier l'employé</h2>
+
+              <form onSubmit={handleEditMember} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1">Prénom et Nom</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    value={editingMember.name}
+                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1">Rôle</label>
+                  <select
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    value={editingMember.role}
+                    onChange={(e) => setEditingMember({ ...editingMember, role: e.target.value })}
+                  >
+                    <option value="Caisse">Caisse</option>
+                    <option value="Superviseur">Superviseur</option>
+                    <option value="Laveur">Laveur</option>
+                    <option value="Administrateur">Administrateur</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1">Droits d'accès</label>
+                  <select
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    value={editingMember.access}
+                    onChange={(e) => setEditingMember({ ...editingMember, access: e.target.value })}
+                  >
+                    <option value="Limité (Encaissements)">Limité (Encaissements)</option>
+                    <option value="Standard (Gestion Quotidienne)">Standard (Gestion Quotidienne)</option>
+                    <option value="Complet">Complet</option>
+                    <option value="Super Admin">Super Admin</option>
+                  </select>
+                </div>
+
+                <div className="pt-4 mt-2 border-t border-white/10">
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center"
+                  >
+                    Enregistrer
                   </button>
                 </div>
               </form>

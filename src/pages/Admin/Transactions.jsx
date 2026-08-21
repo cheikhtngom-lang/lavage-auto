@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -72,6 +73,34 @@ export default function AdminTransactions() {
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const exportTransactionsToExcel = () => {
+    const rows = [
+      ['Date & Heure', 'Client', 'Service', 'Méthode', 'Montant (FCFA)'],
+      ...filteredTransactions.map(t => [t.date, t.client, t.service, t.method, t.amount]),
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+    XLSX.writeFile(wb, `Transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  // Imprime uniquement le reçu (.receipt-preview, voir index.css) — ouvre
+  // d'abord l'aperçu si nécessaire (bouton depuis la liste, pas la modale),
+  // puis laisse le temps au DOM de se mettre à jour avant window.print().
+  const handlePrintReceipt = (t) => {
+    setSelectedReceipt(t);
+    setTimeout(() => window.print(), 150);
+  };
+
+  const handleWhatsAppReceipt = (t) => {
+    if (!t.clientPhone) {
+      alert("Aucun numéro de téléphone enregistré pour ce client (client de passage).");
+      return;
+    }
+    const message = `Reçu ${stationProfile?.name || 'Ma Station'} — ${t.service} : ${t.amount} FCFA (${t.date}). Merci de votre visite !`;
+    window.open(`https://wa.me/${t.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`, '_blank');
+  };
 
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
@@ -184,7 +213,11 @@ export default function AdminTransactions() {
               </select>
             </div>
 
-            <button className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-colors font-medium text-sm shadow-lg shadow-emerald-500/20">
+            <button
+              onClick={exportTransactionsToExcel}
+              disabled={filteredTransactions.length === 0}
+              className="flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition-colors font-medium text-sm shadow-lg shadow-emerald-500/20"
+            >
               <Download className="w-4 h-4 mr-2" />
               Exporter Excel
             </button>
@@ -241,10 +274,10 @@ export default function AdminTransactions() {
                           <button onClick={() => setSelectedReceipt(t)} className="p-2 bg-white/5 hover:bg-white/10 text-neutral-300 rounded-lg transition-colors" title="Aperçu du reçu">
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button className="p-2 bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-400 rounded-lg transition-colors" title="Imprimer">
+                          <button onClick={() => handlePrintReceipt(t)} className="p-2 bg-blue-500/10 hover:bg-blue-500 hover:text-white text-blue-400 rounded-lg transition-colors" title="Imprimer">
                             <Printer className="w-4 h-4" />
                           </button>
-                          <button className="p-2 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 rounded-lg transition-colors" title="Envoyer par WhatsApp">
+                          <button onClick={() => handleWhatsAppReceipt(t)} className="p-2 bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-400 rounded-lg transition-colors" title="Envoyer par WhatsApp">
                             <MessageCircle className="w-4 h-4" />
                           </button>
                         </div>
@@ -332,10 +365,10 @@ export default function AdminTransactions() {
               </div>
               
               <div className="p-4 bg-neutral-900 flex gap-3">
-                <button className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold flex items-center justify-center transition-colors">
+                <button onClick={() => window.print()} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold flex items-center justify-center transition-colors">
                   <Printer className="w-4 h-4 mr-2" /> Imprimer
                 </button>
-                <button className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold flex items-center justify-center transition-colors">
+                <button onClick={() => handleWhatsAppReceipt(selectedReceipt)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-bold flex items-center justify-center transition-colors">
                   <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
                 </button>
               </div>

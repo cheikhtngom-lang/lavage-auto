@@ -193,7 +193,7 @@ export default function Stations() {
   const effectiveVehicleCap = isSuperUser ? Math.max(vehicles.length, 1) : MAX_ACTIVE_VEHICLES_PER_CLIENT;
   const activeVehiclesCount = selectedStation ? reservations.filter(r => r.station_id === selectedStation.id).length : 0;
   const remainingSlots = Math.max(0, effectiveVehicleCap - activeVehiclesCount);
-  const maxSelectable = Math.min(effectiveVehicleCap, remainingSlots || effectiveVehicleCap);
+  const maxSelectable = Math.min(effectiveVehicleCap, remainingSlots);
 
   const toggleVehicleSelection = (id) => {
     setSelectedVehicleIds(prev => {

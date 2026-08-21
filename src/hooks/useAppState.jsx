@@ -209,10 +209,13 @@ export function AppStateProvider({ children }) {
 
     const loadTransactions = useCallback(async () => {
         if (!stationId || stationId === 'default') { setTransactions([]); return; }
-        const { data } = await supabase.from('transactions').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
+        const { data } = await supabase.from('transactions').select('*, profiles(phone)').eq('station_id', stationId).order('created_at', { ascending: false });
         setTransactions((data || []).map((row) => ({
             id: row.id, date: formatTxDate(row.created_at), createdAt: row.created_at, client: row.client_name, vehicle: row.vehicle_label,
             service: row.service, method: row.method, amount: row.amount,
+            // Null pour un client de passage (jamais lié à un compte) — voir
+            // handleWhatsApp dans Transactions.jsx, qui gère cette absence.
+            clientPhone: row.profiles?.phone || null,
         })));
     }, [stationId]);
 
