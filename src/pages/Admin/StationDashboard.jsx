@@ -6,7 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, ChevronsDown, Search, Timer, UserCheck, AlertCircle, Calendar, UserPlus, ArrowRight, LineChart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
-import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
+import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBrands';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { isPastClosingTime, findVehicleOwnerByPlate } from '../../lib/stationData';
@@ -217,7 +217,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 
 export default function StationDashboard() {
   const navigate = useNavigate();
-  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig, stationProfile } = useAppState();
+  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions } = useAppState();
 
   const getDurationMinutes = (item) => {
     const cat = item?.category || 'Particulier';
@@ -236,7 +236,12 @@ export default function StationDashboard() {
     setPlateLookupStatus('checking');
     const match = await findVehicleOwnerByPlate(plate);
     if (match) {
-      setNewWash((w) => ({ ...w, client: match.ownerName, category: match.category || w.category, vehicle: match.brand || w.vehicle, clientId: match.ownerId }));
+      // match.category vient de vehicles.category (taxonomie détaillée du
+      // garage client, ex: "Berline / Citadine") — il faut la convertir en
+      // catégorie de tarification (Moto/Particulier/Transport/Camion) avant
+      // de l'utiliser ici, sinon pricingConfig[cat] ne trouve rien et
+      // l'encaissement facture un montant incorrect (ou 0).
+      setNewWash((w) => ({ ...w, client: match.ownerName, category: match.category ? getPricingCategory(match.category) : w.category, vehicle: match.brand || w.vehicle, clientId: match.ownerId }));
       setPlateLookupStatus('found');
     } else {
       setNewWash((w) => ({ ...w, clientId: null }));
@@ -845,6 +850,17 @@ export default function StationDashboard() {
                   {getPrice(pendingPayItem).toLocaleString('fr-FR')}
                   <span className="text-lg font-medium text-neutral-400 ml-2">FCFA</span>
                 </p>
+                {(() => {
+                  const amount = getPrice(pendingPayItem);
+                  const sub = pendingPayItem.clientId
+                    ? (clientSubscriptions || []).find((s) => s.clientId === pendingPayItem.clientId && s.status === 'actif' && s.balance >= amount)
+                    : null;
+                  return sub ? (
+                    <p className="text-emerald-400 text-xs font-medium mt-3">✓ Déduit automatiquement de son abonnement (solde après : {(sub.balance - amount).toLocaleString('fr-FR')} FCFA)</p>
+                  ) : (
+                    <p className="text-neutral-500 text-xs mt-3">Encaissé en espèces</p>
+                  );
+                })()}
               </div>
 
               <div className="flex gap-3">
@@ -968,6 +984,17 @@ export default function StationDashboard() {
                     Payé d'avance
                   </label>
                 </div>
+                {newWash.paid && (() => {
+                  const amount = (pricingConfig[newWash.category] && pricingConfig[newWash.category][newWash.service]) || 2500;
+                  const sub = newWash.clientId
+                    ? (clientSubscriptions || []).find((s) => s.clientId === newWash.clientId && s.status === 'actif' && s.balance >= amount)
+                    : null;
+                  return sub ? (
+                    <p className="text-emerald-400 text-xs font-medium">✓ Sera déduit automatiquement de son abonnement ({amount.toLocaleString('fr-FR')} FCFA, solde après : {(sub.balance - amount).toLocaleString('fr-FR')} FCFA)</p>
+                  ) : (
+                    <p className="text-neutral-500 text-xs">Encaissé en espèces ({amount.toLocaleString('fr-FR')} FCFA)</p>
+                  );
+                })()}
 
                 <div className="pt-4 mt-2 border-t border-white/10">
                   <button 

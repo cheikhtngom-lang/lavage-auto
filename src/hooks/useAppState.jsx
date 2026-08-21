@@ -85,6 +85,7 @@ function rowToItem(row) {
     return {
         id: row.id,
         status: row.status,
+        clientId: row.client_id,
         client: row.client_name,
         vehicle: row.vehicle_label,
         category: row.category,
@@ -658,16 +659,50 @@ export function AppStateProvider({ children }) {
         supabase.from('employees').delete().eq('id', id).then(() => loadEmployees());
     };
 
+    // Abonnement fidélité ACTIF de ce client à CETTE station, avec un solde
+    // suffisant pour couvrir `amount` — utilisé pour choisir automatiquement
+    // la méthode de paiement 'Abonnement' (déduction via le trigger Postgres,
+    // voir add_plate_lookup.sql/recreate_subscriptions.sql) au lieu de la
+    // méthode 'Espèces' par défaut, quand le client encaissé est reconnu
+    // (compte lié via clientId — plaque ou historique).
+    const findEligibleSubscription = (clientId, amount) => {
+        if (!clientId) return null;
+        return clientSubscriptions.find((s) => s.clientId === clientId && s.status === 'actif' && s.balance >= amount) || null;
+    };
+
     const addWash = (washData) => {
         if (!stationId || stationId === 'default') return;
+        // Prix figé dès la création (comme pour une réservation client), pour
+        // que "Payé d'avance" à l'ajout ET "Encaisser" plus tard facturent
+        // toujours le même montant — voir validatePayment ci-dessous.
+        const basePrice = (pricingConfig[washData.category] && pricingConfig[washData.category][washData.service]) || 2500;
+        const amount = applyDiscount(promoConfig, washData.category, washData.service, basePrice);
+        const paid = !!washData.paid;
+        const activeSub = paid ? findEligibleSubscription(washData.clientId, amount) : null;
+        const method = activeSub ? 'Abonnement' : 'Espèces';
         supabase.from('reservations').insert({
             station_id: stationId, client_name: washData.client, vehicle_label: washData.vehicle,
-            category: washData.category, service: washData.service, paid: !!washData.paid, status: 'attente',
+            category: washData.category, service: washData.service, paid, amount, status: 'attente',
             // Reconnaissance par plaque (StationDashboard.jsx) : si ce client de
             // passage a déjà un compte automobiliste, on relie la réservation
             // pour qu'elle apparaisse en direct sur son tableau de bord.
             client_id: washData.clientId || null,
-        }).then(() => loadReservations());
+        }).select().single().then(async ({ data, error }) => {
+            // Payé directement à l'ajout ("Payé d'avance") : il faut créer la
+            // transaction ici (rien d'autre ne le fera jamais, contrairement au
+            // flux "Encaisser" plus tard qui passe par validatePayment) — sinon
+            // ce lavage n'apparaît jamais en Comptabilité/Transactions et ne
+            // déduit jamais un abonnement même quand method serait 'Abonnement'.
+            if (!error && paid) {
+                await supabase.from('transactions').insert({
+                    station_id: stationId, reservation_id: data.id, client_id: washData.clientId || null,
+                    client_name: washData.client, vehicle_label: washData.vehicle, service: washData.service,
+                    method, amount,
+                });
+                loadTransactions();
+            }
+            loadReservations();
+        });
     };
 
     // Réactive un laveur qui avait cliqué "Descente" (status 'Terminé') — ex:
@@ -795,11 +830,17 @@ export function AppStateProvider({ children }) {
         // recalculer — sinon on applique la réduction en cours de la station.
         const basePrice = (pricingConfig[cat] && pricingConfig[cat][item.service]) ? pricingConfig[cat][item.service] : 2500;
         const amount = item.amount != null ? item.amount : applyDiscount(promoConfig, cat, item.service, basePrice);
+        // Client reconnu (plaque/historique) avec un abonnement actif et un
+        // solde suffisant à CETTE station : on encaisse via le wallet plutôt
+        // qu'en espèces — le trigger de déduction (station_client_subscriptions)
+        // s'occupe du reste dès l'insertion de la transaction ci-dessous.
+        const activeSub = findEligibleSubscription(item.clientId, amount);
+        const method = activeSub ? 'Abonnement' : 'Espèces';
 
         supabase.from('reservations').update({ paid: true, amount }).eq('id', id).then(async () => {
             await supabase.from('transactions').insert({
-                station_id: stationId, reservation_id: id, client_name: item.client, vehicle_label: item.vehicle,
-                service: item.service, method: 'Espèces', amount,
+                station_id: stationId, reservation_id: id, client_id: item.clientId || null, client_name: item.client, vehicle_label: item.vehicle,
+                service: item.service, method, amount,
             });
             loadReservations();
             loadTransactions();
