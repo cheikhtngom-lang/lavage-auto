@@ -217,7 +217,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 
 export default function StationDashboard() {
   const navigate = useNavigate();
-  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig } = useAppState();
+  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig, stationProfile } = useAppState();
 
   const getDurationMinutes = (item) => {
     const cat = item?.category || 'Particulier';
