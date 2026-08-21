@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download } from 'lucide-react';
+import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download, Star } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
@@ -11,6 +11,7 @@ import {
   getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
+import { deriveAdStatus } from '../../lib/ads';
 import { SENEGAL_REGIONS, regionLabel } from '../../lib/regions';
 import { StarRatingDisplay } from '../../components/ui/StarRating';
 import { downloadReceiptPdf } from '../../lib/receipt';
@@ -141,7 +142,7 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
 }
 
 export default function Stations() {
-  const { stations: registry } = useSuperAdminState();
+  const { stations: registry, stationAds } = useSuperAdminState();
   const { account, loading: accountLoading, toggleFavorite, unhideStation, reservations, refreshActivity, superUserStatus, myStationSubscriptions } = useClientAccount();
   const isSuperUser = superUserStatus === 'ACTIVE';
   const navigate = useNavigate();
@@ -203,6 +204,16 @@ export default function Stations() {
     });
   };
 
+  // Pubs payantes ACTIVE (voir lib/ads.js) : broadcast plateforme, une par
+  // station au plus à la fois (Admin > Réglages > Publicité, confirmée par
+  // le Super Admin) — distinct du bandeau promo gratuit ci-dessous, qui lui
+  // n'est visible qu'aux clients ayant déjà un historique avec CETTE station.
+  const featuredAdByStation = new Map(
+    (stationAds || [])
+      .filter(a => deriveAdStatus(a) === 'ACTIVE')
+      .map(a => [String(a.stationId), a])
+  );
+
   const allStations = (registry || [])
     .filter(s => s.status !== 'suspendue')
     .map(s => {
@@ -212,6 +223,7 @@ export default function Stations() {
         : null;
       const location = s.quartier ? `${s.quartier}, ${regionLabel(s.region)}` : (s.city || s.address || 'Sénégal');
       const promo = getStationPromo(s.id);
+      const featuredAd = featuredAdByStation.get(String(s.id)) || null;
       return {
         id: s.id,
         name: s.name,
@@ -228,9 +240,14 @@ export default function Stations() {
         distanceKm,
         rating: getStationRatingSummary(s.id),
         promoMessage: isBannerActive(promo) ? promo.banner.message : null,
+        isFeatured: !!featuredAd,
+        featuredMessage: featuredAd?.message || null,
       };
     })
     .sort((a, b) => {
+      // Stations "à la une" (pub payante active) épinglées en tête, avant le
+      // tri par distance — voir la discussion produit dans design_onboarding_backlog.
+      if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
       if (a.distanceKm == null && b.distanceKm == null) return 0;
       if (a.distanceKm == null) return 1;
       if (b.distanceKm == null) return -1;
@@ -620,6 +637,19 @@ export default function Stations() {
                     : <span className="text-red-400 bg-red-500/10 px-3 py-1 rounded-md text-xs font-medium flex items-center border border-red-500/20"><Clock className="w-3.5 h-3.5 mr-1" /> Fermé</span>}
                 </div>
               </div>
+              {station.isFeatured && (
+                <div className="mb-3 flex items-center gap-1.5 self-start">
+                  <span className="inline-flex items-center gap-1 text-purple-300 bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 rounded-md text-xs font-bold">
+                    <Star className="w-3.5 h-3.5 fill-purple-300" /> À la une
+                  </span>
+                </div>
+              )}
+              {station.featuredMessage && (
+                <div className="mb-3 flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-1.5">
+                  <Megaphone className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                  <span className="text-purple-300 text-xs font-medium truncate">{station.featuredMessage}</span>
+                </div>
+              )}
               {station.promoMessage && (
                 <div className="mb-3 flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5">
                   <Megaphone className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
@@ -688,6 +718,17 @@ export default function Stations() {
                         className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-blue-400 hover:text-white text-sm font-medium py-2.5 transition-colors">
                         <Navigation className="w-4 h-4" /> Voir l'itinéraire
                       </a>
+                    </div>
+                  )}
+                  {selectedStation.isFeatured && (
+                    <span className="inline-flex items-center gap-1 text-purple-300 bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 rounded-md text-xs font-bold mb-2">
+                      <Star className="w-3.5 h-3.5 fill-purple-300" /> À la une
+                    </span>
+                  )}
+                  {selectedStation.featuredMessage && (
+                    <div className="mb-4 flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2">
+                      <Megaphone className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                      <span className="text-purple-300 text-sm font-medium">{selectedStation.featuredMessage}</span>
                     </div>
                   )}
                   {selectedStation.promoMessage && (
