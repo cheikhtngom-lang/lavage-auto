@@ -8,8 +8,17 @@
 // la fait passer à ACTIVE une fois l'argent effectivement reçu.
 import { supabase } from './supabaseClient';
 
-export const AD_CAMPAIGN_PRICE = 10000;
-export const AD_CAMPAIGN_DAYS = 7;
+// Offres de diffusion — la station choisit l'une des trois au moment du
+// paiement (voir Admin > Réglages > Publicité) ; la durée réellement
+// appliquée est celle stockée sur la ligne (station_ads.duration_days), pas
+// une constante globale, pour que chaque pub garde SA durée même si ces
+// offres changent plus tard.
+export const AD_PLANS = [
+  { id: '3d', label: '3 jours', days: 3, price: 5000 },
+  { id: '7d', label: '1 semaine', days: 7, price: 10000 },
+  { id: '30d', label: '1 mois', days: 30, price: 30000 },
+];
+export const DEFAULT_AD_PLAN_ID = '7d';
 export const MAX_AD_IMAGE_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — même limite que le logo station
 
 // Statut affichable dérivé de la ligne : une ligne ACTIVE en base dont
@@ -24,10 +33,11 @@ export function deriveAdStatus(ad) {
 }
 
 // Crée une demande de paiement (PENDING) — jamais activée directement ici.
-export async function createAdPayment(stationId, { message, imageUrl, method, reference }) {
+export async function createAdPayment(stationId, { message, imageUrl, method, reference, planId }) {
+  const plan = AD_PLANS.find((p) => p.id === planId) || AD_PLANS.find((p) => p.id === DEFAULT_AD_PLAN_ID);
   const { data, error } = await supabase.from('station_ads').insert({
     station_id: stationId, message: message.trim(), image_url: imageUrl || null,
-    status: 'PENDING', amount: AD_CAMPAIGN_PRICE, method: method || null, reference: reference || null,
+    status: 'PENDING', amount: plan.price, duration_days: plan.days, method: method || null, reference: reference || null,
   }).select().single();
   if (error) throw new Error(error.message);
   return data;

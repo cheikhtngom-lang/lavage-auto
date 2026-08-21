@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabaseClient';
 import { SENEGAL_REGIONS } from '../../lib/regions';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
-import { AD_CAMPAIGN_PRICE, AD_CAMPAIGN_DAYS, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
+import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses 3 prestations.
 // Trois grilles distinctes, dans l'ordre où l'admin pense ses véhicules :
@@ -97,6 +97,7 @@ export default function Settings() {
   const [adMessage, setAdMessage] = useState('');
   const [adImage, setAdImage] = useState(null);
   const [adImageError, setAdImageError] = useState('');
+  const [adPlanId, setAdPlanId] = useState(DEFAULT_AD_PLAN_ID);
   const [adPaymentMethod, setAdPaymentMethod] = useState(null); // null | 'wave' | 'orange_money'
   const [adPaymentPhone, setAdPaymentPhone] = useState('');
   const [adSubmitting, setAdSubmitting] = useState(false);
@@ -340,7 +341,7 @@ export default function Settings() {
   const handleRemoveAdImage = () => setAdImage(null);
 
   const resetAdForm = () => {
-    setAdMessage(''); setAdImage(null); setAdImageError('');
+    setAdMessage(''); setAdImage(null); setAdImageError(''); setAdPlanId(DEFAULT_AD_PLAN_ID);
     setAdPaymentMethod(null); setAdPaymentPhone(stationProfile?.phone || '');
     setAdError(''); setAdJustSubmitted(false);
   };
@@ -354,7 +355,7 @@ export default function Settings() {
     setAdError('');
     try {
       await createAdPayment(stationId, {
-        message: adMessage, imageUrl: adImage,
+        message: adMessage, imageUrl: adImage, planId: adPlanId,
         method: adPaymentMethod === 'wave' ? 'Wave' : 'Orange Money',
         reference: adPaymentPhone.trim(),
       });
@@ -372,6 +373,7 @@ export default function Settings() {
   const latestAdStatus = latestAd ? deriveAdStatus(latestAd) : null;
   const adFormLocked = latestAdStatus === 'PENDING' || latestAdStatus === 'ACTIVE';
   const adFormatDate = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  const selectedAdPlan = AD_PLANS.find((p) => p.id === adPlanId) || AD_PLANS[0];
 
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
@@ -946,7 +948,7 @@ export default function Settings() {
               <CardContent className="p-8 max-w-2xl">
                 <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Camera className="w-5 h-5 text-blue-400" /> Passer une pub</h2>
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">
-                  Diffusez un message sur le tableau de bord de <strong className="text-white">tous les automobilistes de la plateforme</strong> — {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA pour {AD_CAMPAIGN_DAYS} jours.
+                  Diffusez un message sur le tableau de bord de <strong className="text-white">tous les automobilistes de la plateforme</strong>, à partir de {Math.min(...AD_PLANS.map(p => p.price)).toLocaleString('fr-FR')} FCFA.
                   Contrairement aux Promotions (visibles uniquement sur votre fiche station), une pub touche même les clients qui n'ont jamais réservé chez vous.
                 </p>
 
@@ -1008,9 +1010,25 @@ export default function Settings() {
                           )}
                           {adImageError && <p className="text-red-400 text-xs">{adImageError}</p>}
                         </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-neutral-400">Durée de diffusion</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {AD_PLANS.map((plan) => (
+                              <button key={plan.id} type="button" onClick={() => setAdPlanId(plan.id)}
+                                className={`text-center px-3 py-3 rounded-xl border transition-colors ${
+                                  adPlanId === plan.id
+                                    ? 'bg-blue-600/20 border-blue-500 text-white'
+                                    : 'bg-neutral-900 border-white/10 text-neutral-300 hover:border-white/20'
+                                }`}>
+                                <p className="font-bold text-sm">{plan.label}</p>
+                                <p className="text-xs text-neutral-400 mt-0.5">{plan.price.toLocaleString('fr-FR')} FCFA</p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                         <button type="button" disabled={!adMessage.trim()} onClick={() => setAdPaymentMethod('choose')}
                           className="bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl transition-colors">
-                          Continuer vers le paiement — {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA
+                          Continuer vers le paiement — {selectedAdPlan.price.toLocaleString('fr-FR')} FCFA
                         </button>
                       </>
                     ) : adPaymentMethod === 'choose' ? (
@@ -1019,12 +1037,12 @@ export default function Settings() {
                         <button type="button" onClick={() => setAdPaymentMethod('wave')}
                           className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-white/10 bg-white/5 hover:border-[#1DC8E0]/50 hover:bg-[#1DC8E0]/10 transition-colors text-left">
                           <div className="w-11 h-11 rounded-xl bg-[#1DC8E0]/20 flex items-center justify-center flex-shrink-0"><Smartphone className="w-5 h-5 text-[#1DC8E0]" /></div>
-                          <div className="flex-1"><p className="text-white font-bold">Wave</p><p className="text-neutral-500 text-xs">Payer {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA</p></div>
+                          <div className="flex-1"><p className="text-white font-bold">Wave</p><p className="text-neutral-500 text-xs">Payer {selectedAdPlan.price.toLocaleString('fr-FR')} FCFA</p></div>
                         </button>
                         <button type="button" onClick={() => setAdPaymentMethod('orange_money')}
                           className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-white/10 bg-white/5 hover:border-[#FF7900]/50 hover:bg-[#FF7900]/10 transition-colors text-left">
                           <div className="w-11 h-11 rounded-xl bg-[#FF7900]/20 flex items-center justify-center flex-shrink-0"><Smartphone className="w-5 h-5 text-[#FF7900]" /></div>
-                          <div className="flex-1"><p className="text-white font-bold">Orange Money</p><p className="text-neutral-500 text-xs">Payer {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA</p></div>
+                          <div className="flex-1"><p className="text-white font-bold">Orange Money</p><p className="text-neutral-500 text-xs">Payer {selectedAdPlan.price.toLocaleString('fr-FR')} FCFA</p></div>
                         </button>
                       </div>
                     ) : adSubmitting ? (
@@ -1044,7 +1062,7 @@ export default function Settings() {
                         {adError && <p className="text-sm text-red-400">{adError}</p>}
                         <button type="button" onClick={handleSubmitAd} disabled={adPaymentPhone.trim().length < 6}
                           className={`w-full font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-white disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed ${adPaymentMethod === 'wave' ? 'bg-[#1DC8E0] hover:bg-[#17aec3]' : 'bg-[#FF7900] hover:bg-[#e56b00]'}`}>
-                          <Smartphone className="w-5 h-5" /> Payer {AD_CAMPAIGN_PRICE.toLocaleString('fr-FR')} FCFA via {adPaymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
+                          <Smartphone className="w-5 h-5" /> Payer {selectedAdPlan.price.toLocaleString('fr-FR')} FCFA via {adPaymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
                         </button>
                       </div>
                     )}

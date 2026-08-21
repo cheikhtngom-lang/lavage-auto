@@ -152,6 +152,7 @@ create table public.station_ads (
   image_url text,
   status text not null default 'PENDING' check (status in ('PENDING', 'ACTIVE', 'REJECTED', 'EXPIRED', 'CANCELLED')),
   amount integer not null default 10000,
+  duration_days integer not null default 7, -- offre choisie : 3 jours / 7 jours / 30 jours (voir lib/ads.js AD_PLANS)
   method text,
   reference text,
   starts_at timestamptz,

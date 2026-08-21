@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '../lib/supabaseClient';
 import { setStationsCache, setWashPricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
-import { AD_CAMPAIGN_DAYS } from '../lib/ads';
 
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
 // une ligne par clé ; sert de secours si la table est vide/pas encore lue).
@@ -109,6 +108,7 @@ const rowToAd = (row) => ({
     imageUrl: row.image_url,
     status: row.status,
     amount: row.amount,
+    durationDays: row.duration_days,
     method: row.method,
     reference: row.reference,
     startsAt: row.starts_at,
@@ -327,13 +327,14 @@ export function SuperAdminStateProvider({ children }) {
     };
 
     // Confirme le paiement d'une pub (PENDING -> ACTIVE) une fois l'argent
-    // reçu — jamais automatique (voir src/lib/ads.js). Diffusion de
-    // AD_CAMPAIGN_DAYS jours à partir de maintenant.
+    // reçu — jamais automatique (voir src/lib/ads.js). Diffusion pour la
+    // durée de l'offre choisie par la station (ad.durationDays : 3/7/30
+    // jours), pas une constante globale — chaque pub garde sa propre durée.
     const confirmAdPayment = async (id) => {
         const ad = stationAds.find((a) => a.id === id);
         const startedAt = new Date();
         const expiresAt = new Date(startedAt);
-        expiresAt.setDate(expiresAt.getDate() + AD_CAMPAIGN_DAYS);
+        expiresAt.setDate(expiresAt.getDate() + (ad?.durationDays || 7));
         const patch = { status: 'ACTIVE', started_at: startedAt.toISOString(), expires_at: expiresAt.toISOString(), confirmed_at: startedAt.toISOString() };
         await supabase.from('station_ads').update({ status: 'ACTIVE', starts_at: patch.started_at, expires_at: patch.expires_at, confirmed_at: patch.confirmed_at }).eq('id', id);
         setStationAds((prev) => prev.map((a) => (a.id === id ? { ...a, status: 'ACTIVE', startsAt: patch.started_at, expiresAt: patch.expires_at, confirmedAt: patch.confirmed_at } : a)));
