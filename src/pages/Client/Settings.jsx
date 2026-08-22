@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Smartphone, Loader2, Clock3 } from 'lucide-react';
+import { useLocation, useSearchParams } from 'react-router-dom';
+import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Check, Smartphone, Loader2, Clock3 } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { changePassword } from '../../lib/accounts';
-import { MAX_FREE_VEHICLES, SUPER_USER_MONTHLY_PRICE, createSuperUserPayment } from '../../lib/superUser';
+import { MAX_FREE_VEHICLES, CLIENT_PLANS, createSuperUserPayment } from '../../lib/superUser';
 
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — même limite que le logo station
 const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp'];
@@ -11,6 +11,7 @@ const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 export default function Settings() {
   const { account, updateProfile, superUserStatus, superUserSub, refreshSuperUser } = useClientAccount();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const subscriptionRef = useRef(null);
 
   const [name, setName] = useState(account?.name || '');
@@ -25,18 +26,23 @@ export default function Settings() {
   const [passwordSaved, setPasswordSaved] = useState(false);
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState('SUPER_USER');
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [paymentPhone, setPaymentPhone] = useState('');
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [paymentJustSubmitted, setPaymentJustSubmitted] = useState(false);
 
-  // Lien direct depuis le modal d'upsell (Garage/Stations) : /dashboard/parametres#abonnement
+  // Lien direct depuis le modal d'upsell (Garage/Stations) :
+  // /dashboard/parametres?plan=PLUS#abonnement — pré-sélectionne l'offre
+  // choisie dans le modal au lieu de forcer un second choix ici.
   useEffect(() => {
     if (location.hash === '#abonnement' && subscriptionRef.current) {
       subscriptionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [location.hash]);
+    const planParam = searchParams.get('plan');
+    if (planParam && CLIENT_PLANS[planParam]) setSelectedPlan(planParam);
+  }, [location.hash, searchParams]);
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
@@ -104,7 +110,8 @@ export default function Settings() {
 
   // Même logique que la réservation (Stations.jsx) : pré-rempli avec le
   // numéro du compte, modifiable pour payer depuis un autre numéro Wave/OM.
-  const openPaymentModal = () => {
+  const openPaymentModal = (planKey) => {
+    if (planKey && CLIENT_PLANS[planKey]) setSelectedPlan(planKey);
     setPaymentMethod(null);
     setPaymentPhone(account?.phone || '');
     setPaymentError('');
@@ -126,6 +133,7 @@ export default function Settings() {
       await createSuperUserPayment(account.id, {
         method: paymentMethod === 'wave' ? 'Wave' : 'Orange Money',
         reference: paymentPhone.trim(),
+        plan: selectedPlan,
       });
       refreshSuperUser();
       setPaymentJustSubmitted(true);
@@ -202,39 +210,42 @@ export default function Settings() {
           <Crown className="w-5 h-5 text-amber-400" /> Mon abonnement
         </h2>
 
-        {superUserStatus === 'ACTIVE' ? (
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">SUPER USER</span>
-              <span className="text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-md text-xs font-medium border border-emerald-500/20">Statut : Actif</span>
+        {superUserStatus === 'ACTIVE' ? (() => {
+          const currentPlan = CLIENT_PLANS[superUserSub?.plan] || CLIENT_PLANS.SUPER_USER;
+          return (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">{currentPlan.label.toUpperCase()}</span>
+                <span className="text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-md text-xs font-medium border border-emerald-500/20">Statut : Actif</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 text-sm">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <p className="text-neutral-500 text-xs mb-1">Prix</p>
+                  <p className="text-white font-bold">{currentPlan.price.toLocaleString('fr-FR')} FCFA/mois</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <p className="text-neutral-500 text-xs mb-1">Véhicules</p>
+                  <p className="text-white font-bold">{Number.isFinite(currentPlan.maxVehicles) ? currentPlan.maxVehicles : 'Illimités'}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <p className="text-neutral-500 text-xs mb-1">Début</p>
+                  <p className="text-white font-bold">{formatDate(superUserSub?.started_at)}</p>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <p className="text-neutral-500 text-xs mb-1">Expiration</p>
+                  <p className="text-white font-bold">{formatDate(superUserSub?.expires_at)}</p>
+                </div>
+              </div>
+              <button onClick={() => openPaymentModal(currentPlan.key)} className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition-colors">
+                Renouveler l'abonnement
+              </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 text-sm">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <p className="text-neutral-500 text-xs mb-1">Prix</p>
-                <p className="text-white font-bold">{SUPER_USER_MONTHLY_PRICE.toLocaleString('fr-FR')} FCFA/mois</p>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <p className="text-neutral-500 text-xs mb-1">Véhicules</p>
-                <p className="text-white font-bold">Illimités</p>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <p className="text-neutral-500 text-xs mb-1">Début</p>
-                <p className="text-white font-bold">{formatDate(superUserSub?.started_at)}</p>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <p className="text-neutral-500 text-xs mb-1">Expiration</p>
-                <p className="text-white font-bold">{formatDate(superUserSub?.expires_at)}</p>
-              </div>
-            </div>
-            <button onClick={openPaymentModal} className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition-colors">
-              Renouveler l'abonnement
-            </button>
-          </div>
-        ) : superUserStatus === 'PENDING' ? (
+          );
+        })() : superUserStatus === 'PENDING' ? (
           <div className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3.5">
             <Clock3 className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-blue-200/90">
-              Paiement enregistré, en attente de validation par notre équipe. Votre compte passera automatiquement en Super User dès confirmation.
+              Paiement enregistré, en attente de validation par notre équipe. Votre compte passera automatiquement en {(CLIENT_PLANS[superUserSub?.plan] || CLIENT_PLANS.SUPER_USER).label} dès confirmation.
             </p>
           </div>
         ) : (
@@ -242,23 +253,24 @@ export default function Settings() {
             <div className="flex items-center gap-2 mb-4">
               <span className="bg-white/10 text-neutral-300 text-xs font-bold px-3 py-1 rounded-full">GRATUIT</span>
               {superUserStatus === 'EXPIRED' && (
-                <span className="text-red-400 bg-red-500/10 px-3 py-1 rounded-md text-xs font-medium border border-red-500/20">Abonnement Super User expiré</span>
+                <span className="text-red-400 bg-red-500/10 px-3 py-1 rounded-md text-xs font-medium border border-red-500/20">Abonnement expiré</span>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3 mb-6 text-sm max-w-sm">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <p className="text-neutral-500 text-xs mb-1">Offre</p>
-                <p className="text-white font-bold">Gratuit</p>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-                <p className="text-neutral-500 text-xs mb-1">Véhicules autorisés</p>
-                <p className="text-white font-bold">{MAX_FREE_VEHICLES} maximum</p>
-              </div>
+            <p className="text-neutral-500 text-sm mb-5">{MAX_FREE_VEHICLES} véhicules maximum avec l'offre gratuite. Passez à une offre payante pour aller plus loin :</p>
+            <div className="grid sm:grid-cols-2 gap-3 max-w-xl">
+              <button onClick={() => openPaymentModal('PLUS')}
+                className="text-left px-5 py-4 rounded-xl border border-white/10 bg-white/5 hover:border-blue-500/40 hover:bg-blue-500/10 transition-colors">
+                <p className="text-white font-bold flex items-center gap-1.5 mb-1"><Check className="w-4 h-4 text-blue-400" /> Plus</p>
+                <p className="text-neutral-500 text-xs mb-3">Jusqu'à {CLIENT_PLANS.PLUS.maxVehicles} véhicules</p>
+                <p className="text-white font-bold text-lg">{CLIENT_PLANS.PLUS.price.toLocaleString('fr-FR')} <span className="text-neutral-500 text-xs font-normal">FCFA/mois</span></p>
+              </button>
+              <button onClick={() => openPaymentModal('SUPER_USER')}
+                className="text-left px-5 py-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-orange-500/10 hover:from-amber-500/20 hover:to-orange-500/20 transition-colors">
+                <p className="text-white font-bold flex items-center gap-1.5 mb-1"><Crown className="w-4 h-4 text-amber-400" /> Super User</p>
+                <p className="text-neutral-500 text-xs mb-3">Véhicules illimités</p>
+                <p className="text-white font-bold text-lg">{CLIENT_PLANS.SUPER_USER.price.toLocaleString('fr-FR')} <span className="text-neutral-500 text-xs font-normal">FCFA/mois</span></p>
+              </button>
             </div>
-            <button onClick={openPaymentModal}
-              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold px-5 py-3 rounded-xl text-sm transition-all flex items-center gap-2">
-              <Crown className="w-4 h-4" /> {superUserStatus === 'EXPIRED' ? 'Se réabonner' : 'Passer à Super User'} — {SUPER_USER_MONTHLY_PRICE.toLocaleString('fr-FR')} FCFA/mois
-            </button>
           </div>
         )}
       </div>
@@ -308,7 +320,7 @@ export default function Settings() {
                   <Clock3 className="w-7 h-7 text-blue-400" />
                 </div>
                 <h2 className="text-xl font-bold text-white mb-2">Paiement enregistré</h2>
-                <p className="text-neutral-400 text-sm mb-6">Votre demande est en attente de validation par notre équipe. Vous passerez automatiquement en Super User dès confirmation.</p>
+                <p className="text-neutral-400 text-sm mb-6">Votre demande est en attente de validation par notre équipe. Vous passerez automatiquement en {CLIENT_PLANS[selectedPlan].label} dès confirmation.</p>
                 <button onClick={closePaymentModal} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-colors">Fermer</button>
               </div>
             ) : (
@@ -316,11 +328,15 @@ export default function Settings() {
                 <div className="flex items-center gap-3 mb-2">
                   <div className="p-2.5 bg-amber-500/20 rounded-xl"><Crown className="w-5 h-5 text-amber-400" /></div>
                   <div>
-                    <h2 className="text-xl font-bold text-white">Abonnement Super User</h2>
-                    <p className="text-neutral-400 text-sm">{SUPER_USER_MONTHLY_PRICE.toLocaleString('fr-FR')} FCFA / mois</p>
+                    <h2 className="text-xl font-bold text-white">Abonnement {CLIENT_PLANS[selectedPlan].label}</h2>
+                    <p className="text-neutral-400 text-sm">{CLIENT_PLANS[selectedPlan].price.toLocaleString('fr-FR')} FCFA / mois</p>
                   </div>
                 </div>
-                <p className="text-sm text-neutral-400 mb-5">Réservez avec autant de véhicules que vous le souhaitez.</p>
+                <p className="text-sm text-neutral-400 mb-5">
+                  {Number.isFinite(CLIENT_PLANS[selectedPlan].maxVehicles)
+                    ? `Réservez avec jusqu'à ${CLIENT_PLANS[selectedPlan].maxVehicles} véhicules.`
+                    : 'Réservez avec autant de véhicules que vous le souhaitez.'}
+                </p>
 
                 {paymentSubmitting ? (
                   <div className="flex flex-col items-center justify-center py-10 gap-3">
@@ -344,7 +360,7 @@ export default function Settings() {
                     {paymentError && <p className="text-sm text-red-400">{paymentError}</p>}
                     <button type="button" onClick={handleSubmitPayment} disabled={paymentPhone.trim().length < 6}
                       className={`w-full font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-white disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed ${paymentMethod === 'wave' ? 'bg-[#1DC8E0] hover:bg-[#17aec3]' : 'bg-[#FF7900] hover:bg-[#e56b00]'}`}>
-                      <Smartphone className="w-5 h-5" /> Payer {SUPER_USER_MONTHLY_PRICE.toLocaleString('fr-FR')} FCFA via {paymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
+                      <Smartphone className="w-5 h-5" /> Payer {CLIENT_PLANS[selectedPlan].price.toLocaleString('fr-FR')} FCFA via {paymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
                     </button>
                   </div>
                 ) : (

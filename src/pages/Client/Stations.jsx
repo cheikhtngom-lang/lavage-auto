@@ -16,7 +16,7 @@ import { SENEGAL_REGIONS, regionLabel } from '../../lib/regions';
 import { StarRatingDisplay } from '../../components/ui/StarRating';
 import { downloadReceiptPdf } from '../../lib/receipt';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
-import { MAX_FREE_VEHICLES } from '../../lib/superUser';
+import { vehicleCapFor } from '../../lib/superUser';
 
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -43,7 +43,7 @@ const emptyNewVehicle = { category: '', brand: '', plate: '' };
 // S'il n'a encore aucun véhicule enregistré, on le bascule automatiquement
 // vers le mini-formulaire d'ajout (au lieu de lui montrer une liste vide).
 function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxSelectable, onFreeLimitReached }) {
-  const { addVehicle, superUserStatus } = useClientAccount();
+  const { addVehicle, superUserSub } = useClientAccount();
   const [mode, setMode] = useState(vehicles.length > 0 ? 'select' : 'add');
   const [newVehicle, setNewVehicle] = useState(emptyNewVehicle);
 
@@ -52,10 +52,10 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
   const handleAddVehicle = async (e) => {
     e.preventDefault();
     if (!newVehicle.category || !newVehicle.brand || !newVehicle.plate.trim()) return;
-    // Le garage est plafonné à 2 véhicules hors Super User (voir schema.sql,
-    // policy vehicles_insert) — vérifié ici pour un message clair au lieu d'un
-    // échec silencieux de l'insert Postgres.
-    if (superUserStatus !== 'ACTIVE' && vehicles.length >= MAX_FREE_VEHICLES) {
+    // Le garage est plafonné selon le palier (Gratuit/Plus/Super User — voir
+    // schema.sql, policy vehicles_insert / client_vehicle_cap()) — vérifié ici
+    // pour un message clair au lieu d'un échec silencieux de l'insert Postgres.
+    if (vehicles.length >= vehicleCapFor(superUserSub)) {
       onFreeLimitReached();
       return;
     }

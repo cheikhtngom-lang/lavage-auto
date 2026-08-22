@@ -4,31 +4,32 @@ import { Plus, X, Car, Trash2, Check } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
-import { MAX_FREE_VEHICLES } from '../../lib/superUser';
+import { vehicleCapFor } from '../../lib/superUser';
 
 const emptyForm = { category: '', brand: '', plate: '' };
 
 export default function Garage() {
-  const { account, addVehicle, removeVehicle, superUserStatus } = useClientAccount();
+  const { account, addVehicle, removeVehicle, superUserSub } = useClientAccount();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
   const vehicles = account?.vehicles || [];
-  const isSuperUser = superUserStatus === 'ACTIVE';
-  const atFreeLimit = !isSuperUser && vehicles.length >= MAX_FREE_VEHICLES;
+  const vehicleCap = vehicleCapFor(superUserSub);
+  const isUnlimited = !Number.isFinite(vehicleCap);
+  const atVehicleLimit = vehicles.length >= vehicleCap;
 
   const setCategory = (category) => setForm({ category, brand: '', plate: form.plate });
 
   const openAddModal = () => {
-    if (atFreeLimit) { setShowUpsellModal(true); return; }
+    if (atVehicleLimit) { setShowUpsellModal(true); return; }
     setShowAddModal(true);
   };
 
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.category || !form.brand || !form.plate.trim()) return;
-    if (atFreeLimit) { setShowAddModal(false); setShowUpsellModal(true); return; }
+    if (atVehicleLimit) { setShowAddModal(false); setShowUpsellModal(true); return; }
     addVehicle({ category: form.category, brand: form.brand, plate: form.plate.trim() });
     setForm(emptyForm);
     setShowAddModal(false);
@@ -51,9 +52,9 @@ export default function Garage() {
         </button>
       </div>
 
-      {!isSuperUser && (
+      {!isUnlimited && (
         <p className="text-neutral-500 text-sm mb-6 -mt-6">
-          {vehicles.length}/{MAX_FREE_VEHICLES} véhicules utilisés (offre gratuite).
+          {vehicles.length}/{vehicleCap} véhicules utilisés.
         </p>
       )}
 

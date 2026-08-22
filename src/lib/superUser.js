@@ -13,7 +13,16 @@
 import { supabase } from './supabaseClient';
 
 export const MAX_FREE_VEHICLES = 2;
-export const SUPER_USER_MONTHLY_PRICE = 5000;
+
+// 3 paliers automobiliste : Gratuit (implicite, MAX_FREE_VEHICLES) puis deux
+// offres payantes. `maxVehicles: Infinity` pour Super User — la vraie
+// application du plafond est côté serveur (policy RLS vehicles_insert,
+// fonction client_vehicle_cap() dans add_client_plus_tier.sql) ; ici sert
+// uniquement à l'UX (affichage, messages clairs, pas d'aller-retour réseau).
+export const CLIENT_PLANS = {
+  PLUS: { key: 'PLUS', label: 'Plus', price: 2500, maxVehicles: 5 },
+  SUPER_USER: { key: 'SUPER_USER', label: 'Super User', price: 5000, maxVehicles: Infinity },
+};
 
 // Dernier abonnement (peu importe son statut) d'un client — sert à la fois à
 // afficher "Mon abonnement" et à déterminer si la limite gratuite s'applique.
@@ -47,10 +56,22 @@ export function isSuperUserActive(sub) {
   return deriveSuperUserStatus(sub) === 'ACTIVE';
 }
 
+// Plafond de véhicules d'un automobiliste selon son abonnement — même calcul
+// que client_vehicle_cap() côté Postgres (add_client_plus_tier.sql), pour
+// afficher le bon message avant même d'essayer l'insert. Les lignes d'avant
+// ce palier n'ont pas de `plan` explicite en JS tant que Supabase n'a pas
+// renvoyé la colonne (défaut serveur 'SUPER_USER') — CLIENT_PLANS.SUPER_USER
+// en secours pour ne jamais sous-estimer un abonnement déjà payé 5000 FCFA.
+export function vehicleCapFor(sub) {
+  if (deriveSuperUserStatus(sub) !== 'ACTIVE') return MAX_FREE_VEHICLES;
+  return (CLIENT_PLANS[sub?.plan] || CLIENT_PLANS.SUPER_USER).maxVehicles;
+}
+
 // Crée une demande de paiement (PENDING) — jamais activée directement ici.
-export async function createSuperUserPayment(clientId, { method, reference }) {
+export async function createSuperUserPayment(clientId, { method, reference, plan }) {
+  const planDef = CLIENT_PLANS[plan] || CLIENT_PLANS.SUPER_USER;
   const { data, error } = await supabase.from('super_user_subscriptions').insert({
-    client_id: clientId, status: 'PENDING', amount: SUPER_USER_MONTHLY_PRICE,
+    client_id: clientId, status: 'PENDING', plan: planDef.key, amount: planDef.price,
     method: method || null, reference: reference || null,
   }).select().single();
   if (error) throw new Error(error.message);

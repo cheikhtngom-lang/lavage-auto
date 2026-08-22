@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Crown, Users, Clock, TrendingUp, Wallet, CheckCircle2, XCircle } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { CLIENT_PLANS } from '../../lib/superUser';
 
 const STATUS_BADGE = {
   ACTIVE: { label: 'Actif', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -63,7 +64,7 @@ export default function SuperUsers() {
     <div className="p-8 max-w-7xl mx-auto relative z-10">
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Abonnements <span className="text-amber-400">Super User</span></h1>
-        <p className="text-neutral-400 text-lg">Revenus plateforme (5 000 FCFA/mois) — distincts des revenus des stations.</p>
+        <p className="text-neutral-400 text-lg">Revenus plateforme (offres Plus et Super User) — distincts des revenus des stations.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6 mb-10">
@@ -92,6 +93,7 @@ export default function SuperUsers() {
                 <th className="p-5 font-medium">Automobiliste</th>
                 <th className="p-5 font-medium">Contact</th>
                 <th className="p-5 font-medium">Véhicules</th>
+                <th className="p-5 font-medium">Offre</th>
                 <th className="p-5 font-medium">Statut</th>
                 <th className="p-5 font-medium">Début</th>
                 <th className="p-5 font-medium">Expiration</th>
@@ -112,6 +114,7 @@ export default function SuperUsers() {
                     <td className="p-5 font-bold text-white whitespace-nowrap">{s.clientName || 'Sans nom'}</td>
                     <td className="p-5 text-neutral-400 text-sm whitespace-nowrap">{s.clientEmail || s.clientPhone || '—'}</td>
                     <td className="p-5 text-neutral-300">{vehicleCount(s.clientId)}</td>
+                    <td className="p-5 text-neutral-300 whitespace-nowrap">{(CLIENT_PLANS[s.plan] || CLIENT_PLANS.SUPER_USER).label}</td>
                     <td className="p-5"><span className={`text-xs font-medium px-3 py-1 rounded-full border whitespace-nowrap ${badge.className}`}>{badge.label}</span></td>
                     <td className="p-5 text-neutral-400 text-sm whitespace-nowrap">{formatDate(s.startedAt)}</td>
                     <td className="p-5 text-neutral-400 text-sm whitespace-nowrap">{formatDate(s.expiresAt)}</td>

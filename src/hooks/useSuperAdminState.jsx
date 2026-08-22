@@ -87,6 +87,7 @@ const rowToSuperUserSub = (row) => ({
     clientEmail: row.profiles?.email || '',
     clientPhone: row.profiles?.phone || '',
     status: row.status,
+    plan: row.plan,
     amount: row.amount,
     method: row.method,
     reference: row.reference,
