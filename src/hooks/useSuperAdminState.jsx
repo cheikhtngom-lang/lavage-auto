@@ -6,9 +6,9 @@ import { setCustomBrandsCache } from '../lib/vehicleBrands';
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
 // une ligne par clé ; sert de secours si la table est vide/pas encore lue).
 export const DEFAULT_PLANS = {
-    Starter: { label: 'Starter', price: 15000 },
-    Pro: { label: 'Pro', price: 35000 },
-    Business: { label: 'Business', price: 75000 },
+    Starter: { label: 'Starter', price: 10000 },
+    Pro: { label: 'Pro', price: 20000 },
+    Business: { label: 'Business', price: 35000 },
 };
 
 const rowToDispute = (row) => ({
