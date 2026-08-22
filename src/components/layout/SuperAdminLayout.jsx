@@ -78,18 +78,13 @@ export default function SuperAdminLayout() {
         <div className="hidden md:block absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
         <div className="hidden md:block absolute -top-24 left-1/2 -translate-x-1/2 w-40 h-40 bg-white/[0.04] rounded-full blur-3xl pointer-events-none" />
 
-        <div className="h-20 flex items-center justify-between px-6 border-b border-white/5 relative z-10">
-          <div className="flex items-center min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center mr-3 shadow-lg shadow-purple-500/20 flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg tracking-wide truncate text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400">
-              Super Admin
-            </span>
+        <div className="h-20 flex items-center px-6 border-b border-white/5 relative z-10">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center mr-3 shadow-lg shadow-purple-500/20">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <div className="hidden md:block flex-shrink-0">
-            <SuperUserNotifBell />
-          </div>
+          <span className="font-bold text-lg tracking-wide truncate max-w-[140px] text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400">
+            Super Admin
+          </span>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-8 px-4 space-y-2 relative z-10">
@@ -145,6 +140,14 @@ export default function SuperAdminLayout() {
 
       {/* Main Content */}
       <main className="flex-1 relative overflow-y-auto overflow-x-hidden pt-16 md:pt-0">
+        {/* Barre supérieure desktop, en flux normal (jamais en position fixe) —
+            pousse le contenu au lieu de flotter par-dessus, pour que la
+            clochette ne recouvre plus jamais un bouton de page (voir aussi
+            le Header Mobile plus haut, qui a sa propre clochette dédiée). */}
+        <div className="hidden md:flex items-center justify-end h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
+          <SuperUserNotifBell />
+        </div>
+
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 

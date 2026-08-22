@@ -229,7 +229,7 @@ export default function Stations() {
                   onChange={(e) => { setStationPlan(selected.id, e.target.value); setSelected({ ...selected, plan: e.target.value }); }}
                   className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500"
                 >
-                  {Object.entries(PLANS).map(([key, p]) => (
+                  {Object.entries(PLANS).sort(([, a], [, b]) => a.price - b.price).map(([key, p]) => (
                     <option key={key} value={key}>{p.label} — {p.price.toLocaleString('fr-FR')} FCFA/mois</option>
                   ))}
                 </select>

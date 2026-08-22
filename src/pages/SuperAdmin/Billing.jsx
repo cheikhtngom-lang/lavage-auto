@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent } from '../../lib/stationTrial';
 
@@ -8,14 +8,17 @@ const SUB_STATUS = {
   a_jour: { label: 'À jour', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
   en_retard: { label: 'Impayé', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
   essai: { label: 'Essai gratuit', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  illimite: { label: 'Accès illimité', className: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
 };
 
 export default function Billing() {
-  const { stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder } = useSuperAdminState();
+  const { stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess } = useSuperAdminState();
   const [reminded, setReminded] = useState({});
 
+  // Les stations en accès illimité ne paient rien — exclues du revenu récurrent,
+  // sinon le MRR affiché prétendrait facturer des stations gratuites à vie.
   const mrr = stations
-    .filter(s => s.status === 'active')
+    .filter(s => s.status === 'active' && s.subscriptionStatus !== 'illimite')
     .reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
   const overdueCount = stations.filter(s => s.subscriptionStatus === 'en_retard').length;
   const overdueAmount = stations
@@ -88,7 +91,11 @@ export default function Billing() {
                   <td className="p-5">
                     <span className="bg-white/5 text-neutral-300 px-3 py-1 rounded-md text-sm border border-white/10">{PLANS[s.plan]?.label || s.plan}</span>
                   </td>
-                  <td className="p-5 text-neutral-300">{(PLANS[s.plan]?.price || 0).toLocaleString('fr-FR')} FCFA</td>
+                  <td className="p-5 text-neutral-300">
+                    {s.subscriptionStatus === 'illimite'
+                      ? <span className="text-purple-400 font-medium">Gratuit</span>
+                      : `${(PLANS[s.plan]?.price || 0).toLocaleString('fr-FR')} FCFA`}
+                  </td>
                   <td className="p-5">
                     <span className={`text-xs font-medium px-3 py-1 rounded-full border ${SUB_STATUS[s.subscriptionStatus]?.className}`}>
                       {SUB_STATUS[s.subscriptionStatus]?.label || s.subscriptionStatus}
@@ -114,32 +121,51 @@ export default function Billing() {
                   </td>
                   <td className="p-5">
                     <div className="flex justify-end gap-2">
-                      {s.subscriptionStatus !== 'a_jour' && (
+                      {s.subscriptionStatus === 'illimite' ? (
                         <button
-                          onClick={() => markSubscriptionPaid(s.id)}
-                          className="p-2 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 text-neutral-400 rounded-lg transition-colors"
-                          title="Marquer comme payé"
+                          onClick={() => { if (window.confirm(`Retirer l'accès illimité de ${s.name} et revenir à un abonnement normal ?`)) revokeUnlimitedAccess(s.id); }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors text-xs font-bold"
+                          title="Retirer l'accès illimité"
                         >
-                          <CheckCircle2 className="w-4 h-4" />
+                          <InfinityIcon className="w-4 h-4" /> Retirer l'illimité
                         </button>
+                      ) : (
+                        <>
+                          {s.subscriptionStatus !== 'a_jour' && (
+                            <button
+                              onClick={() => markSubscriptionPaid(s.id)}
+                              className="p-2 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 text-neutral-400 rounded-lg transition-colors"
+                              title="Marquer comme payé"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                          )}
+                          {s.subscriptionStatus !== 'en_retard' && (
+                            <button
+                              onClick={() => markSubscriptionOverdue(s.id)}
+                              className="p-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-neutral-400 rounded-lg transition-colors"
+                              title="Marquer comme impayé"
+                            >
+                              <AlertTriangle className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemind(s.id)}
+                            className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-neutral-400 rounded-lg transition-colors"
+                            title="Envoyer une relance"
+                          >
+                            <Bell className="w-4 h-4" />
+                          </button>
+                          {reminded[s.id] && <span className="text-xs text-blue-400 self-center">Envoyée ✓</span>}
+                          <button
+                            onClick={() => { if (window.confirm(`Donner un accès illimité (gratuit) à ${s.name} ?`)) grantUnlimitedAccess(s.id); }}
+                            className="p-2 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-neutral-400 rounded-lg transition-colors"
+                            title="Donner un accès illimité"
+                          >
+                            <InfinityIcon className="w-4 h-4" />
+                          </button>
+                        </>
                       )}
-                      {s.subscriptionStatus !== 'en_retard' && (
-                        <button
-                          onClick={() => markSubscriptionOverdue(s.id)}
-                          className="p-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-neutral-400 rounded-lg transition-colors"
-                          title="Marquer comme impayé"
-                        >
-                          <AlertTriangle className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleRemind(s.id)}
-                        className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-neutral-400 rounded-lg transition-colors"
-                        title="Envoyer une relance"
-                      >
-                        <Bell className="w-4 h-4" />
-                      </button>
-                      {reminded[s.id] && <span className="text-xs text-blue-400 self-center">Envoyée ✓</span>}
                     </div>
                   </td>
                 </motion.tr>

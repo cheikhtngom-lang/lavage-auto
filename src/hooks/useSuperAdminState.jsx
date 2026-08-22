@@ -330,6 +330,28 @@ export function SuperAdminStateProvider({ children }) {
         if (station) logAction(`Abonnement marqué impayé : ${station.name}`);
     };
 
+    // Accès illimité (gratuit à vie) — décision manuelle du Super Admin pour
+    // une station partenaire (voir add_unlimited_access.sql). Sort la station
+    // du calcul MRR/revenus (Billing.jsx, Analytics.jsx) et masque sa bannière
+    // d'essai (celle-ci ne se déclenche que pour subscription_status='essai').
+    const grantUnlimitedAccess = async (id) => {
+        const station = stations.find((s) => s.id === id);
+        await supabase.from('station_billing').update({ subscription_status: 'illimite' }).eq('station_id', id);
+        setStations((prev) => prev.map((s) => (s.id === id ? { ...s, subscriptionStatus: 'illimite' } : s)));
+        if (station) logAction(`Accès illimité accordé : ${station.name}`);
+    };
+
+    // Retour à un abonnement normal — considéré "à jour" à partir de
+    // maintenant (même logique que markSubscriptionPaid), pas remis en essai.
+    const revokeUnlimitedAccess = async (id) => {
+        const station = stations.find((s) => s.id === id);
+        const nextDate = new Date();
+        nextDate.setDate(nextDate.getDate() + 30);
+        await supabase.from('station_billing').update({ subscription_status: 'a_jour', next_billing_date: nextDate.toISOString() }).eq('station_id', id);
+        setStations((prev) => prev.map((s) => (s.id === id ? { ...s, subscriptionStatus: 'a_jour', nextBillingDate: nextDate.toISOString() } : s)));
+        if (station) logAction(`Accès illimité retiré : ${station.name}`);
+    };
+
     // Confirme un paiement Super User (ligne PENDING -> ACTIVE) une fois
     // l'argent réellement reçu (Wave/OM) — jamais déclenché automatiquement au
     // clic "Payer" côté client, voir src/lib/superUser.js. Abonnement d'1 mois
@@ -435,7 +457,7 @@ export function SuperAdminStateProvider({ children }) {
         <SuperAdminStateContext.Provider value={{
             stations, disputes, auditLog, clientAccounts, PLANS: plans,
             addStation, updateStation, setStationStatus, deleteStation, setStationPlan,
-            markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder,
+            markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
             addDispute, resolveDispute, refundDispute, impersonateStation, logAction,
             updatePlan, resetPlans,
             superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,

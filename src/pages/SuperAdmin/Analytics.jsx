@@ -12,6 +12,7 @@ const STATUS_META = {
   a_jour: { label: 'À jour', color: '#10b981' },
   en_retard: { label: 'Impayé', color: '#ef4444' },
   essai: { label: 'Essai gratuit', color: '#3b82f6' },
+  illimite: { label: 'Accès illimité', color: '#a855f7' },
 };
 
 const PLAN_COLORS = ['#a855f7', '#3b82f6', '#f59e0b', '#10b981', '#ec4899'];
@@ -53,14 +54,18 @@ export default function SuperAdminAnalytics() {
   const newMotoristsThisPeriod = clientAccounts.filter(c => new Date(c.createdAt) >= lastBucket.start && new Date(c.createdAt) < lastBucket.end).length;
   const newMotoristsPrevPeriod = clientAccounts.filter(c => new Date(c.createdAt) >= prevBucket.start && new Date(c.createdAt) < prevBucket.end).length;
 
-  const mrr = activeStations.reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
-  const arpu = activeStations.length > 0 ? mrr / activeStations.length : 0;
+  // Les stations en accès illimité (voir grantUnlimitedAccess) ne paient rien
+  // — exclues de toute métrique de revenu, sinon MRR/ARPU/cumul prétendraient
+  // facturer des stations gratuites à vie.
+  const payingActiveStations = activeStations.filter(s => s.subscriptionStatus !== 'illimite');
+  const mrr = payingActiveStations.reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
+  const arpu = payingActiveStations.length > 0 ? mrr / payingActiveStations.length : 0;
 
   // Estimation des recettes cumulées : prix du plan x nombre de mois écoulés depuis l'inscription,
   // pour les stations actives / à jour. Faute d'historique de facturation réel, c'est une estimation
   // clairement identifiée comme telle dans l'UI, pas un montant encaissé garanti.
   const cumulativeRevenue = stations
-    .filter(s => s.status === 'active' || s.subscriptionStatus === 'a_jour')
+    .filter(s => (s.status === 'active' || s.subscriptionStatus === 'a_jour') && s.subscriptionStatus !== 'illimite')
     .reduce((sum, s) => {
       const price = PLANS[s.plan]?.price || 0;
       const months = Math.max(1, Math.floor((now - new Date(s.joinedAt)) / (30 * 24 * 3600 * 1000)) + 1);
@@ -71,7 +76,7 @@ export default function SuperAdminAnalytics() {
 
   const planDistribution = Object.keys(PLANS).map((key, i) => {
     const count = stations.filter(s => s.plan === key).length;
-    const revenue = stations.filter(s => s.plan === key && s.status === 'active').reduce((sum) => sum + (PLANS[key]?.price || 0), 0);
+    const revenue = stations.filter(s => s.plan === key && s.status === 'active' && s.subscriptionStatus !== 'illimite').reduce((sum) => sum + (PLANS[key]?.price || 0), 0);
     return { key, label: PLANS[key].label, count, revenue, color: PLAN_COLORS[i % PLAN_COLORS.length] };
   });
   const totalPlanCount = Math.max(1, planDistribution.reduce((s, p) => s + p.count, 0));
@@ -90,7 +95,7 @@ export default function SuperAdminAnalytics() {
     const d = new Date(now.getFullYear(), now.getMonth() - (mrrMonthsCount - 1 - i), 1);
     const end = addMonths(d, 1);
     const value = stations
-      .filter(s => new Date(s.joinedAt) < end && s.status !== 'suspendue')
+      .filter(s => new Date(s.joinedAt) < end && s.status !== 'suspendue' && s.subscriptionStatus !== 'illimite')
       .reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
     return { label: d.toLocaleDateString('fr-FR', { month: 'short', ...(mrrMonthsCount > 12 ? { year: '2-digit' } : {}) }), value };
   }), [mrrMonthsCount, stations, PLANS]);
