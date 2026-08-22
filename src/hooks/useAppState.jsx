@@ -408,6 +408,10 @@ export function AppStateProvider({ children }) {
     // Bandeau promo / réduction / code promo — même principe : colonne
     // `promo_config` de la même ligne `stations`, plus de copie locale séparée.
     const [promoConfig, setPromoConfig] = useState(DEFAULT_PROMO);
+    // Facturation SaaS de la station (plan, essai, statut) — table séparée
+    // `station_billing` (voir supabase/schema.sql), jamais lue avant : sert
+    // à afficher la bannière d'essai (AdminLayout.jsx).
+    const [stationBilling, setStationBilling] = useState(null);
     const rowToProfile = (row) => ({
         name: row?.name || '',
         phone: row?.owner_phone || '',
@@ -420,13 +424,20 @@ export function AppStateProvider({ children }) {
         cachet: row?.cachet_url || null,
         dailyRevenueTarget: row?.daily_revenue_target ?? 50000,
     });
+    const rowToBilling = (row) => ({
+        plan: row?.plan || 'Starter',
+        subscriptionStatus: row?.subscription_status || 'essai',
+        trialEndsAt: row?.trial_ends_at || null,
+        nextBillingDate: row?.next_billing_date || null,
+    });
     useEffect(() => {
-        if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); return; }
+        if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); setStationBilling(null); return; }
         let cancelled = false;
-        supabase.from('stations').select('*').eq('id', stationId).single().then(({ data }) => {
+        supabase.from('stations').select('*, station_billing(*)').eq('id', stationId).single().then(({ data }) => {
             if (cancelled) return;
             setStationProfile(rowToProfile(data));
             setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
+            setStationBilling(rowToBilling(data?.station_billing));
         });
         return () => { cancelled = true; };
     }, [stationId]);
@@ -967,7 +978,7 @@ export function AppStateProvider({ children }) {
 
     return (
         <AppStateContext.Provider value={{
-            queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, completedWashes,
+            queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationBilling, completedWashes,
             attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,

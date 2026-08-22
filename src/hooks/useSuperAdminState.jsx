@@ -49,6 +49,7 @@ const rowToStation = (row) => ({
     plan: row.station_billing?.plan || 'Starter',
     subscriptionStatus: row.station_billing?.subscription_status || 'essai',
     nextBillingDate: row.station_billing?.next_billing_date || null,
+    trialEndsAt: row.station_billing?.trial_ends_at || null,
     clientsCount: row.station_billing?.clients_count || 0,
     notes: row.station_billing?.notes || '',
 });

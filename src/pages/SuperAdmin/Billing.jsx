@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { trialDaysRemaining, trialProgressPercent } from '../../lib/stationTrial';
 
 const SUB_STATUS = {
   a_jour: { label: 'À jour', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -92,6 +93,21 @@ export default function Billing() {
                     <span className={`text-xs font-medium px-3 py-1 rounded-full border ${SUB_STATUS[s.subscriptionStatus]?.className}`}>
                       {SUB_STATUS[s.subscriptionStatus]?.label || s.subscriptionStatus}
                     </span>
+                    {s.subscriptionStatus === 'essai' && s.trialEndsAt && (() => {
+                      const remaining = trialDaysRemaining(s.trialEndsAt);
+                      const percent = trialProgressPercent(s.trialEndsAt);
+                      const urgent = remaining <= 7;
+                      return (
+                        <div className="mt-2 max-w-[140px]">
+                          <p className={`text-xs mb-1 ${urgent ? 'text-orange-400' : 'text-neutral-500'}`}>
+                            {remaining <= 0 ? 'Essai terminé' : `${remaining} j restants`}
+                          </p>
+                          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                            <div className={`h-full rounded-full ${urgent ? 'bg-orange-400' : 'bg-blue-400'}`} style={{ width: `${percent}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="p-5 text-neutral-400 text-sm">
                     {s.nextBillingDate ? new Date(s.nextBillingDate).toLocaleDateString('fr-FR') : '—'}

@@ -6,12 +6,13 @@ import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import StationOnboarding from '../onboarding/StationOnboarding';
+import TrialBanner from './TrialBanner';
 
 export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { stationProfile } = useAppState();
+  const { stationProfile, stationBilling } = useAppState();
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
   const stationName = isConfigured ? stationProfile.name : '⚙️ Configurer';
   const impersonatingStation = sessionStorage.getItem('impersonatingStation');
@@ -172,6 +173,8 @@ export default function AdminLayout() {
         {/* Animated Background Gradients */}
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        {!impersonatingStation && <TrialBanner billing={stationBilling} />}
 
         {impersonatingStation && (
           <div className="relative z-20 flex items-center justify-between gap-3 bg-amber-500/15 border-b border-amber-500/30 px-6 py-3 text-sm">
