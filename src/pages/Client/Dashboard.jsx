@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import {
-  getItemPosition, estimateItemWaitTime,
+  getItemPosition, estimateItemWaitTime, pushBackReservation,
   addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile, getStationPromo,
 } from '../../lib/stationData';
 import { isBannerActive } from '../../lib/promoDefaults';
@@ -30,9 +30,35 @@ function formatTxDate(iso) {
 // jusqu'à MAX_ACTIVE_VEHICLES_PER_CLIENT réservations en même temps (voir
 // lib/stationData.js), chacune avec son propre décompte de lavage / position
 // dans la file, donc chaque carte gère son propre minuteur indépendamment.
-function LiveStatusCard({ reservation }) {
+// Choix proposés au clic sur "Je vais être en retard" — 2/3/4 rangs, ou la
+// dernière place (positions=999 : voir pushBackReservation/stationData.js,
+// se cale automatiquement sur la dernière place si la file est plus courte).
+const PUSH_BACK_OPTIONS = [
+  { positions: 2, label: '2 places' },
+  { positions: 3, label: '3 places' },
+  { positions: 4, label: '4 places' },
+  { positions: 999, label: 'Dernière place' },
+];
+
+function LiveStatusCard({ reservation, onPushBack }) {
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
+  const [showPushBack, setShowPushBack] = useState(false);
+  const [pushBackLoading, setPushBackLoading] = useState(false);
+  const [pushBackError, setPushBackError] = useState('');
+
+  const handlePushBack = async (positions) => {
+    setPushBackLoading(true);
+    setPushBackError('');
+    try {
+      await onPushBack(reservation.item.id, positions);
+      setShowPushBack(false);
+    } catch (err) {
+      setPushBackError(err.message || 'Impossible de reculer votre place, réessayez.');
+    } finally {
+      setPushBackLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!reservation.isWashing) {
@@ -61,43 +87,76 @@ function LiveStatusCard({ reservation }) {
   return (
     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="animated-border-card">
       <div className="absolute inset-0 bg-gradient-to-r from-blue-600/30 to-emerald-500/30 blur-2xl z-0"></div>
-      <div className="animated-border-card-content p-8 relative flex flex-col md:flex-row items-center justify-between gap-8 bg-neutral-950/80 backdrop-blur-3xl">
-        <div className="flex flex-col items-center md:items-start text-center md:text-left">
-          <Badge className="mb-4 bg-blue-500/20 text-blue-400 border-blue-500/30 px-3 py-1">{reservation.item.vehicle}</Badge>
-          <h3 className="text-xl font-bold mb-2 flex items-center">
-            <MapPin className="w-4 h-4 mr-2 text-emerald-400" />
-            {reservation.station.name}
-          </h3>
-          <p className="text-neutral-400 text-sm">{reservation.item.service}</p>
+      <div className="animated-border-card-content p-8 relative flex flex-col gap-6 bg-neutral-950/80 backdrop-blur-3xl">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="flex flex-col items-center md:items-start text-center md:text-left">
+            <Badge className="mb-4 bg-blue-500/20 text-blue-400 border-blue-500/30 px-3 py-1">{reservation.item.vehicle}</Badge>
+            <h3 className="text-xl font-bold mb-2 flex items-center">
+              <MapPin className="w-4 h-4 mr-2 text-emerald-400" />
+              {reservation.station.name}
+            </h3>
+            <p className="text-neutral-400 text-sm">{reservation.item.service}</p>
+          </div>
+
+          <div className="relative flex justify-center items-center">
+            {reservation.isWashing ? (
+              <div className="relative flex items-center justify-center">
+                <svg className="w-32 h-32 transform -rotate-90">
+                  <circle cx="64" cy="64" r="56" className="stroke-white/10" strokeWidth="7" fill="none" />
+                  <motion.circle cx="64" cy="64" r="56" className={totalSeconds > 0 && remainingSeconds <= 0 ? 'stroke-orange-400' : 'stroke-emerald-400'} strokeWidth="7" fill="none" strokeLinecap="round"
+                    initial={{ strokeDasharray: "352", strokeDashoffset: "352" }}
+                    animate={{ strokeDashoffset: totalSeconds > 0 ? 352 - (352 * (totalSeconds - remainingSeconds)) / totalSeconds : 352 }} transition={{ duration: 0.5 }} />
+                </svg>
+                <div className="absolute flex flex-col items-center justify-center text-center">
+                  <Droplets className={`w-6 h-6 mb-1.5 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400 animate-bounce'}`} />
+                  <span className="text-xl font-bold text-white font-mono">
+                    {String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:{String(remainingSeconds % 60).padStart(2, '0')}
+                  </span>
+                  <span className={`text-[10px] uppercase tracking-widest mt-1 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400'}`}>
+                    {remainingSeconds <= 0 && totalSeconds > 0 ? 'Finalisation...' : 'Temps restant'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="w-32 h-32 rounded-full border-8 border-blue-500/20 bg-black/40 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.2)]">
+                <span className="text-3xl font-bold text-white">{reservation.position}</span>
+                <span className="text-[10px] text-neutral-400 uppercase tracking-widest mt-1">Avant vous</span>
+                <span className="text-blue-400 font-medium text-xs mt-1">~{estimatedWait} min</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="relative flex justify-center items-center">
-          {reservation.isWashing ? (
-            <div className="relative flex items-center justify-center">
-              <svg className="w-32 h-32 transform -rotate-90">
-                <circle cx="64" cy="64" r="56" className="stroke-white/10" strokeWidth="7" fill="none" />
-                <motion.circle cx="64" cy="64" r="56" className={totalSeconds > 0 && remainingSeconds <= 0 ? 'stroke-orange-400' : 'stroke-emerald-400'} strokeWidth="7" fill="none" strokeLinecap="round"
-                  initial={{ strokeDasharray: "352", strokeDashoffset: "352" }}
-                  animate={{ strokeDashoffset: totalSeconds > 0 ? 352 - (352 * (totalSeconds - remainingSeconds)) / totalSeconds : 352 }} transition={{ duration: 0.5 }} />
-              </svg>
-              <div className="absolute flex flex-col items-center justify-center text-center">
-                <Droplets className={`w-6 h-6 mb-1.5 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400 animate-bounce'}`} />
-                <span className="text-xl font-bold text-white font-mono">
-                  {String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:{String(remainingSeconds % 60).padStart(2, '0')}
-                </span>
-                <span className={`text-[10px] uppercase tracking-widest mt-1 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400'}`}>
-                  {remainingSeconds <= 0 && totalSeconds > 0 ? 'Finalisation...' : 'Temps restant'}
-                </span>
+        {/* Report de place — réservé aux clients abonnés de CETTE station,
+            uniquement tant qu'on attend encore (pas de sens une fois lavage lancé). */}
+        {!reservation.isWashing && reservation.hasSubscription && (
+          <div className="pt-6 border-t border-white/10">
+            {!showPushBack ? (
+              <button onClick={() => setShowPushBack(true)}
+                className="flex items-center gap-2 text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors">
+                <Clock className="w-4 h-4" /> Je vais être en retard — reculer ma place
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-neutral-400 text-sm">Avantage abonné {reservation.station.name} : reculez votre place sans perdre votre tour.</p>
+                <div className="flex flex-wrap gap-2">
+                  {PUSH_BACK_OPTIONS.map((opt) => (
+                    <button key={opt.positions} type="button" disabled={pushBackLoading} onClick={() => handlePushBack(opt.positions)}
+                      className="px-4 py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {opt.label}
+                    </button>
+                  ))}
+                  <button type="button" disabled={pushBackLoading} onClick={() => { setShowPushBack(false); setPushBackError(''); }}
+                    className="px-4 py-2 rounded-lg text-neutral-400 hover:text-white text-sm font-medium transition-colors">
+                    Annuler
+                  </button>
+                </div>
+                {pushBackLoading && <p className="text-neutral-500 text-xs">Mise à jour de votre position...</p>}
+                {pushBackError && <p className="text-red-400 text-xs">{pushBackError}</p>}
               </div>
-            </div>
-          ) : (
-            <div className="w-32 h-32 rounded-full border-8 border-blue-500/20 bg-black/40 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.2)]">
-              <span className="text-3xl font-bold text-white">{reservation.position}</span>
-              <span className="text-[10px] text-neutral-400 uppercase tracking-widest mt-1">Avant vous</span>
-              <span className="text-blue-400 font-medium text-xs mt-1">~{estimatedWait} min</span>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -105,7 +164,7 @@ function LiveStatusCard({ reservation }) {
 
 export default function ClientOverview() {
   const navigate = useNavigate();
-  const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd, myStationSubscriptions } = useClientAccount();
+  const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd, myStationSubscriptions, refreshActivity } = useClientAccount();
   const { stations: registry, stationAds } = useSuperAdminState();
 
   const myName = account?.name || '';
@@ -129,7 +188,17 @@ export default function ClientOverview() {
     item: { id: r.id, vehicle: r.vehicle_label, service: r.service, category: r.category, startedAt: r.started_at, createdAt: r.created_at },
     isWashing: r.status === 'en_cours',
     position: r.status === 'en_cours' ? 0 : getItemPosition(r.station_id, r.created_at),
+    // Le report de place (voir LiveStatusCard) n'est proposé qu'aux clients
+    // ayant un abonnement actif dans CETTE station précise (add_client_push_back.sql
+    // vérifie la même condition côté serveur — ce booléen ne fait que décider
+    // si on montre le bouton, jamais la seule barrière réelle).
+    hasSubscription: (myStationSubscriptions || []).some((sub) => sub.station_id === r.station_id),
   }));
+
+  const handlePushBack = async (reservationId, positions) => {
+    await pushBackReservation(reservationId, positions);
+    refreshActivity();
+  };
   const [lastUpdated, setLastUpdated] = useState(Date.now());
   const [notifStatus, setNotifStatus] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
   const prevSignatures = useRef({}); // itemId -> signature, pour détecter les changements par véhicule
@@ -363,7 +432,7 @@ export default function ClientOverview() {
                 </h2>
                 <div className={`grid grid-cols-1 gap-6 ${reservations.length > 1 ? 'md:grid-cols-2' : ''}`}>
                   {reservations.map((res) => (
-                    <LiveStatusCard key={res.item.id} reservation={res} />
+                    <LiveStatusCard key={res.item.id} reservation={res} onPushBack={handlePushBack} />
                   ))}
                 </div>
               </div>

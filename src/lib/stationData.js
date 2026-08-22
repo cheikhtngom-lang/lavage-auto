@@ -180,6 +180,19 @@ export function estimateItemWaitTime(stationId, itemCreatedAt) {
   return Math.round(total);
 }
 
+// Report de position en libre-service, réservé aux clients abonnés de la
+// station (voir add_client_push_back.sql) — l'échange de created_at avec une
+// AUTRE réservation nécessite des droits élevés qu'un client n'a pas via RLS
+// classique (il ne peut écrire que ses propres réservations), d'où le passage
+// par une fonction Postgres security definer plutôt qu'un update direct ici.
+// positions=999 (ou toute valeur dépassant la file) revient à "dernière place".
+export async function pushBackReservation(reservationId, positions) {
+  const { error } = await supabase.rpc('client_push_back_reservation', {
+    p_reservation_id: reservationId, p_positions: positions,
+  });
+  if (error) throw new Error(error.message);
+}
+
 // ─── Réservation / encaissement (écriture côté client) ───────────────────
 export async function createReservation(stationId, { clientId, clientName, vehicleLabel, category, service, paid, amount, paymentMethod, reservationGroupId, groupSize }) {
   const { data, error } = await supabase.from('reservations').insert({
