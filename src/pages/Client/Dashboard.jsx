@@ -165,7 +165,7 @@ function LiveStatusCard({ reservation, onPushBack }) {
 export default function ClientOverview() {
   const navigate = useNavigate();
   const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd, myStationSubscriptions, refreshActivity } = useClientAccount();
-  const { stations: registry, stationAds } = useSuperAdminState();
+  const { stations: registry, stationAds, queueSnapshotVersion } = useSuperAdminState();
 
   const myName = account?.name || '';
   const firstName = myName.split(' ')[0] || 'là';
@@ -180,9 +180,13 @@ export default function ClientOverview() {
   // Un client peut avoir plusieurs véhicules actifs en même temps (jusqu'à
   // MAX_ACTIVE_VEHICLES_PER_CLIENT — voir lib/stationData.js), donc on suit un
   // tableau de réservations plutôt qu'une seule. `myReservations` (déjà les
-  // siennes, via RLS) vient de useClientAccount, qui le rafraîchit toutes les
-  // 8s — la position/l'attente elles restent calculées ici via le cache
-  // anonymisé (stationData.js), puisqu'elles dépendent des AUTRES clients.
+  // siennes, via RLS) vient de useClientAccount. La position/l'attente, elles,
+  // dépendent des AUTRES clients : calculées ici via le cache anonymisé
+  // (stationData.js), qui n'est PAS un état React — `queueSnapshotVersion`
+  // (useSuperAdminState.jsx) n'est lu nulle part ci-dessous, juste destructuré
+  // ci-dessus, pour forcer ce composant à se re-rendre (et donc relire le
+  // cache à jour) dès qu'une réservation change n'importe où, en direct via
+  // Realtime au lieu d'attendre un rechargement manuel de la page.
   const reservations = myReservations.map((r) => ({
     station: { id: r.station_id, name: r.stations?.name || 'Station' },
     item: { id: r.id, vehicle: r.vehicle_label, service: r.service, category: r.category, startedAt: r.started_at, createdAt: r.created_at },

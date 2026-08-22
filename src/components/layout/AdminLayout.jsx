@@ -12,9 +12,12 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { stationProfile, stationBilling } = useAppState();
+  const { stationProfile, stationProfileLoaded, stationBilling } = useAppState();
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
-  const stationName = isConfigured ? stationProfile.name : '⚙️ Configurer';
+  // Tant que le profil n'a pas fini de charger, ne JAMAIS afficher "⚙️
+  // Configurer" — le nom vide par défaut ne veut pas dire "non configurée",
+  // juste "pas encore reçue" (voir stationProfileLoaded, useAppState.jsx).
+  const stationName = !stationProfileLoaded ? null : (isConfigured ? stationProfile.name : '⚙️ Configurer');
   const impersonatingStation = sessionStorage.getItem('impersonatingStation');
 
   // Accès réservé à un compte station connecté, ou à un Super Admin en train
@@ -80,7 +83,11 @@ export default function AdminLayout() {
           ) : (
             <Droplets className="w-6 h-6 text-emerald-400 mr-2" />
           )}
-          <span className={`font-bold text-lg truncate max-w-[160px] ${!isConfigured ? 'text-orange-400' : ''}`}>{stationName}</span>
+          {stationName === null ? (
+            <div className="h-5 w-28 rounded bg-white/10 animate-pulse" />
+          ) : (
+            <span className={`font-bold text-lg truncate max-w-[160px] ${!isConfigured ? 'text-orange-400' : ''}`}>{stationName}</span>
+          )}
         </div>
       </div>
 
@@ -114,11 +121,15 @@ export default function AdminLayout() {
               <Droplets className="w-5 h-5 text-white" />
             )}
           </div>
-          <span className={`font-bold text-lg tracking-wide truncate max-w-[140px] ${
-            isConfigured
-              ? 'text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400'
-              : 'text-orange-400'
-          }`}>{stationName}</span>
+          {stationName === null ? (
+            <div className="h-5 w-28 rounded bg-white/10 animate-pulse" />
+          ) : (
+            <span className={`font-bold text-lg tracking-wide truncate max-w-[140px] ${
+              isConfigured
+                ? 'text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400'
+                : 'text-orange-400'
+            }`}>{stationName}</span>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto py-8 px-4 space-y-2 relative z-10">

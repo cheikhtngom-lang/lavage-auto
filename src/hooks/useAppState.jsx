@@ -412,6 +412,11 @@ export function AppStateProvider({ children }) {
     // `station_billing` (voir supabase/schema.sql), jamais lue avant : sert
     // à afficher la bannière d'essai (AdminLayout.jsx).
     const [stationBilling, setStationBilling] = useState(null);
+    // Distinct de `!stationProfile.name` : sans ça, AdminLayout.jsx affiche
+    // brièvement "⚙️ Configurer" (nom vide = état par défaut) le temps que la
+    // requête Supabase réponde, même pour une station déjà configurée —
+    // un vrai bug rapporté par l'utilisateur, pas juste un flash inoffensif.
+    const [stationProfileLoaded, setStationProfileLoaded] = useState(false);
     const rowToProfile = (row) => ({
         name: row?.name || '',
         phone: row?.owner_phone || '',
@@ -431,13 +436,15 @@ export function AppStateProvider({ children }) {
         nextBillingDate: row?.next_billing_date || null,
     });
     useEffect(() => {
-        if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); setStationBilling(null); return; }
+        setStationProfileLoaded(false);
+        if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); setStationBilling(null); setStationProfileLoaded(true); return; }
         let cancelled = false;
         supabase.from('stations').select('*, station_billing(*)').eq('id', stationId).single().then(({ data }) => {
             if (cancelled) return;
             setStationProfile(rowToProfile(data));
             setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
             setStationBilling(rowToBilling(data?.station_billing));
+            setStationProfileLoaded(true);
         });
         return () => { cancelled = true; };
     }, [stationId]);
@@ -978,7 +985,7 @@ export function AppStateProvider({ children }) {
 
     return (
         <AppStateContext.Provider value={{
-            queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationBilling, completedWashes,
+            queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes,
             attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,

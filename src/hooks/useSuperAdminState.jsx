@@ -129,6 +129,12 @@ export function SuperAdminStateProvider({ children }) {
     const [clientAccounts, setClientAccounts] = useState([]);
     const [superUserSubscriptions, setSuperUserSubscriptions] = useState([]);
     const [stationAds, setStationAds] = useState([]);
+    // getItemPosition/estimateItemWaitTime (stationData.js) lisent un cache
+    // hors-React (queueSnapshot, simple variable de module) — le recharger ne
+    // suffit donc pas à rafraîchir l'écran automobiliste : rien ne dit à React
+    // de re-rendre tant qu'aucun état React ne change. Ce compteur sert
+    // uniquement à ça (voir loadQueueSnapshot ci-dessous et Dashboard.jsx).
+    const [queueSnapshotVersion, setQueueSnapshotVersion] = useState(0);
 
     const loadDisputes = useCallback(async () => {
         const { data } = await supabase.from('disputes').select('*').order('created_at', { ascending: false });
@@ -194,6 +200,7 @@ export function SuperAdminStateProvider({ children }) {
         ]);
         setQueueSnapshotCache(snapshot || []);
         setPublicStatsCache(stats || []);
+        setQueueSnapshotVersion((v) => v + 1);
     }, []);
 
     const loadReviews = useCallback(async () => {
@@ -229,10 +236,18 @@ export function SuperAdminStateProvider({ children }) {
         // apparaît en direct au lieu d'attendre le sondage. `station_billing`
         // n'a pas sa propre colonne dans l'UI mais est jointe dans `loadStations`
         // (plan/statut d'abonnement) — on la recharge donc aussi sur ce canal.
-        // `all_stations_queue_snapshot`/`station_public_stats` restent en
-        // polling : ce sont des fonctions RPC, pas des tables, non abonnables.
+        // `all_stations_queue_snapshot`/`station_public_stats` sont des fonctions
+        // RPC (non abonnables directement), mais la table `reservations` dont
+        // elles dépendent l'est — écouter ses changements ici permet au temps
+        // d'attente affiché côté automobiliste (getItemPosition/estimateItemWaitTime,
+        // stationData.js) de se mettre à jour en direct dès qu'un véhicule
+        // (n'importe lequel, à n'importe quelle station) change de statut, au
+        // lieu d'attendre jusqu'à 45s ou un changement d'onglet. Ce provider
+        // tourne sur toute l'app, pas seulement le Super Admin (voir plus haut),
+        // donc ce canal est déjà actif pendant qu'un automobiliste navigue.
         const channel = supabase
             .channel('superadmin-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, loadQueueSnapshot)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, loadStations)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_billing' }, loadStations)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadClientAccounts)
@@ -456,7 +471,7 @@ export function SuperAdminStateProvider({ children }) {
 
     return (
         <SuperAdminStateContext.Provider value={{
-            stations, disputes, auditLog, clientAccounts, PLANS: plans,
+            stations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
             addStation, updateStation, setStationStatus, deleteStation, setStationPlan,
             markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
             addDispute, resolveDispute, refundDispute, impersonateStation, logAction,
