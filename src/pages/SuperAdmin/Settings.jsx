@@ -74,6 +74,8 @@ export default function SuperAdminSettings() {
                 </span>
               </div>
 
+              <h3 className={`text-lg font-bold mb-4 ${accent.text}`}>{key}</h3>
+
               <label className="block text-xs font-medium text-neutral-500 uppercase tracking-wide mb-1">Nom du plan</label>
               <input
                 type="text"
