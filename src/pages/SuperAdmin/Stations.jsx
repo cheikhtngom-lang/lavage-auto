@@ -6,7 +6,7 @@ import {
   Trash2, LogIn, Building2
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { trialDaysRemaining, trialProgressPercent } from '../../lib/stationTrial';
+import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
 
 const STATUS_LABELS = {
   active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -23,14 +23,16 @@ function TrialMiniBar({ station }) {
   if (station.subscriptionStatus !== 'essai' || !station.trialEndsAt) return null;
   const remaining = trialDaysRemaining(station.trialEndsAt);
   const percent = trialProgressPercent(station.trialEndsAt);
-  const urgent = remaining <= 7;
+  const urgency = trialUrgency(station.trialEndsAt);
+  const textClass = urgency === 'danger' ? 'text-red-400' : urgency === 'warning' ? 'text-orange-400' : 'text-emerald-400';
+  const barClass = urgency === 'danger' ? 'bg-red-400' : urgency === 'warning' ? 'bg-orange-400' : 'bg-emerald-400';
   return (
     <div className="mt-1">
-      <p className={`text-xs mb-1 ${urgent ? 'text-orange-400' : 'text-blue-400'}`}>
+      <p className={`text-xs mb-1 ${textClass}`}>
         {remaining <= 0 ? 'Essai terminé' : `Essai — ${remaining} j restants`}
       </p>
       <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-        <div className={`h-full rounded-full ${urgent ? 'bg-orange-400' : 'bg-blue-400'}`} style={{ width: `${percent}%` }} />
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percent}%` }} />
       </div>
     </div>
   );

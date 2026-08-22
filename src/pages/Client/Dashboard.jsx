@@ -15,9 +15,8 @@ import { deriveAdStatus } from '../../lib/ads';
 import { downloadReceiptPdf } from '../../lib/receipt';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { getLoginCount } from '../../lib/accounts';
+import { buildLoyaltyEntries } from '../../lib/loyalty';
 import Pagination from '../../components/ui/Pagination';
-
-const LOYALTY_DEFAULT_THRESHOLD = 5;
 
 function formatTxDate(iso) {
   const d = new Date(iso);
@@ -100,21 +99,44 @@ function LiveStatusCard({ reservation, onPushBack }) {
 
           <div className="relative flex justify-center items-center">
             {reservation.isWashing ? (
-              <div className="relative flex items-center justify-center">
-                <svg className="w-32 h-32 transform -rotate-90">
-                  <circle cx="64" cy="64" r="56" className="stroke-white/10" strokeWidth="7" fill="none" />
-                  <motion.circle cx="64" cy="64" r="56" className={totalSeconds > 0 && remainingSeconds <= 0 ? 'stroke-orange-400' : 'stroke-emerald-400'} strokeWidth="7" fill="none" strokeLinecap="round"
-                    initial={{ strokeDasharray: "352", strokeDashoffset: "352" }}
-                    animate={{ strokeDashoffset: totalSeconds > 0 ? 352 - (352 * (totalSeconds - remainingSeconds)) / totalSeconds : 352 }} transition={{ duration: 0.5 }} />
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <Droplets className={`w-6 h-6 mb-1.5 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400 animate-bounce'}`} />
-                  <span className="text-xl font-bold text-white font-mono">
-                    {String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:{String(remainingSeconds % 60).padStart(2, '0')}
-                  </span>
-                  <span className={`text-[10px] uppercase tracking-widest mt-1 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400'}`}>
-                    {remainingSeconds <= 0 && totalSeconds > 0 ? 'Finalisation...' : 'Temps restant'}
-                  </span>
+              <div className="flex flex-col items-center">
+                {/* Voiture animée — va-et-vient façon portique de lavage,
+                    avec quelques gouttes qui tombent, pour rendre l'attente
+                    plus visuelle pendant le lavage en cours. */}
+                <div className="relative w-24 h-8 mb-1">
+                  <motion.div
+                    className="absolute top-0 left-1/2"
+                    animate={{ x: ['-2.75rem', '2.75rem', '-2.75rem'] }}
+                    transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <Car className="w-7 h-7 text-emerald-400 -translate-x-1/2" />
+                  </motion.div>
+                  {[0, 1, 2].map((i) => (
+                    <motion.span
+                      key={i}
+                      className="absolute bottom-0 w-1 h-1 rounded-full bg-blue-400"
+                      style={{ left: `${28 + i * 20}%` }}
+                      animate={{ y: [0, 10], opacity: [0.8, 0] }}
+                      transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.3, ease: 'easeIn' }}
+                    />
+                  ))}
+                </div>
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-32 h-32 transform -rotate-90">
+                    <circle cx="64" cy="64" r="56" className="stroke-white/10" strokeWidth="7" fill="none" />
+                    <motion.circle cx="64" cy="64" r="56" className={totalSeconds > 0 && remainingSeconds <= 0 ? 'stroke-orange-400' : 'stroke-emerald-400'} strokeWidth="7" fill="none" strokeLinecap="round"
+                      initial={{ strokeDasharray: "352", strokeDashoffset: "352" }}
+                      animate={{ strokeDashoffset: totalSeconds > 0 ? 352 - (352 * (totalSeconds - remainingSeconds)) / totalSeconds : 352 }} transition={{ duration: 0.5 }} />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center text-center">
+                    <Droplets className={`w-6 h-6 mb-1.5 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400 animate-bounce'}`} />
+                    <span className="text-xl font-bold text-white font-mono">
+                      {String(Math.floor(remainingSeconds / 60)).padStart(2, '0')}:{String(remainingSeconds % 60).padStart(2, '0')}
+                    </span>
+                    <span className={`text-[10px] uppercase tracking-widest mt-1 ${remainingSeconds <= 0 && totalSeconds > 0 ? 'text-orange-400' : 'text-emerald-400'}`}>
+                      {remainingSeconds <= 0 && totalSeconds > 0 ? 'Finalisation...' : 'Temps restant'}
+                    </span>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -264,19 +286,10 @@ export default function ClientOverview() {
   const currentPage = Math.min(page, totalPages);
   const paginatedTransactions = myTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  // Fidélité : progression par station où le client a au moins un lavage payé.
-  const loyaltyByStation = {};
-  myTransactions.forEach(tx => {
-    loyaltyByStation[tx.stationId] = (loyaltyByStation[tx.stationId] || 0) + 1;
-  });
-  const loyaltyEntries = Object.entries(loyaltyByStation).map(([stationId, count]) => {
-    const station = activeStations.find(s => String(s.id) === String(stationId));
-    if (!station) return null;
-    const threshold = station.loyaltyThreshold || LOYALTY_DEFAULT_THRESHOLD;
-    const inCycle = count % threshold === 0 ? threshold : count % threshold;
-    const eligible = count > 0 && count % threshold === 0;
-    return { station, count, threshold, inCycle, eligible };
-  }).filter(Boolean).sort((a, b) => b.count - a.count);
+  // Fidélité : juste ce qu'il faut ici pour le teaser (voir plus bas) — le
+  // détail complet vit dans la page dédiée (Client/Loyalty.jsx), calcul
+  // partagé via lib/loyalty.js pour ne jamais diverger entre les deux.
+  const loyaltyEntries = buildLoyaltyEntries(myTransactions, activeStations);
 
   // Publicités actives (broadcast plateforme, payantes — voir Admin > Passer
   // une pub) : visibles par TOUS les automobilistes, mais un client peut en
@@ -290,7 +303,7 @@ export default function ClientOverview() {
   // aux publicités ci-dessus, ce n'est PAS un broadcast plateforme : le
   // bandeau promo gratuit (Admin > Promotions) n'est montré ici qu'aux
   // clients déjà passés par CETTE station.
-  const historyStationIds = new Set([...Object.keys(loyaltyByStation), ...reservations.map(r => String(r.station.id))]);
+  const historyStationIds = new Set([...loyaltyEntries.map(e => String(e.station.id)), ...reservations.map(r => String(r.station.id))]);
   const promoOffers = [...historyStationIds].map(id => {
     const station = activeStations.find(s => String(s.id) === id);
     const promo = station ? getStationPromo(id) : null;
@@ -474,28 +487,24 @@ export default function ClientOverview() {
         )}
       </section>
 
-      {/* Fidélité */}
+      {/* Fidélité — page dédiée (voir Client/Loyalty.jsx) pour ne pas
+          surcharger ce tableau de bord ; juste un accès rapide ici. */}
       {loyaltyEntries.length > 0 && (
         <section className="mb-16">
-          <h2 className="text-xl font-semibold mb-6 text-neutral-300 flex items-center"><Gift className="w-5 h-5 mr-2 text-blue-400" /> Fidélité</h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            {loyaltyEntries.map(({ station, count, threshold, inCycle, eligible }) => (
-              <div key={station.id} className="glass-card rounded-2xl p-5 border border-white/5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-white">{station.name}</h3>
-                  <span className="text-xs text-neutral-500">{count} lavage{count > 1 ? 's' : ''} au total</span>
-                </div>
-                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-2">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all" style={{ width: `${(inCycle / threshold) * 100}%` }} />
-                </div>
-                {eligible ? (
-                  <p className="text-sm text-emerald-400 font-medium flex items-center gap-1.5"><Gift className="w-4 h-4" /> Lavage gratuit disponible — montrez cet écran à la station !</p>
-                ) : (
-                  <p className="text-sm text-neutral-400">{inCycle}/{threshold} lavages vers votre prochain lavage gratuit</p>
-                )}
+          <button onClick={() => navigate('/dashboard/fidelite')}
+            className="w-full glass-card rounded-2xl p-5 border border-white/5 hover:border-blue-500/30 transition-colors flex items-center justify-between gap-4 text-left">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-blue-500/10"><Gift className="w-6 h-6 text-blue-400" /></div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Fidélité</h2>
+                <p className="text-neutral-400 text-sm">
+                  {loyaltyEntries.length} station{loyaltyEntries.length > 1 ? 's' : ''} suivie{loyaltyEntries.length > 1 ? 's' : ''}
+                  {loyaltyEntries.some(e => e.eligible) && ' — lavage gratuit disponible !'}
+                </p>
               </div>
-            ))}
-          </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-neutral-500 flex-shrink-0" />
+          </button>
         </section>
       )}
 

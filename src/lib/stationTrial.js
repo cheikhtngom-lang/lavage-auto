@@ -18,3 +18,15 @@ export function trialProgressPercent(trialEndsAt) {
   if (remaining === null) return 0;
   return Math.min(100, Math.max(0, ((TRIAL_DURATION_DAYS - remaining) / TRIAL_DURATION_DAYS) * 100));
 }
+
+// Niveau d'urgence basé sur le temps RESTANT (pas écoulé) : 'ok' (>50%
+// restant), 'warning' (<50%), 'danger' (<20% ou dernier jour). Calcul
+// centralisé pour que la bannière station, Billing.jsx et Stations.jsx
+// (Super Admin) s'accordent toujours sur la même couleur.
+export function trialUrgency(trialEndsAt) {
+  const remaining = trialDaysRemaining(trialEndsAt);
+  if (remaining === null) return 'ok';
+  if (remaining <= 1 || remaining / TRIAL_DURATION_DAYS < 0.2) return 'danger';
+  if (remaining / TRIAL_DURATION_DAYS < 0.5) return 'warning';
+  return 'ok';
+}

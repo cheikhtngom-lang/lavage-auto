@@ -15,6 +15,7 @@ import { getCurrentStationId } from './lib/accounts';
 
 // Pages Client
 import ClientOverview from './pages/Client/Dashboard';
+import ClientLoyalty from './pages/Client/Loyalty';
 import ClientGarage from './pages/Client/Garage';
 import ClientSettings from './pages/Client/Settings';
 import Stations from './pages/Client/Stations';
@@ -73,6 +74,7 @@ function App() {
               {/* Espace Automobiliste */}
               <Route path="/dashboard" element={<ClientLayout />}>
                 <Route index element={<ClientOverview />} />
+                <Route path="fidelite" element={<ClientLoyalty />} />
                 <Route path="garage" element={<ClientGarage />} />
                 <Route path="stations" element={<Stations />} />
                 <Route path="mes-stations" element={<MyStations />} />
