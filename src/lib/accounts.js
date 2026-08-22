@@ -34,7 +34,7 @@ export async function createClientAccount({ firstName, lastName, email, phone, p
   return { id: data.user.id, name: fullName, email, phone: phone || '' };
 }
 
-export async function createStationAccount({ name, address, city, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat, lng }) {
+export async function createStationAccount({ name, address, city, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat, lng }) {
   const ownerName = `${ownerFirstName} ${ownerLastName}`.trim();
   const { data, error } = await supabase.auth.signUp({ email: loginEmail, password });
   if (error) throw new Error(error.message === 'User already registered' ? 'Un compte station existe déjà avec cet email.' : error.message);
@@ -53,6 +53,14 @@ export async function createStationAccount({ name, address, city, quartier, regi
     status: 'active',
   }).select().single();
   if (stationError) throw new Error(stationError.message);
+
+  // handle_new_station() crée la ligne station_billing avec plan='Starter' par
+  // défaut (voir supabase/schema.sql) — on applique ensuite l'offre réellement
+  // choisie sur la page de tarifs/le formulaire d'inscription (essai gratuit
+  // d'1 mois inchangé, voir add_station_trial.sql).
+  if (plan) {
+    await supabase.from('station_billing').update({ plan }).eq('station_id', station.id);
+  }
 
   const { error: profileError } = await supabase.from('profiles').insert({
     id: data.user.id, role: 'admin', station_id: station.id, full_name: ownerName, email: loginEmail, phone: phone || '',

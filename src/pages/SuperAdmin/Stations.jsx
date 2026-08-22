@@ -6,6 +6,7 @@ import {
   Trash2, LogIn, Building2
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { trialDaysRemaining, trialProgressPercent } from '../../lib/stationTrial';
 
 const STATUS_LABELS = {
   active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -14,6 +15,26 @@ const STATUS_LABELS = {
 };
 
 const emptyForm = { name: '', ownerName: '', ownerEmail: '', ownerPhone: '', address: '', city: '', clientsCount: 0 };
+
+// Même barre d'essai que Billing.jsx (voir lib/stationTrial.js pour le calcul
+// partagé) — affichée ici aussi pour repérer une station en essai directement
+// depuis la fiche/le registre, sans avoir à aller sur Facturation.
+function TrialMiniBar({ station }) {
+  if (station.subscriptionStatus !== 'essai' || !station.trialEndsAt) return null;
+  const remaining = trialDaysRemaining(station.trialEndsAt);
+  const percent = trialProgressPercent(station.trialEndsAt);
+  const urgent = remaining <= 7;
+  return (
+    <div className="mt-1">
+      <p className={`text-xs mb-1 ${urgent ? 'text-orange-400' : 'text-blue-400'}`}>
+        {remaining <= 0 ? 'Essai terminé' : `Essai — ${remaining} j restants`}
+      </p>
+      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div className={`h-full rounded-full ${urgent ? 'bg-orange-400' : 'bg-blue-400'}`} style={{ width: `${percent}%` }} />
+      </div>
+    </div>
+  );
+}
 
 export default function Stations() {
   const { stations, addStation, setStationStatus, deleteStation, setStationPlan, updateStation, impersonateStation, PLANS } = useSuperAdminState();
@@ -114,6 +135,7 @@ export default function Stations() {
                 <span className="bg-white/5 px-3 py-1 rounded-md border border-white/10">{PLANS[station.plan]?.label || station.plan}</span>
                 <span>{station.clientsCount || 0} clients déclarés</span>
               </div>
+              <TrialMiniBar station={station} />
             </motion.div>
           ))}
         </div>
@@ -233,6 +255,7 @@ export default function Stations() {
                     <option key={key} value={key}>{p.label} — {p.price.toLocaleString('fr-FR')} FCFA/mois</option>
                   ))}
                 </select>
+                <TrialMiniBar station={selected} />
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-6">

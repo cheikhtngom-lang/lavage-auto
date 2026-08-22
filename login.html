@@ -478,6 +478,15 @@
                                 <input id="reg-agence-phone" type="tel" placeholder="+221 33 000 00 00" class="input-field input-field-green" maxlength="20">
                             </div>
                             <div>
+                                <label class="field-label">Offre choisie</label>
+                                <select id="reg-agence-plan" required class="input-field input-field-green" style="appearance:none;">
+                                    <option value="" style="background:#111">Sélectionner une offre...</option>
+                                    <option value="Starter" style="background:#111">Starter — 10 000 FCFA/mois</option>
+                                    <option value="Pro" style="background:#111">Pro — 20 000 FCFA/mois</option>
+                                    <option value="Business" style="background:#111">Business — 35 000 FCFA/mois</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label class="field-label">Mot de passe</label>
                                 <input id="reg-agence-password" type="password" placeholder="Min. 8 caractères" required class="input-field input-field-green" minlength="8" maxlength="100">
                             </div>
@@ -617,6 +626,16 @@
             const mode = params.get('mode');
             const role = params.get('role'); // 'agence' ou 'automobiliste'
             returnToReserve = params.get('returnTo') === 'reserve';
+
+            // Pré-sélectionne l'offre si on arrive depuis un bouton de la page
+            // de tarifs (#tarifs sur index.html, ?plan=starter/pro/business) —
+            // reste modifiable, ce n'est qu'un pré-remplissage.
+            const planParam = params.get('plan');
+            const PLAN_PARAM_TO_KEY = { starter: 'Starter', pro: 'Pro', business: 'Business' };
+            if (planParam && PLAN_PARAM_TO_KEY[planParam]) {
+                const planSelect = document.getElementById('reg-agence-plan');
+                if (planSelect) planSelect.value = PLAN_PARAM_TO_KEY[planParam];
+            }
 
             const remembered = getRememberedLogin();
             if (remembered) {
@@ -836,9 +855,15 @@
             const ownerLastName = document.getElementById('reg-agence-owner-lastname').value.trim();
             const loginEmail = document.getElementById('reg-agence-email').value.trim();
             const phone = document.getElementById('reg-agence-phone').value.trim();
+            const plan = document.getElementById('reg-agence-plan').value;
             const password = document.getElementById('reg-agence-password').value;
             const passwordConfirm = document.getElementById('reg-agence-password-confirm').value;
 
+            if (!plan) {
+                errorEl.textContent = 'Veuillez sélectionner une offre.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
             if (password !== passwordConfirm) {
                 errorEl.textContent = 'Les mots de passe ne correspondent pas.';
                 errorEl.classList.remove('hidden');
@@ -846,7 +871,7 @@
             }
 
             try {
-                const station = await createStationAccount({ name, address, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, password, lat: stationLat, lng: stationLng });
+                const station = await createStationAccount({ name, address, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat: stationLat, lng: stationLng });
                 setSession({ role: 'admin', remember: true, stationId: station.id });
                 window.location.href = '/merci.html';
             } catch (err) {
