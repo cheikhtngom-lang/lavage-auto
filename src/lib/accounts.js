@@ -18,6 +18,14 @@ async function ensureSession(data, email, password) {
   if (error) throw new Error("Compte créé mais connexion automatique impossible : " + error.message);
 }
 
+// Déclenche l'Edge Function send-welcome-email en tâche de fond — jamais
+// bloquant : un souci d'envoi (clé Resend absente, domaine non vérifié...)
+// ne doit jamais empêcher la création du compte. Voir supabase/functions/
+// send-welcome-email et add_retention_emails.sql.
+function triggerWelcomeEmail(profileId) {
+  supabase.functions.invoke('send-welcome-email', { body: { profileId } }).catch(() => {});
+}
+
 // ─── Inscription ────────────────────────────────────────────────────────
 export async function createClientAccount({ firstName, lastName, email, phone, password }) {
   const fullName = `${firstName} ${lastName}`.trim();
@@ -31,6 +39,7 @@ export async function createClientAccount({ firstName, lastName, email, phone, p
   });
   if (profileError) throw new Error(profileError.message);
 
+  triggerWelcomeEmail(data.user.id);
   return { id: data.user.id, name: fullName, email, phone: phone || '' };
 }
 
@@ -67,6 +76,7 @@ export async function createStationAccount({ name, address, city, quartier, regi
   });
   if (profileError) throw new Error(profileError.message);
 
+  triggerWelcomeEmail(data.user.id);
   return { id: station.id, name: station.name, ownerEmail: loginEmail };
 }
 

@@ -64,7 +64,11 @@ create table public.profiles (
   hidden_station_ids uuid[] not null default '{}',
   dismissed_ad_ids uuid[] not null default '{}',
   photo_url text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Emails de rétention (voir supabase/functions/send-welcome-email et
+  -- send-retention-reminders) — évitent un double envoi.
+  welcome_email_sent_at timestamptz,
+  retention_email_sent_at timestamptz
 );
 -- Un seul compte admin par station (comme aujourd'hui : 1 station = 1 compte de connexion).
 create unique index one_admin_per_station on public.profiles(station_id) where role = 'admin';
