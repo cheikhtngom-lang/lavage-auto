@@ -94,6 +94,7 @@ function rowToItem(row) {
         paymentMethod: row.payment_method,
         amount: row.amount,
         assignedTo: row.assigned_to_name,
+        assignedWasherNames: row.assigned_washer_names || null,
         startedAt: row.started_at,
         completedAt: row.completed_at ? new Date(row.completed_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null,
         completedAtISO: row.completed_at,
@@ -831,13 +832,24 @@ export function AppStateProvider({ children }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime, stationId]);
 
-    const startWash = (id, employeeId) => {
-        const emp = (employees || []).find(e => e.id === employeeId);
+    // employeeIdOrIds accepte un seul id (lavage classique) ou un tableau de
+    // 2-3 ids (véhicule volumineux — bus/camion, voir handleGoClick dans
+    // StationDashboard.jsx) : plusieurs laveurs se partagent alors le même
+    // lavage. assigned_to_name garde le premier laveur (compat Analytics/
+    // historique), assigned_washer_names ne contient une valeur QUE s'il y en
+    // a plusieurs.
+    const startWash = (id, employeeIdOrIds) => {
+        const ids = Array.isArray(employeeIdOrIds) ? employeeIdOrIds : [employeeIdOrIds];
+        const emps = ids.map(eid => (employees || []).find(e => e.id === eid)).filter(Boolean);
+        const names = emps.map(e => e.name);
         supabase.from('reservations').update({
-            status: 'en_cours', assigned_to_name: emp ? emp.name : 'Inconnu', started_at: new Date().toISOString(),
+            status: 'en_cours',
+            assigned_to_name: names[0] || 'Inconnu',
+            assigned_washer_names: names.length > 1 ? names : null,
+            started_at: new Date().toISOString(),
         }).eq('id', id).then(() => loadReservations());
 
-        if (emp && emp.status === 'Terminé') resumeEmployee(emp.id);
+        emps.forEach(emp => { if (emp.status === 'Terminé') resumeEmployee(emp.id); });
     };
 
     const endWash = (id) => {

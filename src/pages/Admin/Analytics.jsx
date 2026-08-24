@@ -177,7 +177,12 @@ export default function Analytics() {
   // Top Laveurs — regroupement réel par `assignedTo` (nom), classement relatif
   // au meilleur du groupe (aucun quota fixe n'existe réellement pour un laveur).
   const washerCounts = {};
-  filteredCompletedWashes.forEach((w) => { if (w.assignedTo) washerCounts[w.assignedTo] = (washerCounts[w.assignedTo] || 0) + 1; });
+  filteredCompletedWashes.forEach((w) => {
+    // Un lavage à plusieurs laveurs (bus/camion, voir StationDashboard.jsx)
+    // crédite chacun d'eux plutôt que le seul assignedTo "principal".
+    const names = (w.assignedWasherNames && w.assignedWasherNames.length) ? w.assignedWasherNames : (w.assignedTo ? [w.assignedTo] : []);
+    names.forEach((n) => { washerCounts[n] = (washerCounts[n] || 0) + 1; });
+  });
   const topWashers = Object.entries(washerCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const topWasherMax = topWashers.length > 0 ? topWashers[0][1] : 1;
 

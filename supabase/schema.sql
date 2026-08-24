@@ -269,6 +269,10 @@ create table public.reservations (
   status text not null default 'attente' check (status in ('attente', 'en_cours', 'termine', 'annule')),
   assigned_employee_id uuid references public.employees(id) on delete set null,
   assigned_to_name text,
+  -- Rempli uniquement pour un véhicule volumineux (bus/camion, catégorie
+  -- "Camion") avec plusieurs laveurs assignés — null pour un lavage classique
+  -- à un seul laveur, voir startWash dans useAppState.jsx.
+  assigned_washer_names text[],
   amount integer,
   paid boolean not null default false,
   -- Rempli uniquement quand le client a payé en ligne (Wave/Orange Money) au

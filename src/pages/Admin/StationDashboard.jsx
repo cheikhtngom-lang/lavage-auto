@@ -254,6 +254,14 @@ export default function StationDashboard() {
   const [pendingWashId, setPendingWashId] = React.useState(null);
   const [selectedEmployee, setSelectedEmployee] = React.useState(null);
 
+  // Modal multi-laveurs pour véhicule volumineux (bus / camion +50 places —
+  // catégorie tarifaire "Camion", voir isBigVehicle plus bas) : un lavage
+  // seul peut suffire mais 2-3 laveurs vont souvent plus vite, donc on laisse
+  // le choix plutôt que d'imposer un nombre fixe.
+  const [showMultiWorkerModal, setShowMultiWorkerModal] = React.useState(false);
+  const [selectedEmployees, setSelectedEmployees] = React.useState([]);
+  const MAX_WASHERS_PER_WASH = 3;
+
   // Modal confirmation encaissement
   const [showPayModal, setShowPayModal] = React.useState(false);
   const [pendingPayItem, setPendingPayItem] = React.useState(null);
@@ -282,8 +290,18 @@ export default function StationDashboard() {
   // de service" (voir finishService dans useAppState.jsx) est définitivement
   // clos pour la journée — contrairement à "Terminé" (Descendre), qui reste
   // sélectionnable et reprend son service si on lui confie un véhicule.
-  const busyEmployeeWash = new Map((activeWashes || []).map(w => [w.assignedTo, w]));
+  const busyEmployeeWash = new Map();
+  (activeWashes || []).forEach(w => {
+    const names = (w.assignedWasherNames && w.assignedWasherNames.length) ? w.assignedWasherNames : [w.assignedTo];
+    names.forEach(n => { if (n) busyEmployeeWash.set(n, w); });
+  });
   const availableEmployees = presentEmployees.filter(e => !busyEmployeeWash.has(e.name) && e.status !== 'Fin de service');
+
+  // Bus / Car (+50 places) et Camion léger/lourd partagent la même catégorie
+  // tarifaire "Camion" (voir PRICING_CATEGORY_LABELS dans lib/vehicleBrands.js)
+  // — c'est déjà le regroupement "gros véhicule" que connaît le reste de
+  // l'appli, donc on le réutilise pour déclencher la modale multi-laveurs.
+  const isBigVehicle = (item) => item?.category === 'Camion';
 
   const getPrice = (item) => {
     const cat = item?.category || 'Particulier';
@@ -323,8 +341,13 @@ export default function StationDashboard() {
       return;
     }
     setPendingWashId(item.id);
-    setSelectedEmployee(availableEmployees[0]?.id || null);
-    setShowWorkerModal(true);
+    if (isBigVehicle(item)) {
+      setSelectedEmployees([availableEmployees[0]?.id].filter(Boolean));
+      setShowMultiWorkerModal(true);
+    } else {
+      setSelectedEmployee(availableEmployees[0]?.id || null);
+      setShowWorkerModal(true);
+    }
   };
 
   const handleConfirmStart = () => {
@@ -332,6 +355,22 @@ export default function StationDashboard() {
     startWash(pendingWashId, selectedEmployee);
     setShowWorkerModal(false);
     setPendingWashId(null);
+  };
+
+  const toggleSelectedEmployee = (empId) => {
+    setSelectedEmployees(prev => {
+      if (prev.includes(empId)) return prev.filter(id => id !== empId);
+      if (prev.length >= MAX_WASHERS_PER_WASH) return prev;
+      return [...prev, empId];
+    });
+  };
+
+  const handleConfirmMultiStart = () => {
+    if (!pendingWashId || selectedEmployees.length === 0) return;
+    startWash(pendingWashId, selectedEmployees);
+    setShowMultiWorkerModal(false);
+    setPendingWashId(null);
+    setSelectedEmployees([]);
   };
 
   const handleEncaisserClick = (item) => {
@@ -502,7 +541,7 @@ export default function StationDashboard() {
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-neutral-500 uppercase font-bold tracking-wider mb-1">Laveur</p>
-                        <p className="text-emerald-400 font-medium">{item.assignedTo || 'Assigné'}</p>
+                        <p className="text-emerald-400 font-medium">{(item.assignedWasherNames && item.assignedWasherNames.length) ? item.assignedWasherNames.join(', ') : (item.assignedTo || 'Assigné')}</p>
                       </div>
                     </div>
                     <div className="flex justify-between items-center pt-3 border-t border-white/5">
@@ -733,7 +772,7 @@ export default function StationDashboard() {
                         <p className="text-xs text-neutral-500">{item.client}</p>
                       </td>
                       <td className="p-4 text-neutral-400">{item.service}</td>
-                      <td className="p-4 text-neutral-400">{item.assignedTo}</td>
+                      <td className="p-4 text-neutral-400">{(item.assignedWasherNames && item.assignedWasherNames.length) ? item.assignedWasherNames.join(', ') : item.assignedTo}</td>
                     </motion.tr>
                   ))}
                 </AnimatePresence>
@@ -827,6 +866,95 @@ export default function StationDashboard() {
                   className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
                 >
                   <Play className="w-4 h-4 fill-current" /> Démarrer
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ===== Modal Sélection Laveurs (véhicule volumineux : bus / camion) ===== */}
+      <AnimatePresence>
+        {showMultiWorkerModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 bg-blue-500/20 rounded-xl">
+                  <UserCheck className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Assigner les laveurs</h2>
+                  <p className="text-neutral-400 text-sm">Bus / camion — jusqu'à {MAX_WASHERS_PER_WASH} laveurs</p>
+                </div>
+              </div>
+              <p className="text-xs text-blue-300/80 bg-blue-950/30 border border-blue-500/20 rounded-lg px-3 py-2 mb-4">
+                Véhicule volumineux détecté : un seul laveur peut suffire, mais 2 ou 3 vont souvent plus vite. Sélectionnez-en un ou plusieurs.
+              </p>
+
+              <div className="space-y-2 mb-6">
+                {presentEmployees.length === 0 ? (
+                  <p className="text-center text-neutral-500 py-4 text-sm">Aucun employé présent aujourd'hui.</p>
+                ) : (
+                  presentEmployees.map(emp => {
+                    const busyWash = busyEmployeeWash.get(emp.name);
+                    const isBusy = !!busyWash;
+                    const isSelected = selectedEmployees.includes(emp.id);
+                    const capReached = !isSelected && selectedEmployees.length >= MAX_WASHERS_PER_WASH;
+                    return (
+                      <button
+                        key={emp.id}
+                        type="button"
+                        onClick={() => !isBusy && !capReached && toggleSelectedEmployee(emp.id)}
+                        disabled={isBusy || capReached}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
+                          isBusy || capReached
+                            ? 'bg-white/[0.02] border-white/5 text-neutral-600 cursor-not-allowed opacity-60'
+                            : isSelected
+                              ? 'bg-blue-600/20 border-blue-500/50 text-white'
+                              : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-neutral-700 to-neutral-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          {(emp.avatar || emp.name?.substring(0,2).toUpperCase())}
+                        </div>
+                        <div className="text-left">
+                          <p className="font-semibold">{emp.name}</p>
+                          <p className="text-xs text-neutral-500">
+                            {isBusy ? `Occupé — lave ${busyWash.vehicle}` : capReached ? `Maximum ${MAX_WASHERS_PER_WASH} atteint` : emp.role}
+                          </p>
+                        </div>
+                        {isBusy ? (
+                          <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-1 rounded-md">Occupé</span>
+                        ) : isSelected && (
+                          <CheckCircle2 className="w-5 h-5 text-blue-400 ml-auto" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+                {presentEmployees.length > 0 && availableEmployees.length === 0 && (
+                  <p className="text-center text-orange-400 text-xs pt-2">Tous les laveurs présents sont déjà occupés.</p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowMultiWorkerModal(false); setSelectedEmployees([]); setPendingWashId(null); }}
+                  className="flex-1 py-3 rounded-xl border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition-colors font-medium"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleConfirmMultiStart}
+                  disabled={selectedEmployees.length === 0}
+                  className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
+                >
+                  <Play className="w-4 h-4 fill-current" /> Démarrer ({selectedEmployees.length})
                 </button>
               </div>
             </motion.div>
