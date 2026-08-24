@@ -71,6 +71,40 @@ const DEFAULT_VEHICLE_TYPES = [
   { label: '🚜 Engin / Tracteur', value: 'Engin / Tracteur' },
 ];
 
+// Catégorie tarifaire suggérée pour chaque type par défaut ci-dessus — le
+// "Type de véhicule" et la "Catégorie" du formulaire "Nouveau Véhicule" sont
+// deux menus historiquement indépendants (l'admin pouvait choisir "Bus / Car
+// (+50 places)" et laisser la catégorie sur "Particulier" par erreur, ce qui
+// sous-tarifiait le lavage ET empêchait la détection "véhicule volumineux"
+// de la modale multi-laveurs, voir isBigVehicle plus bas). On pré-remplit
+// donc la catégorie à la sélection du type, sans empêcher l'admin de la
+// corriger ensuite manuellement si besoin.
+const VEHICLE_TYPE_PRICING_CATEGORY = {
+  'Moto / Scooter': 'Moto',
+  'Berline / Citadine': 'Particulier',
+  'Renault Logan': 'Particulier',
+  'Toyota Corolla': 'Particulier',
+  'Peugeot 205/206/207': 'Particulier',
+  '4x4 / SUV': 'Particulier',
+  'Hyundai Tucson/Santa Fe': 'Particulier',
+  'Minibus / Clando': 'Transport',
+  'Car rapide / Bus': 'Transport',
+  'Camion léger': 'Camion',
+  'Camion lourd': 'Camion',
+  'Bus / Car (+50 places)': 'Camion',
+  'Engin / Tracteur': 'Camion',
+};
+// Types personnalisés (custom_vehicle_types, texte libre) : pas de mapping
+// exact possible, mais on détecte quand même "camion"/"+50 places" pour ne
+// pas rater un gros véhicule saisi à la main.
+function guessPricingCategory(vehicleTypeValue) {
+  const known = VEHICLE_TYPE_PRICING_CATEGORY[vehicleTypeValue];
+  if (known) return known;
+  const lower = (vehicleTypeValue || '').toLowerCase();
+  if (lower.includes('camion') || lower.includes('+50') || lower.includes('50 place')) return 'Camion';
+  return null;
+}
+
 // ---- Composant Dropdown Searchable Véhicule ----
 function VehicleDropdown({ value, onChange }) {
   const { customVehicleTypes, addCustomVehicleType } = useAppState();
@@ -1074,7 +1108,10 @@ export default function StationDashboard() {
                    <label className="block text-sm font-medium text-neutral-400 mb-1">Type de véhicule</label>
                    <VehicleDropdown
                      value={newWash.vehicle}
-                     onChange={(val) => setNewWash({ ...newWash, vehicle: val })}
+                     onChange={(val) => {
+                       const guessedCategory = guessPricingCategory(val);
+                       setNewWash({ ...newWash, vehicle: val, ...(guessedCategory ? { category: guessedCategory } : {}) });
+                     }}
                    />
                  </div>
                 <div className="grid grid-cols-2 gap-4">
