@@ -6,6 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X, Eye } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { isPastClosingTime } from '../../lib/stationData';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Formate une durée en minutes en "Xh YYm" (ex: 8h 02m) pour le pointage.
 function formatMinutesToHM(totalMinutes) {
@@ -90,6 +91,7 @@ function WorkedTimeCell({ member, status, live }) {
 const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
 
 export default function Washers() {
+  useDocumentTitle('Laveurs');
   const {
     employees, updateEmployee, resumeEmployee, finishService, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
     shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate, scheduleByDate, loadScheduleRange, setShiftForDay, stationProfile

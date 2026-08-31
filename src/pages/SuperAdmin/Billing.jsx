@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const SUB_STATUS = {
   a_jour: { label: 'À jour', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -12,6 +13,7 @@ const SUB_STATUS = {
 };
 
 export default function Billing() {
+  useDocumentTitle('Facturation');
   const { stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess } = useSuperAdminState();
   const [reminded, setReminded] = useState({});
 

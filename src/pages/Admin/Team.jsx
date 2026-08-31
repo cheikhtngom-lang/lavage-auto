@@ -4,8 +4,10 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { UserPlus, MoreVertical, CheckCircle2, Clock, XCircle, Search, Edit2, Trash2, X } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function Team() {
+  useDocumentTitle('Équipe');
   const { employees, addEmployee, updateEmployee, deleteEmployee } = useAppState();
 
   const [searchTerm, setSearchTerm] = useState('');

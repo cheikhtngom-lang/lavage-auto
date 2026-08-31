@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '../../components/ui/Badge';
 import { StarRatingDisplay, StarRatingInput } from '../../components/ui/StarRating';
@@ -185,6 +186,7 @@ function LiveStatusCard({ reservation, onPushBack }) {
 }
 
 export default function ClientOverview() {
+  useDocumentTitle('Mon tableau de bord');
   const navigate = useNavigate();
   const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd, myStationSubscriptions, refreshActivity } = useClientAccount();
   const { stations: registry, stationAds, queueSnapshotVersion } = useSuperAdminState();

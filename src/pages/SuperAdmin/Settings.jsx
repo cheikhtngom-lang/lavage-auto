@@ -4,6 +4,7 @@ import { Settings as SettingsIcon, Save, RotateCcw, ScrollText, Crown, Shield, L
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { supabase } from '../../lib/supabaseClient';
 import { changePassword } from '../../lib/accounts';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const PLAN_ACCENTS = {
   Starter: { ring: 'border-blue-500/30', text: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -19,6 +20,7 @@ const TABS = [
 ];
 
 export default function SuperAdminSettings() {
+  useDocumentTitle('Paramètres plateforme');
   const { PLANS, updatePlan, resetPlans, stations, auditLog } = useSuperAdminState();
   const [activeTab, setActiveTab] = useState('plans');
   const [drafts, setDrafts] = useState(() =>

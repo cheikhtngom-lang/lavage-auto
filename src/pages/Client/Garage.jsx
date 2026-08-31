@@ -5,10 +5,12 @@ import { useClientAccount } from '../../hooks/useClientAccount';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
 import { vehicleCapFor } from '../../lib/superUser';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const emptyForm = { category: '', brand: '', plate: '' };
 
 export default function Garage() {
+  useDocumentTitle('Mon garage');
   const { account, addVehicle, removeVehicle, superUserSub } = useClientAccount();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUpsellModal, setShowUpsellModal] = useState(false);

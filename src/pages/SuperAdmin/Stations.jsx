@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const STATUS_LABELS = {
   active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -39,6 +40,7 @@ function TrialMiniBar({ station }) {
 }
 
 export default function Stations() {
+  useDocumentTitle('Stations');
   const { stations, addStation, setStationStatus, deleteStation, setStationPlan, updateStation, impersonateStation, PLANS } = useSuperAdminState();
   const navigate = useNavigate();
 

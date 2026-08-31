@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Crown, Users, Clock, TrendingUp, Wallet, CheckCircle2, XCircle } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { CLIENT_PLANS } from '../../lib/superUser';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const STATUS_BADGE = {
   ACTIVE: { label: 'Actif', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -26,6 +27,7 @@ function displayStatus(sub) {
 const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR') : '—';
 
 export default function SuperUsers() {
+  useDocumentTitle('Super Users');
   const { superUserSubscriptions, clientAccounts, confirmSuperUserPayment, rejectSuperUserPayment } = useSuperAdminState();
 
   const vehicleCount = (clientId) => clientAccounts.find((c) => c.id === clientId)?.vehicles?.length || 0;

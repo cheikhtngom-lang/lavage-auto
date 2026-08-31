@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, LifeBuoy, CheckCircle2, RotateCcw, ScrollText } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const DISPUTE_STATUS = {
   ouvert: { label: 'Ouvert', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
@@ -12,6 +13,7 @@ const DISPUTE_STATUS = {
 const emptyForm = { stationName: '', subject: '', amount: '' };
 
 export default function Support() {
+  useDocumentTitle('Support');
   const { stations, disputes, addDispute, resolveDispute, refundDispute, auditLog } = useSuperAdminState();
 
   const [showAddModal, setShowAddModal] = useState(false);

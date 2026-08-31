@@ -11,6 +11,7 @@ import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { isPastClosingTime, findVehicleOwnerByPlate } from '../../lib/stationData';
 import Pagination from '../../components/ui/Pagination';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Couleur d'accent stable pour une réservation groupée (plusieurs véhicules
 // réservés en même temps par un même automobiliste, jusqu'à 2 — voir
@@ -250,6 +251,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 }
 
 export default function StationDashboard() {
+  useDocumentTitle('File d\'attente');
   const navigate = useNavigate();
   const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions } = useAppState();
 

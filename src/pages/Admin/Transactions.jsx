@@ -6,8 +6,10 @@ import { Badge } from '../../components/ui/Badge';
 import { Activity, Search, Filter, Calendar, Download, Printer, MessageCircle, Eye, X } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import Pagination from '../../components/ui/Pagination';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function AdminTransactions() {
+  useDocumentTitle('Transactions');
   const { transactions, stationProfile } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterService, setFilterService] = useState('Tous');

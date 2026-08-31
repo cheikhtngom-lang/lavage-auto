@@ -4,11 +4,13 @@ import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Check, Smartphone, L
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { changePassword } from '../../lib/accounts';
 import { MAX_FREE_VEHICLES, CLIENT_PLANS, createSuperUserPayment } from '../../lib/superUser';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — même limite que le logo station
 const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 
 export default function Settings() {
+  useDocumentTitle('Paramètres');
   const { account, updateProfile, superUserStatus, superUserSub, refreshSuperUser } = useClientAccount();
   const location = useLocation();
   const [searchParams] = useSearchParams();

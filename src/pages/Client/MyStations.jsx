@@ -7,8 +7,10 @@ import { useClientAccount } from '../../hooks/useClientAccount';
 import { getStationOperationalProfile, isStationOpenNow, getStationRatingSummary } from '../../lib/stationData';
 import { regionLabel } from '../../lib/regions';
 import { StarRatingDisplay } from '../../components/ui/StarRating';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function MyStations() {
+  useDocumentTitle('Mes stations');
   const { stations: registry } = useSuperAdminState();
   const { account, hideStation, reservations, myTransactions } = useClientAccount();
 

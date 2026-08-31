@@ -4,6 +4,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const EXPENSE_CATEGORIES = ['Savon', 'Eau', 'Électricité', 'Matériel', 'Autre'];
 
@@ -59,6 +60,7 @@ function TrendBadge({ pct, invert = false }) {
 }
 
 export default function Accounting() {
+  useDocumentTitle('Comptabilité');
   const { transactions, expenses, addExpense, stationProfile, clientSubscriptionInvoices } = useAppState();
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);

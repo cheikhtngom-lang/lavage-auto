@@ -5,6 +5,7 @@ import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Cloc
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
 import LineChart from '../../components/ui/LineChart';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const AnimatedCounter = ({ value, prefix = "", suffix = "" }) => {
   const [count, setCount] = useState(0);
@@ -36,6 +37,7 @@ const AnimatedCounter = ({ value, prefix = "", suffix = "" }) => {
 };
 
 export default function SuperAdminDashboard() {
+  useDocumentTitle('Tableau de bord');
   const { stations, PLANS } = useSuperAdminState();
   const [granularity, setGranularity] = useState('mois');
 

@@ -7,6 +7,7 @@ import {
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
 import LineChart from '../../components/ui/LineChart';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const STATUS_META = {
   a_jour: { label: 'À jour', color: '#10b981' },
@@ -32,6 +33,7 @@ function AnimatedNumber({ value }) {
 }
 
 export default function SuperAdminAnalytics() {
+  useDocumentTitle('Analytique');
   const { stations, clientAccounts, PLANS } = useSuperAdminState();
   const [granularity, setGranularity] = useState('mois');
   const [mrrPeriod, setMrrPeriod] = useState('semestre');

@@ -9,6 +9,7 @@ import { SENEGAL_REGIONS } from '../../lib/regions';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
 import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses 3 prestations.
 // Trois grilles distinctes, dans l'ordre où l'admin pense ses véhicules :
@@ -37,6 +38,7 @@ const PROMO_CATEGORIES = ['Moto', 'Particulier', 'Transport', 'Camion'];
 const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Simple'] : PRICING_SERVICES);
 
 export default function Settings() {
+  useDocumentTitle('Paramètres station');
   const { stationProfile, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds } = useAppState();
   const { stations, updateStation } = useSuperAdminState();
   const navigate = useNavigate();

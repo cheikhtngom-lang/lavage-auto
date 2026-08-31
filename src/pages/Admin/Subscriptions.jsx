@@ -4,8 +4,10 @@ import { Badge } from '../../components/ui/Badge';
 import { Sparkles, Search, UserPlus, CheckCircle2, XCircle, Send, MessageCircle, FileText, AlertCircle, BatteryCharging, Trash2 } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { supabase } from '../../lib/supabaseClient';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function Subscriptions() {
+  useDocumentTitle('Abonnements');
   const { clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, deleteClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription } = useAppState();
   
   const [showAddModal, setShowAddModal] = useState(false);

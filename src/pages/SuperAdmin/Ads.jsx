@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Megaphone, Clock, TrendingUp, Wallet, CheckCircle2, XCircle } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { deriveAdStatus } from '../../lib/ads';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const STATUS_BADGE = {
   ACTIVE: { label: 'En diffusion', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -15,6 +16,7 @@ const STATUS_BADGE = {
 const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR') : '—';
 
 export default function SuperAdminAds() {
+  useDocumentTitle('Publicités');
   const { stationAds, confirmAdPayment, rejectAdPayment } = useSuperAdminState();
 
   const activeCount = stationAds.filter((a) => deriveAdStatus(a) === 'ACTIVE').length;

@@ -4,6 +4,7 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Clock, Users, Car, Target, TrendingUp, Banknote, Receipt, Calendar } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Conversion Catmull-Rom -> Bézier cubique, pour tracer une courbe lissée
 // passant par tous les points (au lieu d'un polyline anguleux).
@@ -99,6 +100,7 @@ function formatCompact(n) {
 }
 
 export default function Analytics() {
+  useDocumentTitle('Analytique');
   const { transactions, completedWashes, activeWashes, reviews, stationProfile } = useAppState();
 
   const [timeSegment, setTimeSegment] = useState('Tous');

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Gift } from 'lucide-react';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import LoyaltyGrid from '../../components/client/LoyaltyGrid';
@@ -10,6 +11,7 @@ import { buildLoyaltyEntries } from '../../lib/loyalty';
 // dashboard (compte de lavages payés par station, cycle qui se réinitialise
 // après chaque lavage gratuit obtenu) — voir lib/loyalty.js.
 export default function ClientLoyalty() {
+  useDocumentTitle('Fidélité');
   const { myTransactions } = useClientAccount();
   const { stations: registry } = useSuperAdminState();
 

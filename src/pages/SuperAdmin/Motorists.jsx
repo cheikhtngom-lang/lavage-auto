@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Users, UserPlus, Car, Heart, X, Mail, Phone, Calendar, MapPin } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function Motorists() {
+  useDocumentTitle('Automobilistes');
   const { clientAccounts, stations } = useSuperAdminState();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);

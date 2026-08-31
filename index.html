@@ -131,7 +131,6 @@
             <nav class="hidden md:flex gap-6 items-center">
                 <a href="#accueil" class="text-sm font-medium text-white hover:text-blue-400 transition-colors">Accueil</a>
                 <a href="#comment-ca-marche" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Comment ça marche</a>
-                <a href="#temoignages" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Témoignages</a>
                 <a href="#tarifs" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Tarifs Pro</a>
             </nav>
             <div class="flex items-center gap-1 sm:gap-3 flex-shrink-0">
@@ -153,7 +152,6 @@
             <div class="container mx-auto px-4 py-3 flex flex-col gap-1">
                 <a href="#accueil" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Accueil</a>
                 <a href="#comment-ca-marche" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Comment ça marche</a>
-                <a href="#temoignages" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Témoignages</a>
                 <a href="#tarifs" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Tarifs Pro</a>
                 <a href="login.html" class="sm:hidden mt-1 px-3 py-3 rounded-xl text-sm font-bold text-center text-white border border-white/10 hover:bg-white/5 transition-colors">Connexion</a>
             </div>
@@ -177,7 +175,7 @@
             <div class="flex-1 flex flex-col items-start text-left animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
                 <div class="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-300 mb-8 backdrop-blur-sm">
                     <span class="flex h-2 w-2 rounded-full bg-blue-500 mr-2" style="animation: pulse-dot 2s ease-in-out infinite;"></span>
-                    Solution N°1 au Sénégal
+                    Fait pour les stations sénégalaises
                 </div>
 
                 <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
@@ -202,14 +200,6 @@
                     </button>
                 </div>
 
-                <div class="mt-8 flex items-center gap-4 text-sm text-neutral-500">
-                    <div class="flex -space-x-2">
-                        <div class="w-8 h-8 rounded-full bg-neutral-800 border-2 border-black"></div>
-                        <div class="w-8 h-8 rounded-full bg-neutral-700 border-2 border-black"></div>
-                        <div class="w-8 h-8 rounded-full bg-neutral-600 border-2 border-black flex items-center justify-center text-[10px] text-white">+50</div>
-                    </div>
-                    <span><strong class="count-up text-white" data-target="50">50</strong> Stations partenaires actives</span>
-                </div>
             </div>
 
             <!-- Mockup visuel : vraie photo du véhicule + statut d'attente flottant -->
@@ -435,73 +425,6 @@
                     <button onclick="window.location.href='login.html?mode=register&role=agence'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20">
                         Inscrire ma station
                     </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Témoignages -->
-        <section id="temoignages" class="w-full max-w-6xl mx-auto px-4 py-24 reveal-group">
-            <div class="reveal-item text-center mb-16">
-                <span class="text-emerald-400 font-bold tracking-wider uppercase text-sm mb-2 block">Preuve Sociale</span>
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Ils ont transformé leur station</h2>
-            </div>
-
-            <div class="reveal-item grid md:grid-cols-2 gap-8">
-                <div class="glass-panel p-8 rounded-3xl relative border border-white/5 shadow-2xl">
-                    <span class="absolute top-4 right-6 text-6xl text-white/5 font-serif">"</span>
-                    <div class="flex text-amber-400 mb-4 text-xl">★★★★★</div>
-                    <p class="text-lg text-neutral-300 mb-6 italic">"Avant, ma station était le chaos total le samedi matin. Les clients klaxonnaient, s'énervaient. Depuis Clean Car Galsen, tout est fluide, les paiements Wave rentrent tout seuls, et j'ai augmenté mon chiffre d'affaires de <span class="count-up text-emerald-400 not-italic font-bold" data-target="35" data-suffix="%">0%</span> !"</p>
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-lg">OD</div>
-                        <div>
-                            <h4 class="font-bold text-white">Ousmane Diop</h4>
-                            <p class="text-xs text-neutral-400">Gérant, Mermoz Wash</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="glass-panel p-8 rounded-3xl relative border border-white/5 shadow-2xl">
-                    <span class="absolute top-4 right-6 text-6xl text-white/5 font-serif">"</span>
-                    <div class="flex text-amber-400 mb-4 text-xl">★★★★★</div>
-                    <p class="text-lg text-neutral-300 mb-6 italic">"Le tableau de bord est super simple à utiliser. Mes laveurs savent exactement sur quelle voiture travailler. La fonction de rétrogradation automatique quand un client est en retard est un coup de génie."</p>
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-lg">FS</div>
-                        <div>
-                            <h4 class="font-bold text-white">Fatou Sow</h4>
-                            <p class="text-xs text-neutral-400">Propriétaire, Auto Clean VIP</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Études de cas -->
-        <section id="etudes-de-cas" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
-            <div class="reveal-item text-center mb-16">
-                <span class="text-blue-400 font-bold tracking-wider uppercase text-sm mb-2 block">Résultats concrets</span>
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Études de cas</h2>
-                <p class="text-neutral-400 max-w-2xl mx-auto">Deux exemples de stations qui ont digitalisé leur file d'attente avec Clean Car Galsen.</p>
-            </div>
-
-            <div class="reveal-item grid md:grid-cols-2 gap-8">
-                <div class="spotlight glass-card p-8 rounded-3xl border border-white/5 shadow-2xl">
-                    <h3 class="text-xl font-bold text-white mb-1">Station Wash Express — Sacré-Cœur</h3>
-                    <p class="text-neutral-500 text-sm mb-6">Station de quartier à fort trafic le week-end</p>
-                    <div class="space-y-4 text-sm">
-                        <div><span class="text-blue-400 font-bold block mb-1">Le défi</span><p class="text-neutral-300">Files d'attente désorganisées le samedi, clients repartant sans être servis, encaissements manuels difficiles à suivre.</p></div>
-                        <div><span class="text-blue-400 font-bold block mb-1">La solution</span><p class="text-neutral-300">Passage à la réservation en ligne avec paiement Wave/Orange Money et suivi de file en temps réel.</p></div>
-                        <div><span class="text-blue-400 font-bold block mb-1">Le résultat</span><p class="text-neutral-300">Plus de clients servis chaque week-end, moins de temps passé sur la gestion des encaissements en espèces.</p></div>
-                    </div>
-                </div>
-
-                <div class="spotlight glass-card p-8 rounded-3xl border border-white/5 shadow-2xl">
-                    <h3 class="text-xl font-bold text-white mb-1">Auto Clean VIP — Almadies</h3>
-                    <p class="text-neutral-500 text-sm mb-6">Station premium avec plusieurs laveurs</p>
-                    <div class="space-y-4 text-sm">
-                        <div><span class="text-blue-400 font-bold block mb-1">Le défi</span><p class="text-neutral-300">Aucune visibilité sur les heures travaillées par les laveurs, reçus papier facilement perdus par les clients.</p></div>
-                        <div><span class="text-blue-400 font-bold block mb-1">La solution</span><p class="text-neutral-300">Module de pointage des laveurs et reçus numériques envoyés automatiquement au client à chaque lavage.</p></div>
-                        <div><span class="text-blue-400 font-bold block mb-1">Le résultat</span><p class="text-neutral-300">Paie des laveurs simplifiée avec l'export automatique, et une image plus professionnelle auprès des clients.</p></div>
-                    </div>
                 </div>
             </div>
         </section>
