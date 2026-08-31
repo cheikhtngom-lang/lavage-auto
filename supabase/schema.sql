@@ -20,8 +20,10 @@ create table public.stations (
   status text not null default 'en_attente' check (status in ('en_attente', 'active', 'suspendue')),
   open_time text default '08:00',
   close_time text default '20:00',
-  logo_url text,
-  cachet_url text,
+  -- Images en base64 (pas de Supabase Storage) — format/taille vérifiés
+  -- aussi côté serveur (~1,5 Mo binaire), pas seulement côté navigateur.
+  logo_url text check (logo_url is null or (logo_url ~ '^data:image/(png|jpe?g|webp|gif);base64,' and length(logo_url) <= 2200000)),
+  cachet_url text check (cachet_url is null or (cachet_url ~ '^data:image/(png|jpe?g|webp|gif);base64,' and length(cachet_url) <= 2200000)),
   owner_email text,
   loyalty_threshold integer not null default 5,
   daily_revenue_target integer not null default 50000,
@@ -63,7 +65,7 @@ create table public.profiles (
   favorite_station_ids uuid[] not null default '{}',
   hidden_station_ids uuid[] not null default '{}',
   dismissed_ad_ids uuid[] not null default '{}',
-  photo_url text,
+  photo_url text check (photo_url is null or (photo_url ~ '^data:image/(png|jpe?g|webp|gif);base64,' and length(photo_url) <= 2200000)),
   created_at timestamptz not null default now(),
   -- Emails de rétention (voir supabase/functions/send-welcome-email et
   -- send-retention-reminders) — évitent un double envoi.
@@ -153,7 +155,7 @@ create table public.station_ads (
   id uuid primary key default gen_random_uuid(),
   station_id uuid not null references public.stations(id) on delete cascade,
   message text not null,
-  image_url text,
+  image_url text check (image_url is null or (image_url ~ '^data:image/(png|jpe?g|webp|gif);base64,' and length(image_url) <= 2200000)),
   status text not null default 'PENDING' check (status in ('PENDING', 'ACTIVE', 'REJECTED', 'EXPIRED', 'CANCELLED')),
   amount integer not null default 10000,
   duration_days integer not null default 7, -- offre choisie : 3 jours / 7 jours / 30 jours (voir lib/ads.js AD_PLANS)

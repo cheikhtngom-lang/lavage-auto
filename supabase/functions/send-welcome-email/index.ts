@@ -3,11 +3,17 @@
 // / createStationAccount) via supabase.functions.invoke('send-welcome-email').
 // Idempotent (welcome_email_sent_at) : ne renvoie jamais deux fois.
 //
+// Sécurité : le token du compte qui appelle doit correspondre au profileId
+// demandé (vérifié via l'en-tête Authorization, envoyé automatiquement par
+// supabase.functions.invoke) — sinon n'importe qui pourrait redéclencher
+// l'email de n'importe quel compte. CORS géré explicitement (obligatoire
+// pour un appel navigateur cross-origin vers une Edge Function).
+//
 // Secrets requis (Supabase Dashboard > Edge Functions > Manage secrets) :
 //   RESEND_API_KEY  — clé API Resend
 //   RESEND_FROM     — optionnel, défaut "Clean Car Galsen <onboarding@resend.dev>"
 //   APP_BASE_URL    — URL du site (ex: https://xxx.vercel.app), pour les liens dans l'email
-// SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY sont injectés automatiquement par Supabase.
+// SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY sont injectés automatiquement.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -15,10 +21,19 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "Clean Car Galsen <onboarding@resend.dev>";
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") ?? "http://localhost:5173";
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-);
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const supabase = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+// CORS : requis pour un appel navigateur (login.html est sur un autre
+// domaine que *.supabase.co) — sans ça la requête préflight OPTIONS échoue
+// et supabase.functions.invoke() échoue silencieusement côté client.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
 
 function clientEmail(fullName: string | null) {
   const first = (fullName || "").split(" ")[0] || "";
@@ -67,20 +82,32 @@ function stationEmail(fullName: string | null) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
     const { profileId } = await req.json();
-    if (!profileId) return new Response(JSON.stringify({ error: "profileId manquant" }), { status: 400 });
+    if (!profileId) return json({ error: "profileId manquant" }, 400);
+
+    // Le compte qui appelle doit être celui pour lequel on envoie l'email —
+    // empêche un tiers de redéclencher l'email de bienvenue d'un autre compte.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const callerClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: callerData, error: callerError } = await callerClient.auth.getUser();
+    if (callerError || !callerData?.user || callerData.user.id !== profileId) {
+      return json({ error: "Non autorisé" }, 403);
+    }
 
     const { data: profile, error } = await supabase
       .from("profiles")
       .select("id, role, full_name, email, welcome_email_sent_at")
       .eq("id", profileId)
       .single();
-    if (error || !profile) return new Response(JSON.stringify({ error: "Profil introuvable" }), { status: 404 });
-    if (profile.welcome_email_sent_at) return new Response(JSON.stringify({ skipped: true }), { status: 200 });
-    if (!profile.email) return new Response(JSON.stringify({ error: "Pas d'email sur ce profil" }), { status: 400 });
+    if (error || !profile) return json({ error: "Profil introuvable" }, 404);
+    if (profile.welcome_email_sent_at) return json({ skipped: true }, 200);
+    if (!profile.email) return json({ error: "Pas d'email sur ce profil" }, 400);
 
     const { subject, html } = profile.role === "admin" ? stationEmail(profile.full_name) : clientEmail(profile.full_name);
 
@@ -91,12 +118,12 @@ Deno.serve(async (req) => {
     });
     if (!resendRes.ok) {
       const detail = await resendRes.text();
-      return new Response(JSON.stringify({ error: "Resend a refusé l'envoi", detail }), { status: 502 });
+      return json({ error: "Resend a refusé l'envoi", detail }, 502);
     }
 
     await supabase.from("profiles").update({ welcome_email_sent_at: new Date().toISOString() }).eq("id", profileId);
-    return new Response(JSON.stringify({ sent: true }), { status: 200 });
+    return json({ sent: true });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
+    return json({ error: String(err) }, 500);
   }
 });
