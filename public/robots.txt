@@ -1,4 +1,4 @@
-# robots.txt — Clean Car Galsen SaaS (gestionimmo.site)
+# robots.txt — Clean Car Galsen SaaS (galsenautocleaner.com)
 # Mis à jour : Août 2026
 
 # Autoriser tous les robots à explorer le site public
@@ -17,4 +17,4 @@ Disallow: /assets/
 Disallow: /_vite/
 
 # Sitemap principal
-Sitemap: https://gestionimmo.site/sitemap.xml
+Sitemap: https://galsenautocleaner.com/sitemap.xml

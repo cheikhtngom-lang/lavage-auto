@@ -6,7 +6,7 @@
 
   <!-- Page d'accueil principale -->
   <url>
-    <loc>https://gestionimmo.site/</loc>
+    <loc>https://galsenautocleaner.com/</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
@@ -14,7 +14,7 @@
 
   <!-- Page Stations de lavage -->
   <url>
-    <loc>https://gestionimmo.site/stations</loc>
+    <loc>https://galsenautocleaner.com/stations</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
@@ -22,7 +22,7 @@
 
   <!-- Dashboard client / Suivi en temps réel -->
   <url>
-    <loc>https://gestionimmo.site/dashboard</loc>
+    <loc>https://galsenautocleaner.com/dashboard</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
@@ -30,7 +30,7 @@
 
   <!-- Page de connexion -->
   <url>
-    <loc>https://gestionimmo.site/login</loc>
+    <loc>https://galsenautocleaner.com/login</loc>
     <lastmod>2026-08-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
@@ -38,7 +38,7 @@
 
   <!-- Politique de confidentialité -->
   <url>
-    <loc>https://gestionimmo.site/confidentialite.html</loc>
+    <loc>https://galsenautocleaner.com/confidentialite.html</loc>
     <lastmod>2026-08-19</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
