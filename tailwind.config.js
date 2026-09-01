@@ -5,6 +5,10 @@ export default {
     "./login.html",
     "./reset-password.html",
     "./dashboard.html",
+    "./404.html",
+    "./merci.html",
+    "./confidentialite.html",
+    "./conditions-generales.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {

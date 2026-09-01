@@ -226,15 +226,29 @@
 
     <main class="w-full flex flex-col items-center pb-20 md:pb-0">
         <!-- Section Hero — vidéo de fond en boucle (laveurs au travail), overlay
-             sombre dégradé bas→haut pour la lisibilité du texte. Le fichier
-             /videos/hero-wash.mp4 est à déposer manuellement (voir public/videos/) —
-             tant qu'il n'existe pas, le navigateur retombe sur `poster`
-             (même image que l'ancien mockup) plutôt que d'afficher un cadre vide. -->
+             sombre dégradé bas→haut pour la lisibilité du texte. hero-wash.mp4
+             (960×540, ~470 Ko) n'est chargée que sur grand écran et connexion
+             correcte ; sur mobile / connexion lente / prefers-reduced-motion, on
+             s'en tient au poster (hero-poster.jpg, ~38 Ko). -->
         <section id="accueil" class="relative w-full min-h-[90vh] md:min-h-screen flex items-center overflow-hidden">
-            <video autoplay muted loop playsinline poster="/images/hero-wash-mockup.jpg"
-                   class="absolute inset-0 w-full h-full object-cover">
-                <source src="/videos/hero-wash.mp4" type="video/mp4">
-            </video>
+            <video id="hero-video" muted loop playsinline preload="none" aria-hidden="true"
+                   poster="/images/hero-poster.jpg" data-src="/videos/hero-wash.mp4"
+                   class="absolute inset-0 w-full h-full object-cover"></video>
+            <script>
+                (function () {
+                    var v = document.getElementById('hero-video');
+                    if (!v) return;
+                    var c = navigator.connection || {};
+                    var slow = c.saveData || /(^|-)2g$/.test(c.effectiveType || '');
+                    var small = window.matchMedia('(max-width: 767px)').matches;
+                    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    if (slow || small || reduce) return; // poster seul
+                    var s = document.createElement('source');
+                    s.src = v.dataset.src; s.type = 'video/mp4';
+                    v.appendChild(s); v.load();
+                    v.play().catch(function () {});
+                })();
+            </script>
             <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20"></div>
 
             <!-- Aperçu du vrai suivi en direct — même badge "position/temps d'attente"

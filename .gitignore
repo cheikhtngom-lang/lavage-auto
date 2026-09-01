@@ -24,3 +24,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Vite : fichiers temporaires de config ESM
+vite.config.js.timestamp-*

@@ -37,6 +37,12 @@ export default defineConfig({
         dashboard: resolve(__dirname, 'dashboard.html'),
         login: resolve(__dirname, 'login.html'),
         resetPassword: resolve(__dirname, 'reset-password.html'),
+        // Pages autonomes : traitées par Vite (Tailwind compilé) au lieu d'être
+        // copiées depuis public/ avec le CDN cdn.tailwindcss.com.
+        notFound: resolve(__dirname, '404.html'),
+        merci: resolve(__dirname, 'merci.html'),
+        confidentialite: resolve(__dirname, 'confidentialite.html'),
+        conditionsGenerales: resolve(__dirname, 'conditions-generales.html'),
       }
     }
   }
