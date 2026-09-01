@@ -170,45 +170,48 @@
     </div>
 
     <main class="w-full flex flex-col items-center pb-20 md:pb-0">
-        <!-- Section Hero (Avec Mockup Interactif) -->
-        <section id="accueil" class="w-full min-h-[90vh] flex flex-col md:flex-row items-center justify-between px-4 max-w-7xl mx-auto py-20 gap-12">
-            <div class="flex-1 flex flex-col items-start text-left animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
-                <div class="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-sm text-blue-300 mb-8 backdrop-blur-sm">
-                    <span class="flex h-2 w-2 rounded-full bg-blue-500 mr-2" style="animation: pulse-dot 2s ease-in-out infinite;"></span>
-                    Fait pour les stations sénégalaises
-                </div>
+        <!-- Section Hero — vidéo de fond en boucle (laveurs au travail), overlay
+             sombre dégradé bas→haut pour la lisibilité du texte. Le fichier
+             /videos/hero-wash.mp4 est à déposer manuellement (voir public/videos/) —
+             tant qu'il n'existe pas, le navigateur retombe sur `poster`
+             (même image que l'ancien mockup) plutôt que d'afficher un cadre vide. -->
+        <section id="accueil" class="relative w-full min-h-[90vh] md:min-h-screen flex items-center overflow-hidden">
+            <video autoplay muted loop playsinline poster="/images/hero-wash-mockup.jpg"
+                   class="absolute inset-0 w-full h-full object-cover">
+                <source src="/videos/hero-wash.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20"></div>
 
-                <h1 class="text-5xl md:text-7xl font-bold tracking-tight mb-6 leading-tight">
-                    Fini les files d'attente.<br />
-                    <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                        Lavez intelligent.
-                    </span>
-                </h1>
+            <div class="relative z-10 w-full max-w-7xl mx-auto px-4 py-28">
+                <div class="max-w-2xl animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
+                    <h1 class="text-4xl md:text-6xl font-bold tracking-tight mb-5 leading-tight text-white">
+                        Votre lavage de confiance à Dakar
+                    </h1>
 
-                <p class="text-lg text-neutral-400 mb-10 max-w-xl">
-                    La première plateforme SaaS de gestion de file d'attente virtuelle pour les stations de lavage au Sénégal. Réservez, payez par Wave, et arrivez juste à temps.
-                </p>
+                    <p class="text-lg text-neutral-200 mb-9 max-w-xl">
+                        Réservez votre créneau en ligne, suivez votre lavage en direct et payez par Wave ou Orange Money — sans jamais faire la queue.
+                    </p>
 
-                <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mt-4">
-                    <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        Trouver une station
-                    </button>
-                    <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-white/5 border border-white/10 hover:bg-white/10 rounded-full px-8 py-4 text-white font-semibold shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 backdrop-blur-sm">
-                        Espace Partenaire
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-                    </button>
-                </div>
+                    <div class="flex flex-col sm:flex-row gap-4 mb-10">
+                        <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            Réserver un créneau
+                        </button>
+                        <button onclick="document.getElementById('avantages').scrollIntoView({behavior:'smooth'})" class="border border-white/40 hover:bg-white/10 rounded-full px-8 py-4 text-white font-semibold transition-colors flex items-center justify-center gap-2 backdrop-blur-sm">
+                            Voir nos services
+                        </button>
+                    </div>
 
-            </div>
-
-            <!-- Mockup visuel : vraie photo du véhicule + statut d'attente flottant -->
-            <div class="flex-1 w-full max-w-md mx-auto relative animate-float">
-                <div class="absolute -inset-8 bg-blue-600/20 blur-3xl rounded-full pointer-events-none"></div>
-
-                <div class="spotlight relative rounded-[2rem] overflow-hidden shadow-2xl shadow-blue-900/50 border border-white/10">
-                    <img src="/images/hero-wash-mockup.jpg" alt="Suivi en direct d'un lavage : Peugeot 3008 en cours de lavage dans un tunnel, position #2, 15 minutes restantes, paiement Wave validé"
-                         class="w-full h-auto" loading="eager" />
+                    <div class="flex flex-wrap gap-3">
+                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-2 text-sm text-white">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            Laveurs qualifiés
+                        </span>
+                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-2 text-sm text-white">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            Sans attente — réservation en ligne
+                        </span>
+                    </div>
                 </div>
             </div>
         </section>
