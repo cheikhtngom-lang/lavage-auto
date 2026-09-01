@@ -3,8 +3,7 @@
     { "source": "/admin/:path*", "destination": "/dashboard.html" },
     { "source": "/superadmin/:path*", "destination": "/dashboard.html" },
     { "source": "/dashboard/:path*", "destination": "/dashboard.html" },
-    { "source": "/stations", "destination": "/dashboard.html" },
     { "source": "/dashboard", "destination": "/dashboard.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/stations", "destination": "/dashboard.html" }
   ]
 }

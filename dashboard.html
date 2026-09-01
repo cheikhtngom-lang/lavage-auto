@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Clean Car Galsen - Dashboards</title>
     <meta name="description" content="Accédez à votre espace Clean Car Galsen : suivi de lavage en temps réel pour les automobilistes, gestion de file d'attente pour les stations de lavage au Sénégal." />
+    <!-- Coquille de l'app React (espaces client / station / super admin) : aucun
+         contenu à indexer, on la sort de l'index pour éviter le "contenu pauvre". -->
+    <meta name="robots" content="noindex, follow" />
 
-    <!-- Google Analytics (GA4) — remplacez G-XXXXXXXXXX par votre identifiant de mesure réel. -->
+    <!-- Google Analytics (GA4) — DÉSACTIVÉ tant qu'aucune propriété GA4 n'est créée.
+         Décommenter et remplacer G-XXXXXXXXXX (identique aux autres pages HTML).
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -14,6 +18,8 @@
       gtag('js', new Date());
       gtag('config', 'G-XXXXXXXXXX');
     </script>
+    -->
+
 
     <!-- PWA : installable comme une application sur mobile/tablette -->
     <link rel="manifest" href="/manifest.webmanifest" />

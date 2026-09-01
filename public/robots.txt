@@ -1,20 +1,13 @@
-# robots.txt — Clean Car Galsen SaaS (galsenautocleaner.com)
-# Mis à jour : Août 2026
+# robots.txt — Clean Car Galsen (galsenautocleaner.com)
+# Mis à jour : 2026-09-01
 
-# Autoriser tous les robots à explorer le site public
+# Site public : tout est explorable.
 User-agent: *
 Allow: /
-Allow: /stations
-Allow: /dashboard
-Allow: /login
 
-# Bloquer l'accès aux routes d'administration (pas besoin d'indexation)
+# Espaces applicatifs privés (aucune valeur SEO, on économise le budget d'exploration).
+# Les pages /login, /dashboard et /reset-password portent déjà une balise noindex.
 Disallow: /admin/
 Disallow: /superadmin/
 
-# Bloquer les assets techniques
-Disallow: /assets/
-Disallow: /_vite/
-
-# Sitemap principal
 Sitemap: https://galsenautocleaner.com/sitemap.xml

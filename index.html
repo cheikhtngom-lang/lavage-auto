@@ -3,21 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Clean Car Galsen - Le Futur du Lavage Auto</title>
-    <meta name="description" content="Clean Car Galsen : plateforme SaaS de gestion de file d'attente pour stations de lavage auto au Sénégal. Réservez en ligne, payez par Wave ou Orange Money, suivez votre lavage en direct.">
+    <title>Logiciel de gestion pour station de lavage auto au Sénégal | Clean Car Galsen</title>
+    <meta name="description" content="Digitalisez votre station de lavage auto : file d'attente virtuelle, réservation en ligne, planning des laveurs et paiement Wave / Orange Money. Essai gratuit, sans engagement.">
+    <meta name="keywords" content="logiciel station de lavage, gestion file d'attente lavage auto, SaaS lavage auto Sénégal, réservation lavage auto Dakar, logiciel car wash">
     <link rel="canonical" href="https://galsenautocleaner.com/">
+    <meta name="robots" content="index, follow, max-image-preview:large">
 
     <!-- Réseaux sociaux (partage) -->
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Clean Car Galsen">
-    <meta property="og:title" content="Clean Car Galsen - Le Futur du Lavage Auto">
-    <meta property="og:description" content="La première plateforme SaaS de gestion de file d'attente virtuelle pour les stations de lavage au Sénégal.">
+    <meta property="og:title" content="Le logiciel des stations de lavage auto au Sénégal | Clean Car Galsen">
+    <meta property="og:description" content="File d'attente virtuelle, réservation en ligne, planning des laveurs et paiement mobile Wave / Orange Money. Essai gratuit, sans engagement.">
     <meta property="og:image" content="https://galsenautocleaner.com/images/hero-wash-mockup.jpg">
+    <meta property="og:image:alt" content="Clean Car Galsen — suivi en direct du lavage auto sur mobile">
     <meta property="og:url" content="https://galsenautocleaner.com/">
     <meta property="og:locale" content="fr_SN">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Clean Car Galsen - Le Futur du Lavage Auto">
-    <meta name="twitter:description" content="La première plateforme SaaS de gestion de file d'attente virtuelle pour les stations de lavage au Sénégal.">
+    <meta name="twitter:title" content="Le logiciel des stations de lavage auto au Sénégal | Clean Car Galsen">
+    <meta name="twitter:description" content="File d'attente virtuelle, réservation en ligne, planning des laveurs et paiement mobile Wave / Orange Money. Essai gratuit, sans engagement.">
     <meta name="twitter:image" content="https://galsenautocleaner.com/images/hero-wash-mockup.jpg">
 
     <!-- Temps de réponse : connexions anticipées vers les domaines externes utilisés -->
@@ -25,8 +28,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.tailwindcss.com">
 
-    <!-- Google Analytics (GA4) — remplacez G-XXXXXXXXXX par votre identifiant de mesure réel
-         (Google Analytics > Admin > Flux de données > ID de mesure) pour activer le suivi. -->
+    <!-- Vérification Google Search Console : collez ici la balise fournie par
+         search.google.com/search-console (Ajouter une propriété > préfixe d'URL >
+         méthode "Balise HTML"). Ou vérifiez le domaine entier via un enregistrement
+         DNS TXT chez le registrar (recommandé — voir docs/Referencement-SEO.md). -->
+    <!-- <meta name="google-site-verification" content="VOTRE_CODE_ICI"> -->
+
+    <!-- Google Analytics (GA4) — DÉSACTIVÉ : aucune propriété GA4 créée pour l'instant.
+         Une fois la propriété créée (analytics.google.com > Admin > Flux de données >
+         ID de mesure « G-XXXXXXXXXX »), décommentez ce bloc et remplacez l'identifiant
+         aux 3 endroits, ici et à l'identique dans login.html, reset-password.html,
+         dashboard.html.
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -34,28 +46,74 @@
       gtag('js', new Date());
       gtag('config', 'G-XXXXXXXXXX');
     </script>
+    -->
 
-    <!-- Données structurées (SEO local) — adressez le champ "address" avec vos vraies
-         coordonnées d'entreprise avant mise en production. -->
+
+    <!-- Données structurées — SaaS 100 % en ligne (éditeur de logiciel), pas de
+         local physique : Organization + SoftwareApplication + WebSite + FAQPage.
+         Le bloc FAQPage doit rester identique au texte visible de la section FAQ. -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "LocalBusiness",
-      "name": "Clean Car Galsen",
-      "description": "Plateforme de gestion de file d'attente et réservation en ligne pour stations de lavage automobile au Sénégal.",
-      "url": "https://galsenautocleaner.com/",
-      "image": "https://galsenautocleaner.com/images/hero-wash-mockup.jpg",
-      "areaServed": { "@type": "Country", "name": "Sénégal" },
-      "address": { "@type": "PostalAddress", "addressCountry": "SN", "addressLocality": "Dakar" },
-      "priceRange": "15000-35000 FCFA"
-    }
-    </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Clean Car Galsen",
-      "url": "https://galsenautocleaner.com/"
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://galsenautocleaner.com/#organization",
+          "name": "Clean Car Galsen",
+          "url": "https://galsenautocleaner.com/",
+          "logo": "https://galsenautocleaner.com/icons/icon-512.png",
+          "description": "Éditeur du logiciel SaaS de gestion de file d'attente et de réservation en ligne pour les stations de lavage automobile au Sénégal.",
+          "areaServed": { "@type": "Country", "name": "Sénégal" },
+          "sameAs": [
+            "https://web.facebook.com/bustane11",
+            "https://www.linkedin.com/company/144611952/",
+            "https://www.instagram.com/saasbycheikh/"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://galsenautocleaner.com/#website",
+          "name": "Clean Car Galsen",
+          "url": "https://galsenautocleaner.com/",
+          "inLanguage": "fr",
+          "publisher": { "@id": "https://galsenautocleaner.com/#organization" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "Clean Car Galsen",
+          "operatingSystem": "Web",
+          "applicationCategory": "BusinessApplication",
+          "url": "https://galsenautocleaner.com/",
+          "inLanguage": "fr",
+          "description": "Logiciel de gestion de file d'attente virtuelle, réservation en ligne, planning et pointage des laveurs, comptabilité et paiement mobile Wave / Orange Money pour les stations de lavage auto.",
+          "publisher": { "@id": "https://galsenautocleaner.com/#organization" },
+          "offers": [
+            { "@type": "Offer", "name": "Starter", "price": "10000", "priceCurrency": "XOF", "description": "Forfait mensuel Starter, sans engagement." },
+            { "@type": "Offer", "name": "Pro", "price": "20000", "priceCurrency": "XOF", "description": "Forfait mensuel Pro, sans engagement." },
+            { "@type": "Offer", "name": "Business", "price": "35000", "priceCurrency": "XOF", "description": "Forfait mensuel Business, sans engagement." }
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Faut-il acheter du matériel informatique spécifique ?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Absolument pas. Clean Car Galsen fonctionne sur n'importe quel smartphone, tablette ou ordinateur connecté à internet (via le navigateur web)." }
+            },
+            {
+              "@type": "Question",
+              "name": "Comment je récupère l'argent payé par les clients via Wave/OM ?",
+              "acceptedAnswer": { "@type": "Answer", "text": "L'argent va directement sur votre propre compte marchand (Wave/Orange Money). Nous ne prenons aucune commission sur vos lavages, seul l'abonnement mensuel vous est facturé." }
+            },
+            {
+              "@type": "Question",
+              "name": "Puis-je annuler mon abonnement ?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Oui, toutes nos offres sont sans engagement. Vous pouvez annuler votre abonnement SaaS à tout moment depuis votre tableau de bord." }
+            }
+          ]
+        }
+      ]
     }
     </script>
 
@@ -570,7 +628,8 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
                 </a>
             </div>
-            <p>&copy; 2024 Clean Car Galsen. Tous droits réservés.</p>
+            <p>&copy; <span id="footer-year">2026</span> Clean Car Galsen. Tous droits réservés.</p>
+            <script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
             <p class="mt-3 flex items-center justify-center gap-4">
                 <a href="/conditions-generales.html" class="hover:text-white transition-colors">Conditions générales</a>
                 <a href="/confidentialite.html" class="hover:text-white transition-colors">Politique de confidentialité</a>
