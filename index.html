@@ -182,6 +182,21 @@
             </video>
             <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20"></div>
 
+            <!-- Aperçu du vrai suivi en direct — même badge "position/temps d'attente"
+                 que le tableau de bord automobiliste réel (voir Client/Dashboard.jsx,
+                 le cercle bleu "Avant vous / ~X min"), pour montrer un vrai bout de
+                 produit plutôt qu'une simple promesse marketing. -->
+            <div class="absolute top-24 md:top-28 right-4 md:right-10 z-10 glass-panel rounded-2xl px-5 py-4 flex items-center gap-4 shadow-2xl animate-float">
+                <div class="w-14 h-14 flex-shrink-0 rounded-full border-4 border-blue-500/40 bg-black/50 flex flex-col items-center justify-center">
+                    <span class="text-lg font-bold text-white leading-none">30</span>
+                    <span class="text-[8px] text-blue-400 uppercase tracking-wide">min</span>
+                </div>
+                <div>
+                    <p class="text-white text-sm font-semibold">Temps d'attente estimé</p>
+                    <p class="text-neutral-300 text-xs">Suivi en direct de votre lavage</p>
+                </div>
+            </div>
+
             <div class="relative z-10 w-full max-w-7xl mx-auto px-4 py-28">
                 <div class="max-w-2xl animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
                     <h1 class="text-4xl md:text-6xl font-bold tracking-tight mb-5 leading-tight text-white">
