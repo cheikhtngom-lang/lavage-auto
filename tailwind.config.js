@@ -2,6 +2,9 @@
 export default {
   content: [
     "./index.html",
+    "./login.html",
+    "./reset-password.html",
+    "./dashboard.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {

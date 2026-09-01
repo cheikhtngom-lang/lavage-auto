@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Bricolage+Grotesque:wght@600;700;800&display=swap');
+/* Utilitaires Tailwind compilés au build (PostCSS) — remplace le script
+   runtime cdn.tailwindcss.com (~407 Ko de JS bloquant). Les polices sont
+   désormais chargées via <link> dans le <head> de chaque page. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 body {
     font-family: 'Inter', sans-serif;
