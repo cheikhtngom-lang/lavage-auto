@@ -120,15 +120,99 @@ Outils ponctuels :
 
 ---
 
-## 8. Étape 7 — Hors-site (ce qui fait vraiment monter en B2B)
+## 8. Étape 7 — Liens entrants (backlinks) : le levier n°1 maintenant
 
-Le code est propre ; le classement se gagne maintenant surtout par la notoriété et les liens entrants.
+Le code est propre et le site est indexable. Ce qui manque à Google pour classer
+`galsenautocleaner.com`, c'est la **preuve que d'autres sites le citent**. Objectif :
+**2 à 3 nouveaux liens par semaine pendant 2 mois**, jamais 50 d'un coup.
 
-- **LinkedIn** : la page entreprise existe déjà (id `144611952`). Publier régulièrement (démos produit, cas station). Mettre le lien `galsenautocleaner.com` dans la bio.
-- **Annuaires / places de marché Sénégal & Afrique** : GoAfrica, Expat-Dakar (rubrique services/pro), Sénégalindex, Dakarville, annuaires SaaS africains (Briter, VC4A, Disrupt Africa directory). Chaque fiche = un backlink.
-- **Presse tech** : proposer un article à SenePlus / Social Net Link / Osiris / We Are Tech Africa (« un SaaS sénégalais digitalise les stations de lavage »).
-- **Bouche-à-oreille numérique** : demander aux stations déjà clientes un avis Google + un lien depuis leur page Facebook.
-- **Pas de Google Business Profile** : réservé aux activités avec adresse physique ou zone de service. Non applicable ici (SaaS 100 % en ligne).
+### 8.1 Les 5 règles
+
+1. **Ancre variée.** Le texte cliquable doit être ~60 % « Clean Car Galsen », le reste réparti entre l'URL nue (`galsenautocleaner.com`) et des formules descriptives (« logiciel de gestion pour station de lavage », « plateforme de réservation de lavage auto »). Jamais 10 fois la même ancre exacte → signal de spam.
+2. **Cohérence stricte.** Partout le même nom (`Clean Car Galsen`), la même URL (`https://galsenautocleaner.com`, avec `https://`, sans `/` final), la même description (voir 8.4).
+3. **Un lien `nofollow` reste utile.** Réseaux sociaux et la plupart des annuaires posent des liens `nofollow` : ils ne transmettent pas de « jus SEO » direct mais amènent la découverte, du trafic et des signaux de marque. On les prend.
+4. **Jamais acheter de liens.** Pas de « pack 500 backlinks », pas de fermes de liens, pas d'échange massif → pénalité Google quasi garantie.
+5. **Suivi.** Search Console → **Liens → Sites référents** (actualisé ~1×/semaine) et la colonne « Fait » du tableau 8.3.
+
+### 8.2 Plan par vagues
+
+| Vague | Quand | Effort | Contenu |
+|---|---|---|---|
+| **1 — Vos propres comptes** | aujourd'hui | 20 min | LinkedIn, Facebook, Instagram, signature e-mail |
+| **2 — Profils entreprise gratuits** | cette semaine | ~2 h | Crunchbase, SaaSHub, AlternativeTo, Capterra/GetApp, G2, StackShare |
+| **3 — Annuaires Sénégal / Afrique** | cette semaine | ~2 h | GoAfrica, Expat-Dakar, annuaire-senegal, VC4A, Afrikatech, Disrupt Africa |
+| **4 — Presse & partenaires** | 2 à 4 semaines | variable | médias tech sénégalais + liens depuis les stations clientes |
+
+### 8.3 Tableau de suivi (à cocher au fur et à mesure)
+
+| # | Cible | URL de soumission | Vague | Lien posé ? |
+|---|---|---|---|---|
+| 1 | LinkedIn – page entreprise (champ « Site web » + post épinglé) | linkedin.com/company/144611952 | 1 | ☐ |
+| 2 | Facebook – page (section Infos + 1 publication) | web.facebook.com/bustane11 | 1 | ☐ |
+| 3 | Instagram – lien en bio | instagram.com/saasbycheikh | 1 | ☐ |
+| 4 | Signature e-mail (Gmail → Paramètres → Signature) | — | 1 | ☐ |
+| 5 | Crunchbase – profil société | crunchbase.com/register | 2 | ☐ |
+| 6 | SaaSHub | saashub.com/submit | 2 | ☐ |
+| 7 | AlternativeTo | alternativeto.net/manage/add-application | 2 | ☐ |
+| 8 | Capterra / GetApp – fiche éditeur gratuite | vendors.capterra.com | 2 | ☐ |
+| 9 | G2 – profil vendeur gratuit | g2.com/products/new | 2 | ☐ |
+| 10 | StackShare | stackshare.io/tools/new | 2 | ☐ |
+| 11 | GoAfrica (annuaire pro Afrique de l'Ouest) | goafricaonline.com | 3 | ☐ |
+| 12 | Expat-Dakar – rubrique Services / Informatique | expat-dakar.com | 3 | ☐ |
+| 13 | Annuaire-Senegal | annuaire-senegal.com | 3 | ☐ |
+| 14 | VC4A – profil startup | vc4a.com | 3 | ☐ |
+| 15 | Afrikatech | afrikatech.com | 3 | ☐ |
+| 16 | Disrupt Africa – submit startup | disrupt-africa.com/submit-startup | 3 | ☐ |
+| 17 | Product Hunt – lancement (à préparer) | producthunt.com/posts/new | 2/4 | ☐ |
+| 18 | Social Net Link (média tech SN) – pitch e-mail | socialnetlink.org | 4 | ☐ |
+| 19 | TechCabal / WeAreTech Africa – pitch e-mail | techcabal.com | 4 | ☐ |
+| 20 | Stations clientes – lien depuis leur site / page FB / fiche Google | — | 4 | ☐ |
+
+> Google Business Profile : **non éligible** (éditeur de logiciel, pas de lieu accueillant du public). Ne pas tenter.
+
+### 8.4 Textes prêts à coller
+
+**Nom :** `Clean Car Galsen`
+**URL :** `https://galsenautocleaner.com`
+**Éditeur :** Bustane Holding — Entreprise Individuelle, RCCM SN.DKR.2022.A.296, NINEA 009100554, Rufisque / ZAC Mbao, Sénégal.
+**Catégories :** SaaS · Automobile · File d'attente / Booking · Fintech (paiement mobile)
+
+**Slogan (1 ligne) :**
+> Le logiciel qui digitalise les stations de lavage auto au Sénégal.
+
+**Description courte (~150 caractères — annuaires) :**
+> Clean Car Galsen digitalise les stations de lavage auto : file d'attente virtuelle, réservation en ligne, planning des laveurs, paiement Wave / Orange Money.
+
+**Description moyenne (~300 caractères) :**
+> Clean Car Galsen est une plateforme SaaS sénégalaise pour les stations de lavage automobile. Elle gère la file d'attente virtuelle, la réservation en ligne, le suivi du lavage en temps réel, le planning et le pointage des laveurs, la comptabilité et l'encaissement par Wave ou Orange Money — sans commission sur les lavages. Essai gratuit d'un mois, sans engagement.
+
+**Description longue (~700 caractères — Crunchbase, G2, Product Hunt) :**
+> Clean Car Galsen aide les stations de lavage automobile au Sénégal à passer du carnet papier à un poste de commande numérique. Les automobilistes réservent un créneau en ligne et suivent l'avancement de leur lavage en direct ; la station pilote sa file d'attente, estime les temps d'attente, planifie et pointe ses laveurs (y compris les affectations à plusieurs laveurs pour les gros véhicules), tient sa comptabilité (dépenses, objectifs de recette) et encaisse par Wave ou Orange Money directement sur son compte marchand, sans commission sur les lavages. Trois forfaits mensuels sans engagement (Starter 10 000, Pro 20 000, Business 35 000 FCFA), précédés d'un mois d'essai gratuit. Aucun matériel à acheter : tout fonctionne dans le navigateur.
+
+**Ancres de lien à alterner :**
+`Clean Car Galsen` · `galsenautocleaner.com` · `logiciel de gestion pour station de lavage` · `plateforme de réservation de lavage auto` · `Clean Car Galsen, le SaaS des stations de lavage`
+
+**Post LinkedIn / Facebook (annonce) :**
+> 🚗💧 Clean Car Galsen est en ligne : galsenautocleaner.com
+>
+> Le logiciel qui fait passer les stations de lavage auto du carnet papier au numérique :
+> • File d'attente virtuelle + réservation en ligne
+> • Suivi du lavage en direct pour le client
+> • Planning et pointage des laveurs
+> • Comptabilité et encaissement Wave / Orange Money, sans commission
+>
+> 1 mois d'essai gratuit, sans engagement, sans matériel à acheter.
+> 👉 https://galsenautocleaner.com
+
+**Message aux stations déjà clientes (demande de lien) :**
+> Bonjour [nom], pouvez-vous ajouter un lien « Réservez en ligne » vers https://galsenautocleaner.com sur votre page Facebook (section Infos → Site web) et, si vous en avez un, sur votre site ou votre fiche Google ? Ça aide vos clients à vous trouver et à réserver. Merci !
+
+**Pitch e-mail presse (objet + corps) :**
+> Objet : Un SaaS sénégalais digitalise les stations de lavage auto
+>
+> Bonjour,
+> Clean Car Galsen (galsenautocleaner.com) est une plateforme 100 % sénégalaise qui équipe les stations de lavage automobile : file d'attente virtuelle, réservation en ligne, planning des laveurs, encaissement Wave / Orange Money sans commission. Éditée par Bustane Holding (Rufisque). Je peux vous fournir chiffres, captures et un accès démo si le sujet vous intéresse.
+> Cordialement, [nom] — [téléphone]
 
 ### Mots-clés B2B à viser (à travailler dans le contenu)
 
