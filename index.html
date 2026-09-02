@@ -228,9 +228,11 @@
     <main class="w-full flex flex-col items-center pb-20 md:pb-0">
         <!-- Section Hero — vidéo de fond en boucle (laveurs au travail), overlay
              sombre dégradé bas→haut pour la lisibilité du texte. hero-wash.mp4
-             (960×540, ~470 Ko) n'est chargée que sur grand écran et connexion
-             correcte ; sur mobile / connexion lente / prefers-reduced-motion, on
-             s'en tient au poster (hero-poster.jpg, ~38 Ko). -->
+             (960×540, ~470 Ko) est chargée aussi bien sur mobile que sur desktop ;
+             on s'en tient au poster (hero-poster.jpg, ~38 Ko) uniquement en 2G /
+             mode économie de données / prefers-reduced-motion. -->
+        <!-- Note : sur iOS le playsinline + muted permettent l'autoplay ; l'overlay
+             dégradé masque en partie le bouton lecture natif si l'autoplay échoue. -->
         <section id="accueil" class="relative w-full min-h-[90vh] md:min-h-screen flex items-center overflow-hidden">
             <video id="hero-video" muted loop playsinline preload="none" aria-hidden="true"
                    poster="/images/hero-poster.jpg" data-src="/videos/hero-wash.mp4"
@@ -239,11 +241,13 @@
                 (function () {
                     var v = document.getElementById('hero-video');
                     if (!v) return;
+                    // La vidéo (~470 Ko) joue aussi sur mobile — seule exception :
+                    // connexion 2G / mode économie de données, ou "réduire les
+                    // animations" activé. Sinon on ne montre que le poster (~38 Ko).
                     var c = navigator.connection || {};
                     var slow = c.saveData || /(^|-)2g$/.test(c.effectiveType || '');
-                    var small = window.matchMedia('(max-width: 767px)').matches;
                     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                    if (slow || small || reduce) return; // poster seul
+                    if (slow || reduce) return;
                     var s = document.createElement('source');
                     s.src = v.dataset.src; s.type = 'video/mp4';
                     v.appendChild(s); v.load();
