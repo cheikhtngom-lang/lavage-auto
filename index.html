@@ -251,11 +251,10 @@
             </script>
             <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20"></div>
 
-            <!-- Aperçu du vrai suivi en direct — même badge "position/temps d'attente"
-                 que le tableau de bord automobiliste réel (voir Client/Dashboard.jsx,
-                 le cercle bleu "Avant vous / ~X min"), pour montrer un vrai bout de
-                 produit plutôt qu'une simple promesse marketing. -->
-            <div class="absolute top-24 md:top-28 right-4 md:right-10 z-10 glass-panel rounded-2xl px-5 py-4 flex items-center gap-4 shadow-2xl animate-float">
+            <!-- Badge "temps d'attente" — DESKTOP (md+) : flottant en haut à droite,
+                 par-dessus la vidéo. Sur mobile il chevauchait le H1 → voir la version
+                 compacte dans le flux, plus bas. -->
+            <div class="hidden md:flex absolute top-28 right-10 z-10 glass-panel rounded-2xl px-5 py-4 items-center gap-4 shadow-2xl animate-float">
                 <div class="w-14 h-14 flex-shrink-0 rounded-full border-4 border-blue-500/40 bg-black/50 flex flex-col items-center justify-center">
                     <span class="text-lg font-bold text-white leading-none">30</span>
                     <span class="text-[8px] text-blue-400 uppercase tracking-wide">min</span>
@@ -266,15 +265,27 @@
                 </div>
             </div>
 
-            <div class="relative z-10 w-full max-w-7xl mx-auto px-4 py-28">
+            <div class="relative z-10 w-full max-w-7xl mx-auto px-4 py-20 sm:py-28">
                 <div class="max-w-2xl animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
-                    <h1 class="text-4xl md:text-6xl font-bold tracking-tight mb-5 leading-tight text-white">
+                    <h1 class="text-[2rem] leading-[1.15] sm:text-5xl md:text-6xl font-bold tracking-tight mb-5 sm:leading-tight text-white">
                         Votre lavage de confiance à Dakar
                     </h1>
 
-                    <p class="text-lg text-neutral-200 mb-9 max-w-xl">
+                    <p class="text-base sm:text-lg text-neutral-200 mb-7 sm:mb-9 max-w-xl">
                         Réservez votre créneau en ligne, suivez votre lavage en direct et payez par Wave ou Orange Money — sans jamais faire la queue.
                     </p>
+
+                    <!-- Badge "temps d'attente" — MOBILE : version compacte dans le flux -->
+                    <div class="md:hidden mb-8 glass-panel rounded-2xl px-4 py-3 inline-flex items-center gap-3 shadow-xl">
+                        <div class="w-11 h-11 flex-shrink-0 rounded-full border-4 border-blue-500/40 bg-black/50 flex flex-col items-center justify-center">
+                            <span class="text-base font-bold text-white leading-none">30</span>
+                            <span class="text-[8px] text-blue-400 uppercase tracking-wide">min</span>
+                        </div>
+                        <div>
+                            <p class="text-white text-sm font-semibold">Temps d'attente estimé</p>
+                            <p class="text-neutral-300 text-xs">Suivi en direct de votre lavage</p>
+                        </div>
+                    </div>
 
                     <div class="flex flex-col sm:flex-row gap-4 mb-10">
                         <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
@@ -310,9 +321,9 @@
 
             <div class="reveal-item grid md:grid-cols-2 gap-8">
                 <!-- Pour le client -->
-                <div class="spotlight glass-card p-10 rounded-3xl border border-blue-500/20 bg-blue-900/10 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-2xl">
+                <div class="spotlight glass-card p-6 sm:p-10 rounded-3xl border border-blue-500/20 bg-blue-900/10 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-2xl">
                     <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-500/20 blur-3xl rounded-full group-hover:bg-blue-500/30 transition-colors"></div>
-                    <h3 class="text-2xl font-bold text-white mb-8 flex items-center gap-4">
+                    <h3 class="text-xl sm:text-2xl font-bold text-white mb-8 flex items-center gap-4">
                         <span class="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center flex-shrink-0">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                         </span>
@@ -350,9 +361,9 @@
                 </div>
 
                 <!-- Pour la station -->
-                <div class="spotlight glass-card p-10 rounded-3xl border border-emerald-500/20 bg-emerald-900/10 relative overflow-hidden group hover:border-emerald-500/40 transition-colors shadow-2xl">
+                <div class="spotlight glass-card p-6 sm:p-10 rounded-3xl border border-emerald-500/20 bg-emerald-900/10 relative overflow-hidden group hover:border-emerald-500/40 transition-colors shadow-2xl">
                     <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/20 blur-3xl rounded-full group-hover:bg-emerald-500/30 transition-colors"></div>
-                    <h3 class="text-2xl font-bold text-white mb-8 flex items-center gap-4">
+                    <h3 class="text-xl sm:text-2xl font-bold text-white mb-8 flex items-center gap-4">
                         <span class="w-11 h-11 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-6h6v6"></path></svg>
                         </span>
@@ -732,9 +743,9 @@
                     <p class="text-neutral-400 max-w-2xl mx-auto">Digitalisez votre lavage auto avec des forfaits sans engagement.</p>
                 </div>
 
-                <div class="reveal-item grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <div class="reveal-item grid md:grid-cols-3 gap-8 max-w-6xl mx-auto pt-3 md:pt-4">
                     <!-- Starter -->
-                    <div class="glass-card p-10 rounded-3xl border border-white/5 relative flex flex-col bg-black/20">
+                    <div class="glass-card p-6 sm:p-10 rounded-3xl border border-white/5 relative flex flex-col bg-black/20">
                         <h3 class="text-2xl font-bold mb-2">Starter</h3>
                         <p class="text-neutral-400 text-sm mb-6">Pour bien démarrer.</p>
                         <div class="mb-8">
@@ -749,12 +760,14 @@
                         <button onclick="window.location.href='login.html?mode=register&role=agence&plan=starter'" class="w-full py-4 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-bold text-white">Commencer l'essai</button>
                     </div>
 
-                    <!-- Pro -->
-                    <div class="spotlight cta-beam p-[1px] rounded-3xl transform md:-translate-y-4">
-                    <div class="glass-card p-10 rounded-3xl bg-blue-600/10 relative flex flex-col h-full shadow-2xl shadow-blue-900/20">
-                        <div class="absolute top-0 inset-x-0 flex justify-center -mt-3">
-                            <span class="bg-blue-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-[0_0_15px_rgba(59,130,246,0.5)]">Le Plus Populaire</span>
-                        </div>
+                    <!-- Pro — le badge est sur un wrapper .relative EXTÉRIEUR à .spotlight
+                         (qui a overflow:hidden et le rognait, cf. mobile). -->
+                    <div class="relative md:-translate-y-4">
+                    <div class="absolute -top-3 inset-x-0 flex justify-center z-20">
+                        <span class="bg-blue-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-[0_0_15px_rgba(59,130,246,0.5)]">Le Plus Populaire</span>
+                    </div>
+                    <div class="spotlight cta-beam p-[1px] rounded-3xl h-full">
+                    <div class="glass-card p-6 sm:p-10 rounded-3xl bg-blue-600/10 relative flex flex-col h-full shadow-2xl shadow-blue-900/20">
                         <h3 class="text-2xl font-bold mb-2 text-blue-400">Pro</h3>
                         <p class="text-neutral-400 text-sm mb-6">Pour une équipe organisée.</p>
                         <div class="mb-8">
@@ -769,9 +782,10 @@
                         <button onclick="window.location.href='login.html?mode=register&role=agence&plan=pro'" class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors font-bold shadow-[0_0_20px_rgba(37,99,235,0.4)]">Choisir Pro</button>
                     </div>
                     </div>
+                    </div>
 
                     <!-- Business -->
-                    <div class="glass-card p-10 rounded-3xl border border-amber-500/20 relative flex flex-col bg-black/20">
+                    <div class="glass-card p-6 sm:p-10 rounded-3xl border border-amber-500/20 relative flex flex-col bg-black/20">
                         <h3 class="text-2xl font-bold mb-2 text-amber-400">Business</h3>
                         <p class="text-neutral-400 text-sm mb-6">Pour les stations à fort trafic.</p>
                         <div class="mb-8">
