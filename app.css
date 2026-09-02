@@ -5,7 +5,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Zéro défilement horizontal sur toutes les pages. Les halos décoratifs
+   (blur-blobs en position absolue) débordaient à droite : sur les pages dont
+   le <body> n'est ni positionné ni en overflow-x-hidden, ils se calaient sur
+   le bloc englobant initial (viewport) et créaient une bande scrollable.
+   Correctif global : on rogne à la racine ET sur <body> (rendu "relative"
+   pour qu'il englobe ces éléments absolus). "clip" ne crée pas de conteneur
+   de défilement (header sticky intact) ; "hidden" sert de repli navigateur. */
+html,
 body {
+    overflow-x: hidden;
+    overflow-x: clip;
+}
+
+body {
+    position: relative;
     font-family: 'Inter', sans-serif;
     background-color: #0a0a0a;
     color: #f5f5f5;
