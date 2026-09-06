@@ -8,11 +8,12 @@ import SuperAdminLayout from './components/layout/SuperAdminLayout';
 import ClientLayout from './components/layout/ClientLayout';
 
 // State Providers
-import { AppStateProvider } from './hooks/useAppState';
+import { AppStateProvider, useAppState } from './hooks/useAppState';
 import { SuperAdminStateProvider } from './hooks/useSuperAdminState';
 import { ClientAccountProvider } from './hooks/useClientAccount';
 import { getCurrentStationId } from './lib/accounts';
 import { startIdleWatch } from './lib/idleTimeout';
+import { hasPerm } from './lib/permissions';
 
 // Pages Client
 import ClientOverview from './pages/Client/Dashboard';
@@ -46,6 +47,16 @@ import SuperAdminSettings from './pages/SuperAdmin/Settings';
 const Home = () => (
   <Navigate to="/admin/queue" replace />
 );
+
+// Contrôle d'accès "interface" pour un collaborateur 'staff' (voir
+// lib/permissions.js). Le propriétaire a ['*'] : jamais bloqué. Un staff sans
+// la permission est renvoyé sur la file d'attente (toujours accessible).
+function RequirePerm({ perm, children }) {
+  const { myPermissions } = useAppState();
+  if (myPermissions == null) return null; // permissions encore en chargement
+  if (hasPerm(myPermissions, perm)) return children;
+  return <Navigate to="/admin/queue" replace />;
+}
 
 function App() {
   // La station "active" (celle dont useAppState isole les données) peut changer
@@ -90,13 +101,13 @@ function App() {
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/queue" replace />} />
                 <Route path="queue" element={<StationDashboard />} />
-                <Route path="transactions" element={<AdminTransactions />} />
-                <Route path="accounting" element={<Accounting />} />
-                <Route path="analytics" element={<Analytics />} />
-                <Route path="team" element={<Team />} />
-                <Route path="washers" element={<Washers />} />
-                <Route path="subscriptions" element={<Subscriptions />} />
-                <Route path="settings" element={<Settings />} />
+                <Route path="transactions" element={<RequirePerm perm="transactions.view"><AdminTransactions /></RequirePerm>} />
+                <Route path="accounting" element={<RequirePerm perm="accounting.manage"><Accounting /></RequirePerm>} />
+                <Route path="analytics" element={<RequirePerm perm="analytics.view"><Analytics /></RequirePerm>} />
+                <Route path="team" element={<RequirePerm perm="team.manage"><Team /></RequirePerm>} />
+                <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
+                <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
+                <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />
               </Route>
 
               {/* Routes Super Admin */}

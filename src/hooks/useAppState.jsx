@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { getCurrentStationId } from '../lib/accounts';
+import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
@@ -447,6 +447,37 @@ export function AppStateProvider({ children }) {
             setStationBilling(rowToBilling(data?.station_billing));
             setStationProfileLoaded(true);
         });
+        return () => { cancelled = true; };
+    }, [stationId]);
+
+    // ─── Permissions du compte connecté (gestion d'équipe, voir
+    // add_station_team.sql + lib/permissions.js). Le propriétaire (role='admin')
+    // et le super admin ont tout ('*'). Un collaborateur 'staff' hérite des
+    // permissions de son rôle station. null = encore en chargement.
+    const initialPerms = () => {
+        const r = getCurrentRole();
+        return (r === 'admin' || r === 'super_admin') ? ['*'] : null;
+    };
+    const [myPermissions, setMyPermissions] = useState(initialPerms);
+    const [myRoleName, setMyRoleName] = useState('');
+    useEffect(() => {
+        const r = getCurrentRole();
+        if (r === 'admin' || r === 'super_admin') { setMyPermissions(['*']); setMyRoleName('Propriétaire'); return; }
+        if (r !== 'staff') { setMyPermissions([]); setMyRoleName(''); return; }
+        let cancelled = false;
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (cancelled || !user) return;
+            const { data } = await supabase
+                .from('station_members')
+                .select('status, station_roles(name, permissions)')
+                .eq('profile_id', user.id)
+                .maybeSingle();
+            if (cancelled) return;
+            if (!data || data.status !== 'active') { setMyPermissions([]); setMyRoleName(''); return; }
+            setMyPermissions(data.station_roles?.permissions || []);
+            setMyRoleName(data.station_roles?.name || '');
+        })();
         return () => { cancelled = true; };
     }, [stationId]);
 
@@ -998,6 +1029,7 @@ export function AppStateProvider({ children }) {
     return (
         <AppStateContext.Provider value={{
             queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes,
+            myPermissions, myRoleName,
             attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,

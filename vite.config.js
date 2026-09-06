@@ -37,6 +37,7 @@ export default defineConfig({
         dashboard: resolve(__dirname, 'dashboard.html'),
         login: resolve(__dirname, 'login.html'),
         resetPassword: resolve(__dirname, 'reset-password.html'),
+        acceptInvitation: resolve(__dirname, 'accept-invitation.html'),
         // Pages autonomes : traitées par Vite (Tailwind compilé) au lieu d'être
         // copiées depuis public/ avec le CDN cdn.tailwindcss.com.
         notFound: resolve(__dirname, '404.html'),

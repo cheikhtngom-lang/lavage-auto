@@ -522,7 +522,7 @@
         } from '/src/lib/accounts.js';
         import { geocodeQuartierRegion } from '/src/lib/geocoding.js';
 
-        const ROLE_REDIRECT = { super_admin: '/superadmin', admin: '/admin/queue', automobiliste: '/dashboard' };
+        const ROLE_REDIRECT = { super_admin: '/superadmin', admin: '/admin/queue', staff: '/admin/queue', automobiliste: '/dashboard' };
 
         // ============ ÉTAT ============
         let currentView = 'choice';        // 'choice' | 'login' | 'register' | 'forgot'
@@ -805,7 +805,7 @@
                     role: profile.role,
                     remember: rememberMe,
                     clientId: profile.role === 'automobiliste' ? profile.id : undefined,
-                    stationId: profile.role === 'admin' ? profile.station_id : undefined,
+                    stationId: (profile.role === 'admin' || profile.role === 'staff') ? profile.station_id : undefined,
                 });
                 const dest = profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role];
                 window.location.href = dest || '/dashboard';

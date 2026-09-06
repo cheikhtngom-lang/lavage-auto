@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activi
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
+import { hasPerm } from '../../lib/permissions';
 import StationOnboarding from '../onboarding/StationOnboarding';
 import TrialBanner from './TrialBanner';
 
@@ -12,7 +13,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { stationProfile, stationProfileLoaded, stationBilling } = useAppState();
+  const { stationProfile, stationProfileLoaded, stationBilling, myPermissions } = useAppState();
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
   // Tant que le profil n'a pas fini de charger, ne JAMAIS afficher "⚙️
   // Configurer" — le nom vide par défaut ne veut pas dire "non configurée",
@@ -24,7 +25,8 @@ export default function AdminLayout() {
   // d'impersonner une station (voir impersonateStation dans useSuperAdminState).
   useEffect(() => {
     const role = getCurrentRole();
-    if (role !== 'admin' && !(role === 'super_admin' && impersonatingStation)) {
+    const allowed = role === 'admin' || role === 'staff' || (role === 'super_admin' && impersonatingStation);
+    if (!allowed) {
       window.location.href = '/login.html';
     }
   }, [impersonatingStation]);
@@ -45,16 +47,20 @@ export default function AdminLayout() {
     navigate('/superadmin/stations');
   };
 
-  const navigation = [
-    { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview' },
-    { name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers' },
-    { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions' },
-    { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator },
-    { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles },
-    { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics' },
-    { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team' },
-    { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings' },
+  const allNavigation = [
+    { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null },
+    { name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage' },
+    { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
+    { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage' },
+    { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
+    { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
+    { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
+    { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage' },
   ];
+  // Contrôle d'accès "interface" (voir lib/permissions.js). Tant que les
+  // permissions ne sont pas chargées (staff), on n'affiche que les entrées
+  // libres — le propriétaire a ['*'] dès le premier rendu, donc aucun flash.
+  const navigation = allNavigation.filter((item) => !item.perm || hasPerm(myPermissions || [], item.perm));
 
   const handleLogout = () => {
     clearSession();
@@ -64,10 +70,11 @@ export default function AdminLayout() {
 
   return (
     <div className="flex h-screen bg-neutral-950 text-white overflow-hidden font-sans">
-      {/* Jamais pendant une impersonation Super Admin : la station ne doit pas
-          voir son propre onboarding se déclencher/se compléter à son insu
-          pendant qu'un tiers consulte son espace. */}
-      {!impersonatingStation && <StationOnboarding />}
+      {/* Onboarding station : uniquement pour le propriétaire (role='admin'),
+          jamais pour un collaborateur 'staff' ni pendant une impersonation
+          Super Admin (la station ne doit pas voir son onboarding se compléter
+          à son insu pendant qu'un tiers consulte son espace). */}
+      {!impersonatingStation && getCurrentRole() === 'admin' && <StationOnboarding />}
 
       {/* Header Mobile */}
       <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 z-30 flex items-center px-4">

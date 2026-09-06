@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Rejoindre l'équipe - Clean Car Galsen</title>
+    <meta name="description" content="Activez votre compte collaborateur Clean Car Galsen.">
+    <meta name="robots" content="noindex">
+
+    <link rel="stylesheet" href="app.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        .input-field {
+            width: 100%;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: white;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-field::placeholder { color: rgba(255,255,255,0.3); }
+        .input-field:focus { border-color: #3b82f6; }
+        .glass-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(20px);
+        }
+        .btn-primary-blue {
+            width: 100%;
+            background: #3b82f6;
+            color: white;
+            font-weight: 700;
+            padding: 13px 16px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 20px rgba(59,130,246,0.35);
+        }
+        .btn-primary-blue:hover { background: #2563eb; }
+        .btn-primary-blue:disabled { opacity: 0.6; cursor: not-allowed; }
+        .field-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-info {
+            background: rgba(59,130,246,0.1);
+            border: 1px solid rgba(59,130,246,0.2);
+            color: #93c5fd;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body class="min-h-screen relative overflow-y-auto flex flex-col items-center justify-center pt-8 sm:pt-12 pb-12" style="background:#0a0a0a;">
+    <div class="fixed top-1/2 left-1/4 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-15 pointer-events-none -translate-y-1/2"></div>
+
+    <main class="w-full max-w-md px-4 relative z-10">
+        <div class="text-center mb-8">
+            <span class="text-blue-400 text-4xl mb-3 inline-block">💧</span>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Rejoindre l'équipe</h1>
+        </div>
+
+        <div class="glass-card rounded-3xl p-7 shadow-2xl">
+            <div id="view-loading">
+                <p class="text-neutral-400 text-sm text-center">Vérification de l'invitation…</p>
+            </div>
+
+            <div id="view-form" class="hidden">
+                <div id="invite-context" class="badge-info text-center"></div>
+                <form id="accept-form">
+                    <div class="space-y-4 mb-5">
+                        <div>
+                            <label class="field-label">Votre nom complet</label>
+                            <input id="full-name" type="text" placeholder="Prénom et nom" required class="input-field" maxlength="100">
+                        </div>
+                        <div>
+                            <label class="field-label">Mot de passe</label>
+                            <input id="password" type="password" placeholder="Min. 8 caractères" required minlength="8" class="input-field" maxlength="100">
+                        </div>
+                        <div>
+                            <label class="field-label">Confirmer le mot de passe</label>
+                            <input id="password-confirm" type="password" placeholder="Répétez le mot de passe" required class="input-field" maxlength="100">
+                        </div>
+                    </div>
+                    <p id="accept-error" class="text-sm text-red-400 mb-4 hidden"></p>
+                    <button type="submit" id="accept-submit-btn" class="btn-primary-blue">Activer mon compte</button>
+                </form>
+            </div>
+
+            <div id="view-done" class="hidden">
+                <div class="badge-info text-center">✅ Votre compte est actif.</div>
+                <a href="/login.html" class="btn-primary-blue inline-block text-center mt-2">Se connecter</a>
+            </div>
+
+            <div id="view-invalid" class="hidden">
+                <p id="invalid-msg" class="text-sm text-red-400 text-center mb-5">Invitation invalide ou expirée.</p>
+                <a href="/login.html" class="btn-primary-blue inline-block text-center">Aller à la connexion</a>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { supabase } from '/src/lib/supabaseClient.js';
+
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token') || '';
+
+        function show(id) {
+            ['view-loading', 'view-form', 'view-done', 'view-invalid'].forEach((v) => {
+                document.getElementById(v).classList.toggle('hidden', v !== id);
+            });
+        }
+        function invalid(msg) {
+            if (msg) document.getElementById('invalid-msg').textContent = msg;
+            show('view-invalid');
+        }
+
+        async function callFn(payload) {
+            const { data, error } = await supabase.functions.invoke('accept-station-invite', { body: payload });
+            if (error) {
+                // Le corps JSON d'une réponse non-2xx est dans error.context
+                let detail = null;
+                try { detail = await error.context?.json?.(); } catch { /* ignore */ }
+                return { error: detail?.error || error.message || 'Erreur réseau.' };
+            }
+            return data;
+        }
+
+        (async () => {
+            if (!token) return invalid('Lien invalide : token manquant.');
+            const res = await callFn({ action: 'lookup', token });
+            if (!res || res.valid !== true) return invalid(res?.error);
+            document.getElementById('invite-context').innerHTML =
+                `<strong>${res.stationName}</strong> vous invite en tant que <strong>${res.roleName}</strong>.<br>Compte : ${res.email}`;
+            if (res.fullName) document.getElementById('full-name').value = res.fullName;
+            show('view-form');
+        })();
+
+        document.getElementById('accept-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fullName = document.getElementById('full-name').value.trim();
+            const password = document.getElementById('password').value;
+            const passwordConfirm = document.getElementById('password-confirm').value;
+            const errorEl = document.getElementById('accept-error');
+            const btn = document.getElementById('accept-submit-btn');
+            errorEl.classList.add('hidden');
+
+            if (password !== passwordConfirm) {
+                errorEl.textContent = 'Les mots de passe ne correspondent pas.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            const res = await callFn({ action: 'accept', token, password, fullName });
+            btn.disabled = false;
+            if (res && res.ok) {
+                show('view-done');
+            } else {
+                errorEl.textContent = (res && res.error) || "Activation impossible. Réessayez.";
+                errorEl.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
