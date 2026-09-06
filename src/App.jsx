@@ -12,6 +12,7 @@ import { AppStateProvider } from './hooks/useAppState';
 import { SuperAdminStateProvider } from './hooks/useSuperAdminState';
 import { ClientAccountProvider } from './hooks/useClientAccount';
 import { getCurrentStationId } from './lib/accounts';
+import { startIdleWatch } from './lib/idleTimeout';
 
 // Pages Client
 import ClientOverview from './pages/Client/Dashboard';
@@ -58,6 +59,10 @@ function App() {
     window.addEventListener('station-session-changed', handler);
     return () => window.removeEventListener('station-session-changed', handler);
   }, []);
+
+  // Expiration de session : déconnexion après 1 h sans interaction
+  // (voir lib/idleTimeout.js). Ne touche pas aux visiteurs anonymes de /stations.
+  useEffect(() => startIdleWatch(), []);
 
   return (
     <AppStateProvider key={stationId}>

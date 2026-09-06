@@ -164,10 +164,17 @@ export function setSession({ role, remember, clientId, stationId }) {
   if (clientId != null) storage.setItem('currentClientId', String(clientId));
   if (stationId != null) storage.setItem('currentStationId', String(stationId));
   incrementLoginCount(role, role === 'automobiliste' ? clientId : role === 'admin' ? stationId : null);
+  // Point de départ du minuteur d'inactivité (voir lib/idleTimeout.js) : une
+  // nouvelle session commence maintenant, on écrase tout horodatage résiduel.
+  try {
+    localStorage.setItem('ccg_last_activity', String(Date.now()));
+    localStorage.removeItem('ccg_session_expired');
+  } catch { /* stockage indisponible : la veille retombe sur son suivi en mémoire */ }
 }
 
 export function clearSession() {
-  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId', 'impersonatingStation'].forEach((k) => {
+  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId', 'impersonatingStation',
+   'ccg_last_activity', 'ccg_session_expired'].forEach((k) => {
     localStorage.removeItem(k);
     sessionStorage.removeItem(k);
   });
