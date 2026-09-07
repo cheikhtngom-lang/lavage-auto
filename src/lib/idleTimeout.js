@@ -1,4 +1,4 @@
-// Expiration de session sur inactivité — 1 h sans interaction => déconnexion.
+// Expiration de session sur inactivité — 30 min sans interaction => déconnexion.
 //
 // Supabase ne coupe jamais la session de lui-même (autoRefreshToken par défaut,
 // jeton rafraîchi en silence, stockage localStorage). Le time-box côté serveur
@@ -6,6 +6,7 @@
 // client : un horodatage "dernière activité" partagé entre onglets (localStorage),
 // remis à zéro à chaque interaction, et vérifié périodiquement. Passé le délai,
 // on appelle signOut() + clearSession() et on renvoie vers login.html?expired=1.
+// Délai surchargeable par navigateur via localStorage ccg_idle_max_minutes.
 //
 // N'affecte que l'app React (voir App.jsx). Les visiteurs non connectés de la
 // page publique /stations ne sont jamais redirigés : on vérifie qu'une session
@@ -13,7 +14,7 @@
 import { supabase } from './supabaseClient';
 import { clearSession } from './accounts';
 
-const DEFAULT_IDLE_MINUTES = 60;        // 1 heure d'inactivité par défaut
+const DEFAULT_IDLE_MINUTES = 30;        // 30 min d'inactivité par défaut
 const CHECK_INTERVAL_MS = 30 * 1000;    // fréquence de vérification
 const WRITE_THROTTLE_MS = 10 * 1000;    // on ne réécrit l'horodatage qu'au plus toutes les 10 s
 
