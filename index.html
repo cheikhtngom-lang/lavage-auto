@@ -150,24 +150,123 @@
 
         @keyframes count-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-        /* Défilement horizontal des stations partenaires */
+        /* ============ Mur de stations partenaires — carrousel 3D (coverflow) ============ */
         .stations-marquee {
+            position: relative;
             overflow: hidden;
-            -webkit-mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
-            mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+            padding: 2.75rem 0 3.75rem;
+            -webkit-mask-image: linear-gradient(to right, transparent, #000 13%, #000 87%, transparent);
+            mask-image: linear-gradient(to right, transparent, #000 13%, #000 87%, transparent);
+            perspective: 1150px;
+            perspective-origin: 50% 44%;
         }
         .stations-track {
             display: flex;
-            gap: 1.5rem;
+            gap: 2rem;
             width: max-content;
+            transform-style: preserve-3d;
             animation: stations-scroll linear infinite;
         }
         .stations-marquee:hover .stations-track { animation-play-state: paused; }
         @keyframes stations-scroll {
-            from { transform: translateX(0); }
-            to { transform: translateX(-50%); }
+            from { transform: translate3d(0, 0, 0); }
+            to   { transform: translate3d(-50%, 0, 0); }
         }
-        .station-card { width: 280px; flex-shrink: 0; }
+
+        .station-card {
+            --sc-ry: 0deg; --sc-tz: 0px; --sc-scale: 1; --sc-op: 1;
+            position: relative;
+            width: 300px;
+            height: 232px;
+            flex-shrink: 0;
+            transform: translateZ(var(--sc-tz)) rotateY(var(--sc-ry)) scale(var(--sc-scale));
+            opacity: var(--sc-op);
+            transform-style: preserve-3d;
+            will-change: transform, opacity;
+        }
+        /* Reflet au sol */
+        .station-card::after {
+            content: '';
+            position: absolute;
+            left: 10%; right: 10%;
+            top: 100%;
+            height: 52%;
+            background: linear-gradient(to bottom, rgba(59, 130, 246, 0.16), transparent 72%);
+            filter: blur(8px);
+            transform: scaleY(-1);
+            opacity: calc(var(--sc-op) * 0.5);
+            pointer-events: none;
+        }
+        .station-card.is-focus { z-index: 3; }
+        .sc-body {
+            position: relative;
+            height: 100%;
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            cursor: pointer;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015)),
+                rgba(9, 9, 12, 0.72);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 18px 45px -22px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            transition: border-color 0.45s ease, box-shadow 0.45s ease;
+        }
+        .sc-body::before { /* liseré dégradé fin en haut à gauche */
+            content: '';
+            position: absolute; inset: 0;
+            border-radius: inherit;
+            padding: 1px;
+            background: linear-gradient(140deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 45%);
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor; mask-composite: exclude;
+            pointer-events: none;
+        }
+        .sc-glow {
+            position: absolute; top: -32%; left: -12%;
+            width: 62%; height: 62%;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.24), transparent 70%);
+            filter: blur(12px); pointer-events: none;
+        }
+        .station-card.is-focus .sc-body {
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow:
+                0 34px 75px -22px rgba(0, 0, 0, 0.7),
+                0 0 0 1px rgba(59, 130, 246, 0.16),
+                0 0 65px -14px rgba(59, 130, 246, 0.3);
+        }
+        .sc-cta {
+            margin-top: 1rem;
+            display: flex; align-items: center; gap: 0.4rem;
+            font-size: 0.8rem; font-weight: 700; color: #60a5fa;
+            opacity: 0; transform: translateY(6px);
+            transition: opacity 0.45s ease, transform 0.45s ease;
+        }
+        .station-card.is-focus .sc-cta { opacity: 1; transform: translateY(0); }
+
+        @media (prefers-reduced-motion: reduce) {
+            .stations-marquee { perspective: none; padding: 0.75rem 0; }
+            .stations-track {
+                animation: none;
+                transform-style: flat;
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                padding: 0 1rem 0.5rem;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .stations-track::-webkit-scrollbar { display: none; }
+            .station-card {
+                transform: none !important;
+                opacity: 1 !important;
+                scroll-snap-align: center;
+            }
+            .station-card::after { display: none; }
+            .sc-cta { opacity: 1; transform: none; }
+        }
     </style>
 </head>
 <body class="min-h-screen relative overflow-x-hidden text-white bg-[#0a0a0a]">
@@ -1110,15 +1209,24 @@
             const ratingLabel = rating
                 ? `<div class="flex items-center gap-1 text-xs text-amber-400 mb-2">${STAR_SVG} <span class="font-medium text-white">${rating.average.toFixed(1)}</span> <span class="text-neutral-500">(${rating.count})</span></div>`
                 : `<div class="text-xs text-neutral-600 mb-2">Aucun avis pour le moment</div>`;
+            const dotClass = station._open ? 'bg-emerald-400' : 'bg-red-400';
             return `
-                <div class="station-card spotlight glass-card rounded-2xl p-6 border border-white/5 cursor-pointer hover:border-blue-500/30 transition-colors" onclick="window.location.href='/stations?stationId=${station.id}'">
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="w-12 h-12 rounded-xl ${icon.bg} flex items-center justify-center text-2xl">${icon.emoji}</div>
-                        <span class="${badge.class} text-xs font-bold px-3 py-1.5 rounded-full border">${badge.label}</span>
+                <div class="station-card" onclick="window.location.href='/stations?stationId=${station.id}'">
+                    <div class="sc-body spotlight">
+                        <div class="sc-glow"></div>
+                        <div class="flex justify-between items-start mb-4 relative">
+                            <div class="w-12 h-12 rounded-xl ${icon.bg} ring-1 ring-white/10 flex items-center justify-center text-2xl shadow-lg shadow-black/30">${icon.emoji}</div>
+                            <span class="inline-flex items-center gap-1.5 ${badge.class} text-[11px] font-bold px-2.5 py-1 rounded-full border">
+                                <span class="w-1.5 h-1.5 rounded-full ${dotClass}" style="animation: pulse-dot 2s ease-in-out infinite"></span>${badge.label}
+                            </span>
+                        </div>
+                        <h3 class="text-lg font-bold mb-1 truncate relative">${station.name || 'Station'}</h3>
+                        ${ratingLabel}
+                        <p class="text-neutral-400 text-sm truncate relative">${distanceLabel}${location}</p>
+                        <div class="sc-cta">Réserver un lavage
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                        </div>
                     </div>
-                    <h3 class="text-xl font-bold mb-1 truncate">${station.name || 'Station'}</h3>
-                    ${ratingLabel}
-                    <p class="text-neutral-400 text-sm mb-4 truncate">${distanceLabel}${location}</p>
                 </div>
             `;
         }
@@ -1144,10 +1252,79 @@
             const cardsHTML = stations.map(stationCardHTML).join('');
             track.innerHTML = cardsHTML + cardsHTML;
             initSpotlights();
+            initCoverflow();
 
-            // Vitesse proportionnelle au nombre de stations pour un rythme constant
-            const duration = Math.max(15, stations.length * 5);
+            // Rythme lent et régulier (effet vitrine) ; proportionnel au nombre de stations
+            const duration = Math.max(28, stations.length * 7);
             track.style.animationDuration = `${duration}s`;
+        }
+
+        // Effet carrousel 3D : chaque carte pivote/recule selon sa distance au
+        // centre du conteneur. Boucle rAF active uniquement quand le bloc est
+        // visible (IntersectionObserver). Désactivé si prefers-reduced-motion
+        // (le CSS bascule alors sur une rangée à défilement tactile avec snap).
+        let coverflowWired = false;
+        function initCoverflow() {
+            if (coverflowWired) return;
+            const marquee = document.getElementById('stations-marquee');
+            const track = document.getElementById('stations-track');
+            if (!marquee || !track) return;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { coverflowWired = true; return; }
+            coverflowWired = true;
+
+            // Largeur carte + gap identiques au CSS (.station-card / .stations-track).
+            const STEP = 300 + 32;
+            let running = false;
+            let rafId = null;
+            const frame = () => {
+                if (!running) return;
+                const m = marquee.getBoundingClientRect();
+                if (m.width === 0) { rafId = requestAnimationFrame(frame); return; }
+                const half = m.width / 2;
+                // Position courante du convoyeur, lue une seule fois (pas de
+                // getBoundingClientRect par carte : coûteux sur mobile).
+                let tx = 0;
+                const tr = getComputedStyle(track).transform;
+                if (tr && tr !== 'none') {
+                    const m2 = tr.match(/matrix\(([^)]+)\)/);
+                    if (m2) tx = parseFloat(m2[1].split(',')[4]) || 0;
+                    else {
+                        const m3 = tr.match(/matrix3d\(([^)]+)\)/);
+                        if (m3) tx = parseFloat(m3[1].split(',')[12]) || 0;
+                    }
+                }
+                const base = (track.offsetLeft || 0) + tx + 150; // +150 = demi-carte -> centre de la carte 0
+                const cards = track.children;
+                for (let i = 0; i < cards.length; i++) {
+                    const t = (base + i * STEP - half) / half;
+                    const card = cards[i];
+                    if (t < -1.6 || t > 1.6) {
+                        if (card.dataset.off !== '1') { card.dataset.off = '1'; card.style.setProperty('--sc-op', '0'); card.classList.remove('is-focus'); }
+                        continue;
+                    }
+                    card.dataset.off = '0';
+                    const at = Math.min(Math.abs(t), 1.5);
+                    card.style.setProperty('--sc-ry', Math.max(-42, Math.min(42, -t * 36)).toFixed(2) + 'deg');
+                    card.style.setProperty('--sc-tz', (-at * 175).toFixed(1) + 'px');
+                    card.style.setProperty('--sc-scale', Math.max(0.72, 1 - at * 0.2).toFixed(3));
+                    card.style.setProperty('--sc-op', Math.max(0.22, 1 - at * 0.6).toFixed(3));
+                    card.classList.toggle('is-focus', at < 0.34);
+                }
+                rafId = requestAnimationFrame(frame);
+            };
+
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach((e) => {
+                    if (e.isIntersecting && !running) {
+                        running = true;
+                        rafId = requestAnimationFrame(frame);
+                    } else if (!e.isIntersecting && running) {
+                        running = false;
+                        if (rafId) cancelAnimationFrame(rafId);
+                    }
+                });
+            }, { threshold: 0.04 });
+            io.observe(marquee);
         }
 
         // ============ RECHERCHE (quartier + région) ============
