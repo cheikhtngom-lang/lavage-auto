@@ -13,12 +13,24 @@
 import { supabase } from './supabaseClient';
 import { clearSession } from './accounts';
 
-const IDLE_LIMIT_MS = 60 * 60 * 1000;   // 1 heure d'inactivité
+const DEFAULT_IDLE_MINUTES = 60;        // 1 heure d'inactivité par défaut
 const CHECK_INTERVAL_MS = 30 * 1000;    // fréquence de vérification
 const WRITE_THROTTLE_MS = 10 * 1000;    // on ne réécrit l'horodatage qu'au plus toutes les 10 s
 
 const ACTIVITY_KEY = 'ccg_last_activity'; // partagé entre onglets
 const LOGOUT_KEY = 'ccg_session_expired'; // diffusion "déconnexion" aux autres onglets
+// Surcharge par navigateur (tests, réglage support) : localStorage
+// ccg_idle_max_minutes = "2" => déconnexion après 2 min. Borné 1..1440.
+const LIMIT_KEY = 'ccg_idle_max_minutes';
+
+function idleLimitMs() {
+  let min = DEFAULT_IDLE_MINUTES;
+  try {
+    const raw = parseFloat(localStorage.getItem(LIMIT_KEY));
+    if (Number.isFinite(raw) && raw > 0) min = Math.min(1440, Math.max(1, raw));
+  } catch { /* stockage indisponible : on garde le défaut */ }
+  return min * 60 * 1000;
+}
 
 const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'touchstart', 'pointerdown', 'scroll', 'wheel'];
 
@@ -72,11 +84,16 @@ async function checkIdle() {
     markActivity(true);
     return;
   }
-  if (now() - last < IDLE_LIMIT_MS) return;
+  if (now() - last < idleLimitMs()) return;
 
   // Délai dépassé — on ne déconnecte que s'il y a vraiment une session
   // (sinon : visiteur anonyme sur /stations, on le laisse tranquille).
-  const { data: { session } } = await supabase.auth.getSession();
+  let session = null;
+  try {
+    ({ data: { session } } = await supabase.auth.getSession());
+  } catch {
+    return; // erreur transitoire : on retentera au prochain tick
+  }
   if (session) {
     await expireSession();
   } else {
