@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import Pagination from '../../components/ui/Pagination';
 
 const SUB_STATUS = {
   a_jour: { label: 'À jour', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -20,6 +21,17 @@ export default function Billing() {
   } = useSuperAdminState();
   const [reminded, setReminded] = useState({});
   const pendingRenewals = stationRenewalPayments.filter((p) => p.status === 'PENDING');
+
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const filteredStations = stations.filter((s) =>
+    s.name.toLowerCase().includes(search.toLowerCase()) || (s.city || '').toLowerCase().includes(search.toLowerCase())
+  );
+  useEffect(() => { setPage(1); }, [search]);
+  const totalPages = Math.max(1, Math.ceil(filteredStations.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedStations = filteredStations.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Les stations en accès illimité ne paient rien — exclues du revenu récurrent,
   // sinon le MRR affiché prétendrait facturer des stations gratuites à vie.
@@ -98,11 +110,24 @@ export default function Billing() {
         </div>
       )}
 
-      {stations.length === 0 ? (
+      {stations.length > 0 && (
+        <div className="relative w-full md:w-1/3 mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+          <input
+            type="text"
+            placeholder="Rechercher une station ou une ville..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+          />
+        </div>
+      )}
+
+      {filteredStations.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
           <CreditCard className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">Aucune station à facturer</h3>
-          <p className="text-neutral-400">Ajoutez des stations partenaires depuis l'onglet Stations.</p>
+          <h3 className="text-xl font-bold text-white mb-2">{stations.length === 0 ? 'Aucune station à facturer' : 'Aucune station trouvée'}</h3>
+          <p className="text-neutral-400">{stations.length === 0 ? "Ajoutez des stations partenaires depuis l'onglet Stations." : 'Ajustez votre recherche.'}</p>
         </div>
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
@@ -118,7 +143,7 @@ export default function Billing() {
               </tr>
             </thead>
             <tbody>
-              {stations.map((s, index) => (
+              {paginatedStations.map((s, index) => (
                 <motion.tr
                   key={s.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -216,6 +241,13 @@ export default function Billing() {
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredStations.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
         </div>
       )}
     </div>

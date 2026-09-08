@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Crown, Users, Clock, TrendingUp, Wallet, CheckCircle2, XCircle } from 'lucide-react';
+import { Crown, Users, Clock, TrendingUp, Wallet, CheckCircle2, XCircle, Search } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { CLIENT_PLANS } from '../../lib/superUser';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import Pagination from '../../components/ui/Pagination';
 
 const STATUS_BADGE = {
   ACTIVE: { label: 'Actif', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -54,6 +55,19 @@ export default function SuperUsers() {
     .filter((s) => { const d = new Date(s.confirmedAt); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); })
     .reduce((sum, s) => sum + (s.amount || 0), 0);
 
+  const [search, setSearch] = useState('');
+  const filteredSubs = superUserSubscriptions.filter((s) =>
+    (s.clientName || '').toLowerCase().includes(search.toLowerCase()) ||
+    (s.clientEmail || '').toLowerCase().includes(search.toLowerCase()) ||
+    (s.clientPhone || '').includes(search)
+  );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  useEffect(() => { setPage(1); }, [search]);
+  const totalPages = Math.max(1, Math.ceil(filteredSubs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedSubs = filteredSubs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const kpis = [
     { title: 'Super Users actifs', value: activeCount, icon: Crown, color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { title: 'Abonnements expirés', value: expiredCount, icon: Clock, color: 'text-neutral-400', bg: 'bg-neutral-500/10' },
@@ -81,11 +95,24 @@ export default function SuperUsers() {
         ))}
       </div>
 
-      {superUserSubscriptions.length === 0 ? (
+      {superUserSubscriptions.length > 0 && (
+        <div className="relative w-full md:w-1/3 mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+          <input
+            type="text"
+            placeholder="Rechercher un automobiliste (nom, email, téléphone)..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+          />
+        </div>
+      )}
+
+      {filteredSubs.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
           <Crown className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">Aucun abonnement Super User pour le moment</h3>
-          <p className="text-neutral-400">Les demandes de paiement des automobilistes apparaîtront ici.</p>
+          <h3 className="text-xl font-bold text-white mb-2">{superUserSubscriptions.length === 0 ? 'Aucun abonnement Super User pour le moment' : 'Aucun résultat'}</h3>
+          <p className="text-neutral-400">{superUserSubscriptions.length === 0 ? 'Les demandes de paiement des automobilistes apparaîtront ici.' : 'Ajustez votre recherche.'}</p>
         </div>
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02] overflow-x-auto">
@@ -107,7 +134,7 @@ export default function SuperUsers() {
               </tr>
             </thead>
             <tbody>
-              {superUserSubscriptions.map((s, index) => {
+              {paginatedSubs.map((s, index) => {
                 const status = displayStatus(s);
                 const badge = STATUS_BADGE[status] || STATUS_BADGE.PENDING;
                 return (
@@ -143,6 +170,13 @@ export default function SuperUsers() {
               })}
             </tbody>
           </table>
+          <Pagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredSubs.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
         </div>
       )}
     </div>

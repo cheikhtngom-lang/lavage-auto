@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Users, UserPlus, Car, Heart, X, Mail, Phone, Calendar, MapPin } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import Pagination from '../../components/ui/Pagination';
 
 export default function Motorists() {
   useDocumentTitle('Automobilistes');
@@ -22,6 +23,13 @@ export default function Motorists() {
     (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
     (c.phone || '').includes(search)
   ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  useEffect(() => { setPage(1); }, [search]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const stationName = (id) => stations.find(s => s.id === id)?.name || `Station #${id}`;
 
@@ -90,7 +98,7 @@ export default function Motorists() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((c, index) => (
+              {paginated.map((c, index) => (
                 <motion.tr
                   key={c.id}
                   initial={{ opacity: 0 }}
@@ -108,6 +116,13 @@ export default function Motorists() {
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
         </div>
       )}
 

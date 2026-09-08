@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, X, LifeBuoy, CheckCircle2, RotateCcw, ScrollText } from 'lucide-react';
+import { Plus, X, LifeBuoy, CheckCircle2, RotateCcw, ScrollText, Search } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import Pagination from '../../components/ui/Pagination';
 
 const DISPUTE_STATUS = {
   ouvert: { label: 'Ouvert', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
@@ -35,6 +36,27 @@ export default function Support() {
   };
 
   const openDisputes = disputes.filter(d => d.status === 'ouvert');
+
+  const [disputeSearch, setDisputeSearch] = useState('');
+  const filteredDisputes = disputes.filter((d) =>
+    (d.subject || '').toLowerCase().includes(disputeSearch.toLowerCase()) ||
+    (d.stationName || '').toLowerCase().includes(disputeSearch.toLowerCase())
+  );
+  const [disputePage, setDisputePage] = useState(1);
+  const [disputePageSize, setDisputePageSize] = useState(10);
+  useEffect(() => { setDisputePage(1); }, [disputeSearch]);
+  const disputeTotalPages = Math.max(1, Math.ceil(filteredDisputes.length / disputePageSize));
+  const disputeCurrentPage = Math.min(disputePage, disputeTotalPages);
+  const paginatedDisputes = filteredDisputes.slice((disputeCurrentPage - 1) * disputePageSize, disputeCurrentPage * disputePageSize);
+
+  const [auditSearch, setAuditSearch] = useState('');
+  const filteredAudit = auditLog.filter((entry) => (entry.action || '').toLowerCase().includes(auditSearch.toLowerCase()));
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize, setAuditPageSize] = useState(10);
+  useEffect(() => { setAuditPage(1); }, [auditSearch]);
+  const auditTotalPages = Math.max(1, Math.ceil(filteredAudit.length / auditPageSize));
+  const auditCurrentPage = Math.min(auditPage, auditTotalPages);
+  const paginatedAudit = filteredAudit.slice((auditCurrentPage - 1) * auditPageSize, auditCurrentPage * auditPageSize);
 
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
@@ -69,15 +91,29 @@ export default function Support() {
       </div>
 
       {tab === 'litiges' && (
-        disputes.length === 0 ? (
+        <>
+        {disputes.length > 0 && (
+          <div className="relative w-full md:w-1/3 mb-6">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+            <input
+              type="text"
+              placeholder="Rechercher un litige (sujet, station)..."
+              value={disputeSearch}
+              onChange={(e) => setDisputeSearch(e.target.value)}
+              className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+            />
+          </div>
+        )}
+        {filteredDisputes.length === 0 ? (
           <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
             <LifeBuoy className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">Aucun litige</h3>
-            <p className="text-neutral-400">Tout va bien — rien à traiter pour le moment.</p>
+            <h3 className="text-xl font-bold text-white mb-2">{disputes.length === 0 ? 'Aucun litige' : 'Aucun résultat'}</h3>
+            <p className="text-neutral-400">{disputes.length === 0 ? 'Tout va bien — rien à traiter pour le moment.' : 'Ajustez votre recherche.'}</p>
           </div>
         ) : (
+          <>
           <div className="space-y-4">
-            {disputes.map((d, index) => (
+            {paginatedDisputes.map((d, index) => (
               <motion.div
                 key={d.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -113,26 +149,60 @@ export default function Support() {
               </motion.div>
             ))}
           </div>
-        )
+          <div className="glass-card rounded-2xl border border-white/5 bg-white/[0.02] mt-4">
+            <Pagination
+              page={disputeCurrentPage}
+              pageSize={disputePageSize}
+              totalItems={filteredDisputes.length}
+              onPageChange={setDisputePage}
+              onPageSizeChange={(n) => { setDisputePageSize(n); setDisputePage(1); }}
+            />
+          </div>
+          </>
+        )}
+        </>
       )}
 
       {tab === 'audit' && (
-        auditLog.length === 0 ? (
+        <>
+        {auditLog.length > 0 && (
+          <div className="relative w-full md:w-1/3 mb-6">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+            <input
+              type="text"
+              placeholder="Rechercher dans le journal d'audit..."
+              value={auditSearch}
+              onChange={(e) => setAuditSearch(e.target.value)}
+              className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+            />
+          </div>
+        )}
+        {filteredAudit.length === 0 ? (
           <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
             <ScrollText className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">Aucune action enregistrée</h3>
-            <p className="text-neutral-400">Toutes les actions du Super Admin apparaîtront ici.</p>
+            <h3 className="text-xl font-bold text-white mb-2">{auditLog.length === 0 ? 'Aucune action enregistrée' : 'Aucun résultat'}</h3>
+            <p className="text-neutral-400">{auditLog.length === 0 ? 'Toutes les actions du Super Admin apparaîtront ici.' : 'Ajustez votre recherche.'}</p>
           </div>
         ) : (
-          <div className="glass-card rounded-2xl border border-white/5 bg-white/[0.02] divide-y divide-white/5">
-            {auditLog.map(entry => (
-              <div key={entry.id} className="p-4 flex items-center justify-between gap-4">
-                <p className="text-neutral-300 text-sm">{entry.action}</p>
-                <span className="text-xs text-neutral-500 whitespace-nowrap">{new Date(entry.timestamp).toLocaleString('fr-FR')}</span>
-              </div>
-            ))}
+          <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
+            <div className="divide-y divide-white/5">
+              {paginatedAudit.map(entry => (
+                <div key={entry.id} className="p-4 flex items-center justify-between gap-4">
+                  <p className="text-neutral-300 text-sm">{entry.action}</p>
+                  <span className="text-xs text-neutral-500 whitespace-nowrap">{new Date(entry.timestamp).toLocaleString('fr-FR')}</span>
+                </div>
+              ))}
+            </div>
+            <Pagination
+              page={auditCurrentPage}
+              pageSize={auditPageSize}
+              totalItems={filteredAudit.length}
+              onPageChange={setAuditPage}
+              onPageSizeChange={(n) => { setAuditPageSize(n); setAuditPage(1); }}
+            />
           </div>
-        )
+        )}
+        </>
       )}
 
       {/* Modal Ouvrir Litige */}

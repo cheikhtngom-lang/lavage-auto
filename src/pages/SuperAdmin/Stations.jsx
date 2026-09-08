@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, X, MapPin, Phone, Mail, CheckCircle2, Ban, RotateCcw,
@@ -7,6 +7,7 @@ import {
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import Pagination from '../../components/ui/Pagination';
 
 const STATUS_LABELS = {
   active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -77,6 +78,13 @@ export default function Stations() {
     return matchesSearch && matchesStatus;
   });
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  useEffect(() => { setPage(1); }, [search, statusFilter]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.name.trim()) return;
@@ -145,7 +153,7 @@ export default function Stations() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((station, index) => (
+              {paginated.map((station, index) => (
                 <motion.tr
                   key={station.id}
                   initial={{ opacity: 0 }}
@@ -210,6 +218,13 @@ export default function Stations() {
               ))}
             </tbody>
           </table>
+          <Pagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
         </div>
       )}
 

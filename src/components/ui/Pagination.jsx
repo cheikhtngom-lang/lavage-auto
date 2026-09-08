@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 // mais reste visible avec Précédent/Suivant désactivés (comme la maquette).
 export default function Pagination({
   page, pageSize, totalItems, onPageChange, onPageSizeChange,
-  pageSizeOptions = [10, 20, 50, 80, 100],
+  pageSizeOptions = [10, 20, 30, 40, 50, 100],
 }) {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const from = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;

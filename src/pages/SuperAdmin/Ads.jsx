@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Megaphone, Clock, TrendingUp, Wallet, CheckCircle2, XCircle } from 'lucide-react';
+import { Megaphone, Clock, TrendingUp, Wallet, CheckCircle2, XCircle, Search } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { deriveAdStatus } from '../../lib/ads';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import Pagination from '../../components/ui/Pagination';
 
 const STATUS_BADGE = {
   ACTIVE: { label: 'En diffusion', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -28,6 +29,18 @@ export default function SuperAdminAds() {
   const monthRevenue = confirmedAds
     .filter((a) => { const d = new Date(a.confirmedAt); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); })
     .reduce((sum, a) => sum + (a.amount || 0), 0);
+
+  const [search, setSearch] = useState('');
+  const filteredAds = stationAds.filter((a) =>
+    (a.stationName || '').toLowerCase().includes(search.toLowerCase()) ||
+    (a.message || '').toLowerCase().includes(search.toLowerCase())
+  );
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  useEffect(() => { setPage(1); }, [search]);
+  const totalPages = Math.max(1, Math.ceil(filteredAds.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedAds = filteredAds.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const kpis = [
     { title: 'Pubs en diffusion', value: activeCount, icon: Megaphone, color: 'text-amber-400', bg: 'bg-amber-500/10' },
@@ -55,11 +68,24 @@ export default function SuperAdminAds() {
         ))}
       </div>
 
-      {stationAds.length === 0 ? (
+      {stationAds.length > 0 && (
+        <div className="relative w-full md:w-1/3 mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+          <input
+            type="text"
+            placeholder="Rechercher une station ou un message..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+          />
+        </div>
+      )}
+
+      {filteredAds.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
           <Megaphone className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">Aucune publicité pour le moment</h3>
-          <p className="text-neutral-400">Les demandes des stations (Paramètres &gt; Passer une pub) apparaîtront ici.</p>
+          <h3 className="text-xl font-bold text-white mb-2">{stationAds.length === 0 ? 'Aucune publicité pour le moment' : 'Aucun résultat'}</h3>
+          <p className="text-neutral-400">{stationAds.length === 0 ? "Les demandes des stations (Paramètres > Passer une pub) apparaîtront ici." : 'Ajustez votre recherche.'}</p>
         </div>
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02] overflow-x-auto">
@@ -78,7 +104,7 @@ export default function SuperAdminAds() {
               </tr>
             </thead>
             <tbody>
-              {stationAds.map((a, index) => {
+              {paginatedAds.map((a, index) => {
                 const status = deriveAdStatus(a);
                 const badge = STATUS_BADGE[status] || STATUS_BADGE.PENDING;
                 return (
@@ -113,6 +139,13 @@ export default function SuperAdminAds() {
               })}
             </tbody>
           </table>
+          <Pagination
+            page={currentPage}
+            pageSize={pageSize}
+            totalItems={filteredAds.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
         </div>
       )}
     </div>
