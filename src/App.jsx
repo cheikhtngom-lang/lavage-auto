@@ -41,6 +41,7 @@ import SuperAdminMotorists from './pages/SuperAdmin/Motorists';
 import SuperAdminSuperUsers from './pages/SuperAdmin/SuperUsers';
 import SuperAdminAds from './pages/SuperAdmin/Ads';
 import SuperAdminBilling from './pages/SuperAdmin/Billing';
+import SuperAdminBilan from './pages/SuperAdmin/Bilan';
 import SuperAdminSupport from './pages/SuperAdmin/Support';
 import SuperAdminSettings from './pages/SuperAdmin/Settings';
 
@@ -124,6 +125,7 @@ function App() {
                 <Route path="super-users" element={<SuperAdminSuperUsers />} />
                 <Route path="ads" element={<SuperAdminAds />} />
                 <Route path="billing" element={<SuperAdminBilling />} />
+                <Route path="bilan" element={<SuperAdminBilan />} />
                 <Route path="support" element={<SuperAdminSupport />} />
                 <Route path="settings" element={<SuperAdminSettings />} />
               </Route>

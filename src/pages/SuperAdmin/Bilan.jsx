@@ -1,0 +1,265 @@
+import React, { useMemo, useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Card, CardContent } from '../../components/ui/Card';
+import { Download, TrendingUp, TrendingDown, Minus, Wallet, Building2, Megaphone, Crown, Users, Loader2 } from 'lucide-react';
+import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import {
+  PERIOD_TYPES, availablePeriods, periodRange, periodKey, isCurrentPeriod, buildPlatformBilan,
+  fcfa, fcfaCompact,
+} from '../../lib/platformBilan';
+import { downloadPlatformBilanPdf } from '../../lib/platformBilanPdf';
+import { Donut, Legend, Bars, GroupedBars, AreaLine, CHART_COLORS } from '../../components/ui/charts';
+
+function Delta({ d, className = '' }) {
+  if (d == null) return <span className={`text-xs text-neutral-500 ${className}`}>—</span>;
+  const flat = Math.abs(d) < 0.005;
+  const color = flat ? 'text-neutral-400' : d > 0 ? 'text-emerald-400' : 'text-red-400';
+  const Icon = flat ? Minus : d > 0 ? TrendingUp : TrendingDown;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-bold ${color} ${className}`}>
+      <Icon className="w-3.5 h-3.5" />{d >= 0 ? '+' : ''}{(d * 100).toFixed(0)} %
+    </span>
+  );
+}
+
+function Section({ title, subtitle, children, className = '' }) {
+  return (
+    <Card className={`border-white/5 bg-white/[0.02] ${className}`}>
+      <CardContent className="p-6">
+        <div className="mb-5">
+          <h2 className="text-lg font-bold text-white">{title}</h2>
+          {subtitle && <p className="text-xs text-neutral-500 mt-0.5">{subtitle}</p>}
+        </div>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function SuperAdminBilan() {
+  useDocumentTitle('Bilan');
+  const { stations, clientAccounts, stationAds, superUserSubscriptions, PLANS } = useSuperAdminState();
+
+  const data = useMemo(
+    () => ({ stations, clientAccounts, stationAds, superUserSubscriptions, PLANS }),
+    [stations, clientAccounts, stationAds, superUserSubscriptions, PLANS],
+  );
+
+  const earliest = useMemo(() => {
+    const ds = (stations || []).map((s) => s.joinedAt).filter(Boolean).sort();
+    return ds[0] || null;
+  }, [stations]);
+
+  const [type, setType] = useState('mensuel');
+  const periods = useMemo(() => availablePeriods(type, earliest), [type, earliest]);
+  const [selKey, setSelKey] = useState(null);
+
+  useEffect(() => {
+    setSelKey(periods[0] ? periodKey(periods[0]) : null);
+  }, [type]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const period = periods.find((p) => periodKey(p) === selKey) || periods[0];
+  const bilan = useMemo(() => (period ? buildPlatformBilan(data, period) : null), [data, period]);
+
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const handlePdf = async () => {
+    if (!bilan) return;
+    setPdfBusy(true);
+    try {
+      await downloadPlatformBilanPdf({ bilan });
+    } catch (e) {
+      alert('Export PDF impossible : ' + (e?.message || e));
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  if (!bilan) {
+    return (
+      <div className="p-8 flex items-center gap-3 text-neutral-400">
+        <Loader2 className="w-5 h-5 animate-spin" /> Préparation du bilan…
+      </div>
+    );
+  }
+
+  const { current: cur, previous: prev, deltas, prevLabel, trend, partial } = bilan;
+
+  const kpis = [
+    { label: 'Revenu total plateforme', value: fcfa(cur.totalRevenue), icon: Wallet, tint: 'text-emerald-400', bg: 'bg-emerald-500/10', d: deltas.totalRevenue },
+    { label: 'Abonnements stations (est.)', value: fcfa(cur.stationRevenue), icon: Building2, tint: 'text-blue-400', bg: 'bg-blue-500/10', d: deltas.stationRevenue },
+    { label: 'Publicités', value: fcfa(cur.adsRevenue), icon: Megaphone, tint: 'text-amber-400', bg: 'bg-amber-500/10', d: deltas.adsRevenue },
+    { label: 'Super User', value: fcfa(cur.suRevenue), icon: Crown, tint: 'text-purple-400', bg: 'bg-purple-500/10', d: deltas.suRevenue },
+    { label: 'Nouvelles stations', value: String(cur.newStations), icon: Building2, tint: 'text-cyan-400', bg: 'bg-cyan-500/10', d: deltas.newStations },
+    { label: 'Nouveaux automobilistes', value: String(cur.newMotorists), icon: Users, tint: 'text-pink-400', bg: 'bg-pink-500/10', d: deltas.newMotorists },
+  ];
+
+  const streamData = [
+    { label: 'Abonnements stations', value: cur.stationRevenue, color: CHART_COLORS[0] },
+    { label: 'Publicités', value: cur.adsRevenue, color: CHART_COLORS[3] },
+    { label: 'Super User', value: cur.suRevenue, color: CHART_COLORS[2] },
+  ];
+  const planData = Object.entries(cur.planRevenue || {})
+    .map(([key, value], i) => ({ label: PLANS[key]?.label || key, value, color: CHART_COLORS[i % CHART_COLORS.length] }))
+    .sort((a, b) => b.value - a.value);
+
+  const compareGroups = [
+    { label: 'Total', a: cur.totalRevenue, b: prev.totalRevenue },
+    { label: 'Stations', a: cur.stationRevenue, b: prev.stationRevenue },
+    { label: 'Pubs', a: cur.adsRevenue, b: prev.adsRevenue },
+    { label: 'Super User', a: cur.suRevenue, b: prev.suRevenue },
+  ];
+
+  const topStationsByClients = [...(stations || [])].sort((a, b) => (b.clientsCount || 0) - (a.clientsCount || 0)).slice(0, 5);
+  const cityCounts = (stations || []).reduce((acc, s) => {
+    const city = s.city || 'Ville non renseignée';
+    acc[city] = (acc[city] || 0) + 1;
+    return acc;
+  }, {});
+  const topCities = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([label, value]) => ({ label, value }));
+
+  return (
+    <div className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
+      {/* En-tête */}
+      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">Bilan de la <span className="text-purple-400">Plateforme</span></h1>
+          <p className="text-neutral-400">Revenus consolidés (abonnements, publicités, Super User), avec comparaison à la période précédente.</p>
+        </div>
+        <button
+          onClick={handlePdf}
+          disabled={pdfBusy}
+          className="bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white px-5 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-purple-500/20 flex items-center gap-2 flex-shrink-0"
+        >
+          {pdfBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+          Télécharger le PDF
+        </button>
+      </div>
+
+      {/* Contrôles de période */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-8">
+        <div className="flex overflow-x-auto gap-2 scrollbar-hide">
+          {PERIOD_TYPES.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setType(t.key)}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                type === t.key ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <select
+          value={selKey || ''}
+          onChange={(e) => setSelKey(e.target.value)}
+          className="bg-neutral-900 border border-white/10 rounded-xl px-4 py-2 text-white text-sm focus:outline-none focus:border-purple-500 [color-scheme:dark] sm:w-64"
+        >
+          {periods.map((p) => {
+            const k = periodKey(p);
+            return <option key={k} value={k}>{periodRange(p).label}{isCurrentPeriod(p) ? ' — en cours' : ''}</option>;
+          })}
+        </select>
+      </div>
+
+      {partial && (
+        <div className="mb-6 text-sm text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2.5">
+          Période <strong>en cours</strong> : les chiffres évoluent jusqu'à la fin de la période.
+        </div>
+      )}
+
+      <div className="mb-6 text-sm text-blue-300/90 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-2.5">
+        Le revenu des abonnements stations est une <strong>estimation</strong> (plan × stations inscrites à chaque mois) — la plateforme ne conserve pas d'historique de paiement pour les renouvellements confirmés manuellement. Les revenus publicités et Super User, eux, sont réels (paiements confirmés).
+      </div>
+
+      {/* KPI */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        {kpis.map((k, i) => (
+          <motion.div key={k.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+            <Card className="border-white/5 bg-white/[0.02] h-full">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`p-2.5 rounded-xl ${k.bg}`}><k.icon className={`w-5 h-5 ${k.tint}`} /></div>
+                  <Delta d={k.d} />
+                </div>
+                <p className="text-xl font-bold text-white leading-tight">{k.value}</p>
+                <p className="text-xs text-neutral-500 mt-1">{k.label}</p>
+                {k.d != null && <p className="text-[11px] text-neutral-600 mt-1">vs {prevLabel}</p>}
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Évolution + Comparaison */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Section title="Évolution du revenu sur la période" subtitle="Abonnements, publicités et Super User" className="lg:col-span-2">
+          <AreaLine
+            data={trend}
+            keys={[
+              { key: 'stations', color: '#3b82f6', label: 'Abonnements' },
+              { key: 'ads', color: '#f59e0b', label: 'Publicités' },
+              { key: 'superUser', color: '#a855f7', label: 'Super User' },
+            ]}
+            formatValue={fcfaCompact}
+          />
+          <div className="flex flex-wrap gap-4 mt-3 text-xs">
+            {[['Abonnements', '#3b82f6'], ['Publicités', '#f59e0b'], ['Super User', '#a855f7']].map(([l, c]) => (
+              <span key={l} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} /><span className="text-neutral-400">{l}</span></span>
+            ))}
+          </div>
+        </Section>
+
+        <Section title={`Période vs ${prevLabel}`} subtitle="Comparaison directe">
+          <GroupedBars groups={compareGroups} labelA="Cette période" labelB={prevLabel} colorA="#a855f7" colorB="#525252" formatValue={fcfaCompact} />
+        </Section>
+      </div>
+
+      {/* Répartitions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <Section title="Revenu par source">
+          <div className="grid sm:grid-cols-2 gap-6 items-center">
+            <Donut data={streamData} centerLabel={fcfaCompact(cur.totalRevenue)} centerSub="revenu total" />
+            <Legend data={streamData} formatValue={(v) => fcfa(v)} />
+          </div>
+        </Section>
+        <Section title="Revenu estimé par plan" subtitle="Stations actives à date">
+          <Bars data={planData} formatValue={(v) => fcfa(v)} />
+        </Section>
+      </div>
+
+      {/* Leaderboards */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Section title="Top stations par automobilistes déclarés" subtitle="Toutes périodes confondues">
+          {topStationsByClients.length === 0 ? (
+            <p className="text-neutral-500 text-sm">Aucune donnée pour le moment.</p>
+          ) : (
+            <div className="space-y-4">
+              {topStationsByClients.map((s, i) => (
+                <div key={s.id} className="flex items-center gap-4">
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${i === 0 ? 'bg-amber-500/20 text-amber-400' : i === 1 ? 'bg-neutral-400/20 text-neutral-300' : i === 2 ? 'bg-orange-700/20 text-orange-400' : 'bg-white/5 text-neutral-500'}`}>
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium truncate">{s.name}</p>
+                    <p className="text-xs text-neutral-500">{s.city || 'Ville non renseignée'}</p>
+                  </div>
+                  <span className="text-purple-400 font-bold text-sm flex-shrink-0">{s.clientsCount || 0}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section title="Répartition géographique des stations" subtitle="Toutes périodes confondues">
+          {topCities.length === 0 ? (
+            <p className="text-neutral-500 text-sm">Aucune donnée pour le moment.</p>
+          ) : (
+            <Bars data={topCities} color="#3b82f6" formatValue={(v) => String(v)} />
+          )}
+        </Section>
+      </div>
+    </div>
+  );
+}
