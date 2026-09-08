@@ -17,6 +17,7 @@ import { StarRatingDisplay } from '../../components/ui/StarRating';
 import { downloadReceiptPdf } from '../../lib/receipt';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
 import { vehicleCapFor } from '../../lib/superUser';
+import { hasModule } from '../../lib/stationModules';
 
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -224,6 +225,10 @@ export default function Stations() {
       const location = s.quartier ? `${s.quartier}, ${regionLabel(s.region)}` : (s.city || s.address || 'Sénégal');
       const promo = getStationPromo(s.id);
       const featuredAd = featuredAdByStation.get(String(s.id)) || null;
+      // "Station en Vedette" (module Super Admin, voir lib/stationModules.js)
+      // épingle la station en tête au même titre qu'une pub payante active —
+      // sans le message de campagne, réservé aux vraies pubs (featuredAd).
+      const isModuleFeatured = hasModule(s.activeModules, 'mod_vedette');
       return {
         id: s.id,
         name: s.name,
@@ -240,7 +245,7 @@ export default function Stations() {
         distanceKm,
         rating: getStationRatingSummary(s.id),
         promoMessage: isBannerActive(promo) ? promo.banner.message : null,
-        isFeatured: !!featuredAd,
+        isFeatured: !!featuredAd || isModuleFeatured,
         featuredMessage: featuredAd?.message || null,
       };
     })

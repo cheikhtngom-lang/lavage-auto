@@ -47,6 +47,7 @@ const rowToStation = (row) => ({
     promoConfig: row.promo_config || {},
     joinedAt: row.created_at,
     plan: row.station_billing?.plan || 'Starter',
+    activeModules: row.station_billing?.active_modules || [],
     subscriptionStatus: row.station_billing?.subscription_status || 'essai',
     nextBillingDate: row.station_billing?.next_billing_date || null,
     trialEndsAt: row.station_billing?.trial_ends_at || null,
@@ -356,6 +357,17 @@ export function SuperAdminStateProvider({ children }) {
         if (station) logAction(`Plan changé pour ${station.name} → ${plan}`);
     };
 
+    // Modules & Add-ons (voir add_station_modules.sql, lib/stationModules.js)
+    // — indépendant du plan de base, activé/désactivé un par un.
+    const toggleStationModule = async (id, moduleId, active) => {
+        const station = stations.find((s) => s.id === id);
+        const current = station?.activeModules || [];
+        const next = active ? [...new Set([...current, moduleId])] : current.filter((m) => m !== moduleId);
+        await supabase.from('station_billing').update({ active_modules: next }).eq('station_id', id);
+        setStations((prev) => prev.map((s) => (s.id === id ? { ...s, activeModules: next } : s)));
+        if (station) logAction(`Module "${moduleId}" ${active ? 'activé' : 'désactivé'} pour ${station.name}`);
+    };
+
     const markSubscriptionPaid = async (id) => {
         const station = stations.find((s) => s.id === id);
         const nextDate = new Date();
@@ -514,7 +526,7 @@ export function SuperAdminStateProvider({ children }) {
     return (
         <SuperAdminStateContext.Provider value={{
             stations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
-            addStation, updateStation, setStationStatus, deleteStation, setStationPlan,
+            addStation, updateStation, setStationStatus, deleteStation, setStationPlan, toggleStationModule,
             markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
             addDispute, resolveDispute, refundDispute, logAction,
             updatePlan, resetPlans,

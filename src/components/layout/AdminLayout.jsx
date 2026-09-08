@@ -55,8 +55,9 @@ export default function AdminLayout() {
     { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage' },
     { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
     { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
-    // Bilan : réservé au forfait Business (35 000) — voir RequireBusinessPlan dans App.jsx.
-    { name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plan: 'Business' },
+    // Bilan : réservé au forfait Business (35 000), ou débloqué par le
+    // module "mod_bilan" — voir RequireBusinessPlan dans App.jsx.
+    { name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plan: 'Business', module: 'mod_bilan' },
     { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
     { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage' },
   ];
@@ -65,7 +66,7 @@ export default function AdminLayout() {
   // libres — le propriétaire a ['*'] dès le premier rendu, donc aucun flash.
   const navigation = allNavigation.filter((item) => {
     if (item.perm && !hasPerm(myPermissions || [], item.perm)) return false;
-    if (item.plan && stationBilling?.plan !== item.plan) return false;
+    if (item.plan && stationBilling?.plan !== item.plan && !(item.module && (stationBilling?.activeModules || []).includes(item.module))) return false;
     return true;
   });
 

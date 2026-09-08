@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Sparkles, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, FileBarChart } from 'lucide-react';
+import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Sparkles, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, FileBarChart, Boxes } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -24,6 +24,7 @@ export default function SuperAdminLayout() {
     { name: 'Vue d\'ensemble', href: '/superadmin', icon: LayoutDashboard },
     { name: 'Analytique', href: '/superadmin/analytics', icon: BarChart3 },
     { name: 'Stations', href: '/superadmin/stations', icon: Building2 },
+    { name: 'Modules', href: '/superadmin/modules', icon: Boxes },
     { name: 'Automobilistes', href: '/superadmin/automobilistes', icon: Users },
     { name: 'Abonnements Super User', href: '/superadmin/super-users', icon: Crown },
     { name: 'Publicités', href: '/superadmin/ads', icon: Megaphone },

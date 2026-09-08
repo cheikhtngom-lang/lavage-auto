@@ -37,6 +37,7 @@ import SubscriptionEnded from './pages/Admin/SubscriptionEnded';
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
 import SuperAdminStations from './pages/SuperAdmin/Stations';
+import SuperAdminModules from './pages/SuperAdmin/Modules';
 import SuperAdminMotorists from './pages/SuperAdmin/Motorists';
 import SuperAdminSuperUsers from './pages/SuperAdmin/SuperUsers';
 import SuperAdminAds from './pages/SuperAdmin/Ads';
@@ -60,14 +61,16 @@ function RequirePerm({ perm, children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Le Bilan est réservé au forfait Business (35 000). On attend le chargement
-// de la facturation avant de conclure (null = pas encore chargé).
+// Le Bilan est réservé au forfait Business (35 000) — ou débloqué
+// indépendamment du plan via le module "mod_bilan" (Super Admin > Modules,
+// voir lib/stationModules.js). On attend le chargement de la facturation
+// avant de conclure (null = pas encore chargé).
 function RequireBusinessPlan({ children }) {
   const { stationBilling, myPermissions } = useAppState();
   if (stationBilling == null || myPermissions == null) return null;
-  const isBusiness = stationBilling.plan === 'Business';
+  const canSeeBilan = stationBilling.plan === 'Business' || (stationBilling.activeModules || []).includes('mod_bilan');
   const canSeeFinance = hasPerm(myPermissions, 'accounting.manage');
-  if (isBusiness && canSeeFinance) return children;
+  if (canSeeBilan && canSeeFinance) return children;
   return <Navigate to="/admin/queue" replace />;
 }
 
@@ -121,6 +124,7 @@ function App() {
                 <Route index element={<SuperAdminDashboard />} />
                 <Route path="analytics" element={<SuperAdminAnalytics />} />
                 <Route path="stations" element={<SuperAdminStations />} />
+                <Route path="modules" element={<SuperAdminModules />} />
                 <Route path="automobilistes" element={<SuperAdminMotorists />} />
                 <Route path="super-users" element={<SuperAdminSuperUsers />} />
                 <Route path="ads" element={<SuperAdminAds />} />
