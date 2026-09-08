@@ -1,40 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
 import LineChart from '../../components/ui/LineChart';
+import AnimatedCounter from '../../components/ui/AnimatedCounter';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-
-const AnimatedCounter = ({ value, prefix = "", suffix = "" }) => {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (value === 0) { setCount(0); return; }
-    let start = 0;
-    const duration = 1200;
-    const increment = value / (duration / 16);
-
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= value) {
-        setCount(value);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
-    }, 16);
-
-    return () => clearInterval(timer);
-  }, [value]);
-
-  return (
-    <span className="font-bold">
-      {prefix}{count.toLocaleString('fr-FR')}{suffix}
-    </span>
-  );
-};
 
 export default function SuperAdminDashboard() {
   useDocumentTitle('Tableau de bord');

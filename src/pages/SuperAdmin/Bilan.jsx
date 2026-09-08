@@ -10,6 +10,7 @@ import {
 } from '../../lib/platformBilan';
 import { downloadPlatformBilanPdf } from '../../lib/platformBilanPdf';
 import { Donut, Legend, Bars, GroupedBars, AreaLine, CHART_COLORS } from '../../components/ui/charts';
+import AnimatedCounter from '../../components/ui/AnimatedCounter';
 
 function Delta({ d, className = '' }) {
   if (d == null) return <span className={`text-xs text-neutral-500 ${className}`}>—</span>;
@@ -86,12 +87,18 @@ export default function SuperAdminBilan() {
   const { current: cur, previous: prev, deltas, prevLabel, trend, partial } = bilan;
 
   const kpis = [
-    { label: 'Revenu total plateforme', value: fcfa(cur.totalRevenue), icon: Wallet, tint: 'text-emerald-400', bg: 'bg-emerald-500/10', d: deltas.totalRevenue },
-    { label: 'Abonnements stations (est.)', value: fcfa(cur.stationRevenue), icon: Building2, tint: 'text-blue-400', bg: 'bg-blue-500/10', d: deltas.stationRevenue },
-    { label: 'Publicités', value: fcfa(cur.adsRevenue), icon: Megaphone, tint: 'text-amber-400', bg: 'bg-amber-500/10', d: deltas.adsRevenue },
-    { label: 'Super User', value: fcfa(cur.suRevenue), icon: Crown, tint: 'text-purple-400', bg: 'bg-purple-500/10', d: deltas.suRevenue },
-    { label: 'Nouvelles stations', value: String(cur.newStations), icon: Building2, tint: 'text-cyan-400', bg: 'bg-cyan-500/10', d: deltas.newStations },
-    { label: 'Nouveaux automobilistes', value: String(cur.newMotorists), icon: Users, tint: 'text-pink-400', bg: 'bg-pink-500/10', d: deltas.newMotorists },
+    { label: 'Revenu total plateforme', value: cur.totalRevenue, suffix: ' FCFA', icon: Wallet, color: 'text-emerald-400', bg: 'bg-emerald-500/10', d: deltas.totalRevenue,
+      detail: 'Somme des abonnements stations (estimation), publicités et Super User sur la période.' },
+    { label: 'Abonnements stations (est.)', value: cur.stationRevenue, suffix: ' FCFA', icon: Building2, color: 'text-blue-400', bg: 'bg-blue-500/10', d: deltas.stationRevenue,
+      detail: 'Estimation mensuelle (plan × stations inscrites à cette date) — pas de registre de paiement réel pour les renouvellements confirmés manuellement.' },
+    { label: 'Publicités', value: cur.adsRevenue, suffix: ' FCFA', icon: Megaphone, color: 'text-amber-400', bg: 'bg-amber-500/10', d: deltas.adsRevenue,
+      detail: 'Revenu réel des publicités confirmées sur la période (voir Super Admin > Publicités).' },
+    { label: 'Super User', value: cur.suRevenue, suffix: ' FCFA', icon: Crown, color: 'text-purple-400', bg: 'bg-purple-500/10', d: deltas.suRevenue,
+      detail: 'Revenu réel des abonnements Super User confirmés sur la période.' },
+    { label: 'Nouvelles stations', value: cur.newStations, icon: Building2, color: 'text-cyan-400', bg: 'bg-cyan-500/10', d: deltas.newStations,
+      detail: 'Stations inscrites sur la période, tous statuts confondus.' },
+    { label: 'Nouveaux automobilistes', value: cur.newMotorists, icon: Users, color: 'text-pink-400', bg: 'bg-pink-500/10', d: deltas.newMotorists,
+      detail: 'Comptes automobilistes créés sur la période.' },
   ];
 
   const streamData = [
@@ -173,21 +180,41 @@ export default function SuperAdminBilan() {
         Le revenu des abonnements stations est une <strong>estimation</strong> (plan × stations inscrites à chaque mois) — la plateforme ne conserve pas d'historique de paiement pour les renouvellements confirmés manuellement. Les revenus publicités et Super User, eux, sont réels (paiements confirmés).
       </div>
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      {/* KPI — même carte que Vue d'ensemble (Dashboard.jsx) : lueur au survol,
+          tooltip de détail au survol ; le badge d'écart reste visible en
+          permanence ici, contrairement à Vue d'ensemble, car la comparaison
+          de période est tout l'intérêt du Bilan. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
         {kpis.map((k, i) => (
-          <motion.div key={k.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <Card className="border-white/5 bg-white/[0.02] h-full">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`p-2.5 rounded-xl ${k.bg}`}><k.icon className={`w-5 h-5 ${k.tint}`} /></div>
-                  <Delta d={k.d} />
+          <motion.div
+            key={k.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08, type: 'spring', stiffness: 100 }}
+          >
+            <div className="glass-card rounded-2xl p-6 relative overflow-hidden group hover:bg-white/[0.04] transition-colors h-full">
+              <div className={`absolute top-0 right-0 w-32 h-32 ${k.bg} blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+
+              <div className="flex justify-between items-start mb-6">
+                <div className={`p-3 rounded-xl ${k.bg}`}>
+                  <k.icon className={`w-6 h-6 ${k.color}`} />
                 </div>
-                <p className="text-xl font-bold text-white leading-tight">{k.value}</p>
-                <p className="text-xs text-neutral-500 mt-1">{k.label}</p>
-                {k.d != null && <p className="text-[11px] text-neutral-600 mt-1">vs {prevLabel}</p>}
-              </CardContent>
-            </Card>
+                <Delta d={k.d} />
+              </div>
+
+              <div>
+                <p className="text-neutral-400 text-sm font-medium mb-1">{k.label}</p>
+                <h3 className="text-2xl md:text-3xl text-white font-bold">
+                  <AnimatedCounter value={k.value} suffix={k.suffix} />
+                </h3>
+                {k.d != null && <p className="text-xs text-neutral-500 mt-2">vs {prevLabel}</p>}
+              </div>
+
+              <div className="absolute inset-0 bg-white rounded-2xl p-6 flex flex-col justify-center opacity-0 invisible translate-y-3 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 shadow-2xl shadow-black/40 z-10">
+                <h4 className="text-neutral-900 font-bold text-sm mb-1.5">{k.label}</h4>
+                <p className="text-neutral-600 text-xs leading-relaxed">{k.detail}</p>
+              </div>
+            </div>
           </motion.div>
         ))}
       </div>
