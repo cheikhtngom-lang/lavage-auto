@@ -136,6 +136,10 @@ export default function Stations() {
         </div>
       </div>
 
+      {rgpdError && (
+        <div className="mb-6 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">{rgpdError}</div>
+      )}
+
       {filtered.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
           <Building2 className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
@@ -199,6 +203,23 @@ export default function Stations() {
                         className="p-2 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-neutral-400 rounded-lg transition-colors" title="Voir détails"
                       >
                         <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setRgpdBusy(station.id);
+                          setRgpdError('');
+                          try {
+                            await exportStationData(station.id, station.name, { includeDisputes: true });
+                          } catch (err) {
+                            setRgpdError(err.message || "Impossible de générer l'export.");
+                          } finally {
+                            setRgpdBusy(null);
+                          }
+                        }}
+                        disabled={rgpdBusy !== null}
+                        className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-60 text-neutral-400 rounded-lg transition-colors" title="Exporter ses données (RGPD)"
+                      >
+                        {rgpdBusy === station.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                       </button>
                       {station.status === 'active' ? (
                         <button
