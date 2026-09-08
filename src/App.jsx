@@ -32,6 +32,7 @@ import Team from './pages/Admin/Team';
 import Washers from './pages/Admin/Washers';
 import Settings from './pages/Admin/Settings';
 import Subscriptions from './pages/Admin/Subscriptions';
+import Bilan from './pages/Admin/Bilan';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
@@ -55,6 +56,17 @@ function RequirePerm({ perm, children }) {
   const { myPermissions } = useAppState();
   if (myPermissions == null) return null; // permissions encore en chargement
   if (hasPerm(myPermissions, perm)) return children;
+  return <Navigate to="/admin/queue" replace />;
+}
+
+// Le Bilan est réservé au forfait Business (35 000). On attend le chargement
+// de la facturation avant de conclure (null = pas encore chargé).
+function RequireBusinessPlan({ children }) {
+  const { stationBilling, myPermissions } = useAppState();
+  if (stationBilling == null || myPermissions == null) return null;
+  const isBusiness = stationBilling.plan === 'Business';
+  const canSeeFinance = hasPerm(myPermissions, 'accounting.manage');
+  if (isBusiness && canSeeFinance) return children;
   return <Navigate to="/admin/queue" replace />;
 }
 
@@ -104,6 +116,7 @@ function App() {
                 <Route path="transactions" element={<RequirePerm perm="transactions.view"><AdminTransactions /></RequirePerm>} />
                 <Route path="accounting" element={<RequirePerm perm="accounting.manage"><Accounting /></RequirePerm>} />
                 <Route path="analytics" element={<RequirePerm perm="analytics.view"><Analytics /></RequirePerm>} />
+                <Route path="bilan" element={<RequireBusinessPlan><Bilan /></RequireBusinessPlan>} />
                 <Route path="team" element={<RequirePerm perm="team.manage"><Team /></RequirePerm>} />
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
@@ -54,13 +54,19 @@ export default function AdminLayout() {
     { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage' },
     { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
     { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
+    // Bilan : réservé au forfait Business (35 000) — voir RequireBusinessPlan dans App.jsx.
+    { name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plan: 'Business' },
     { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
     { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage' },
   ];
   // Contrôle d'accès "interface" (voir lib/permissions.js). Tant que les
   // permissions ne sont pas chargées (staff), on n'affiche que les entrées
   // libres — le propriétaire a ['*'] dès le premier rendu, donc aucun flash.
-  const navigation = allNavigation.filter((item) => !item.perm || hasPerm(myPermissions || [], item.perm));
+  const navigation = allNavigation.filter((item) => {
+    if (item.perm && !hasPerm(myPermissions || [], item.perm)) return false;
+    if (item.plan && stationBilling?.plan !== item.plan) return false;
+    return true;
+  });
 
   const handleLogout = () => {
     clearSession();
