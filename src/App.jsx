@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
@@ -11,7 +11,6 @@ import ClientLayout from './components/layout/ClientLayout';
 import { AppStateProvider, useAppState } from './hooks/useAppState';
 import { SuperAdminStateProvider } from './hooks/useSuperAdminState';
 import { ClientAccountProvider } from './hooks/useClientAccount';
-import { getCurrentStationId } from './lib/accounts';
 import { startIdleWatch } from './lib/idleTimeout';
 import { hasPerm } from './lib/permissions';
 
@@ -71,24 +70,12 @@ function RequireBusinessPlan({ children }) {
 }
 
 function App() {
-  // La station "active" (celle dont useAppState isole les données) peut changer
-  // sans rechargement de page complet lors d'une impersonation Super Admin.
-  // On remonte AppStateProvider (via `key`) à chaque changement pour qu'il
-  // relise les bonnes données depuis localStorage.
-  const [stationId, setStationId] = useState(getCurrentStationId());
-
-  useEffect(() => {
-    const handler = () => setStationId(getCurrentStationId());
-    window.addEventListener('station-session-changed', handler);
-    return () => window.removeEventListener('station-session-changed', handler);
-  }, []);
-
   // Expiration de session : déconnexion après 1 h sans interaction
   // (voir lib/idleTimeout.js). Ne touche pas aux visiteurs anonymes de /stations.
   useEffect(() => startIdleWatch(), []);
 
   return (
-    <AppStateProvider key={stationId}>
+    <AppStateProvider>
       <SuperAdminStateProvider>
         <ClientAccountProvider>
           <Router>

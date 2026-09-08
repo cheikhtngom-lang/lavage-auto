@@ -173,7 +173,7 @@ export function setSession({ role, remember, clientId, stationId }) {
 }
 
 export function clearSession() {
-  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId', 'impersonatingStation',
+  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId',
    'ccg_last_activity', 'ccg_session_expired'].forEach((k) => {
     localStorage.removeItem(k);
     sessionStorage.removeItem(k);

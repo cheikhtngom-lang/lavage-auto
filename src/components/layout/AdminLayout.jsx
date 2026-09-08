@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -11,7 +11,6 @@ import TrialBanner from './TrialBanner';
 
 export default function AdminLayout() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { stationProfile, stationProfileLoaded, stationBilling, myPermissions } = useAppState();
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
@@ -19,17 +18,14 @@ export default function AdminLayout() {
   // Configurer" — le nom vide par défaut ne veut pas dire "non configurée",
   // juste "pas encore reçue" (voir stationProfileLoaded, useAppState.jsx).
   const stationName = !stationProfileLoaded ? null : (isConfigured ? stationProfile.name : '⚙️ Configurer');
-  const impersonatingStation = sessionStorage.getItem('impersonatingStation');
 
-  // Accès réservé à un compte station connecté, ou à un Super Admin en train
-  // d'impersonner une station (voir impersonateStation dans useSuperAdminState).
+  // Accès réservé à un compte station connecté (propriétaire ou collaborateur).
   useEffect(() => {
     const role = getCurrentRole();
-    const allowed = role === 'admin' || role === 'staff' || (role === 'super_admin' && impersonatingStation);
-    if (!allowed) {
+    if (role !== 'admin' && role !== 'staff') {
       window.location.href = '/login.html';
     }
-  }, [impersonatingStation]);
+  }, []);
 
   // La visite guidée (GuidedTour) a besoin que la sidebar soit visible pour
   // pouvoir surligner ses éléments — sur mobile elle est hors-écran tant que
@@ -39,13 +35,6 @@ export default function AdminLayout() {
     window.addEventListener('ccg:open-mobile-nav', open);
     return () => window.removeEventListener('ccg:open-mobile-nav', open);
   }, []);
-
-  const exitImpersonation = () => {
-    sessionStorage.removeItem('impersonatingStation');
-    sessionStorage.removeItem('currentStationId');
-    window.dispatchEvent(new Event('station-session-changed'));
-    navigate('/superadmin/stations');
-  };
 
   const allNavigation = [
     { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null },
@@ -77,10 +66,8 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen bg-neutral-950 text-white overflow-hidden font-sans">
       {/* Onboarding station : uniquement pour le propriétaire (role='admin'),
-          jamais pour un collaborateur 'staff' ni pendant une impersonation
-          Super Admin (la station ne doit pas voir son onboarding se compléter
-          à son insu pendant qu'un tiers consulte son espace). */}
-      {!impersonatingStation && getCurrentRole() === 'admin' && <StationOnboarding />}
+          jamais pour un collaborateur 'staff'. */}
+      {getCurrentRole() === 'admin' && <StationOnboarding />}
 
       {/* Header Mobile */}
       <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 z-30 flex items-center px-4">
@@ -198,21 +185,7 @@ export default function AdminLayout() {
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-        {!impersonatingStation && <TrialBanner billing={stationBilling} />}
-
-        {impersonatingStation && (
-          <div className="relative z-20 flex items-center justify-between gap-3 bg-amber-500/15 border-b border-amber-500/30 px-6 py-3 text-sm">
-            <span className="flex items-center gap-2 text-amber-300 font-medium">
-              <Sparkles className="w-4 h-4" /> Vue Super Admin sur la station « {impersonatingStation} »
-            </span>
-            <button
-              onClick={exitImpersonation}
-              className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-bold px-4 py-1.5 rounded-lg transition-colors"
-            >
-              Quitter cette vue
-            </button>
-          </div>
-        )}
+        <TrialBanner billing={stationBilling} />
 
         <div className="relative z-10 min-h-full">
           <Outlet />

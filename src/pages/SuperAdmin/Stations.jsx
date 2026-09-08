@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, X, MapPin, Phone, Mail, CheckCircle2, Ban, RotateCcw,
-  Trash2, LogIn, Building2
+  Trash2, Building2
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
@@ -41,8 +40,7 @@ function TrialMiniBar({ station }) {
 
 export default function Stations() {
   useDocumentTitle('Stations');
-  const { stations, addStation, setStationStatus, deleteStation, setStationPlan, updateStation, impersonateStation, PLANS } = useSuperAdminState();
-  const navigate = useNavigate();
+  const { stations, addStation, setStationStatus, deleteStation, setStationPlan, updateStation, PLANS } = useSuperAdminState();
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('tous');
@@ -62,11 +60,6 @@ export default function Stations() {
     addStation({ ...form, clientsCount: Number(form.clientsCount) || 0 });
     setForm(emptyForm);
     setShowAddModal(false);
-  };
-
-  const handleImpersonate = (station) => {
-    impersonateStation(station);
-    navigate('/admin/queue');
   };
 
   return (
@@ -287,12 +280,6 @@ export default function Stations() {
                     <RotateCcw className="w-4 h-4" /> Réactiver
                   </button>
                 )}
-                <button
-                  onClick={() => handleImpersonate(selected)}
-                  className="flex items-center justify-center gap-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 font-bold py-3 rounded-xl transition-colors"
-                >
-                  <LogIn className="w-4 h-4" /> Voir son tableau de bord
-                </button>
               </div>
 
               <button

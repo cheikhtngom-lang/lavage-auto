@@ -446,15 +446,6 @@ export function SuperAdminStateProvider({ children }) {
         if (dispute) logAction(`Remboursement effectué : ${dispute.subject} (${dispute.stationName})`);
     };
 
-    const impersonateStation = (station) => {
-        // Bascule réellement useAppState sur les données isolées de cette station
-        // (sessionStorage prend le pas sur la session "propriétaire" en localStorage).
-        sessionStorage.setItem('currentStationId', String(station.id));
-        sessionStorage.setItem('impersonatingStation', station.name);
-        window.dispatchEvent(new Event('station-session-changed'));
-        logAction(`Connexion en tant que la station : ${station.name}`);
-    };
-
     const updatePlan = async (key, patch) => {
         const current = plans[key] || { label: key, price: 0 };
         const next = { ...current, ...patch };
@@ -474,7 +465,7 @@ export function SuperAdminStateProvider({ children }) {
             stations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
             addStation, updateStation, setStationStatus, deleteStation, setStationPlan,
             markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
-            addDispute, resolveDispute, refundDispute, impersonateStation, logAction,
+            addDispute, resolveDispute, refundDispute, logAction,
             updatePlan, resetPlans,
             superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,
             stationAds, confirmAdPayment, rejectAdPayment,
