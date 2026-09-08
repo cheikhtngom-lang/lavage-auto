@@ -48,11 +48,17 @@ export default function SuperAdminDashboard() {
   const totalClients = stations.reduce((sum, s) => sum + (Number(s.clientsCount) || 0), 0);
 
   const stats = [
-    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10" },
-    { title: "Automobilistes Déclarés", value: totalClients, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-    { title: "En attente de validation", value: pendingStations.length, icon: Clock, color: "text-orange-400", bg: "bg-orange-500/10" },
-    { title: "Revenu Récurrent (MRR)", value: mrr, suffix: " FCFA", icon: CreditCard, color: "text-purple-400", bg: "bg-purple-500/10" }
+    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10", detail: "Stations avec un compte validé et opérationnel sur la plateforme." },
+    { title: "Automobilistes Déclarés", value: totalClients, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10", detail: "Nombre total de clients enregistrés, toutes stations confondues." },
+    { title: "En attente de validation", value: pendingStations.length, icon: Clock, color: "text-orange-400", bg: "bg-orange-500/10", detail: "Nouvelles inscriptions de stations en attente de validation manuelle avant activation." },
+    { title: "Revenu Récurrent (MRR)", value: mrr, suffix: " FCFA", icon: CreditCard, color: "text-purple-400", bg: "bg-purple-500/10", detail: "Somme des abonnements mensuels des stations actives — hors accès illimité offerts (voir Facturation)." }
   ];
+
+  // Nombre de stations par plan (indépendant du statut de paiement — une
+  // station en essai a quand même un plan choisi) — alimente la barre de
+  // répartition ci-dessous, triée par prix croissant pour un ordre stable.
+  const planEntries = Object.entries(PLANS).sort((a, b) => a[1].price - b[1].price);
+  const PLAN_BAR_COLORS = ['bg-emerald-400', 'bg-purple-500', 'bg-amber-400', 'bg-blue-400'];
 
   // Croissance réelle : nouvelles stations inscrites, groupées selon la
   // granularité choisie (jour/semaine/mois/année) — même logique de buckets
@@ -124,10 +130,60 @@ export default function SuperAdminDashboard() {
                   <AnimatedCounter value={stat.value} suffix={stat.suffix} />
                 </h3>
               </div>
+
+              {/* Détail au survol — même principe que les cartes KPI de
+                  GestionImmo (admin-dashboard.css, .kpi-tooltip) : un panneau
+                  clair recouvre la carte plutôt que d'alourdir l'affichage
+                  par défaut avec du texte supplémentaire. */}
+              <div className="absolute inset-0 bg-white rounded-2xl p-6 flex flex-col justify-center opacity-0 invisible translate-y-3 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 shadow-2xl shadow-black/40 z-10">
+                <h4 className="text-neutral-900 font-bold text-sm mb-1.5">{stat.title}</h4>
+                <p className="text-neutral-600 text-xs leading-relaxed">{stat.detail}</p>
+              </div>
             </div>
           </motion.div>
         ))}
       </div>
+
+      {/* Répartition des Abonnements */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35 }}
+        className="glass-card rounded-2xl p-8 mb-12 grid grid-cols-1 md:grid-cols-3 gap-8"
+      >
+        <div className="md:col-span-2">
+          <h2 className="text-xl font-bold text-white mb-6">Répartition des Abonnements</h2>
+          <div className="space-y-5">
+            {planEntries.map(([key, def], i) => {
+              const count = stations.filter((s) => s.plan === key).length;
+              const percent = stations.length > 0 ? (count / stations.length) * 100 : 0;
+              return (
+                <div key={key}>
+                  <div className="flex items-center justify-between mb-2 text-sm">
+                    <span className="text-neutral-300">
+                      {def.label} <span className="text-neutral-500">({def.price.toLocaleString('fr-FR')} FCFA/mois)</span>
+                    </span>
+                    <span className="text-neutral-400">{count} station{count > 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/5 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percent}%` }}
+                      transition={{ duration: 0.6, delay: 0.1 * i }}
+                      className={`h-full rounded-full ${PLAN_BAR_COLORS[i % PLAN_BAR_COLORS.length]}`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+          <span className="text-neutral-500 text-xs uppercase tracking-wider mb-2">MRR Total</span>
+          <span className="text-3xl font-bold text-white mb-2">{mrr.toLocaleString('fr-FR')} FCFA</span>
+          <span className="text-neutral-500 text-xs">Revenu récurrent mensuel (stations actives)</span>
+        </div>
+      </motion.div>
 
       {/* Croissance réelle du réseau */}
       <motion.div

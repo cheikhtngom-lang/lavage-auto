@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, X, MapPin, Phone, Mail, CheckCircle2, Ban, RotateCcw,
-  Trash2, Building2
+  Trash2, Building2, Eye, CircleCheck, Hourglass, Infinity as InfinityIcon
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
@@ -13,6 +13,29 @@ const STATUS_LABELS = {
   en_attente: { label: 'En attente', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
   suspendue: { label: 'Suspendue', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
 };
+
+// Ligne "Plan & Abonnement" compacte dans le tableau — même info que
+// TrialMiniBar/SUB_STATUS (Billing.jsx) mais condensée pour tenir sur une
+// seule ligne de tableau (voir admin-agences.html de GestionImmo, colonne
+// "Abonnement" : badge plan + puce statut).
+function SubscriptionInline({ station }) {
+  if (station.subscriptionStatus === 'illimite') {
+    return <span className="flex items-center gap-1 text-purple-400"><InfinityIcon className="w-3.5 h-3.5" /> Illimité</span>;
+  }
+  if (station.subscriptionStatus === 'a_jour') {
+    return <span className="flex items-center gap-1 text-emerald-400"><CircleCheck className="w-3.5 h-3.5" /> À jour</span>;
+  }
+  if (station.subscriptionStatus === 'en_retard') {
+    return <span className="flex items-center gap-1 text-red-400"><Hourglass className="w-3.5 h-3.5" /> Impayé</span>;
+  }
+  const remaining = trialDaysRemaining(station.trialEndsAt);
+  const urgent = remaining !== null && remaining <= 5;
+  return (
+    <span className={`flex items-center gap-1 ${urgent ? 'text-orange-400' : 'text-neutral-400'}`}>
+      <Hourglass className="w-3.5 h-3.5" /> {remaining === null ? 'Essai' : remaining <= 0 ? 'Essai terminé' : `Essai — ${remaining}j`}
+    </span>
+  );
+}
 
 const emptyForm = { name: '', ownerName: '', ownerEmail: '', ownerPhone: '', address: '', city: '', clientsCount: 0 };
 
@@ -109,32 +132,84 @@ export default function Stations() {
           <p className="text-neutral-400">Ajustez vos filtres ou ajoutez une nouvelle station partenaire.</p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filtered.map((station, index) => (
-            <motion.div
-              key={station.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="glass-card rounded-2xl p-6 border border-white/5 bg-white/[0.02] flex flex-col hover:border-purple-500/30 transition-colors cursor-pointer"
-              onClick={() => setSelected(station)}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-white">{station.name}</h3>
-                  <p className="text-sm text-neutral-500 flex items-center gap-1 mt-1"><MapPin className="w-3.5 h-3.5" /> {station.city || station.address || 'Ville non renseignée'}</p>
-                </div>
-                <span className={`text-xs font-medium px-3 py-1 rounded-full border whitespace-nowrap ${STATUS_LABELS[station.status].className}`}>
-                  {STATUS_LABELS[station.status].label}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-neutral-400 border-t border-white/5 pt-4 mt-auto">
-                <span className="bg-white/5 px-3 py-1 rounded-md border border-white/10">{PLANS[station.plan]?.label || station.plan}</span>
-                <span>{station.clientsCount || 0} clients déclarés</span>
-              </div>
-              <TrialMiniBar station={station} />
-            </motion.div>
-          ))}
+        <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02] overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-white/10 text-neutral-400 text-sm bg-black/20">
+                <th className="p-5 font-medium">Station</th>
+                <th className="p-5 font-medium">Propriétaire</th>
+                <th className="p-5 font-medium">Plan &amp; Abonnement</th>
+                <th className="p-5 font-medium">Statut</th>
+                <th className="p-5 font-medium">Inscription</th>
+                <th className="p-5 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((station, index) => (
+                <motion.tr
+                  key={station.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
+                  onClick={() => setSelected(station)}
+                >
+                  <td className="p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-purple-600 to-fuchsia-500 flex items-center justify-center font-bold text-white text-sm flex-shrink-0">
+                        {station.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-bold text-white whitespace-nowrap">{station.name}</p>
+                        <p className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {station.city || station.address || 'Ville non renseignée'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-5 text-sm">
+                    <p className="text-neutral-300">{station.ownerName || '—'}</p>
+                    <p className="text-neutral-500 text-xs">{station.ownerPhone || station.ownerEmail || ''}</p>
+                  </td>
+                  <td className="p-5 text-sm">
+                    <span className="bg-white/5 px-2.5 py-1 rounded-md border border-white/10 text-neutral-300 text-xs whitespace-nowrap">{PLANS[station.plan]?.label || station.plan}</span>
+                    <div className="mt-1.5 text-xs"><SubscriptionInline station={station} /></div>
+                  </td>
+                  <td className="p-5">
+                    <span className={`text-xs font-medium px-3 py-1 rounded-full border whitespace-nowrap ${STATUS_LABELS[station.status].className}`}>
+                      {STATUS_LABELS[station.status].label}
+                    </span>
+                  </td>
+                  <td className="p-5 text-neutral-400 text-sm whitespace-nowrap">
+                    {station.joinedAt ? new Date(station.joinedAt).toLocaleDateString('fr-FR') : '—'}
+                  </td>
+                  <td className="p-5">
+                    <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setSelected(station)}
+                        className="p-2 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-neutral-400 rounded-lg transition-colors" title="Voir détails"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      {station.status === 'active' ? (
+                        <button
+                          onClick={() => setStationStatus(station.id, 'suspendue')}
+                          className="p-2 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-neutral-400 rounded-lg transition-colors" title="Suspendre"
+                        >
+                          <Ban className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setStationStatus(station.id, 'active')}
+                          className="p-2 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 text-neutral-400 rounded-lg transition-colors" title={station.status === 'en_attente' ? 'Valider / Activer' : 'Réactiver'}
+                        >
+                          {station.status === 'en_attente' ? <CheckCircle2 className="w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
