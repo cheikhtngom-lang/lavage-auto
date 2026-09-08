@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { hasPerm } from '../../lib/permissions';
+import { isSubscriptionEnded } from '../../lib/stationRenewal';
 import StationOnboarding from '../onboarding/StationOnboarding';
 import TrialBanner from './TrialBanner';
 
 export default function AdminLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { stationProfile, stationProfileLoaded, stationBilling, myPermissions } = useAppState();
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
@@ -26,6 +28,16 @@ export default function AdminLayout() {
       window.location.href = '/login.html';
     }
   }, []);
+
+  // Abonnement terminé (impayé, ou essai gratuit écoulé) : plus aucun accès
+  // au tableau de bord tant qu'elle n'a pas renouvelé (voir SubscriptionEnded.jsx
+  // et isSubscriptionEnded, lib/stationRenewal.js). `stationBilling` démarre à
+  // null le temps du chargement — on attend qu'il soit chargé avant de juger.
+  useEffect(() => {
+    if (stationBilling && isSubscriptionEnded(stationBilling)) {
+      navigate('/admin/renouveler', { replace: true });
+    }
+  }, [stationBilling, navigate]);
 
   // La visite guidée (GuidedTour) a besoin que la sidebar soit visible pour
   // pouvoir surligner ses éléments — sur mobile elle est hors-écran tant que

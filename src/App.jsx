@@ -32,6 +32,7 @@ import Washers from './pages/Admin/Washers';
 import Settings from './pages/Admin/Settings';
 import Subscriptions from './pages/Admin/Subscriptions';
 import Bilan from './pages/Admin/Bilan';
+import SubscriptionEnded from './pages/Admin/SubscriptionEnded';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
@@ -97,6 +98,10 @@ function App() {
               </Route>
 
               {/* Routes Admin Station */}
+              {/* Hors AdminLayout : aucun menu, seule action possible = renouveler
+                  (voir SubscriptionEnded.jsx et le redirect dans AdminLayout.jsx) */}
+              <Route path="/admin/renouveler" element={<SubscriptionEnded />} />
+
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/queue" replace />} />
                 <Route path="queue" element={<StationDashboard />} />

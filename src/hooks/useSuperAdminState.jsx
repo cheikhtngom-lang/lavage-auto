@@ -119,6 +119,21 @@ const rowToAd = (row) => ({
     createdAt: row.created_at,
 });
 
+// Demandes de renouvellement — même principe que rowToAd (paiement =
+// insert PENDING côté station, voir lib/stationRenewal.js).
+const rowToRenewalPayment = (row) => ({
+    id: row.id,
+    stationId: row.station_id,
+    stationName: row.stations?.name || '',
+    status: row.status,
+    plan: row.plan,
+    amount: row.amount,
+    method: row.method,
+    reference: row.reference,
+    confirmedAt: row.confirmed_at,
+    createdAt: row.created_at,
+});
+
 const SuperAdminStateContext = createContext(null);
 
 export function SuperAdminStateProvider({ children }) {
@@ -129,6 +144,7 @@ export function SuperAdminStateProvider({ children }) {
     const [clientAccounts, setClientAccounts] = useState([]);
     const [superUserSubscriptions, setSuperUserSubscriptions] = useState([]);
     const [stationAds, setStationAds] = useState([]);
+    const [stationRenewalPayments, setStationRenewalPayments] = useState([]);
     // getItemPosition/estimateItemWaitTime (stationData.js) lisent un cache
     // hors-React (queueSnapshot, simple variable de module) — le recharger ne
     // suffit donc pas à rafraîchir l'écran automobiliste : rien ne dit à React
@@ -180,6 +196,14 @@ export function SuperAdminStateProvider({ children }) {
         setStationAds((data || []).map(rowToAd));
     }, []);
 
+    // Demandes de renouvellement d'abonnement — même remarque que
+    // loadStationAds : RLS renvoie déjà le bon sous-ensemble (une station ne
+    // voit que les siennes, le Super Admin les voit toutes).
+    const loadStationRenewalPayments = useCallback(async () => {
+        const { data } = await supabase.from('station_renewal_payments').select('*, stations(name)').order('created_at', { ascending: false });
+        setStationRenewalPayments((data || []).map(rowToRenewalPayment));
+    }, []);
+
     // Grille tarifaire de TOUTES les stations (lecture publique) — alimente le
     // cache lu par stationData.js (comparaison de prix/durée côté client, pour
     // n'importe quelle station, pas seulement "ma" station admin).
@@ -228,7 +252,8 @@ export function SuperAdminStateProvider({ children }) {
         loadVehicleBrands();
         loadSuperUserSubscriptions();
         loadStationAds();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); };
+        loadStationRenewalPayments();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); };
         window.addEventListener('focus', refresh);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
         // (voir schema.sql) : un changement pendant qu'un autre onglet Super
@@ -258,6 +283,7 @@ export function SuperAdminStateProvider({ children }) {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'custom_vehicle_brands' }, loadVehicleBrands)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'super_user_subscriptions' }, loadSuperUserSubscriptions)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_ads' }, loadStationAds)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'station_renewal_payments' }, loadStationRenewalPayments)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews' }, loadReviews)
             .subscribe();
         // Filet de sécurité (reconnexion Realtime manquée) — plus espacé
@@ -269,7 +295,7 @@ export function SuperAdminStateProvider({ children }) {
             clearInterval(interval);
             supabase.removeChannel(channel);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments]);
 
     // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
     // et persiste en tâche de fond — appelée en fire-and-forget après quasi
@@ -413,6 +439,31 @@ export function SuperAdminStateProvider({ children }) {
         if (ad) logAction(`Publicité rejetée : ${ad.stationName}`);
     };
 
+    // Confirme une demande de renouvellement (PENDING -> CONFIRMED) une fois
+    // l'argent réellement reçu — remet la station "à jour" pour 30 jours,
+    // même logique que markSubscriptionPaid (voir lib/stationRenewal.js).
+    const confirmRenewalPayment = async (id) => {
+        const payment = stationRenewalPayments.find((p) => p.id === id);
+        if (!payment) return;
+        const confirmedAt = new Date();
+        const nextDate = new Date(confirmedAt);
+        nextDate.setDate(nextDate.getDate() + 30);
+        await Promise.all([
+            supabase.from('station_renewal_payments').update({ status: 'CONFIRMED', confirmed_at: confirmedAt.toISOString() }).eq('id', id),
+            supabase.from('station_billing').update({ subscription_status: 'a_jour', next_billing_date: nextDate.toISOString() }).eq('station_id', payment.stationId),
+        ]);
+        setStationRenewalPayments((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'CONFIRMED', confirmedAt: confirmedAt.toISOString() } : p)));
+        setStations((prev) => prev.map((s) => (s.id === payment.stationId ? { ...s, subscriptionStatus: 'a_jour', nextBillingDate: nextDate.toISOString() } : s)));
+        logAction(`Renouvellement confirmé : ${payment.stationName}`);
+    };
+
+    const rejectRenewalPayment = async (id) => {
+        const payment = stationRenewalPayments.find((p) => p.id === id);
+        await supabase.from('station_renewal_payments').update({ status: 'REJECTED' }).eq('id', id);
+        setStationRenewalPayments((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'REJECTED' } : p)));
+        if (payment) logAction(`Renouvellement rejeté : ${payment.stationName}`);
+    };
+
     const sendBillingReminder = (id) => {
         const station = stations.find((s) => s.id === id);
         if (station) logAction(`Relance de facturation envoyée à : ${station.name}`);
@@ -469,6 +520,7 @@ export function SuperAdminStateProvider({ children }) {
             updatePlan, resetPlans,
             superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,
             stationAds, confirmAdPayment, rejectAdPayment,
+            stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
         }}>
             {children}
         </SuperAdminStateContext.Provider>

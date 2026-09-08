@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -14,8 +14,12 @@ const SUB_STATUS = {
 
 export default function Billing() {
   useDocumentTitle('Facturation');
-  const { stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess } = useSuperAdminState();
+  const {
+    stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
+    stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
+  } = useSuperAdminState();
   const [reminded, setReminded] = useState({});
+  const pendingRenewals = stationRenewalPayments.filter((p) => p.status === 'PENDING');
 
   // Les stations en accès illimité ne paient rien — exclues du revenu récurrent,
   // sinon le MRR affiché prétendrait facturer des stations gratuites à vie.
@@ -57,6 +61,42 @@ export default function Billing() {
           <h3 className="text-3xl font-bold text-white">{overdueAmount.toLocaleString('fr-FR')} FCFA</h3>
         </div>
       </div>
+
+      {pendingRenewals.length > 0 && (
+        <div className="glass-card rounded-2xl overflow-hidden border border-blue-500/20 bg-blue-500/[0.03] mb-10">
+          <div className="px-6 py-4 border-b border-blue-500/20 flex items-center gap-2">
+            <Smartphone className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-bold text-white">Demandes de renouvellement en attente</h2>
+          </div>
+          <div className="divide-y divide-white/5">
+            {pendingRenewals.map((p) => (
+              <div key={p.id} className="p-5 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold text-white">{p.stationName || 'Sans nom'}</p>
+                  <p className="text-sm text-neutral-400">
+                    {p.plan} — {(p.amount || 0).toLocaleString('fr-FR')} FCFA via {p.method || '—'}
+                    {p.reference ? ` (${p.reference})` : ''}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => confirmRenewalPayment(p.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors text-xs font-bold"
+                  >
+                    <CheckCircle2 className="w-4 h-4" /> Confirmer
+                  </button>
+                  <button
+                    onClick={() => { if (window.confirm(`Rejeter la demande de renouvellement de ${p.stationName} ?`)) rejectRenewalPayment(p.id); }}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors text-xs font-bold"
+                  >
+                    <XCircle className="w-4 h-4" /> Rejeter
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {stations.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
