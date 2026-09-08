@@ -172,21 +172,21 @@ function readme({ title, subject, tables, errors }) {
   return L.join('\r\n');
 }
 
-async function buildZip({ title, subject, extraRows = {}, ds, onProgress }) {
-  const notify = onProgress || (() => {});
-  const zip = new JSZip();
-
+// Écrit un dataset (tables + éventuelles lignes hors-tables comme le profil
+// station/client) sous un préfixe de dossier — vide ('') pour un export
+// simple, "stations/<slug>/" pour un dossier dans un export groupé.
+function writeDatasetIntoZip(zip, { extraRows = {}, ds, prefix = '' }) {
   Object.entries(extraRows).forEach(([name, row]) => {
     if (row) {
-      zip.file(`donnees/${name}.json`, JSON.stringify(row, null, 2));
-      zip.file(`csv/${name}.csv`, BOM + toCSV([row]));
+      zip.file(`${prefix}donnees/${name}.json`, JSON.stringify(row, null, 2));
+      zip.file(`${prefix}csv/${name}.csv`, BOM + toCSV([row]));
     }
   });
 
   Object.keys(ds.tables).sort().forEach((name) => {
     const rows = ds.tables[name] || [];
-    zip.file(`donnees/${name}.json`, JSON.stringify(rows, null, 2));
-    zip.file(`csv/${name}.csv`, BOM + (toCSV(rows) || ''));
+    zip.file(`${prefix}donnees/${name}.json`, JSON.stringify(rows, null, 2));
+    zip.file(`${prefix}csv/${name}.csv`, BOM + (toCSV(rows) || ''));
   });
 
   const manifest = {
@@ -196,16 +196,44 @@ async function buildZip({ title, subject, extraRows = {}, ds, onProgress }) {
     comptages: ds.counts || {},
     erreurs: ds.errors || [],
   };
-  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-  zip.file('LISEZ-MOI.txt', readme({ title, subject, tables: ds.counts || {}, errors: ds.errors || [] }));
+  zip.file(`${prefix}manifest.json`, JSON.stringify(manifest, null, 2));
+  return manifest;
+}
 
-  notify(90, 'Compression du ZIP…');
+async function finalizeZip(zip, onProgress, base = 90) {
+  const notify = onProgress || (() => {});
+  notify(base, 'Compression du ZIP…');
   const blob = await zip.generateAsync(
     { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
-    (m) => notify(90 + Math.round(m.percent * 0.1), `Compression… ${Math.round(m.percent)}%`),
+    (m) => notify(base + Math.round(m.percent * ((100 - base) / 100)), `Compression… ${Math.round(m.percent)}%`),
   );
   notify(100, 'Terminé.');
   return blob;
+}
+
+async function buildZip({ title, subject, extraRows = {}, ds, onProgress }) {
+  const zip = new JSZip();
+  const manifest = writeDatasetIntoZip(zip, { extraRows, ds });
+  zip.file('LISEZ-MOI.txt', readme({ title, subject, tables: manifest.comptages, errors: manifest.erreurs }));
+  return finalizeZip(zip, onProgress, 90);
+}
+
+function readmeAll(index) {
+  const L = [];
+  L.push('EXPORT RGPD — TOUTES LES STATIONS — Lavage Auto');
+  L.push('================================================');
+  L.push('');
+  L.push(`Généré le : ${index.genere_le}`);
+  L.push(`Stations  : ${index.stations.length}`);
+  L.push('');
+  L.push("Un dossier par station sous stations/<nom-station>/, chacun avec sa");
+  L.push('propre structure (donnees/, csv/, manifest.json). index.json liste');
+  L.push('toutes les stations et leurs comptages.');
+  L.push('');
+  index.stations.forEach((s) => {
+    L.push(`  - ${s.nom || s.id}  →  ${s.dossier}${s.erreurs ? `  (${s.erreurs} avert.)` : ''}`);
+  });
+  return L.join('\r\n');
 }
 
 export function triggerDownload(blob, filename) {
@@ -240,6 +268,33 @@ export async function exportStationClientData(stationId, stationName, clientId, 
     ds, onProgress,
   });
   triggerDownload(blob, `export-client-${slugify(clientName || clientId)}-${tsCompact()}.zip`);
+}
+
+// Toutes les stations en un seul ZIP (un dossier par station) — pour le
+// Super Admin, voir Super Admin > Paramètres > Export RGPD.
+export async function exportAllStationsData(stations, { onProgress } = {}) {
+  const notify = onProgress || (() => {});
+  const zip = new JSZip();
+  const index = { format: 'lavage-auto-export-rgpd-multi', genere_le: new Date().toISOString(), stations: [] };
+
+  const list = stations || [];
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    const base = Math.round((i / Math.max(1, list.length)) * 85);
+    notify(base, `Station ${i + 1}/${list.length} : ${s.name || s.id}`);
+    const ds = await collectStation(s.id, { includeDisputes: true });
+    const slug = slugify(s.name || s.id);
+    const manifest = writeDatasetIntoZip(zip, {
+      extraRows: { station: ds.station, station_billing: ds.billing },
+      ds, prefix: `stations/${slug}/`,
+    });
+    index.stations.push({ id: s.id, nom: s.name || null, dossier: `stations/${slug}`, comptages: manifest.comptages, erreurs: (manifest.erreurs || []).length });
+  }
+
+  zip.file('index.json', JSON.stringify(index, null, 2));
+  zip.file('LISEZ-MOI.txt', readmeAll(index));
+  const blob = await finalizeZip(zip, onProgress, 90);
+  triggerDownload(blob, `export-rgpd-TOUTES-STATIONS-${tsCompact()}.zip`);
 }
 
 export async function exportClientOwnData(clientId, clientName, { onProgress } = {}) {

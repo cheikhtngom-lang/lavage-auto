@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings as SettingsIcon, Save, RotateCcw, ScrollText, Crown, Shield, Lock, Mail, CheckCircle2, CreditCard } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RotateCcw, ScrollText, Crown, Shield, Lock, Mail, CheckCircle2, CreditCard, FileDown, Download, Loader2 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { supabase } from '../../lib/supabaseClient';
 import { changePassword } from '../../lib/accounts';
+import { exportStationData, exportAllStationsData } from '../../lib/rgpdExport';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const PLAN_ACCENTS = {
@@ -16,8 +17,11 @@ const defaultAccent = { ring: 'border-white/10', text: 'text-neutral-300', bg: '
 const TABS = [
   { id: 'plans', label: 'Plans & Tarifs', icon: CreditCard },
   { id: 'compte', label: 'Compte & Sécurité', icon: Shield },
+  { id: 'export', label: 'Export RGPD', icon: FileDown },
   { id: 'journal', label: "Journal d'activité", icon: ScrollText },
 ];
+
+const EXPORT_ALL = '__all__';
 
 export default function SuperAdminSettings() {
   useDocumentTitle('Paramètres plateforme');
@@ -58,6 +62,31 @@ export default function SuperAdminSettings() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setAccountEmail(data?.user?.email || ''));
   }, []);
+
+  // Export / Portabilité RGPD (voir lib/rgpdExport.js) — une station au
+  // choix, ou toutes les stations en un seul ZIP (un dossier par station).
+  const sortedStationsForExport = [...stations].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  const [exportStationId, setExportStationId] = useState('');
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState('');
+
+  const handleGenerateExport = async () => {
+    if (!exportStationId) return;
+    setExportError('');
+    setExportBusy(true);
+    try {
+      if (exportStationId === EXPORT_ALL) {
+        await exportAllStationsData(stations);
+      } else {
+        const station = stations.find((s) => s.id === exportStationId);
+        await exportStationData(exportStationId, station?.name, { includeDisputes: true });
+      }
+    } catch (err) {
+      setExportError(err.message || "Impossible de générer l'export.");
+    } finally {
+      setExportBusy(false);
+    }
+  };
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -213,6 +242,36 @@ export default function SuperAdminSettings() {
                   )}
                 </div>
               </form>
+            </motion.div>
+          )}
+
+          {activeTab === 'export' && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-8 max-w-2xl">
+              <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><FileDown className="w-5 h-5 text-purple-400" /> Export / Portabilité RGPD</h2>
+              <p className="text-neutral-400 mb-6 pb-4 border-b border-white/10">
+                Génère un ZIP contenant l'intégralité des données — d'une station au choix, ou de toutes les stations (un dossier par station). À fournir en cas de résiliation ou de fermeture d'une station (droit à la portabilité — RGPD art. 20 ; loi sénégalaise n° 2008-12). Lecture seule, aucune donnée n'est modifiée.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <select
+                  value={exportStationId}
+                  onChange={(e) => setExportStationId(e.target.value)}
+                  className="flex-1 bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 appearance-none"
+                >
+                  <option value="">{sortedStationsForExport.length === 0 ? 'Aucune station' : '-- Choisir une station --'}</option>
+                  {sortedStationsForExport.length > 0 && <option value={EXPORT_ALL}>Toutes les stations</option>}
+                  {sortedStationsForExport.map((s) => <option key={s.id} value={s.id}>{s.name}{s.city ? ` — ${s.city}` : ''}</option>)}
+                </select>
+                <button
+                  onClick={handleGenerateExport}
+                  disabled={!exportStationId || exportBusy}
+                  className="flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-colors flex-shrink-0"
+                >
+                  {exportBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                  Générer l'export ZIP
+                </button>
+              </div>
+              {exportError && <p className="text-sm text-red-400 mt-3">{exportError}</p>}
             </motion.div>
           )}
 
