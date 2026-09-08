@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera } from 'lucide-react';
+import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -9,6 +9,7 @@ import { SENEGAL_REGIONS } from '../../lib/regions';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
 import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
+import { listStationClients, exportStationData, exportStationClientData } from '../../lib/rgpdExport';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses 3 prestations.
@@ -78,6 +79,15 @@ export default function Settings() {
 
   // État pour le rapport de nettoyage
   const [cleanReport, setCleanReport] = useState(null); // null | [] | ['msg1', 'msg2']
+
+  // Export RGPD (portabilité, voir lib/rgpdExport.js) — liste des clients
+  // chargée à l'ouverture de l'onglet Sécurité, pas avant (évite une requête
+  // inutile sur les autres onglets).
+  const [rgpdClients, setRgpdClients] = useState([]);
+  const [rgpdClientsLoading, setRgpdClientsLoading] = useState(false);
+  const [rgpdSelectedClient, setRgpdSelectedClient] = useState('');
+  const [rgpdBusy, setRgpdBusy] = useState(null); // null | 'all' | 'client'
+  const [rgpdError, setRgpdError] = useState('');
 
   // États pour le changement d'identifiants (email de connexion + mot de passe)
   const [loginEmail, setLoginEmail] = useState(registryEntry?.ownerEmail || '');
@@ -149,6 +159,43 @@ export default function Settings() {
       setNewEmp({ name: '', phone: '', role: 'laveur', salary: '' });
       setTimeout(() => setEmpSuccess(false), 3000);
     }, 1000);
+  };
+
+  // Charge la liste des clients de la station à l'ouverture de l'onglet
+  // Sécurité (une fois) — sert au sélecteur d'export RGPD "un seul client".
+  useEffect(() => {
+    if (activeTab !== 'securite' || !stationId || stationId === 'default') return;
+    setRgpdClientsLoading(true);
+    listStationClients(stationId)
+      .then(setRgpdClients)
+      .catch(() => setRgpdClients([]))
+      .finally(() => setRgpdClientsLoading(false));
+  }, [activeTab, stationId]);
+
+  const handleExportStation = async () => {
+    setRgpdError('');
+    setRgpdBusy('all');
+    try {
+      await exportStationData(stationId, stationProfile?.name);
+    } catch (err) {
+      setRgpdError(err.message || "Impossible de générer l'export.");
+    } finally {
+      setRgpdBusy(null);
+    }
+  };
+
+  const handleExportStationClient = async () => {
+    if (!rgpdSelectedClient) return;
+    const client = rgpdClients.find((c) => c.id === rgpdSelectedClient);
+    setRgpdError('');
+    setRgpdBusy('client');
+    try {
+      await exportStationClientData(stationId, stationProfile?.name, rgpdSelectedClient, client?.name);
+    } catch (err) {
+      setRgpdError(err.message || "Impossible de générer l'export.");
+    } finally {
+      setRgpdBusy(null);
+    }
   };
 
   // Nettoyage ciblé — supprime uniquement les données fictives
@@ -1137,6 +1184,50 @@ export default function Settings() {
                     )}
                   </div>
                 </form>
+
+                {/* Portabilité RGPD — voir lib/rgpdExport.js */}
+                <h3 className="text-lg font-bold text-white mb-2 border-t border-white/10 pt-6 flex items-center gap-2"><FileDown className="w-4 h-4 text-blue-400" /> Exporter vos données (RGPD)</h3>
+                <p className="text-neutral-400 text-sm mb-4">Droit à la portabilité des données (RGPD art. 20 ; loi sénégalaise n° 2008-12) — téléchargez une copie complète, au format JSON + CSV, à tout moment.</p>
+                <div className="space-y-3 mb-10 max-w-xl">
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-white font-medium text-sm">Toutes les données de ma station</p>
+                      <p className="text-neutral-500 text-xs mt-0.5">Employés, tarifs, réservations, transactions, avis, publicités...</p>
+                    </div>
+                    <button
+                      onClick={handleExportStation}
+                      disabled={rgpdBusy !== null}
+                      className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-60 text-neutral-300 border border-white/10 px-4 py-2.5 rounded-xl font-medium text-sm transition-colors"
+                    >
+                      {rgpdBusy === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      Exporter (ZIP)
+                    </button>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-white font-medium text-sm mb-0.5">Les données d'un seul client</p>
+                    <p className="text-neutral-500 text-xs mb-3">Ses réservations, transactions et avis auprès de votre station uniquement.</p>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <select
+                        value={rgpdSelectedClient}
+                        onChange={(e) => setRgpdSelectedClient(e.target.value)}
+                        disabled={rgpdClientsLoading}
+                        className="flex-1 min-w-[180px] bg-neutral-900 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 appearance-none disabled:opacity-60"
+                      >
+                        <option value="">{rgpdClientsLoading ? 'Chargement...' : rgpdClients.length === 0 ? 'Aucun client trouvé' : 'Choisir un client...'}</option>
+                        {rgpdClients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      <button
+                        onClick={handleExportStationClient}
+                        disabled={!rgpdSelectedClient || rgpdBusy !== null}
+                        className="flex-shrink-0 flex items-center gap-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-40 text-neutral-300 border border-white/10 px-4 py-2.5 rounded-xl font-medium text-sm transition-colors"
+                      >
+                        {rgpdBusy === 'client' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        Exporter (ZIP)
+                      </button>
+                    </div>
+                  </div>
+                  {rgpdError && <p className="text-sm text-red-400">{rgpdError}</p>}
+                </div>
 
                 {/* Section réinitialisation */}
                 <h3 className="text-xl font-bold text-white mb-2 border-t border-white/10 pt-6">Gestion des données</h3>

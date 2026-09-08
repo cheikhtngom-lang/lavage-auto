@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, X, MapPin, Phone, Mail, CheckCircle2, Ban, RotateCcw,
-  Trash2, Building2, Eye, CircleCheck, Hourglass, Infinity as InfinityIcon
+  Trash2, Building2, Eye, CircleCheck, Hourglass, Infinity as InfinityIcon, Download, Loader2
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
+import { exportStationData } from '../../lib/rgpdExport';
 
 const STATUS_LABELS = {
   active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -71,6 +72,8 @@ export default function Stations() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [selected, setSelected] = useState(null);
+  const [rgpdBusy, setRgpdBusy] = useState(null); // null | station.id en cours d'export
+  const [rgpdError, setRgpdError] = useState('');
 
   const filtered = stations.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || (s.city || '').toLowerCase().includes(search.toLowerCase());
@@ -371,6 +374,26 @@ export default function Stations() {
                   </button>
                 )}
               </div>
+
+              <button
+                onClick={async () => {
+                  setRgpdBusy(selected.id);
+                  setRgpdError('');
+                  try {
+                    await exportStationData(selected.id, selected.name, { includeDisputes: true });
+                  } catch (err) {
+                    setRgpdError(err.message || "Impossible de générer l'export.");
+                  } finally {
+                    setRgpdBusy(null);
+                  }
+                }}
+                disabled={rgpdBusy !== null}
+                className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-60 text-neutral-300 border border-white/10 font-medium py-3 rounded-xl transition-colors mb-3"
+              >
+                {rgpdBusy === selected.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Exporter ses données (RGPD)
+              </button>
+              {rgpdError && <p className="text-sm text-red-400 mb-3">{rgpdError}</p>}
 
               <button
                 onClick={() => {

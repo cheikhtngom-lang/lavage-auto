@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Check, Smartphone, Loader2, Clock3 } from 'lucide-react';
+import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Check, Smartphone, Loader2, Clock3, Download, FileDown } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { changePassword } from '../../lib/accounts';
 import { MAX_FREE_VEHICLES, CLIENT_PLANS, createSuperUserPayment } from '../../lib/superUser';
+import { exportClientOwnData } from '../../lib/rgpdExport';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — même limite que le logo station
@@ -26,6 +27,9 @@ export default function Settings() {
   const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [passwordSaved, setPasswordSaved] = useState(false);
+
+  const [rgpdBusy, setRgpdBusy] = useState(false);
+  const [rgpdError, setRgpdError] = useState('');
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('SUPER_USER');
@@ -147,6 +151,21 @@ export default function Settings() {
   };
 
   const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+
+  // Portabilité RGPD (voir lib/rgpdExport.js) — export self-service de
+  // l'historique complet du compte, toutes stations confondues.
+  const handleExportMyData = async () => {
+    if (!account?.id) return;
+    setRgpdError('');
+    setRgpdBusy(true);
+    try {
+      await exportClientOwnData(account.id, account.name);
+    } catch (err) {
+      setRgpdError(err.message || "Impossible de générer l'export.");
+    } finally {
+      setRgpdBusy(false);
+    }
+  };
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl relative z-10">
@@ -309,6 +328,22 @@ export default function Settings() {
             )}
           </div>
         </form>
+      </div>
+
+      <div className="glass-card rounded-2xl p-6 md:p-8 border border-white/5 bg-white/[0.02]">
+        <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+          <FileDown className="w-5 h-5 text-blue-400" /> Mes données
+        </h2>
+        <p className="text-neutral-400 text-sm mb-5">Droit à la portabilité de vos données (RGPD art. 20 ; loi sénégalaise n° 2008-12) — téléchargez à tout moment une copie complète de votre profil, véhicules, réservations, transactions et avis, toutes stations confondues.</p>
+        <button
+          onClick={handleExportMyData}
+          disabled={rgpdBusy}
+          className="flex items-center gap-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-60 text-neutral-300 border border-white/10 px-5 py-3 rounded-xl font-medium text-sm transition-colors"
+        >
+          {rgpdBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Exporter mes données (ZIP)
+        </button>
+        {rgpdError && <p className="text-sm text-red-400 mt-3">{rgpdError}</p>}
       </div>
 
       {showPaymentModal && (
