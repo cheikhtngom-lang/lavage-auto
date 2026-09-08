@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown } from 'lucide-react';
+import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -10,6 +10,7 @@ import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
 import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
 import { listStationClients, exportStationData, exportStationClientData } from '../../lib/rgpdExport';
+import { hasModule } from '../../lib/stationModules';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses 3 prestations.
@@ -40,13 +41,14 @@ const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Simple'] 
 
 export default function Settings() {
   useDocumentTitle('Paramètres station');
-  const { stationProfile, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds } = useAppState();
+  const { stationProfile, stationBilling, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds } = useAppState();
   const { stations, updateStation } = useSuperAdminState();
   const navigate = useNavigate();
   const isNewStation = !stationProfile?.name || stationProfile.name.trim() === '';
   const stationId = getCurrentStationId();
   const registryEntry = stations.find(s => s.id === stationId);
   const hasLocation = registryEntry?.lat != null && registryEntry?.lng != null;
+  const hasAdvancedLoyalty = hasModule(stationBilling?.activeModules, 'mod_fidelite_plus');
 
   const [activeTab, setActiveTab] = useState('profil');
   const [geoStatus, setGeoStatus] = useState(null); // null | 'loading' | 'success' | 'error'
@@ -57,6 +59,9 @@ export default function Settings() {
   const [pricing, setPricing] = useState(pricingConfig);
   const [duration, setDuration] = useState(durationConfig);
   const [loyaltyThreshold, setLoyaltyThreshold] = useState(registryEntry?.loyaltyThreshold || 5);
+  // Paliers de fidélité (module "Fidélité Avancée", voir lib/stationModules.js)
+  // — ignorés tant que le module n'est pas actif, voir hasAdvancedLoyalty ci-dessus.
+  const [loyaltyTiers, setLoyaltyTiers] = useState(registryEntry?.loyaltyTiers || []);
   const [newEmp, setNewEmp] = useState({ name: '', phone: '', role: 'laveur', salary: '' });
 
   // stationProfile/registryEntry se chargent désormais depuis Supabase (async) —
@@ -66,6 +71,7 @@ export default function Settings() {
   useEffect(() => {
     if (!registryEntry) return;
     setLoyaltyThreshold(registryEntry.loyaltyThreshold || 5);
+    setLoyaltyTiers(registryEntry.loyaltyTiers || []);
     setLoginEmail(registryEntry.ownerEmail || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registryEntry?.id]);
@@ -133,6 +139,7 @@ export default function Settings() {
         quartier: profile?.quartier || '',
         region: profile?.region || '',
         loyaltyThreshold: Number(loyaltyThreshold) || 5,
+        loyaltyTiers: hasAdvancedLoyalty ? loyaltyTiers.filter((t) => t.threshold > 0 && t.reward.trim()) : null,
       });
     }
 
@@ -598,13 +605,44 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4">Programme de fidélité</h2>
-                <div className="space-y-2 max-w-xs">
-                  <label className="text-sm font-medium text-neutral-400">Lavages avant un lavage gratuit</label>
-                  <input type="number" min="2" max="20" value={loyaltyThreshold} onChange={e => setLoyaltyThreshold(e.target.value)}
-                    className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
-                  <p className="text-neutral-500 text-xs">Ex: 5 → au 5ème lavage payé, le client voit "Lavage gratuit disponible" dans son suivi.</p>
-                </div>
+                <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4 flex items-center gap-2">
+                  Programme de fidélité
+                  {hasAdvancedLoyalty && <span className="text-[10px] font-bold uppercase tracking-wide bg-purple-500/15 text-purple-400 border border-purple-500/25 px-2 py-1 rounded-full">Fidélité Avancée</span>}
+                </h2>
+                {hasAdvancedLoyalty ? (
+                  <div className="max-w-xl">
+                    <p className="text-neutral-500 text-xs mb-4">Définissez plusieurs paliers de récompense (ex: 5 lavages → -10%, 10 lavages → lavage gratuit). Le cycle se réinitialise après le palier le plus élevé.</p>
+                    <div className="space-y-3">
+                      {loyaltyTiers.map((tier, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <input type="number" min="1" placeholder="Seuil" value={tier.threshold}
+                            onChange={(e) => setLoyaltyTiers((prev) => prev.map((t, idx) => idx === i ? { ...t, threshold: e.target.value === '' ? '' : parseInt(e.target.value) || '' } : t))}
+                            className="w-24 flex-shrink-0 bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                          <span className="text-neutral-500 text-sm flex-shrink-0">lavages →</span>
+                          <input type="text" placeholder="Ex: Lavage gratuit" value={tier.reward}
+                            onChange={(e) => setLoyaltyTiers((prev) => prev.map((t, idx) => idx === i ? { ...t, reward: e.target.value } : t))}
+                            className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                          <button type="button" onClick={() => setLoyaltyTiers((prev) => prev.filter((_, idx) => idx !== i))}
+                            className="text-neutral-500 hover:text-red-400 p-2 flex-shrink-0">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button type="button" onClick={() => setLoyaltyTiers((prev) => [...prev, { threshold: '', reward: '' }])}
+                      className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm font-medium mt-3">
+                      <Plus className="w-4 h-4" /> Ajouter un palier
+                    </button>
+                    {loyaltyTiers.length === 0 && <p className="text-neutral-500 text-xs mt-2">Aucun palier configuré — ajoutez-en au moins un, sinon le seuil unique simple s'applique par défaut.</p>}
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-w-xs">
+                    <label className="text-sm font-medium text-neutral-400">Lavages avant un lavage gratuit</label>
+                    <input type="number" min="2" max="20" value={loyaltyThreshold} onChange={e => setLoyaltyThreshold(e.target.value)}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                    <p className="text-neutral-500 text-xs">Ex: 5 → au 5ème lavage payé, le client voit "Lavage gratuit disponible" dans son suivi.</p>
+                  </div>
+                )}
 
                 <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4">Horaires d'ouverture</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

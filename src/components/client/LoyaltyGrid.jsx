@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gift } from 'lucide-react';
+import { Gift, Check } from 'lucide-react';
 
 // Grille de cartes de fidélité, pure (pas de fetch ici) — utilisée par la
 // page dédiée Client/Loyalty.jsx. Séparée en composant réutilisable au cas
@@ -18,22 +18,47 @@ export default function LoyaltyGrid({ entries }) {
 
   return (
     <div className="grid md:grid-cols-2 gap-4">
-      {entries.map(({ station, count, threshold, inCycle, eligible }) => (
-        <div key={station.id} className="glass-card rounded-2xl p-5 border border-white/5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-white">{station.name}</h3>
-            <span className="text-xs text-neutral-500">{count} lavage{count > 1 ? 's' : ''} au total</span>
+      {entries.map((entry) => {
+        const { station, count, eligible, isAdvanced } = entry;
+        return (
+          <div key={station.id} className="glass-card rounded-2xl p-5 border border-white/5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-white">{station.name}</h3>
+              <span className="text-xs text-neutral-500">{count} lavage{count > 1 ? 's' : ''} au total</span>
+            </div>
+
+            {isAdvanced ? (
+              <>
+                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-3">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all" style={{ width: `${(entry.inCycle / entry.cycleLength) * 100}%` }} />
+                </div>
+                <div className="space-y-1.5">
+                  {entry.tiers.map((t) => (
+                    <div key={t.threshold} className={`flex items-center gap-2 text-sm ${t.reached ? 'text-emerald-400' : 'text-neutral-400'}`}>
+                      {t.reached ? <Check className="w-3.5 h-3.5 flex-shrink-0" /> : <Gift className="w-3.5 h-3.5 flex-shrink-0" />}
+                      <span>{t.threshold} lavages — {t.reward}</span>
+                    </div>
+                  ))}
+                </div>
+                {eligible && (
+                  <p className="text-sm text-emerald-400 font-medium flex items-center gap-1.5 mt-3"><Gift className="w-4 h-4" /> Récompense(s) disponible(s) — montrez cet écran à la station !</p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-2">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all" style={{ width: `${(entry.inCycle / entry.threshold) * 100}%` }} />
+                </div>
+                {eligible ? (
+                  <p className="text-sm text-emerald-400 font-medium flex items-center gap-1.5"><Gift className="w-4 h-4" /> Lavage gratuit disponible — montrez cet écran à la station !</p>
+                ) : (
+                  <p className="text-sm text-neutral-400">{entry.inCycle}/{entry.threshold} lavages vers votre prochain lavage gratuit</p>
+                )}
+              </>
+            )}
           </div>
-          <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden mb-2">
-            <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all" style={{ width: `${(inCycle / threshold) * 100}%` }} />
-          </div>
-          {eligible ? (
-            <p className="text-sm text-emerald-400 font-medium flex items-center gap-1.5"><Gift className="w-4 h-4" /> Lavage gratuit disponible — montrez cet écran à la station !</p>
-          ) : (
-            <p className="text-sm text-neutral-400">{inCycle}/{threshold} lavages vers votre prochain lavage gratuit</p>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

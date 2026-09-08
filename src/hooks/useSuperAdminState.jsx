@@ -40,6 +40,7 @@ const rowToStation = (row) => ({
     lng: row.lng,
     status: row.status,
     loyaltyThreshold: row.loyalty_threshold ?? 5,
+    loyaltyTiers: Array.isArray(row.loyalty_tiers) ? row.loyalty_tiers : null,
     openTime: row.open_time,
     closeTime: row.close_time,
     logo: row.logo_url,
@@ -55,7 +56,7 @@ const rowToStation = (row) => ({
     notes: row.station_billing?.notes || '',
 });
 
-const STATION_FIELDS = { name: 'name', ownerName: 'owner_name', ownerEmail: 'owner_email', ownerPhone: 'owner_phone', address: 'address', city: 'city', quartier: 'quartier', region: 'region', lat: 'lat', lng: 'lng', status: 'status', loyaltyThreshold: 'loyalty_threshold' };
+const STATION_FIELDS = { name: 'name', ownerName: 'owner_name', ownerEmail: 'owner_email', ownerPhone: 'owner_phone', address: 'address', city: 'city', quartier: 'quartier', region: 'region', lat: 'lat', lng: 'lng', status: 'status', loyaltyThreshold: 'loyalty_threshold', loyaltyTiers: 'loyalty_tiers' };
 const BILLING_FIELDS = { plan: 'plan', subscriptionStatus: 'subscription_status', nextBillingDate: 'next_billing_date', clientsCount: 'clients_count', notes: 'notes' };
 
 function splitStationPatch(patch) {

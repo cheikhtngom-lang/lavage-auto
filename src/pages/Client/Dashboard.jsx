@@ -17,6 +17,7 @@ import { downloadReceiptPdf } from '../../lib/receipt';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { getLoginCount } from '../../lib/accounts';
 import { buildLoyaltyEntries } from '../../lib/loyalty';
+import { buildInactiveStationReminders } from '../../lib/reminders';
 import Pagination from '../../components/ui/Pagination';
 
 function formatTxDate(iso) {
@@ -293,6 +294,10 @@ export default function ClientOverview() {
   // partagé via lib/loyalty.js pour ne jamais diverger entre les deux.
   const loyaltyEntries = buildLoyaltyEntries(myTransactions, activeStations);
 
+  // Rappels automatiques (module "mod_rappels" — voir lib/reminders.js pour
+  // pourquoi c'est un rappel affiché ici plutôt qu'un envoi SMS/WhatsApp).
+  const inactiveReminders = buildInactiveStationReminders(myTransactions, activeStations);
+
   // Publicités actives (broadcast plateforme, payantes — voir Admin > Passer
   // une pub) : visibles par TOUS les automobilistes, mais un client peut en
   // ignorer une (dismissAd), elle disparaît alors pour lui uniquement
@@ -489,6 +494,26 @@ export default function ClientOverview() {
         )}
       </section>
 
+      {/* Rappels automatiques (module "mod_rappels", voir lib/reminders.js) —
+          une station qu'on a fréquentée et pas revue depuis un moment. */}
+      {inactiveReminders.length > 0 && (
+        <section className="mb-16 space-y-3">
+          {inactiveReminders.map(({ station, daysSince }) => (
+            <button key={station.id} onClick={() => navigate(`/dashboard/stations?station=${station.id}`)}
+              className="w-full glass-card rounded-2xl p-5 border border-amber-500/20 bg-amber-500/[0.03] hover:border-amber-500/40 transition-colors flex items-center justify-between gap-4 text-left">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-amber-500/10"><Bell className="w-6 h-6 text-amber-400" /></div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Ça fait un moment !</h2>
+                  <p className="text-neutral-400 text-sm">{station.name} ne vous a pas revu depuis {daysSince} jours — réservez votre prochain lavage.</p>
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-neutral-500 flex-shrink-0" />
+            </button>
+          ))}
+        </section>
+      )}
+
       {/* Fidélité — page dédiée (voir Client/Loyalty.jsx) pour ne pas
           surcharger ce tableau de bord ; juste un accès rapide ici. */}
       {loyaltyEntries.length > 0 && (
@@ -501,7 +526,7 @@ export default function ClientOverview() {
                 <h2 className="text-lg font-bold text-white">Fidélité</h2>
                 <p className="text-neutral-400 text-sm">
                   {loyaltyEntries.length} station{loyaltyEntries.length > 1 ? 's' : ''} suivie{loyaltyEntries.length > 1 ? 's' : ''}
-                  {loyaltyEntries.some(e => e.eligible) && ' — lavage gratuit disponible !'}
+                  {loyaltyEntries.some(e => e.eligible) && ' — récompense disponible !'}
                 </p>
               </div>
             </div>

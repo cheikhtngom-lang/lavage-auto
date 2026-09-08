@@ -28,18 +28,16 @@ export const STATION_MODULES = [
   {
     id: 'mod_fidelite_plus',
     name: 'Fidélité Avancée',
-    desc: 'Plusieurs paliers de récompenses au lieu du seuil unique actuel (ex: 5/10/20 lavages).',
+    desc: 'Plusieurs paliers de récompenses au lieu du seuil unique actuel (ex: 5/10/20 lavages) — configurable dans Paramètres > Profil Station.',
     price: '8 000 FCFA/mois',
     icon: Gift,
-    comingSoon: true,
   },
   {
     id: 'mod_rappels',
     name: 'Rappels automatiques',
-    desc: 'Relance SMS/WhatsApp automatique des clients inactifs depuis un moment.',
+    desc: "Rappel automatique dans le tableau de bord du client s'il n'est pas revenu depuis 3 semaines (pas d'envoi SMS/WhatsApp : la plateforme ne peut pas accéder au téléphone d'un client pour le compte d'une station).",
     price: '10 000 FCFA/mois',
     icon: MessageSquareText,
-    comingSoon: true,
   },
   {
     id: 'mod_support',
