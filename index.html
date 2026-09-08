@@ -267,6 +267,23 @@
             .station-card::after { display: none; }
             .sc-cta { opacity: 1; transform: none; }
         }
+
+        /* Barre CTA mobile : masquée tant que le hero est visible (sinon elle
+           encombre le premier écran), glisse en bas de vue une fois le hero
+           dépassé. Toggle .is-hidden via IntersectionObserver (initMobileCta). */
+        .mobile-cta-bar {
+            transform: translateY(0);
+            opacity: 1;
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+        }
+        .mobile-cta-bar.is-hidden {
+            transform: translateY(115%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .mobile-cta-bar { transition: none; }
+        }
     </style>
 </head>
 <body class="min-h-screen relative overflow-x-hidden text-white bg-[#0a0a0a]">
@@ -313,11 +330,12 @@
         </nav>
     </header>
 
-    <!-- CTA sticky mobile : barre fixe en bas d'écran, visible uniquement sur mobile -->
-    <div class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-neutral-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex items-center gap-3" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom));">
+    <!-- CTA sticky mobile : masquée pendant le hero (voir .mobile-cta-bar /
+         initMobileCta), apparaît une fois le premier écran dépassé. -->
+    <div id="mobile-cta" class="mobile-cta-bar is-hidden md:hidden fixed bottom-0 left-0 right-0 z-40 bg-neutral-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-2.5 flex items-center gap-3" style="padding-bottom: max(0.625rem, env(safe-area-inset-bottom));">
         <div class="flex-1 min-w-0">
-            <p class="text-sm font-bold text-white truncate">Prêt à réserver ?</p>
-            <p class="text-xs text-neutral-500 truncate">Trouvez une station en 10 secondes</p>
+            <p class="text-[15px] font-bold text-white leading-tight truncate">Prêt à réserver ?</p>
+            <p class="text-[11px] text-neutral-500 leading-tight truncate">Paiement Wave / Orange Money</p>
         </div>
         <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full text-sm font-bold transition-colors shadow-lg shadow-blue-500/30 flex-shrink-0 whitespace-nowrap">
             Trouver une station
@@ -332,7 +350,7 @@
              mode économie de données / prefers-reduced-motion. -->
         <!-- Note : sur iOS le playsinline + muted permettent l'autoplay ; l'overlay
              dégradé masque en partie le bouton lecture natif si l'autoplay échoue. -->
-        <section id="accueil" class="relative w-full min-h-[90vh] md:min-h-screen flex items-center overflow-hidden">
+        <section id="accueil" class="relative w-full min-h-[80vh] md:min-h-screen flex items-center overflow-hidden">
             <video id="hero-video" muted loop playsinline preload="none" aria-hidden="true"
                    poster="/images/hero-poster.jpg" data-src="/videos/hero-wash.mp4"
                    class="absolute inset-0 w-full h-full object-cover"></video>
@@ -369,45 +387,45 @@
                 </div>
             </div>
 
-            <div class="relative z-10 w-full max-w-7xl mx-auto px-4 py-20 sm:py-28">
+            <div class="relative z-10 w-full max-w-7xl mx-auto px-4 py-14 sm:py-28">
                 <div class="max-w-2xl animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
-                    <h1 class="text-[2rem] leading-[1.15] sm:text-5xl md:text-6xl font-bold tracking-tight mb-5 sm:leading-tight text-white">
+                    <h1 class="text-[1.9rem] leading-[1.15] sm:text-5xl md:text-6xl font-bold tracking-tight mb-4 sm:mb-5 sm:leading-tight text-white">
                         Votre lavage de confiance à Dakar
                     </h1>
 
-                    <p class="text-base sm:text-lg text-neutral-200 mb-7 sm:mb-9 max-w-xl">
+                    <p class="text-[0.95rem] sm:text-lg text-neutral-200 mb-6 sm:mb-9 max-w-xl">
                         Réservez votre créneau en ligne, suivez votre lavage en direct et payez par Wave ou Orange Money — sans jamais faire la queue.
                     </p>
 
                     <!-- Badge "temps d'attente" — MOBILE : version compacte dans le flux -->
-                    <div class="md:hidden mb-8 glass-panel rounded-2xl px-4 py-3 inline-flex items-center gap-3 shadow-xl">
-                        <div class="w-11 h-11 flex-shrink-0 rounded-full border-4 border-blue-500/40 bg-black/50 flex flex-col items-center justify-center">
-                            <span class="text-base font-bold text-white leading-none">30</span>
+                    <div class="md:hidden mb-6 glass-panel rounded-2xl px-3.5 py-2.5 inline-flex items-center gap-3 shadow-xl">
+                        <div class="w-10 h-10 flex-shrink-0 rounded-full border-4 border-blue-500/40 bg-black/50 flex flex-col items-center justify-center">
+                            <span class="text-sm font-bold text-white leading-none">30</span>
                             <span class="text-[8px] text-blue-400 uppercase tracking-wide">min</span>
                         </div>
                         <div>
-                            <p class="text-white text-sm font-semibold">Temps d'attente estimé</p>
-                            <p class="text-neutral-300 text-xs">Suivi en direct de votre lavage</p>
+                            <p class="text-white text-[13px] font-semibold leading-tight">Temps d'attente estimé</p>
+                            <p class="text-neutral-300 text-[11px] leading-tight">Suivi en direct de votre lavage</p>
                         </div>
                     </div>
 
-                    <div class="flex flex-col sm:flex-row gap-4 mb-10">
-                        <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-7 sm:mb-10">
+                        <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                             Réserver un créneau
                         </button>
-                        <button onclick="document.getElementById('avantages').scrollIntoView({behavior:'smooth'})" class="border border-white/40 hover:bg-white/10 rounded-full px-8 py-4 text-white font-semibold transition-colors flex items-center justify-center gap-2 backdrop-blur-sm">
+                        <button onclick="document.getElementById('avantages').scrollIntoView({behavior:'smooth'})" class="border border-white/40 hover:bg-white/10 rounded-full px-8 py-3.5 sm:py-4 text-white font-semibold transition-colors flex items-center justify-center gap-2 backdrop-blur-sm">
                             Voir nos services
                         </button>
                     </div>
 
-                    <div class="flex flex-wrap gap-3">
-                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-2 text-sm text-white">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <div class="flex flex-wrap gap-2 sm:gap-3">
+                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-white">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             Laveurs qualifiés
                         </span>
-                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-4 py-2 text-sm text-white">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-white">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             Sans attente — réservation en ligne
                         </span>
                     </div>
@@ -1039,7 +1057,25 @@
             initScrollReveal();
             initSpotlights();
             initCountUp();
+            initMobileCta();
         });
+
+        // Barre CTA mobile : cachée tant que le hero est à l'écran (elle
+        // encombrait le premier écran, cf. capture), révélée dès qu'on l'a
+        // dépassé. Repli sans JS : la barre reste cachée (classe is-hidden
+        // posée dans le HTML) — le hero a déjà son propre CTA "Réserver".
+        function initMobileCta() {
+            const bar = document.getElementById('mobile-cta');
+            const hero = document.getElementById('accueil');
+            if (!bar || !hero || !('IntersectionObserver' in window)) return;
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach((e) => {
+                    // Visible dès qu'il reste <25% du hero à l'écran.
+                    bar.classList.toggle('is-hidden', e.intersectionRatio > 0.25);
+                });
+            }, { threshold: [0, 0.25, 0.5] });
+            io.observe(hero);
+        }
 
         // Les stations arrivent de façon asynchrone (voir le script module
         // juste au-dessus) : au premier rendu, window.__publicStations n'est
