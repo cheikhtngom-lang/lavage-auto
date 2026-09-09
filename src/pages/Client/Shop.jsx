@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Search, Store, MessageCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { ShoppingBag, Search, Store, MessageCircle, ArrowRight, Loader2, Tag } from 'lucide-react';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { loadClientShop, productWhatsAppLink } from '../../lib/shop';
+import { supabase } from '../../lib/supabaseClient';
+import { loadClientShop, productWhatsAppLink, productPricing } from '../../lib/shop';
 
 export default function Shop() {
   useDocumentTitle('Boutique');
@@ -11,15 +12,26 @@ export default function Shop() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('Toutes');
+  const [promoOnly, setPromoOnly] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  const reload = useCallback(() => {
     loadClientShop()
-      .then((g) => { if (!cancelled) setGroups(g); })
-      .catch((err) => { if (!cancelled) setError(err.message || 'Chargement impossible.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+      .then(setGroups)
+      .catch((err) => setError(err.message || 'Chargement impossible.'))
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  // Stock et prix promo mis à jour en direct : dès que la station modifie un
+  // produit (vend une pièce, lance une promo…), la liste se rafraîchit.
+  useEffect(() => {
+    const ch = supabase
+      .channel('client-shop')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_products' }, reload)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [reload]);
 
   const categories = useMemo(() => {
     const set = new Set();
@@ -33,6 +45,7 @@ export default function Shop() {
       ...g,
       products: g.products.filter((p) => {
         if (category !== 'Toutes' && p.category !== category) return false;
+        if (promoOnly && !productPricing(p).onSale) return false;
         if (!q) return true;
         return (
           (p.name || '').toLowerCase().includes(q) ||
@@ -42,6 +55,8 @@ export default function Shop() {
       }),
     }))
     .filter((g) => g.products.length > 0);
+
+  const hasAnyPromo = groups.some((g) => g.products.some((p) => productPricing(p).onSale));
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl relative z-10">
@@ -80,6 +95,12 @@ export default function Shop() {
               className="bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
+            {hasAnyPromo && (
+              <button type="button" onClick={() => setPromoOnly((v) => !v)}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-colors border ${promoOnly ? 'bg-red-500/15 border-red-500/40 text-red-300' : 'bg-neutral-900 border-white/10 text-neutral-300 hover:text-white'}`}>
+                <Tag className="w-4 h-4" /> En promo
+              </button>
+            )}
           </div>
 
           {visibleGroups.length === 0 ? (
@@ -103,23 +124,39 @@ export default function Shop() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                     {products.map((p) => {
                       const wa = productWhatsAppLink(station, p);
+                      const pr = productPricing(p);
                       const outOfStock = p.stock === 0;
                       return (
-                        <div key={p.id} className="glass-card rounded-2xl overflow-hidden border border-white/5 flex flex-col">
-                          <div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden">
+                        <div key={p.id} className={`glass-card rounded-2xl overflow-hidden border border-white/5 flex flex-col ${outOfStock ? 'opacity-60' : ''}`}>
+                          <div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden relative">
                             {p.image_url
                               ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                               : <Store className="w-10 h-10 text-neutral-700" />}
+                            {pr.onSale && (
+                              <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">-{pr.percent}%</span>
+                            )}
                           </div>
                           <div className="p-4 flex flex-col flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-bold text-white leading-tight">{p.name}</p>
-                              <span className="text-emerald-400 font-bold whitespace-nowrap">{(p.price || 0).toLocaleString('fr-FR')} {p.currency || 'FCFA'}</span>
+                              <span className="text-right whitespace-nowrap">
+                                {pr.onSale && (
+                                  <span className="block text-neutral-500 text-xs line-through">{pr.original.toLocaleString('fr-FR')}</span>
+                                )}
+                                <span className={`font-bold ${pr.onSale ? 'text-red-400' : 'text-emerald-400'}`}>
+                                  {pr.effective.toLocaleString('fr-FR')} {p.currency || 'FCFA'}
+                                </span>
+                              </span>
                             </div>
-                            <p className="text-neutral-500 text-xs mt-1">{p.category}{outOfStock ? ' · Rupture' : ''}</p>
+                            <p className="text-neutral-500 text-xs mt-1">
+                              {p.category}
+                              {p.stock != null && (outOfStock ? ' · Rupture de stock' : ` · ${p.stock} en stock`)}
+                            </p>
                             {p.description && <p className="text-neutral-400 text-xs mt-2 line-clamp-3">{p.description}</p>}
                             <div className="mt-auto pt-3">
-                              {wa ? (
+                              {outOfStock ? (
+                                <p className="text-neutral-500 text-xs text-center font-medium">Bientôt de retour</p>
+                              ) : wa ? (
                                 <a href={wa} target="_blank" rel="noopener noreferrer"
                                   className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 px-3 rounded-xl transition-colors">
                                   <MessageCircle className="w-4 h-4" /> Contacter la station

@@ -1,17 +1,25 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search } from 'lucide-react';
+import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search, Minus, Tag } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { useAppState } from '../../hooks/useAppState';
 import { getCurrentStationId } from '../../lib/accounts';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import {
-  SHOP_CATEGORIES, MAX_SHOP_IMAGE_SIZE, stationHasShop,
-  loadStationProducts, saveProduct, setProductActive, deleteProduct,
+  SHOP_CATEGORIES, MAX_SHOP_IMAGE_SIZE, stationHasShop, productPricing,
+  loadStationProducts, saveProduct, setProductActive, deleteProduct, adjustStock,
 } from '../../lib/shop';
 
-const emptyForm = { id: null, name: '', description: '', category: 'Pneus', price: '', stock: '', imageUrl: null, active: true };
+const emptyForm = { id: null, name: '', description: '', category: 'Pneus', price: '', stock: '', salePrice: '', saleEndsAt: '', imageUrl: null, active: true };
+
+// ISO -> valeur d'un <input type="datetime-local"> (heure locale, sans les secondes).
+function toLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export default function Shop() {
   useDocumentTitle('Boutique');
@@ -46,9 +54,16 @@ export default function Shop() {
     setForm({
       id: p.id, name: p.name, description: p.description || '', category: p.category || 'Autre',
       price: String(p.price ?? ''), stock: p.stock == null ? '' : String(p.stock),
+      salePrice: p.sale_price == null ? '' : String(p.sale_price),
+      saleEndsAt: toLocalInput(p.sale_ends_at),
       imageUrl: p.image_url || null, active: p.active,
     });
     setImageError(''); setError(''); setShowModal(true);
+  };
+
+  const handleStock = async (p, delta) => {
+    try { await adjustStock(p.id, delta); await refresh(); }
+    catch (err) { setError(err.message); }
   };
 
   const handleImage = (e) => {
@@ -66,6 +81,10 @@ export default function Shop() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name.trim() || form.price === '') return;
+    if (form.salePrice !== '' && !(Number(form.salePrice) >= 0 && Number(form.salePrice) < Number(form.price))) {
+      setError('Le prix promo doit être un nombre positif, inférieur au prix normal.');
+      return;
+    }
     setSaving(true); setError('');
     try {
       await saveProduct(stationId, form);
@@ -156,27 +175,50 @@ export default function Shop() {
         <p className="text-neutral-500 text-center py-12">Aucun produit ne correspond à « {search.trim()} ».</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((p) => (
+          {filtered.map((p) => {
+            const pr = productPricing(p);
+            return (
             <Card key={p.id} className={`border-white/5 bg-white/[0.02] overflow-hidden ${!p.active ? 'opacity-60' : ''}`}>
-              <div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden">
+              <div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden relative">
                 {p.image_url
                   ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                   : <Store className="w-10 h-10 text-neutral-700" />}
+                {pr.onSale && (
+                  <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">-{pr.percent}%</span>
+                )}
               </div>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <p className="font-bold text-white leading-tight">{p.name}</p>
-                  <span className="text-emerald-400 font-bold whitespace-nowrap">{(p.price || 0).toLocaleString('fr-FR')} {p.currency || 'FCFA'}</span>
+                  <span className="text-right whitespace-nowrap">
+                    {pr.onSale && (
+                      <span className="block text-neutral-500 text-xs line-through">{pr.original.toLocaleString('fr-FR')}</span>
+                    )}
+                    <span className={`font-bold ${pr.onSale ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {pr.effective.toLocaleString('fr-FR')} {p.currency || 'FCFA'}
+                    </span>
+                  </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 mb-2">
                   <Badge variant="outline" className="bg-white/5 text-neutral-300 border-white/10">{p.category}</Badge>
                   {!p.active && <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20">Masqué</Badge>}
-                  {p.stock != null && (
-                    <Badge variant="outline" className={p.stock > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}>
-                      {p.stock > 0 ? `Stock : ${p.stock}` : 'Rupture'}
-                    </Badge>
-                  )}
+                  {pr.onSale && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">En promo</Badge>}
                 </div>
+                {p.stock != null && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <button type="button" onClick={() => handleStock(p, -1)} disabled={p.stock <= 0} title="−1 vendu"
+                      className="p-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className={`text-sm font-bold ${p.stock > 0 ? 'text-white' : 'text-red-400'}`}>
+                      {p.stock > 0 ? `Stock : ${p.stock}` : 'Rupture'}
+                    </span>
+                    <button type="button" onClick={() => handleStock(p, 1)} title="+1 (réassort)"
+                      className="p-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 transition-colors">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 {p.description && <p className="text-neutral-500 text-xs line-clamp-2 mb-3">{p.description}</p>}
                 <div className="flex gap-2">
                   <button onClick={() => toggleActive(p)} title={p.active ? 'Masquer' : 'Publier'}
@@ -194,7 +236,8 @@ export default function Shop() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -237,6 +280,28 @@ export default function Shop() {
                   <input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
                     placeholder="Ex: 8"
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                  <p className="text-sm font-medium text-neutral-300 flex items-center gap-2"><Tag className="w-4 h-4 text-red-400" /> Promotion <span className="text-neutral-600 font-normal">(optionnel)</span></p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-400 mb-1">Prix promo (FCFA)</label>
+                      <input type="number" min="0" step="100" value={form.salePrice}
+                        onChange={(e) => setForm({ ...form, salePrice: e.target.value })}
+                        placeholder={form.price ? `< ${Number(form.price).toLocaleString('fr-FR')}` : 'Ex: 30000'}
+                        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-400 mb-1">Fin de la promo</label>
+                      <input type="datetime-local" value={form.saleEndsAt}
+                        onChange={(e) => setForm({ ...form, saleEndsAt: e.target.value })}
+                        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                    </div>
+                  </div>
+                  <p className="text-neutral-600 text-xs">
+                    Renseignez un prix promo inférieur au prix normal pour afficher une remise. Sans date de fin, la promo reste active jusqu'à ce que vous la retiriez (champ vide).
+                  </p>
                 </div>
 
                 <div>

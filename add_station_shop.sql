@@ -22,6 +22,12 @@ create table if not exists public.shop_products (
   category text not null default 'Autre',
   price integer not null default 0 check (price >= 0),
   currency text not null default 'FCFA',
+  -- Promo : prix remisé (null = pas de promo) + date de fin optionnelle
+  -- (null = promo sans échéance). Contrainte 0 ≤ sale_price < price posée
+  -- plus bas (shop_products_sale_price_ck). Le prix effectif est calculé
+  -- côté app — voir productPricing dans src/lib/shop.js.
+  sale_price integer,
+  sale_ends_at timestamptz,
   -- Photo en base64 (pas de Supabase Storage sur ce projet) — format/taille
   -- vérifiés aussi côté serveur (~2,2 Mo), comme stations.logo_url / station_ads.image_url.
   image_url text check (
@@ -38,6 +44,43 @@ create index if not exists shop_products_station_idx on public.shop_products(sta
 -- Accélère le test RLS « ce client a-t-il réservé chez cette station ? ».
 create index if not exists reservations_client_station_idx
   on public.reservations(client_id, station_id);
+
+-- Colonnes ajoutées après coup — rejouables si le fichier a déjà été exécuté.
+alter table public.shop_products add column if not exists sale_price integer;
+alter table public.shop_products add column if not exists sale_ends_at timestamptz;
+
+-- Le prix promo doit être positif et strictement inférieur au prix normal.
+alter table public.shop_products drop constraint if exists shop_products_sale_price_ck;
+alter table public.shop_products add constraint shop_products_sale_price_ck
+  check (sale_price is null or (sale_price >= 0 and sale_price < price));
+
+-- Le stock ne descend jamais sous 0 (null = non suivi / « sur commande »).
+alter table public.shop_products drop constraint if exists shop_products_stock_ck;
+alter table public.shop_products add constraint shop_products_stock_ck
+  check (stock is null or stock >= 0);
+
+-- Décrément/incrément atomique du stock d'un produit (bouton « −1 vendu » /
+-- « +1 » côté station). N'agit que sur un produit de SA station et
+-- seulement si le stock est suivi ; borne le résultat à 0.
+create or replace function public.shop_adjust_stock(p_id uuid, p_delta integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_stock integer;
+begin
+  update public.shop_products
+     set stock = greatest(0, coalesce(stock, 0) + p_delta)
+   where id = p_id
+     and station_id = public.current_station_id()
+     and stock is not null
+  returning stock into new_stock;
+  return new_stock; -- null si aucune ligne modifiée (pas ma station / stock non suivi)
+end;
+$$;
+grant execute on function public.shop_adjust_stock(uuid, integer) to authenticated;
 
 -- updated_at auto sur UPDATE.
 create or replace function public.touch_shop_product()

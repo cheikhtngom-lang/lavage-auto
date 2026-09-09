@@ -40,12 +40,17 @@ export async function loadStationProducts(stationId) {
 }
 
 export async function saveProduct(stationId, product) {
+  const price = parseInt(product.price, 10) || 0;
+  const salePrice =
+    product.salePrice === '' || product.salePrice == null ? null : parseInt(product.salePrice, 10);
   const row = {
     name: product.name.trim(),
     description: product.description?.trim() || null,
     category: product.category || 'Autre',
-    price: parseInt(product.price, 10) || 0,
+    price,
     stock: product.stock === '' || product.stock == null ? null : parseInt(product.stock, 10),
+    sale_price: salePrice != null && salePrice >= 0 && salePrice < price ? salePrice : null,
+    sale_ends_at: product.saleEndsAt ? new Date(product.saleEndsAt).toISOString() : null,
     image_url: product.imageUrl || null,
     active: product.active !== false,
   };
@@ -61,6 +66,15 @@ export async function saveProduct(stationId, product) {
 export async function setProductActive(id, active) {
   const { error } = await supabase.from('shop_products').update({ active }).eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+// Décrémente (« −1 vendu ») ou incrémente le stock d'un produit de façon
+// atomique côté Postgres (voir shop_adjust_stock dans add_station_shop.sql).
+// Renvoie le nouveau stock, ou null si le produit n'a pas de stock suivi.
+export async function adjustStock(id, delta) {
+  const { data, error } = await supabase.rpc('shop_adjust_stock', { p_id: id, p_delta: delta });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function deleteProduct(id) {
@@ -90,10 +104,26 @@ export async function loadClientShop() {
   return Array.from(byStation.values());
 }
 
+// Prix effectif d'un produit : prix promo s'il est renseigné, valide
+// (0 ≤ sale_price < price) et non expiré (sale_ends_at), sinon prix normal.
+// Renvoie de quoi afficher la remise (prix barré + pourcentage).
+export function productPricing(p) {
+  const price = p.price || 0;
+  const onSale =
+    p.sale_price != null &&
+    p.sale_price >= 0 &&
+    p.sale_price < price &&
+    (!p.sale_ends_at || new Date(p.sale_ends_at).getTime() > Date.now());
+  const effective = onSale ? p.sale_price : price;
+  const percent = onSale && price > 0 ? Math.round((1 - effective / price) * 100) : 0;
+  return { onSale, effective, original: price, percent, endsAt: onSale ? p.sale_ends_at : null };
+}
+
 // Lien WhatsApp pré-rempli pour contacter la station à propos d'un produit.
 export function productWhatsAppLink(station, product) {
   const phone = (station?.owner_phone || '').replace(/\D/g, '');
-  const msg = `Bonjour, je suis intéressé(e) par « ${product.name} » (${(product.price || 0).toLocaleString('fr-FR')} ${product.currency || 'FCFA'}) vu dans votre boutique sur Clean Car Galsen.`;
+  const { effective } = productPricing(product);
+  const msg = `Bonjour, je suis intéressé(e) par « ${product.name} » (${effective.toLocaleString('fr-FR')} ${product.currency || 'FCFA'}) vu dans votre boutique sur Clean Car Galsen.`;
   return phone
     ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
     : null;
