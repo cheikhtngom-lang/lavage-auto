@@ -39,18 +39,25 @@ export async function loadStationProducts(stationId) {
   return data || [];
 }
 
+const toIso = (v) => (v ? new Date(v).toISOString() : null);
+const toIntOrNull = (v) => (v === '' || v == null ? null : parseInt(v, 10));
+
 export async function saveProduct(stationId, product) {
   const price = parseInt(product.price, 10) || 0;
-  const salePrice =
-    product.salePrice === '' || product.salePrice == null ? null : parseInt(product.salePrice, 10);
+  const type = product.promoType || null; // '', 'percent', 'bogo'
   const row = {
     name: product.name.trim(),
     description: product.description?.trim() || null,
     category: product.category || 'Autre',
     price,
-    stock: product.stock === '' || product.stock == null ? null : parseInt(product.stock, 10),
-    sale_price: salePrice != null && salePrice >= 0 && salePrice < price ? salePrice : null,
-    sale_ends_at: product.saleEndsAt ? new Date(product.saleEndsAt).toISOString() : null,
+    stock: toIntOrNull(product.stock),
+    // Promo : on ne garde que les champs du type choisi, le reste à null.
+    promo_type: type === 'percent' || type === 'bogo' ? type : null,
+    promo_percent: type === 'percent' ? toIntOrNull(product.promoPercent) : null,
+    promo_buy_qty: type === 'bogo' ? toIntOrNull(product.promoBuyQty) : null,
+    promo_free_qty: type === 'bogo' ? toIntOrNull(product.promoFreeQty) : null,
+    promo_starts_at: type ? toIso(product.promoStartsAt) : null,
+    promo_ends_at: type ? toIso(product.promoEndsAt) : null,
     image_url: product.imageUrl || null,
     active: product.active !== false,
   };
@@ -104,27 +111,52 @@ export async function loadClientShop() {
   return Array.from(byStation.values());
 }
 
-// Prix effectif d'un produit : prix promo s'il est renseigné, valide
-// (0 ≤ sale_price < price) et non expiré (sale_ends_at), sinon prix normal.
-// Renvoie de quoi afficher la remise (prix barré + pourcentage).
+// Statut de la campagne promo d'un produit à l'instant présent :
+//   null       = pas de promo configurée
+//   'scheduled' = configurée mais pas encore commencée
+//   'active'    = en cours
+//   'ended'     = date de fin dépassée
+export function promoStatus(p) {
+  if (!p.promo_type) return null;
+  const now = Date.now();
+  if (p.promo_starts_at && new Date(p.promo_starts_at).getTime() > now) return 'scheduled';
+  if (p.promo_ends_at && new Date(p.promo_ends_at).getTime() <= now) return 'ended';
+  return 'active';
+}
+
+// Prix / offre effectifs d'un produit compte tenu de sa promo.
+//   kind 'percent' : prix barré + prix remisé + label "-X%"
+//   kind 'bogo'    : prix inchangé + label "X achetés = Y offert(s)"
 export function productPricing(p) {
   const price = p.price || 0;
-  const onSale =
-    p.sale_price != null &&
-    p.sale_price >= 0 &&
-    p.sale_price < price &&
-    (!p.sale_ends_at || new Date(p.sale_ends_at).getTime() > Date.now());
-  const effective = onSale ? p.sale_price : price;
-  const percent = onSale && price > 0 ? Math.round((1 - effective / price) * 100) : 0;
-  return { onSale, effective, original: price, percent, endsAt: onSale ? p.sale_ends_at : null };
+  const active = promoStatus(p) === 'active';
+
+  if (active && p.promo_type === 'percent' && p.promo_percent > 0 && p.promo_percent < 100) {
+    const percent = p.promo_percent;
+    const effective = Math.round(price * (1 - percent / 100));
+    return { onSale: true, kind: 'percent', effective, original: price, percent, label: `-${percent}%`, endsAt: p.promo_ends_at || null };
+  }
+
+  if (active && p.promo_type === 'bogo' && p.promo_buy_qty >= 1 && p.promo_free_qty >= 1) {
+    const b = p.promo_buy_qty, f = p.promo_free_qty;
+    return {
+      onSale: true, kind: 'bogo', effective: price, original: price, percent: 0,
+      label: `${b} acheté${b > 1 ? 's' : ''} = ${f} offert${f > 1 ? 's' : ''}`,
+      buyQty: b, freeQty: f, endsAt: p.promo_ends_at || null,
+    };
+  }
+
+  return { onSale: false, kind: null, effective: price, original: price, percent: 0, label: null, endsAt: null };
 }
 
 // Lien WhatsApp pré-rempli pour contacter la station à propos d'un produit.
 export function productWhatsAppLink(station, product) {
   const phone = (station?.owner_phone || '').replace(/\D/g, '');
-  const { effective } = productPricing(product);
-  const msg = `Bonjour, je suis intéressé(e) par « ${product.name} » (${effective.toLocaleString('fr-FR')} ${product.currency || 'FCFA'}) vu dans votre boutique sur Clean Car Galsen.`;
-  return phone
-    ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
-    : null;
+  const pr = productPricing(product);
+  const cur = product.currency || 'FCFA';
+  const detail = pr.kind === 'bogo'
+    ? `${(pr.original).toLocaleString('fr-FR')} ${cur} — offre ${pr.label}`
+    : `${pr.effective.toLocaleString('fr-FR')} ${cur}${pr.onSale ? ` (${pr.label})` : ''}`;
+  const msg = `Bonjour, je suis intéressé(e) par « ${product.name} » (${detail}) vu dans votre boutique sur Clean Car Galsen.`;
+  return phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : null;
 }

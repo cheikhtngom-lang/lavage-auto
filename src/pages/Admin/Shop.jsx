@@ -7,11 +7,16 @@ import { useAppState } from '../../hooks/useAppState';
 import { getCurrentStationId } from '../../lib/accounts';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import {
-  SHOP_CATEGORIES, MAX_SHOP_IMAGE_SIZE, stationHasShop, productPricing,
+  SHOP_CATEGORIES, MAX_SHOP_IMAGE_SIZE, stationHasShop, productPricing, promoStatus,
   loadStationProducts, saveProduct, setProductActive, deleteProduct, adjustStock,
 } from '../../lib/shop';
 
-const emptyForm = { id: null, name: '', description: '', category: 'Pneus', price: '', stock: '', salePrice: '', saleEndsAt: '', imageUrl: null, active: true };
+const emptyForm = {
+  id: null, name: '', description: '', category: 'Pneus', price: '', stock: '',
+  promoType: '', promoPercent: '', promoBuyQty: '2', promoFreeQty: '1',
+  promoStartsAt: '', promoEndsAt: '', imageUrl: null, active: true,
+};
+const PERCENT_PRESETS = [10, 20, 30, 50];
 
 // ISO -> valeur d'un <input type="datetime-local"> (heure locale, sans les secondes).
 function toLocalInput(iso) {
@@ -54,8 +59,12 @@ export default function Shop() {
     setForm({
       id: p.id, name: p.name, description: p.description || '', category: p.category || 'Autre',
       price: String(p.price ?? ''), stock: p.stock == null ? '' : String(p.stock),
-      salePrice: p.sale_price == null ? '' : String(p.sale_price),
-      saleEndsAt: toLocalInput(p.sale_ends_at),
+      promoType: p.promo_type || '',
+      promoPercent: p.promo_percent == null ? '' : String(p.promo_percent),
+      promoBuyQty: p.promo_buy_qty == null ? '2' : String(p.promo_buy_qty),
+      promoFreeQty: p.promo_free_qty == null ? '1' : String(p.promo_free_qty),
+      promoStartsAt: toLocalInput(p.promo_starts_at),
+      promoEndsAt: toLocalInput(p.promo_ends_at),
       imageUrl: p.image_url || null, active: p.active,
     });
     setImageError(''); setError(''); setShowModal(true);
@@ -81,9 +90,18 @@ export default function Shop() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.name.trim() || form.price === '') return;
-    if (form.salePrice !== '' && !(Number(form.salePrice) >= 0 && Number(form.salePrice) < Number(form.price))) {
-      setError('Le prix promo doit être un nombre positif, inférieur au prix normal.');
-      return;
+    if (form.promoType === 'percent') {
+      const n = Number(form.promoPercent);
+      if (!(n >= 1 && n <= 99)) { setError('La remise doit être comprise entre 1 % et 99 %.'); return; }
+    }
+    if (form.promoType === 'bogo') {
+      if (!(Number(form.promoBuyQty) >= 1 && Number(form.promoFreeQty) >= 1)) {
+        setError('Renseignez « X achetés » et « Y offerts » (au moins 1 chacun).'); return;
+      }
+    }
+    if (form.promoType && form.promoStartsAt && form.promoEndsAt &&
+        new Date(form.promoEndsAt) <= new Date(form.promoStartsAt)) {
+      setError('La fin de la promo doit être après son début.'); return;
     }
     setSaving(true); setError('');
     try {
@@ -177,6 +195,7 @@ export default function Shop() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((p) => {
             const pr = productPricing(p);
+            const ps = promoStatus(p);
             return (
             <Card key={p.id} className={`border-white/5 bg-white/[0.02] overflow-hidden ${!p.active ? 'opacity-60' : ''}`}>
               <div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden relative">
@@ -184,17 +203,19 @@ export default function Shop() {
                   ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                   : <Store className="w-10 h-10 text-neutral-700" />}
                 {pr.onSale && (
-                  <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">-{pr.percent}%</span>
+                  <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">
+                    {pr.kind === 'percent' ? `-${pr.percent}%` : pr.label}
+                  </span>
                 )}
               </div>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <p className="font-bold text-white leading-tight">{p.name}</p>
                   <span className="text-right whitespace-nowrap">
-                    {pr.onSale && (
+                    {pr.kind === 'percent' && (
                       <span className="block text-neutral-500 text-xs line-through">{pr.original.toLocaleString('fr-FR')}</span>
                     )}
-                    <span className={`font-bold ${pr.onSale ? 'text-red-400' : 'text-emerald-400'}`}>
+                    <span className={`font-bold ${pr.kind === 'percent' ? 'text-red-400' : 'text-emerald-400'}`}>
                       {pr.effective.toLocaleString('fr-FR')} {p.currency || 'FCFA'}
                     </span>
                   </span>
@@ -202,7 +223,9 @@ export default function Shop() {
                 <div className="flex flex-wrap items-center gap-1.5 mb-2">
                   <Badge variant="outline" className="bg-white/5 text-neutral-300 border-white/10">{p.category}</Badge>
                   {!p.active && <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20">Masqué</Badge>}
-                  {pr.onSale && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">En promo</Badge>}
+                  {pr.onSale && <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20">{pr.kind === 'bogo' ? pr.label : 'En promo'}</Badge>}
+                  {ps === 'scheduled' && <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20">Promo programmée</Badge>}
+                  {ps === 'ended' && <Badge variant="outline" className="bg-neutral-500/10 text-neutral-400 border-neutral-500/20">Promo terminée</Badge>}
                 </div>
                 {p.stock != null && (
                   <div className="flex items-center gap-2 mb-2">
@@ -284,24 +307,79 @@ export default function Shop() {
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
                   <p className="text-sm font-medium text-neutral-300 flex items-center gap-2"><Tag className="w-4 h-4 text-red-400" /> Promotion <span className="text-neutral-600 font-normal">(optionnel)</span></p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-400 mb-1">Prix promo (FCFA)</label>
-                      <input type="number" min="0" step="100" value={form.salePrice}
-                        onChange={(e) => setForm({ ...form, salePrice: e.target.value })}
-                        placeholder={form.price ? `< ${Number(form.price).toLocaleString('fr-FR')}` : 'Ex: 30000'}
-                        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-400 mb-1">Fin de la promo</label>
-                      <input type="datetime-local" value={form.saleEndsAt}
-                        onChange={(e) => setForm({ ...form, saleEndsAt: e.target.value })}
-                        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
-                    </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { v: '', label: 'Aucune' },
+                      { v: 'percent', label: 'Remise en %' },
+                      { v: 'bogo', label: 'X achetés = Y offert(s)' },
+                    ].map((opt) => (
+                      <button key={opt.v} type="button" onClick={() => setForm({ ...form, promoType: opt.v })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${form.promoType === opt.v ? 'bg-red-500/15 border-red-500/40 text-red-300' : 'bg-neutral-950 border-white/10 text-neutral-400 hover:text-white'}`}>
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-neutral-600 text-xs">
-                    Renseignez un prix promo inférieur au prix normal pour afficher une remise. Sans date de fin, la promo reste active jusqu'à ce que vous la retiriez (champ vide).
-                  </p>
+
+                  {form.promoType === 'percent' && (
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-400 mb-1">Taux de remise (%)</label>
+                      <div className="flex items-center gap-2">
+                        {PERCENT_PRESETS.map((n) => (
+                          <button key={n} type="button" onClick={() => setForm({ ...form, promoPercent: String(n) })}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-colors ${String(n) === form.promoPercent ? 'bg-red-500/15 border-red-500/40 text-red-300' : 'bg-neutral-950 border-white/10 text-neutral-400 hover:text-white'}`}>
+                            -{n}%
+                          </button>
+                        ))}
+                        <input type="number" min="1" max="99" value={form.promoPercent}
+                          onChange={(e) => setForm({ ...form, promoPercent: e.target.value })} placeholder="autre"
+                          className="w-20 bg-neutral-950 border border-white/10 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500" />
+                      </div>
+                      {form.price && form.promoPercent && (
+                        <p className="text-neutral-500 text-xs mt-1.5">
+                          Prix affiché : <span className="text-white font-bold">{Math.round(Number(form.price) * (1 - Number(form.promoPercent) / 100)).toLocaleString('fr-FR')} FCFA</span>
+                          <span className="line-through ml-2 text-neutral-600">{Number(form.price).toLocaleString('fr-FR')}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {form.promoType === 'bogo' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-neutral-400 mb-1">Quantité achetée</label>
+                        <input type="number" min="1" value={form.promoBuyQty}
+                          onChange={(e) => setForm({ ...form, promoBuyQty: e.target.value })}
+                          className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-neutral-400 mb-1">Quantité offerte</label>
+                        <input type="number" min="1" value={form.promoFreeQty}
+                          onChange={(e) => setForm({ ...form, promoFreeQty: e.target.value })}
+                          className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                      </div>
+                    </div>
+                  )}
+
+                  {form.promoType && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-neutral-400 mb-1">Début <span className="text-neutral-600">(vide = maintenant)</span></label>
+                          <input type="datetime-local" value={form.promoStartsAt}
+                            onChange={(e) => setForm({ ...form, promoStartsAt: e.target.value })}
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-neutral-400 mb-1">Fin <span className="text-neutral-600">(vide = sans fin)</span></label>
+                          <input type="datetime-local" value={form.promoEndsAt}
+                            onChange={(e) => setForm({ ...form, promoEndsAt: e.target.value })}
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                        </div>
+                      </div>
+                      <p className="text-neutral-600 text-xs">La promo s'active et se désactive automatiquement aux dates choisies.</p>
+                    </>
+                  )}
                 </div>
 
                 <div>

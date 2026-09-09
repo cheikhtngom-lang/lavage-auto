@@ -133,17 +133,19 @@ export default function Shop() {
                               ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                               : <Store className="w-10 h-10 text-neutral-700" />}
                             {pr.onSale && (
-                              <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">-{pr.percent}%</span>
+                              <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">
+                                {pr.kind === 'percent' ? `-${pr.percent}%` : pr.label}
+                              </span>
                             )}
                           </div>
                           <div className="p-4 flex flex-col flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <p className="font-bold text-white leading-tight">{p.name}</p>
                               <span className="text-right whitespace-nowrap">
-                                {pr.onSale && (
+                                {pr.kind === 'percent' && (
                                   <span className="block text-neutral-500 text-xs line-through">{pr.original.toLocaleString('fr-FR')}</span>
                                 )}
-                                <span className={`font-bold ${pr.onSale ? 'text-red-400' : 'text-emerald-400'}`}>
+                                <span className={`font-bold ${pr.kind === 'percent' ? 'text-red-400' : 'text-emerald-400'}`}>
                                   {pr.effective.toLocaleString('fr-FR')} {p.currency || 'FCFA'}
                                 </span>
                               </span>
@@ -152,6 +154,9 @@ export default function Shop() {
                               {p.category}
                               {p.stock != null && (outOfStock ? ' · Rupture de stock' : ` · ${p.stock} en stock`)}
                             </p>
+                            {pr.kind === 'bogo' && (
+                              <p className="text-red-400 text-xs font-bold mt-1">🎁 Offre : {pr.label}</p>
+                            )}
                             {p.description && <p className="text-neutral-400 text-xs mt-2 line-clamp-3">{p.description}</p>}
                             <div className="mt-auto pt-3">
                               {outOfStock ? (

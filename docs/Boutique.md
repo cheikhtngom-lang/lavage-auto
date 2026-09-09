@@ -9,11 +9,15 @@ tableau de bord et contactent la station par WhatsApp pour un produit.
 **v1 : catalogue + consultation + contact.** Pas de panier / paiement en
 ligne des produits — extension possible plus tard via PayDunya.
 
-**Promotions** : chaque produit accepte un `sale_price` (prix remisé) et un
-`sale_ends_at` optionnel. Le prix effectif est calculé côté app
-(`productPricing` dans `src/lib/shop.js`) : prix promo s'il est renseigné,
-valide (`0 ≤ sale_price < price`) et non expiré, sinon prix normal. Le
-client voit le prix barré + un badge « -X% » + un filtre « En promo ».
+**Promotions** (campagne datée par produit — colonnes `promo_*`) :
+- `promo_type = 'percent'` : remise en % (`promo_percent`, 1–99). Client :
+  prix barré + prix remisé + badge « -X% ».
+- `promo_type = 'bogo'` : offre « X achetés = Y offert(s) » (`promo_buy_qty` /
+  `promo_free_qty`). Client : prix inchangé + badge « X achetés = Y offert(s) ».
+- `promo_starts_at` / `promo_ends_at` (jour + heure, optionnels) : la promo
+  s'active/se désactive toute seule. `promoStatus()` = null / 'scheduled' /
+  'active' / 'ended' (badges côté station). `productPricing()` calcule le
+  prix/offre effectifs. Filtre « En promo » côté client.
 
 **Stock** : `stock` (nullable = non suivi). La station décrémente d'un clic
 (« −1 vendu ») / réassortit (« +1 ») via la RPC atomique

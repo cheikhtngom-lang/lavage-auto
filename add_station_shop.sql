@@ -22,12 +22,17 @@ create table if not exists public.shop_products (
   category text not null default 'Autre',
   price integer not null default 0 check (price >= 0),
   currency text not null default 'FCFA',
-  -- Promo : prix remisé (null = pas de promo) + date de fin optionnelle
-  -- (null = promo sans échéance). Contrainte 0 ≤ sale_price < price posée
-  -- plus bas (shop_products_sale_price_ck). Le prix effectif est calculé
+  -- Promotion (campagne datée). promo_type : null = aucune, 'percent' =
+  -- remise en % (promo_percent), 'bogo' = « X achetés = Y offert(s) »
+  -- (promo_buy_qty / promo_free_qty). promo_starts_at null = démarre tout de
+  -- suite ; promo_ends_at null = sans échéance. Prix/offre effectifs calculés
   -- côté app — voir productPricing dans src/lib/shop.js.
-  sale_price integer,
-  sale_ends_at timestamptz,
+  promo_type text,
+  promo_percent integer,
+  promo_buy_qty integer,
+  promo_free_qty integer,
+  promo_starts_at timestamptz,
+  promo_ends_at timestamptz,
   -- Photo en base64 (pas de Supabase Storage sur ce projet) — format/taille
   -- vérifiés aussi côté serveur (~2,2 Mo), comme stations.logo_url / station_ads.image_url.
   image_url text check (
@@ -46,13 +51,29 @@ create index if not exists reservations_client_station_idx
   on public.reservations(client_id, station_id);
 
 -- Colonnes ajoutées après coup — rejouables si le fichier a déjà été exécuté.
-alter table public.shop_products add column if not exists sale_price integer;
-alter table public.shop_products add column if not exists sale_ends_at timestamptz;
+alter table public.shop_products add column if not exists promo_type text;
+alter table public.shop_products add column if not exists promo_percent integer;
+alter table public.shop_products add column if not exists promo_buy_qty integer;
+alter table public.shop_products add column if not exists promo_free_qty integer;
+alter table public.shop_products add column if not exists promo_starts_at timestamptz;
+alter table public.shop_products add column if not exists promo_ends_at timestamptz;
 
--- Le prix promo doit être positif et strictement inférieur au prix normal.
+-- Ancien modèle « prix promo » remplacé par les colonnes promo_* ci-dessus.
 alter table public.shop_products drop constraint if exists shop_products_sale_price_ck;
-alter table public.shop_products add constraint shop_products_sale_price_ck
-  check (sale_price is null or (sale_price >= 0 and sale_price < price));
+alter table public.shop_products drop column if exists sale_price;
+alter table public.shop_products drop column if exists sale_ends_at;
+
+-- Cohérence de la promo : le type impose les bons champs.
+alter table public.shop_products drop constraint if exists shop_products_promo_ck;
+alter table public.shop_products add constraint shop_products_promo_ck check (
+  promo_type is null
+  or (promo_type = 'percent' and promo_percent between 1 and 99)
+  or (promo_type = 'bogo' and promo_buy_qty >= 1 and promo_free_qty >= 1)
+);
+alter table public.shop_products drop constraint if exists shop_products_promo_window_ck;
+alter table public.shop_products add constraint shop_products_promo_window_ck check (
+  promo_starts_at is null or promo_ends_at is null or promo_ends_at > promo_starts_at
+);
 
 -- Le stock ne descend jamais sous 0 (null = non suivi / « sur commande »).
 alter table public.shop_products drop constraint if exists shop_products_stock_ck;
