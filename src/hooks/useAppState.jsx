@@ -693,8 +693,11 @@ export function AppStateProvider({ children }) {
             }, { onConflict: 'employee_id,work_date' }).then(() => {});
         });
 
+        // Statut du nouveau jour : "Repos" (neutre) et non "Absent
+        // (Injustifié)" — un laveur pas encore marqué présent est au repos, pas
+        // en faute. Le gérant met "Absent (Injustifié)" à la main si besoin.
         supabase.from('employees').update({
-            daily_status: 'absent', status: 'Absent', clock_in: null, clock_out: null, clock_in_at: null, clock_out_at: null, total_time: null,
+            daily_status: 'repos', status: 'Repos', clock_in: null, clock_out: null, clock_in_at: null, clock_out_at: null, total_time: null,
         }).in('id', stale.map((e) => e.id)).then(() => loadEmployees());
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [employees.map((e) => `${e.id}:${e.dailyStatus}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime]);
