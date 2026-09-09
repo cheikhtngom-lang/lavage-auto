@@ -647,15 +647,43 @@ export function AppStateProvider({ children }) {
         const now = new Date();
         const localDateKey = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
         const todayKey = localDateKey(now);
-        const staleIds = employees
-            .filter((e) => e?.role === 'Laveur' && e?.dailyStatus === 'present' && e?.clockInAt && localDateKey(new Date(e.clockInAt)) !== todayKey)
-            .map((e) => e.id);
-        if (staleIds.length === 0 || !stationId || stationId === 'default') return;
+        const stale = employees.filter((e) =>
+            e?.role === 'Laveur' && e?.dailyStatus === 'present' && e?.clockInAt
+            && localDateKey(new Date(e.clockInAt)) !== todayKey);
+        if (stale.length === 0 || !stationId || stationId === 'default') return;
+
+        // Clôture propre de la journée précédente AVANT la remise à zéro : si
+        // le gérant a oublié de cliquer "Descendre", on ne perd pas la journée
+        // travaillée dans le pointage. Heure de sortie estimée = heure de
+        // fermeture de la station ce jour-là (à défaut 23:59). C'est une
+        // estimation de rattrapage (cas "oubli") : le gérant peut corriger la
+        // ligne du mois. Rien à voir avec l'arrêt du compteur en cours de
+        // journée, qui lui n'a plus lieu à la fermeture (voir plus bas).
+        const [ch, cm] = String(stationProfile?.closeTime || '23:59').split(':').map(Number);
+        stale.forEach((e) => {
+            if (e.clockOutAt) return; // déjà clôturé
+            const clockInAt = new Date(e.clockInAt);
+            const workDate = localDateKey(clockInAt);
+            const endAt = new Date(clockInAt);
+            if (!Number.isNaN(ch) && !Number.isNaN(cm)) endAt.setHours(ch, cm, 0, 0);
+            else endAt.setHours(23, 59, 0, 0);
+            if (endAt <= clockInAt) endAt.setHours(23, 59, 0, 0); // fermeture avant la prise de poste
+            const mins = Math.max(0, Math.round((endAt.getTime() - clockInAt.getTime()) / 60000));
+            const total = `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+            supabase.from('attendance_records').upsert({
+                station_id: stationId, employee_id: e.id, work_date: workDate,
+                name: e.name, role: e.role, daily_status: 'present',
+                clock_in: e.clockIn || null, clock_in_at: e.clockInAt,
+                clock_out: endAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                clock_out_at: endAt.toISOString(), total_time: total,
+            }, { onConflict: 'employee_id,work_date' }).then(() => {});
+        });
+
         supabase.from('employees').update({
             daily_status: 'absent', status: 'Absent', clock_in: null, clock_out: null, clock_in_at: null, clock_out_at: null, total_time: null,
-        }).in('id', staleIds).then(() => loadEmployees());
+        }).in('id', stale.map((e) => e.id)).then(() => loadEmployees());
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [employees.map((e) => `${e.id}:${e.dailyStatus}:${e.clockInAt || ''}`).join(',')]);
+    }, [employees.map((e) => `${e.id}:${e.dailyStatus}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime]);
 
     // Enregistre/complète l'entrée du jour courant pour un employé (statut du jour et/ou
     // pointage). Chaque appel fusionne avec l'entrée existante du jour, pour que la
@@ -819,8 +847,8 @@ export function AppStateProvider({ children }) {
         recordDailyAttendance(id, patch);
     };
 
-    // Planning du JOUR chargé au démarrage — sert uniquement à la coupure
-    // automatique ci-dessous (connaître l'heure de fin de poste de chaque
+    // Planning du JOUR chargé au démarrage — sert uniquement à l'arrêt
+    // automatique ci-dessous (connaître l'heure de fin de poste PLANIFIÉE d'un
     // laveur). Le reste du planning (semaine/mois) se charge à la demande
     // depuis Washers.jsx.
     useEffect(() => {
@@ -830,48 +858,44 @@ export function AppStateProvider({ children }) {
         loadScheduleRange(key, key);
     }, [stationId, loadScheduleRange]);
 
-    // Coupure automatique du pointage — filet de sécurité pour un gérant qui
-    // oublie de cliquer "Descendre" : un laveur encore "Actif" au-delà de son
-    // HEURE DE FIN DE POSTE est passé à "Terminé", exactement comme un clic
-    // manuel sur "Descendre" (PAS "Fin de service" — voir plus bas pourquoi).
+    // Arrêt automatique du compteur — UNIQUEMENT à l'heure de fin d'un créneau
+    // PLANIFIÉ pour ce laveur ce jour-là (shift_templates.end_time via
+    // scheduleByDate). C'est "l'heure de descente définie par la station".
     //
-    // Heure de fin de poste, dans cet ordre :
-    //   1. l'heure de fin du créneau qui lui est assigné ce jour-là dans le
-    //      planning (shift_templates.end_time via scheduleByDate) ;
-    //   2. à défaut seulement, l'heure de fermeture de la station.
-    // Le compteur NE s'arrête donc plus à la fermeture quand le laveur est
-    // planifié plus tard (ex : station ferme à 20h, poste jusqu'à 21h).
+    // Il n'y a PLUS d'arrêt à l'heure de fermeture de la station : un laveur
+    // sans créneau planifié voit son temps tourner tant que le gérant n'a pas
+    // cliqué "Descendre" — y compris si la page est rechargée ou la session
+    // interrompue (le temps = now - clockInAt, recalculé à chaque affichage,
+    // il ne "s'arrête" jamais tout seul). Le cas "gérant qui oublie" est
+    // rattrapé au changement de jour par la réinitialisation quotidienne
+    // ci-dessus, qui clôture proprement la journée avant de remettre à zéro.
     //
-    // Le temps total est calculé jusqu'à cette heure pile (pas jusqu'au moment
-    // de la vérification, qui tourne chaque minute).
+    // "Terminé" et pas "Fin de service" : "Fin de service" est définitif et
+    // sans bouton dans Washers.jsx — l'arrêt auto masquerait alors "Reprendre
+    // service"/"Fin de service" dont le gérant a besoin. "Terminé" garde ces
+    // boutons : l'arrêt ne fait que figer le compteur, le gérant garde la main.
     //
-    // "Terminé" et pas "Fin de service" (choix revu après test) : "Fin de
-    // service" est un état définitif sans bouton dans Washers.jsx — la coupure
-    // auto masquerait alors "Reprendre service"/"Fin de service" dont le gérant
-    // a besoin pour une pause ou un départ anticipé. "Terminé" garde ces
-    // boutons : la coupure ne fait qu'arrêter le compteur, le gérant garde la main.
-    //
-    // Vérifié au montage puis chaque minute — tourne tant que l'appli reste
-    // ouverte (pas de tâche serveur, cette appli n'a pas de backend applicatif).
+    // Vérifié au montage puis chaque minute — pas de tâche serveur sur ce projet.
     useEffect(() => {
         const checkAutoClockOut = () => {
             if (!stationId || stationId === 'default') return;
             const now = new Date();
             const localDateKey = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
             const todayKey = localDateKey(now);
-            const fallbackClose = stationProfile?.closeTime || '20:00';
 
             employees
                 .filter((e) => e.role === 'Laveur' && e.status === 'Actif' && e.clockInAt
                     && localDateKey(new Date(e.clockInAt)) === todayKey)
                 .forEach((w) => {
+                    // Uniquement si un créneau lui est assigné aujourd'hui.
                     const tplId = scheduleByDate?.[todayKey]?.[w.id];
                     const tpl = tplId ? shiftTemplates.find((t) => t.id === tplId) : null;
-                    const [h, m] = String(tpl?.endTime || fallbackClose).split(':').map(Number);
+                    if (!tpl?.endTime) return; // pas de créneau -> jamais d'arrêt auto
+                    const [h, m] = String(tpl.endTime).split(':').map(Number);
                     if (Number.isNaN(h) || Number.isNaN(m)) return;
                     const cutoffAt = new Date(now);
                     cutoffAt.setHours(h, m, 0, 0);
-                    if (now < cutoffAt) return; // pas encore l'heure de descente
+                    if (now < cutoffAt) return; // pas encore l'heure de fin de poste
                     const clockInAt = new Date(w.clockInAt);
                     const totalMinutes = Math.max(0, Math.round((cutoffAt.getTime() - clockInAt.getTime()) / 60000));
                     const total = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
@@ -885,7 +909,7 @@ export function AppStateProvider({ children }) {
         const interval = setInterval(checkAutoClockOut, 60000);
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime, stationId, scheduleByDate, shiftTemplates]);
+    }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationId, scheduleByDate, shiftTemplates]);
 
     // employeeIdOrIds accepte un seul id (lavage classique) ou un tableau de
     // 2-3 ids (véhicule volumineux — bus/camion, voir handleGoClick dans

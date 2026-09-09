@@ -298,11 +298,18 @@ export default function Washers() {
       }
       return monthData[emp.id]?.[`${year}-${pad(month + 1)}-${pad(i)}`] || null;
     };
-    const minutesFor = (rec) => {
+    const minutesFor = (rec, dayIndex) => {
       if (!rec || rec.dailyStatus !== 'present') return 0;
       if (rec.totalTime) return parseDurationToMinutes(rec.totalTime);
       if (rec.clockInAt && rec.clockOutAt) return Math.max(0, Math.round((new Date(rec.clockOutAt).getTime() - new Date(rec.clockInAt).getTime()) / 60000));
-      if (rec.clockInAt) return Math.max(0, Math.round((now.getTime() - new Date(rec.clockInAt).getTime()) / 60000)); // en cours
+      if (rec.clockInAt) {
+        // Pas de sortie enregistrée : borné à maintenant si c'est aujourd'hui
+        // (poste en cours), sinon à la fin de ce jour-là (cas anormal —
+        // sécurité pour ne pas gonfler le total).
+        const cap = new Date(year, month, dayIndex, 23, 59, 0, 0);
+        const end = Math.min(now.getTime(), cap.getTime());
+        return Math.max(0, Math.round((end - new Date(rec.clockInAt).getTime()) / 60000));
+      }
       return 0;
     };
     const hhmm = (t) => (t ? new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
@@ -320,7 +327,7 @@ export default function Washers() {
       for (let i = 1; i <= daysInMonth; i++) {
         const rec = recFor(emp, i);
         if (!rec || !rec.dailyStatus) continue;
-        if (rec.dailyStatus === 'present') { tMin += minutesFor(rec); cT++; }
+        if (rec.dailyStatus === 'present') { tMin += minutesFor(rec, i); cT++; }
         else if (rec.dailyStatus === 'repos') cR++;
         else if (rec.dailyStatus === 'conge') cC++;
         else if (rec.dailyStatus === 'maladie') cM++;
@@ -347,7 +354,7 @@ export default function Washers() {
       for (let i = 1; i <= daysInMonth; i++) {
         const rec = recFor(emp, i);
         if (!rec || !rec.dailyStatus) { row.push(''); continue; }
-        row.push(rec.dailyStatus === 'present' ? formatMinutesToHM(minutesFor(rec)) : (STATUS_LETTER[rec.dailyStatus] || 'A'));
+        row.push(rec.dailyStatus === 'present' ? formatMinutesToHM(minutesFor(rec, i)) : (STATUS_LETTER[rec.dailyStatus] || 'A'));
       }
       row.push(formatMinutesToHM(perEmpMin[emp.id] || 0));
       detailRows.push(row);
@@ -362,7 +369,7 @@ export default function Washers() {
         const rec = recFor(emp, i);
         if (!rec || !rec.dailyStatus) continue;
         const d = new Date(year, month, i);
-        const min = minutesFor(rec);
+        const min = minutesFor(rec, i);
         logRows.push([
           `${pad(i)}/${pad(month + 1)}/${year}`,
           d.toLocaleDateString('fr-FR', { weekday: 'long' }),
