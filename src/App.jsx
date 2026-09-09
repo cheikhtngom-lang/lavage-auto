@@ -21,6 +21,7 @@ import ClientGarage from './pages/Client/Garage';
 import ClientSettings from './pages/Client/Settings';
 import Stations from './pages/Client/Stations';
 import MyStations from './pages/Client/MyStations';
+import ClientShop from './pages/Client/Shop';
 
 // Pages Admin (Station)
 import StationDashboard from './pages/Admin/StationDashboard';
@@ -32,6 +33,7 @@ import Washers from './pages/Admin/Washers';
 import Settings from './pages/Admin/Settings';
 import Subscriptions from './pages/Admin/Subscriptions';
 import Bilan from './pages/Admin/Bilan';
+import Shop from './pages/Admin/Shop';
 import SubscriptionEnded from './pages/Admin/SubscriptionEnded';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
@@ -74,6 +76,16 @@ function RequireBusinessPlan({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
+// Boutique : réservée au forfait Business, ou débloquée par le module
+// "mod_boutique" (Super Admin > Modules) — même logique que le Bilan.
+function RequireShopAccess({ children }) {
+  const { stationBilling, myPermissions } = useAppState();
+  if (stationBilling == null || myPermissions == null) return null;
+  const hasShop = stationBilling.plan === 'Business' || (stationBilling.activeModules || []).includes('mod_boutique');
+  if (hasShop && hasPerm(myPermissions, 'shop.manage')) return children;
+  return <Navigate to="/admin/queue" replace />;
+}
+
 function App() {
   // Expiration de session : déconnexion après 1 h sans interaction
   // (voir lib/idleTimeout.js). Ne touche pas aux visiteurs anonymes de /stations.
@@ -98,6 +110,7 @@ function App() {
                 <Route path="garage" element={<ClientGarage />} />
                 <Route path="stations" element={<Stations />} />
                 <Route path="mes-stations" element={<MyStations />} />
+                <Route path="boutique" element={<ClientShop />} />
                 <Route path="parametres" element={<ClientSettings />} />
               </Route>
 
@@ -113,6 +126,7 @@ function App() {
                 <Route path="accounting" element={<RequirePerm perm="accounting.manage"><Accounting /></RequirePerm>} />
                 <Route path="analytics" element={<RequirePerm perm="analytics.view"><Analytics /></RequirePerm>} />
                 <Route path="bilan" element={<RequireBusinessPlan><Bilan /></RequireBusinessPlan>} />
+                <Route path="shop" element={<RequireShopAccess><Shop /></RequireShopAccess>} />
                 <Route path="team" element={<RequirePerm perm="team.manage"><Team /></RequirePerm>} />
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />

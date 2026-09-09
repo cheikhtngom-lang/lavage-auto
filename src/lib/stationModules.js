@@ -8,7 +8,7 @@
 // elle-même n'existe pas encore côté station — le badge le signale pour ne
 // pas laisser croire qu'activer le module a un effet immédiat (même
 // convention que le module équivalent du projet GestionImmo).
-import { FileBarChart, Star, Gift, MessageSquareText, Headset, Code2 } from 'lucide-react';
+import { FileBarChart, Star, Gift, MessageSquareText, Headset, Code2, Store } from 'lucide-react';
 
 export const STATION_MODULES = [
   {
@@ -17,6 +17,13 @@ export const STATION_MODULES = [
     desc: 'Rapport comparatif de période + export PDF (normalement réservé au plan Business) — utilisable même en Starter ou Pro.',
     price: '8 000 FCFA/mois',
     icon: FileBarChart,
+  },
+  {
+    id: 'mod_boutique',
+    name: 'Boutique',
+    desc: 'Catalogue de produits (pneus, huiles, pare-brise…) visible par les clients de la station (normalement réservé au plan Business) — utilisable même en Starter ou Pro.',
+    price: '10 000 FCFA/mois',
+    icon: Store,
   },
   {
     id: 'mod_vedette',

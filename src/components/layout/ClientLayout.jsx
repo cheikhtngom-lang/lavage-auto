@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, LogOut, Droplets, Menu, X, Crown, Gift } from 'lucide-react';
+import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, LogOut, Droplets, Menu, X, Crown, Gift, ShoppingBag } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { clearSession } from '../../lib/accounts';
@@ -37,6 +37,7 @@ export default function ClientLayout() {
     { name: "Vue d'ensemble", href: '/dashboard', icon: LayoutDashboard, tourId: 'client-nav-overview' },
     { name: 'Fidélité', href: '/dashboard/fidelite', icon: Gift },
     { name: 'Mes Stations', href: '/dashboard/mes-stations', icon: Building2 },
+    { name: 'Boutique', href: '/dashboard/boutique', icon: ShoppingBag },
     { name: 'Trouver une station', href: '/dashboard/stations', icon: MapPin, tourId: 'client-nav-stations' },
     { name: 'Mon Parking', href: '/dashboard/garage', icon: Car, tourId: 'client-nav-garage' },
     { name: 'Paramètres', href: '/dashboard/parametres', icon: SettingsIcon, tourId: 'client-nav-settings' },

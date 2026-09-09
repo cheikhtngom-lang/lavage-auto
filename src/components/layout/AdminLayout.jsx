@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart, Store } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
@@ -58,6 +58,9 @@ export default function AdminLayout() {
     // Bilan : réservé au forfait Business (35 000), ou débloqué par le
     // module "mod_bilan" — voir RequireBusinessPlan dans App.jsx.
     { name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plan: 'Business', module: 'mod_bilan' },
+    // Boutique : forfait Business, ou module "mod_boutique" — voir
+    // RequireShopAccess dans App.jsx.
+    { name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plan: 'Business', module: 'mod_boutique' },
     { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
     { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage' },
   ];

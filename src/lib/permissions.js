@@ -18,6 +18,7 @@ export const PERMISSIONS = [
   { key: 'accounting.manage',   label: 'Comptabilité & dépenses',         group: 'Finances' },
   { key: 'subscriptions.manage',label: 'Abonnements clients',             group: 'Finances' },
   { key: 'analytics.view',      label: 'Analytique',                      group: 'Finances' },
+  { key: 'shop.manage',         label: 'Boutique (catalogue produits)',   group: 'Administration' },
   { key: 'team.manage',         label: "Équipe & rôles",                  group: 'Administration' },
   { key: 'settings.manage',     label: 'Paramètres de la station',        group: 'Administration' },
 ];
@@ -44,6 +45,7 @@ export const ROUTE_PERMISSION = {
   '/admin/accounting': 'accounting.manage',
   '/admin/subscriptions': 'subscriptions.manage',
   '/admin/analytics': 'analytics.view',
+  '/admin/shop': 'shop.manage',
   '/admin/team': 'team.manage',
   '/admin/settings': 'settings.manage',
 };
