@@ -815,55 +815,73 @@ export function AppStateProvider({ children }) {
         recordDailyAttendance(id, patch);
     };
 
-    // Coupure automatique du pointage à l'heure de fermeture (Réglages > Horaires
-    // d'ouverture, `stationProfile.closeTime`) — filet de sécurité pour un gérant
-    // qui oublie de cliquer "Descendre" : un laveur encore "Actif" une fois cette
-    // heure dépassée est automatiquement passé à "Terminé", exactement comme un
-    // clic manuel sur "Descendre" (PAS "Fin de service" — voir plus bas pourquoi).
-    // Sans ça, le compteur de temps travaillé tournerait indéfiniment tant que
-    // personne n'intervient. Le temps total est calculé jusqu'à l'heure de
-    // fermeture pile (pas jusqu'au moment de la vérification, qui tourne toutes
-    // les minutes) pour refléter le vrai horaire de fermeture.
+    // Planning du JOUR chargé au démarrage — sert uniquement à la coupure
+    // automatique ci-dessous (connaître l'heure de fin de poste de chaque
+    // laveur). Le reste du planning (semaine/mois) se charge à la demande
+    // depuis Washers.jsx.
+    useEffect(() => {
+        if (!stationId || stationId === 'default') return;
+        const n = new Date();
+        const key = new Date(n.getTime() - n.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+        loadScheduleRange(key, key);
+    }, [stationId, loadScheduleRange]);
+
+    // Coupure automatique du pointage — filet de sécurité pour un gérant qui
+    // oublie de cliquer "Descendre" : un laveur encore "Actif" au-delà de son
+    // HEURE DE FIN DE POSTE est passé à "Terminé", exactement comme un clic
+    // manuel sur "Descendre" (PAS "Fin de service" — voir plus bas pourquoi).
     //
-    // Pourquoi "Terminé" et pas "Fin de service" (le choix initial du gérant,
-    // revu après test) : "Fin de service" est un état définitif, sans aucun
-    // bouton dans Washers.jsx — la coupure auto prenait donc de vitesse le
-    // gérant et lui masquait les boutons "Reprendre service"/"Fin de service"
-    // dont il a justement besoin pour gérer une pause ou un départ anticipé
-    // (urgence). "Terminé" garde ces deux boutons disponibles après coup :
-    // la coupure ne fait qu'arrêter le compteur, le gérant garde la main.
+    // Heure de fin de poste, dans cet ordre :
+    //   1. l'heure de fin du créneau qui lui est assigné ce jour-là dans le
+    //      planning (shift_templates.end_time via scheduleByDate) ;
+    //   2. à défaut seulement, l'heure de fermeture de la station.
+    // Le compteur NE s'arrête donc plus à la fermeture quand le laveur est
+    // planifié plus tard (ex : station ferme à 20h, poste jusqu'à 21h).
+    //
+    // Le temps total est calculé jusqu'à cette heure pile (pas jusqu'au moment
+    // de la vérification, qui tourne chaque minute).
+    //
+    // "Terminé" et pas "Fin de service" (choix revu après test) : "Fin de
+    // service" est un état définitif sans bouton dans Washers.jsx — la coupure
+    // auto masquerait alors "Reprendre service"/"Fin de service" dont le gérant
+    // a besoin pour une pause ou un départ anticipé. "Terminé" garde ces
+    // boutons : la coupure ne fait qu'arrêter le compteur, le gérant garde la main.
     //
     // Vérifié au montage puis chaque minute — tourne tant que l'appli reste
     // ouverte (pas de tâche serveur, cette appli n'a pas de backend applicatif).
     useEffect(() => {
         const checkAutoClockOut = () => {
-            if (!stationId || stationId === 'default' || !stationProfile?.closeTime) return;
-            const [closeH, closeM] = stationProfile.closeTime.split(':').map(Number);
-            if (Number.isNaN(closeH) || Number.isNaN(closeM)) return;
+            if (!stationId || stationId === 'default') return;
             const now = new Date();
-            const closeAt = new Date(now);
-            closeAt.setHours(closeH, closeM, 0, 0);
-            if (now < closeAt) return;
             const localDateKey = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
             const todayKey = localDateKey(now);
-            const toClose = employees.filter((e) =>
-                e.role === 'Laveur' && e.status === 'Actif' && e.clockInAt && localDateKey(new Date(e.clockInAt)) === todayKey
-            );
-            if (toClose.length === 0) return;
-            const display = closeAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-            toClose.forEach((w) => {
-                const totalMinutes = Math.max(0, Math.round((closeAt.getTime() - new Date(w.clockInAt).getTime()) / 60000));
-                const total = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
-                const patch = { status: 'Terminé', clockOut: display, clockOutAt: closeAt.toISOString(), totalTime: total };
-                updateEmployee(w.id, patch);
-                recordDailyAttendance(w.id, patch);
-            });
+            const fallbackClose = stationProfile?.closeTime || '20:00';
+
+            employees
+                .filter((e) => e.role === 'Laveur' && e.status === 'Actif' && e.clockInAt
+                    && localDateKey(new Date(e.clockInAt)) === todayKey)
+                .forEach((w) => {
+                    const tplId = scheduleByDate?.[todayKey]?.[w.id];
+                    const tpl = tplId ? shiftTemplates.find((t) => t.id === tplId) : null;
+                    const [h, m] = String(tpl?.endTime || fallbackClose).split(':').map(Number);
+                    if (Number.isNaN(h) || Number.isNaN(m)) return;
+                    const cutoffAt = new Date(now);
+                    cutoffAt.setHours(h, m, 0, 0);
+                    if (now < cutoffAt) return; // pas encore l'heure de descente
+                    const clockInAt = new Date(w.clockInAt);
+                    const totalMinutes = Math.max(0, Math.round((cutoffAt.getTime() - clockInAt.getTime()) / 60000));
+                    const total = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
+                    const display = cutoffAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                    const patch = { status: 'Terminé', clockOut: display, clockOutAt: cutoffAt.toISOString(), totalTime: total };
+                    updateEmployee(w.id, patch);
+                    recordDailyAttendance(w.id, patch);
+                });
         };
         checkAutoClockOut();
         const interval = setInterval(checkAutoClockOut, 60000);
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime, stationId]);
+    }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime, stationId, scheduleByDate, shiftTemplates]);
 
     // employeeIdOrIds accepte un seul id (lavage classique) ou un tableau de
     // 2-3 ids (véhicule volumineux — bus/camion, voir handleGoClick dans
