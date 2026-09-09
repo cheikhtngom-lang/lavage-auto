@@ -15,6 +15,7 @@ export default function Subscriptions() {
   const [subPrice, setSubPrice] = useState(15000);
   const [searchLoading, setSearchLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [search, setSearch] = useState('');
 
   const handleCreateSub = async (e) => {
     e.preventDefault();
@@ -37,6 +38,15 @@ export default function Subscriptions() {
   };
 
   const currentMonthStr = new Date().toISOString().slice(0, 7); // ex: 2026-08
+
+  // Filtre la liste des abonnés par nom ou téléphone (recherche insensible
+  // à la casse). Vide => liste complète.
+  const searchQuery = search.trim().toLowerCase();
+  const filteredSubscriptions = searchQuery
+    ? clientSubscriptions.filter(sub =>
+        (sub.clientName || '').toLowerCase().includes(searchQuery) ||
+        (sub.clientPhone || '').toLowerCase().includes(searchQuery))
+    : clientSubscriptions;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -61,8 +71,22 @@ export default function Subscriptions() {
             {clientSubscriptions.length === 0 ? (
               <p className="text-neutral-500 text-center py-8">Aucun abonnement actif.</p>
             ) : (
-              <div className="space-y-3">
-                {clientSubscriptions.map(sub => (
+              <>
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher un client (nom ou téléphone)..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                  />
+                </div>
+                {filteredSubscriptions.length === 0 ? (
+                  <p className="text-neutral-500 text-center py-8">Aucun client ne correspond à « {search.trim()} ».</p>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredSubscriptions.map(sub => (
                   <div key={sub.id} className="p-4 rounded-xl bg-neutral-900 border border-white/5 flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <p className="font-bold text-white">{sub.clientName}</p>
@@ -112,8 +136,10 @@ export default function Subscriptions() {
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
