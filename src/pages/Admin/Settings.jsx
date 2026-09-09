@@ -9,6 +9,7 @@ import { SENEGAL_REGIONS } from '../../lib/regions';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
 import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
+import { payPlatformOnline } from '../../lib/paydunya';
 import { listStationClients, exportStationData, exportStationClientData } from '../../lib/rgpdExport';
 import { hasModule } from '../../lib/stationModules';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -122,6 +123,25 @@ export default function Settings() {
   const [adError, setAdError] = useState('');
   const [adJustSubmitted, setAdJustSubmitted] = useState(false);
   useEffect(() => { setAdPaymentPhone(stationProfile?.phone || ''); }, [stationProfile?.phone]);
+
+  // Compte PayDunya de la station : cible de la redistribution des lavages
+  // payés en ligne. Écrit via la fonction SQL dédiée set_station_paydunya_alias
+  // (station_billing_update reste réservée au Super Admin) — voir add_paydunya_per.sql.
+  const [paydunyaAlias, setPaydunyaAlias] = useState('');
+  const [paydunyaSaving, setPaydunyaSaving] = useState(false);
+  const [paydunyaSaved, setPaydunyaSaved] = useState(false);
+  const [paydunyaError, setPaydunyaError] = useState('');
+  useEffect(() => { setPaydunyaAlias(stationBilling?.paydunyaAlias || ''); }, [stationBilling?.paydunyaAlias]);
+
+  const handleSavePaydunya = async () => {
+    setPaydunyaSaving(true);
+    setPaydunyaError('');
+    const { error } = await supabase.rpc('set_station_paydunya_alias', { p_alias: paydunyaAlias.trim() });
+    setPaydunyaSaving(false);
+    if (error) { setPaydunyaError(error.message || "Enregistrement impossible, réessayez."); return; }
+    setPaydunyaSaved(true);
+    setTimeout(() => setPaydunyaSaved(false), 2500);
+  };
 
   const handleSave = () => {
     setIsSaving(true);
@@ -402,23 +422,25 @@ export default function Settings() {
     setAdError(''); setAdJustSubmitted(false);
   };
 
-  // Le clic "Payer" ne diffuse JAMAIS la pub tout seul : il crée une ligne
-  // PENDING, que seul le Super Admin confirme une fois l'argent reçu (même
-  // logique que l'abonnement Super User côté client, voir src/lib/ads.js).
+  // Le clic "Payer" crée une ligne PENDING puis redirige vers PayDunya. Le
+  // callback fait passer la pub en diffusion automatiquement. Si la
+  // redirection échoue, la ligne PENDING reste confirmable à la main par le
+  // Super Admin (voir src/lib/ads.js, useSuperAdminState confirmAdPayment).
   const handleSubmitAd = async () => {
     if (!adPaymentMethod || adPaymentPhone.trim().length < 6 || !adMessage.trim() || !stationId) return;
     setAdSubmitting(true);
     setAdError('');
     try {
-      await createAdPayment(stationId, {
+      const row = await createAdPayment(stationId, {
         message: adMessage, imageUrl: adImage, planId: adPlanId,
         method: adPaymentMethod === 'wave' ? 'Wave' : 'Orange Money',
         reference: adPaymentPhone.trim(),
       });
       await loadStationAds();
+      await payPlatformOnline({ kind: 'ad', rowId: row.id });
       setAdJustSubmitted(true);
     } catch (err) {
-      setAdError(err.message || "Impossible d'enregistrer le paiement, réessayez.");
+      setAdError(err.message || "Impossible de démarrer le paiement, réessayez.");
     } finally {
       setAdSubmitting(false);
     }
@@ -663,6 +685,28 @@ export default function Settings() {
                     onChange={e => setProfile({ ...profile, dailyRevenueTarget: e.target.value === '' ? '' : Number(e.target.value) })}
                     className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   <p className="text-neutral-500 text-xs">Affiché dans Comptabilité, sous "Objectif du Jour".</p>
+                </div>
+
+                <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-blue-400" /> Paiement en ligne (PayDunya)
+                </h2>
+                <div className="space-y-2 max-w-lg">
+                  <label className="text-sm font-medium text-neutral-400">Compte PayDunya de la station</label>
+                  <input type="text" value={paydunyaAlias} onChange={e => setPaydunyaAlias(e.target.value)}
+                    placeholder="Email ou n° mobile money de votre compte PayDunya"
+                    className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                  <p className="text-neutral-500 text-xs">
+                    Obligatoire pour encaisser les lavages payés en ligne : la part qui vous revient
+                    (montant du lavage moins la commission plateforme) est reversée automatiquement
+                    sur ce compte, dès la confirmation du paiement. Sans cet identifiant, vos clients
+                    ne peuvent régler que sur place.
+                  </p>
+                  {paydunyaError && <p className="text-red-400 text-xs">{paydunyaError}</p>}
+                  <button type="button" onClick={handleSavePaydunya} disabled={paydunyaSaving}
+                    className="mt-2 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-sm font-bold py-2.5 px-4 rounded-xl transition-colors">
+                    {paydunyaSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : paydunyaSaved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                    {paydunyaSaved ? 'Enregistré' : 'Enregistrer'}
+                  </button>
                 </div>
               </CardContent>
             </Card>

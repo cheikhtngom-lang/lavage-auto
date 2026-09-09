@@ -44,6 +44,8 @@ export default defineConfig({
         merci: resolve(__dirname, 'merci.html'),
         confidentialite: resolve(__dirname, 'confidentialite.html'),
         conditionsGenerales: resolve(__dirname, 'conditions-generales.html'),
+        paiementSucces: resolve(__dirname, 'paiement-succes.html'),
+        paiementAnnule: resolve(__dirname, 'paiement-annule.html'),
       }
     }
   }

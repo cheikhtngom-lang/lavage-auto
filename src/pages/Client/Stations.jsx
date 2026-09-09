@@ -18,6 +18,7 @@ import { downloadReceiptPdf } from '../../lib/receipt';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
 import { vehicleCapFor } from '../../lib/superUser';
 import { hasModule } from '../../lib/stationModules';
+import { payLavageOnline } from '../../lib/paydunya';
 
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -481,12 +482,37 @@ export default function Stations() {
 
   const handlePayOnSite = () => finalizeReservation({ paid: false, method: null });
 
-  const handlePayOnline = () => {
-    if (!paymentMethod || paymentPhone.trim().length < 6) return;
+  // Paiement en ligne RÉEL via PayDunya : on crée d'abord la/les
+  // réservation(s) NON payées (pour obtenir leurs ids), puis on redirige
+  // vers la page de paiement PayDunya. C'est l'Edge Function
+  // paydunya-callback qui les marquera payées, créera les transactions et
+  // reversera la part de la station (voir src/lib/paydunya.js). Plus de
+  // simulation setTimeout : ce chemin encaisse vraiment.
+  const finalizeReservationPaydunya = async () => {
+    if (selectedVehicles.length === 0 || !account || !selectedStation) return;
     setPaymentProcessing(true);
-    setTimeout(() => {
-      finalizeReservation({ paid: true, method: paymentMethod === 'wave' ? 'Wave' : 'Orange Money' });
-    }, 1400);
+    try {
+      const reservationGroupId = selectedVehicles.length > 1 ? `RG-${Date.now()}` : null;
+      const ids = [];
+      for (const vehicle of selectedVehicles) {
+        const vehicleLabel = `${vehicle.brand}${vehicle.plate ? ` (${vehicle.plate})` : ''}`;
+        const category = getPricingCategory(vehicle.category);
+        const amount = priceForVehicle(vehicle);
+        const reservation = await createReservation(selectedStation.id, {
+          clientId: account.id, clientName: account.name, vehicleLabel, category, service,
+          paid: false, amount, paymentMethod: null,
+          reservationGroupId, groupSize: selectedVehicles.length,
+        });
+        ids.push(reservation.id);
+      }
+      unhideStation(selectedStation.id);
+      await payLavageOnline({ stationId: selectedStation.id, reservationIds: ids });
+      // Redirection PayDunya en cours — la suite se passe au retour + callback.
+    } catch (err) {
+      setPaymentProcessing(false);
+      refreshActivity();
+      alert(err.message || "Le paiement en ligne n'a pas pu démarrer. Réessayez, ou choisissez « Payer à la station ».");
+    }
   };
 
   const useMyPosition = () => {
@@ -873,47 +899,18 @@ export default function Stations() {
                   {paymentProcessing ? (
                     <div className="flex flex-col items-center justify-center py-10 gap-3">
                       <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-                      <p className="text-neutral-300 text-sm">Traitement du paiement {paymentMethod === 'wave' ? 'Wave' : 'Orange Money'}...</p>
-                    </div>
-                  ) : paymentMethod ? (
-                    <div className="space-y-4">
-                      <button type="button" onClick={() => setPaymentMethod(null)} className="text-xs text-neutral-400 hover:text-white transition-colors">
-                        ← Changer de mode de paiement
-                      </button>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-1.5">Numéro {paymentMethod === 'wave' ? 'Wave' : 'Orange Money'} <span className="text-red-400">*</span></label>
-                        <input type="tel" placeholder="+221 77 000 00 00" value={paymentPhone}
-                          onChange={(e) => setPaymentPhone(e.target.value)}
-                          className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
-                        {account?.phone && paymentPhone === account.phone && (
-                          <p className="text-neutral-500 text-xs mt-1.5">Numéro de votre compte — modifiez-le si vous payez depuis un autre numéro.</p>
-                        )}
-                      </div>
-                      <button type="button" onClick={handlePayOnline} disabled={paymentPhone.trim().length < 6}
-                        className={`w-full font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-white disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed ${paymentMethod === 'wave' ? 'bg-[#1DC8E0] hover:bg-[#17aec3]' : 'bg-[#FF7900] hover:bg-[#e56b00]'}`}>
-                        <Smartphone className="w-5 h-5" /> Payer {servicePrice.toLocaleString('fr-FR')} FCFA via {paymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
-                      </button>
+                      <p className="text-neutral-300 text-sm">Redirection vers le paiement sécurisé…</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <button type="button" onClick={() => setPaymentMethod('wave')}
-                        className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-white/10 bg-white/5 hover:border-[#1DC8E0]/50 hover:bg-[#1DC8E0]/10 transition-colors text-left">
-                        <div className="w-11 h-11 rounded-xl bg-[#1DC8E0]/20 flex items-center justify-center flex-shrink-0">
-                          <Smartphone className="w-5 h-5 text-[#1DC8E0]" />
+                      <button type="button" onClick={finalizeReservationPaydunya}
+                        className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 transition-colors text-left">
+                        <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                          <Smartphone className="w-5 h-5 text-blue-400" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-white font-bold">Wave</p>
-                          <p className="text-neutral-500 text-xs">Payer en ligne, immédiatement</p>
-                        </div>
-                      </button>
-                      <button type="button" onClick={() => setPaymentMethod('orange_money')}
-                        className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-white/10 bg-white/5 hover:border-[#FF7900]/50 hover:bg-[#FF7900]/10 transition-colors text-left">
-                        <div className="w-11 h-11 rounded-xl bg-[#FF7900]/20 flex items-center justify-center flex-shrink-0">
-                          <Smartphone className="w-5 h-5 text-[#FF7900]" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-white font-bold">Orange Money</p>
-                          <p className="text-neutral-500 text-xs">Payer en ligne, immédiatement</p>
+                          <p className="text-white font-bold">Payer en ligne — {servicePrice.toLocaleString('fr-FR')} FCFA</p>
+                          <p className="text-neutral-500 text-xs">Wave, Orange Money ou carte, via PayDunya</p>
                         </div>
                       </button>
                       <div className="flex items-center gap-3 py-1">

@@ -1,0 +1,14 @@
+# Config Supabase CLI — utilisée par `supabase functions deploy`.
+# Le projet ne fait pas de dev local (`supabase start`) : ce fichier ne
+# contient donc que le strict nécessaire au déploiement des Edge Functions.
+
+project_id = "kyilblxendvqclifregf"
+
+# paydunya-callback est appelée par les serveurs PayDunya, qui n'envoient
+# aucun JWT Supabase. Sans ceci, la gateway répond 401 et aucun paiement
+# n'est jamais confirmé.
+[functions.paydunya-callback]
+verify_jwt = false
+
+# create-lavage-payment / create-platform-payment gardent verify_jwt = true
+# (défaut) : appelées depuis le front par un utilisateur connecté.

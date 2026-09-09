@@ -5,6 +5,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { clearSession, getCurrentRole, getCurrentStationId } from '../../lib/accounts';
 import { createRenewalPayment, isSubscriptionEnded } from '../../lib/stationRenewal';
+import { payPlatformOnline } from '../../lib/paydunya';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Écran de blocage plein écran (pas de AdminLayout, pas de menu) quand
@@ -52,15 +53,19 @@ export default function SubscriptionEnded() {
     setSubmitting(true);
     setError('');
     try {
-      await createRenewalPayment(stationId, {
+      const row = await createRenewalPayment(stationId, {
         plan: stationBilling.plan,
         amount: planDef.price,
         method: paymentMethod === 'wave' ? 'Wave' : 'Orange Money',
         reference: paymentPhone.trim(),
       });
+      // Redirige vers PayDunya pour régler tout de suite ; le callback
+      // remet la station "à jour" automatiquement. Si la redirection
+      // échoue, la ligne PENDING reste confirmable à la main par le Super Admin.
+      await payPlatformOnline({ kind: 'saas', rowId: row.id });
       setJustSubmitted(true);
     } catch (err) {
-      setError(err.message || "Impossible d'enregistrer le paiement, réessayez.");
+      setError(err.message || "Impossible de démarrer le paiement, réessayez.");
     } finally {
       setSubmitting(false);
     }

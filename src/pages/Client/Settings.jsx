@@ -4,6 +4,7 @@ import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Check, Smartphone, L
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { changePassword } from '../../lib/accounts';
 import { MAX_FREE_VEHICLES, CLIENT_PLANS, createSuperUserPayment } from '../../lib/superUser';
+import { payPlatformOnline } from '../../lib/paydunya';
 import { exportClientOwnData } from '../../lib/rgpdExport';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
@@ -126,25 +127,25 @@ export default function Settings() {
   };
   const closePaymentModal = () => setShowPaymentModal(false);
 
-  // Le clic "Payer" ne rend JAMAIS le compte Super User tout seul : il crée
-  // une ligne PENDING, que seul le Super Admin peut confirmer une fois
-  // l'argent réellement reçu (voir src/lib/superUser.js et la policy RLS
-  // super_user_subscriptions_update). Pas de simulation instantanée ici,
-  // contrairement au paiement d'une réservation.
+  // Le clic "Payer" crée une ligne PENDING puis redirige vers PayDunya. Le
+  // callback active l'abonnement automatiquement à la confirmation. Si la
+  // redirection échoue, la ligne PENDING reste confirmable à la main par le
+  // Super Admin (voir src/lib/superUser.js, super_user_subscriptions_update).
   const handleSubmitPayment = async () => {
     if (!paymentMethod || paymentPhone.trim().length < 6 || !account) return;
     setPaymentSubmitting(true);
     setPaymentError('');
     try {
-      await createSuperUserPayment(account.id, {
+      const row = await createSuperUserPayment(account.id, {
         method: paymentMethod === 'wave' ? 'Wave' : 'Orange Money',
         reference: paymentPhone.trim(),
         plan: selectedPlan,
       });
       refreshSuperUser();
+      await payPlatformOnline({ kind: 'superuser', rowId: row.id });
       setPaymentJustSubmitted(true);
     } catch (err) {
-      setPaymentError(err.message || "Impossible d'enregistrer le paiement, réessayez.");
+      setPaymentError(err.message || "Impossible de démarrer le paiement, réessayez.");
     } finally {
       setPaymentSubmitting(false);
     }

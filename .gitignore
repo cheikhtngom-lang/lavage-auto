@@ -27,3 +27,6 @@ dist-ssr
 
 # Vite : fichiers temporaires de config ESM
 vite.config.js.timestamp-*
+
+# Supabase CLI : état local de `supabase link`
+supabase/.temp/

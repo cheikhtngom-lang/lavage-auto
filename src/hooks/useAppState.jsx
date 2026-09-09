@@ -436,6 +436,7 @@ export function AppStateProvider({ children }) {
         subscriptionStatus: row?.subscription_status || 'essai',
         trialEndsAt: row?.trial_ends_at || null,
         nextBillingDate: row?.next_billing_date || null,
+        paydunyaAlias: row?.paydunya_account_alias || null,
     });
     useEffect(() => {
         setStationProfileLoaded(false);
