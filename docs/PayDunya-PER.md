@@ -36,21 +36,27 @@ des Edge Functions, jamais dans le bundle React.
 
 ## Flux lavage
 
+**Une réservation en ligne n'existe qu'une fois le paiement confirmé.** Rien
+n'est enregistré avant.
+
 1. Client choisit « Payer en ligne » dans le modal de réservation
    (`src/pages/Client/Stations.jsx`).
-2. Le front crée la/les réservation(s) **non payées**, récupère leurs ids,
-   appelle `create-lavage-payment`.
-3. La fonction resomme les montants, vérifie l'abonnement de la station
-   (`station_subscription_ok`) et son alias PayDunya, crée la facture,
-   renvoie l'URL. Redirection.
+2. Le front envoie le **panier** (`items = [{ vehicleLabel, category,
+   service, amount }]`) à `create-lavage-payment` — aucune réservation créée.
+3. La fonction somme les montants, vérifie l'abonnement de la station
+   (`station_subscription_ok`) et son alias PayDunya, crée la facture (panier
+   dans `custom_data`), renvoie l'URL. Redirection.
 4. Le client paie sur PayDunya (Wave / Orange Money / carte).
 5. PayDunya appelle `paydunya-callback` (serveur à serveur).
 6. Le callback : revérifie le statut → insère `paiements_lavage` (jeton
-   unique = idempotence) → marque les réservations `paid`, crée les
-   `transactions` → `disburse` la part station → met à jour
-   `statut_redistribution`.
-7. La station retire son solde depuis son propre compte PayDunya, quand
-   elle veut.
+   unique = idempotence) → **crée les réservations déjà `paid`** + les
+   `transactions`/reçus → `disburse` la part station → met à jour
+   `statut_redistribution` et `reservation_ids`.
+7. La réservation apparaît alors dans la file de la station et dans « Mes
+   rendez-vous & Reçus » du client. La station retire son solde depuis son
+   compte PayDunya quand elle veut.
+
+Si le client abandonne le paiement : aucune réservation, aucune trace.
 
 ## Mise en place (à faire une fois)
 

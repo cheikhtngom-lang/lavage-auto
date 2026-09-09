@@ -73,7 +73,8 @@ Deno.serve(async (req) => {
   }
 });
 
-// ─── Lavage : encaissement + redistribution PER ──────────────────────--
+// ─── Lavage : création des réservations (déjà payées) + reçus + PER ──--
+// Une réservation en ligne n'existe QU'ICI, une fois le paiement confirmé.
 async function handleLavage(token: string, invoice: any, custom: any) {
   const montantTotal = Number(custom.montantTotal || invoice.total_amount || 0);
   const partStation = Number(custom.partStation || 0);
@@ -82,11 +83,18 @@ async function handleLavage(token: string, invoice: any, custom: any) {
   const alias: string = custom.paydunyaAccountAlias;
   const stationId: string = custom.stationId;
   const clientId: string | null = custom.clientId || null;
-  const reservationIds: string[] = String(custom.reservationIds || "")
-    .split(",").map((s) => s.trim()).filter(Boolean);
+  const clientName: string = custom.clientName || "Client";
+  const groupId: string = custom.reservationGroupId || "";
+
+  let items: Array<{ vehicleLabel: string; category: string; service: string; amount: number }> = [];
+  try { items = JSON.parse(custom.items || "[]"); } catch (_) { items = []; }
+  if (items.length === 0) {
+    console.error("paydunya-callback lavage: items vide", custom);
+    return;
+  }
 
   // Verrou d'idempotence : 1 seule ligne par jeton PayDunya. Si elle existe
-  // déjà, le callback a déjà été traité -> on sort.
+  // déjà, le callback a déjà été traité -> on sort sans rien recréer.
   const { error: insErr } = await admin.from("paiements_lavage").insert({
     station_id: stationId,
     client_id: clientId,
@@ -95,7 +103,7 @@ async function handleLavage(token: string, invoice: any, custom: any) {
     part_plateforme: partPlateforme,
     taux_commission: taux,
     paydunya_token: token,
-    reservation_ids: reservationIds,
+    reservation_ids: [],
     statut_redistribution: "en_attente",
   });
   if (insErr) {
@@ -104,30 +112,42 @@ async function handleLavage(token: string, invoice: any, custom: any) {
     return;
   }
 
-  // Marque chaque réservation payée + crée sa transaction (montant = prix
-  // du lavage, comme un encaissement sur place — la commission plateforme
-  // est tracée à part dans paiements_lavage).
-  const { data: reservations } = await admin
-    .from("reservations")
-    .select("id, amount, client_id, client_name, vehicle_label, service, paid")
-    .in("id", reservationIds);
-
-  for (const r of reservations ?? []) {
-    if (r.paid) continue;
-    await admin.from("reservations")
-      .update({ paid: true, payment_method: "PayDunya" })
-      .eq("id", r.id);
+  // Crée chaque réservation DÉJÀ payée, puis sa transaction/reçu (montant =
+  // prix du lavage, comme un encaissement sur place — la commission
+  // plateforme est tracée à part dans paiements_lavage).
+  const createdIds: string[] = [];
+  for (const it of items) {
+    const { data: r, error: rErr } = await admin.from("reservations").insert({
+      station_id: stationId,
+      client_id: clientId,
+      client_name: clientName,
+      vehicle_label: it.vehicleLabel,
+      category: it.category,
+      service: it.service,
+      status: "attente",
+      paid: true,
+      payment_method: "PayDunya",
+      amount: it.amount,
+      reservation_group_id: groupId || null,
+      group_size: items.length > 1 ? items.length : null,
+    }).select("id").single();
+    if (rErr || !r) { console.error("reservations insert:", rErr); continue; }
+    createdIds.push(r.id);
     await admin.from("transactions").insert({
       station_id: stationId,
       reservation_id: r.id,
-      client_id: r.client_id,
-      client_name: r.client_name,
-      vehicle_label: r.vehicle_label,
-      service: r.service,
+      client_id: clientId,
+      client_name: clientName,
+      vehicle_label: it.vehicleLabel,
+      service: it.service,
       method: "PayDunya",
-      amount: r.amount ?? 0,
+      amount: it.amount,
     });
   }
+
+  await admin.from("paiements_lavage")
+    .update({ reservation_ids: createdIds })
+    .eq("paydunya_token", token);
 
   // Redistribution automatique et instantanée de la part station.
   const res = await disburse({ accountAlias: alias, amount: partStation });

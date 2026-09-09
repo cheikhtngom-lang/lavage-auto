@@ -2,13 +2,13 @@
 //
 // Appelée depuis le front React (client connecté) via :
 //   supabase.functions.invoke('create-lavage-payment',
-//     { body: { stationId, reservationIds } })
+//     { body: { stationId, clientName, reservationGroupId, items } })
 //
-// Crée UNE facture PayDunya pour un panier de réservations déjà créées
-// (statut 'attente', paid = false), calcule la répartition commission /
-// station, et renvoie l'URL de paiement. C'est paydunya-callback qui, à la
-// confirmation, marque les réservations payées, crée les transactions et
-// déclenche la redistribution PER vers la station.
+// items = [{ vehicleLabel, category, service, amount }] — le PANIER, pas des
+// réservations. AUCUNE réservation n'est créée ici : une réservation en
+// ligne n'existe qu'une fois le paiement confirmé. C'est paydunya-callback
+// qui crée les réservations (déjà payées), les transactions/reçus et
+// déclenche la redistribution PER.
 //
 // verify_jwt reste à true (défaut) : appel réservé à un utilisateur connecté.
 
@@ -25,21 +25,32 @@ const admin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+type Item = { vehicleLabel: string; category: string; service: string; amount: number };
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const body = await req.json();
     const stationId: string = body.stationId;
-    const reservationIds: string[] = Array.isArray(body.reservationIds)
-      ? body.reservationIds
-      : body.reservationId
-        ? [body.reservationId]
-        : [];
+    const clientName: string = (body.clientName ?? "").toString().slice(0, 120);
+    const reservationGroupId: string = (body.reservationGroupId ?? "").toString().slice(0, 40);
+    const items: Item[] = Array.isArray(body.items) ? body.items : [];
 
-    if (!stationId || reservationIds.length === 0) {
-      return json({ error: "stationId et reservationIds requis." }, 400);
+    if (!stationId || items.length === 0 || items.length > 10) {
+      return json({ error: "stationId et items (1 à 10) requis." }, 400);
     }
+    // Validation stricte du panier : montants entiers positifs.
+    for (const it of items) {
+      if (
+        !it || typeof it.vehicleLabel !== "string" || typeof it.service !== "string" ||
+        typeof it.category !== "string" || !Number.isFinite(it.amount) || it.amount <= 0
+      ) {
+        return json({ error: "Panier invalide." }, 400);
+      }
+    }
+    const montantTotal = items.reduce((s, it) => s + Math.round(it.amount), 0);
+    if (montantTotal <= 0) return json({ error: "Montant total invalide." }, 400);
 
     // Utilisateur à partir du JWT transmis par le front.
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -50,28 +61,6 @@ Deno.serve(async (req) => {
     );
     const { data: { user } } = await asUser.auth.getUser();
     if (!user) return json({ error: "Non authentifié." }, 401);
-
-    // Réservations : doivent appartenir à cette station, être en attente et
-    // non déjà payées. On resomme les montants côté serveur (jamais confiance
-    // au total envoyé par le navigateur).
-    const { data: reservations, error: resErr } = await admin
-      .from("reservations")
-      .select("id, amount, paid, status, station_id, client_id")
-      .in("id", reservationIds);
-
-    if (resErr || !reservations || reservations.length === 0) {
-      return json({ error: "Réservations introuvables." }, 404);
-    }
-    const invalid = reservations.find(
-      (r) => r.station_id !== stationId || r.paid || !["attente", "en_cours"].includes(r.status),
-    );
-    if (invalid) {
-      return json({ error: "Une réservation est déjà payée ou invalide." }, 409);
-    }
-    const montantTotal = reservations.reduce((s, r) => s + (r.amount || 0), 0);
-    if (montantTotal <= 0) {
-      return json({ error: "Montant total invalide." }, 400);
-    }
 
     // Station + abonnement + compte PayDunya de la station.
     const { data: station, error: stErr } = await admin
@@ -107,13 +96,22 @@ Deno.serve(async (req) => {
       customData: {
         kind: "lavage",
         stationId,
-        reservationIds: reservationIds.join(","),
         clientId: user.id,
+        clientName,
+        reservationGroupId,
         montantTotal: String(montantTotal),
         partStation: String(partStation),
         partPlateforme: String(partPlateforme),
         tauxCommission: String(taux),
         paydunyaAccountAlias: alias,
+        items: JSON.stringify(
+          items.map((it) => ({
+            vehicleLabel: it.vehicleLabel.slice(0, 120),
+            category: it.category.slice(0, 60),
+            service: it.service.slice(0, 60),
+            amount: Math.round(it.amount),
+          })),
+        ),
       },
       storeName: station.name,
     });

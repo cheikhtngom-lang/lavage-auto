@@ -482,35 +482,33 @@ export default function Stations() {
 
   const handlePayOnSite = () => finalizeReservation({ paid: false, method: null });
 
-  // Paiement en ligne RÉEL via PayDunya : on crée d'abord la/les
-  // réservation(s) NON payées (pour obtenir leurs ids), puis on redirige
-  // vers la page de paiement PayDunya. C'est l'Edge Function
-  // paydunya-callback qui les marquera payées, créera les transactions et
-  // reversera la part de la station (voir src/lib/paydunya.js). Plus de
-  // simulation setTimeout : ce chemin encaisse vraiment.
+  // Paiement en ligne RÉEL via PayDunya. On n'enregistre RIEN ici : une
+  // réservation en ligne n'apparaît qu'une fois le paiement confirmé. On
+  // envoie juste le panier à l'Edge Function, qui crée la facture PayDunya
+  // et redirige. C'est paydunya-callback qui crée ensuite la/les
+  // réservation(s) déjà payées, les reçus, et le reversement à la station
+  // (voir src/lib/paydunya.js). Plus de simulation setTimeout.
   const finalizeReservationPaydunya = async () => {
     if (selectedVehicles.length === 0 || !account || !selectedStation) return;
     setPaymentProcessing(true);
     try {
       const reservationGroupId = selectedVehicles.length > 1 ? `RG-${Date.now()}` : null;
-      const ids = [];
-      for (const vehicle of selectedVehicles) {
-        const vehicleLabel = `${vehicle.brand}${vehicle.plate ? ` (${vehicle.plate})` : ''}`;
-        const category = getPricingCategory(vehicle.category);
-        const amount = priceForVehicle(vehicle);
-        const reservation = await createReservation(selectedStation.id, {
-          clientId: account.id, clientName: account.name, vehicleLabel, category, service,
-          paid: false, amount, paymentMethod: null,
-          reservationGroupId, groupSize: selectedVehicles.length,
-        });
-        ids.push(reservation.id);
-      }
+      const items = selectedVehicles.map((vehicle) => ({
+        vehicleLabel: `${vehicle.brand}${vehicle.plate ? ` (${vehicle.plate})` : ''}`,
+        category: getPricingCategory(vehicle.category),
+        service,
+        amount: priceForVehicle(vehicle),
+      }));
       unhideStation(selectedStation.id);
-      await payLavageOnline({ stationId: selectedStation.id, reservationIds: ids });
+      await payLavageOnline({
+        stationId: selectedStation.id,
+        clientName: account.name,
+        reservationGroupId,
+        items,
+      });
       // Redirection PayDunya en cours — la suite se passe au retour + callback.
     } catch (err) {
       setPaymentProcessing(false);
-      refreshActivity();
       alert(err.message || "Le paiement en ligne n'a pas pu démarrer. Réessayez, ou choisissez « Payer à la station ».");
     }
   };

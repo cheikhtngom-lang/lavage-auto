@@ -26,11 +26,14 @@ async function invokeAndRedirect(fn, body) {
   window.location.href = data.urlPaiement;
 }
 
-// Lavage : `reservationIds` = les réservations déjà créées (non payées)
-// pour ce panier. La commission plateforme et la redistribution vers la
-// station sont calculées côté serveur.
-export function payLavageOnline({ stationId, reservationIds }) {
-  return invokeAndRedirect('create-lavage-payment', { stationId, reservationIds });
+// Lavage : `items` = le PANIER [{ vehicleLabel, category, service, amount }].
+// Aucune réservation n'est créée avant le paiement : une réservation en
+// ligne n'apparaît qu'une fois payée (créée par paydunya-callback). La
+// commission et la redistribution vers la station sont calculées côté serveur.
+export function payLavageOnline({ stationId, clientName, reservationGroupId, items }) {
+  return invokeAndRedirect('create-lavage-payment', {
+    stationId, clientName, reservationGroupId, items,
+  });
 }
 
 // Paiements 100 % plateforme (aucune redistribution). `rowId` = l'id de la
