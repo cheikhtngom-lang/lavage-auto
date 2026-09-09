@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { CheckCircle2, Clock, XCircle, Search, Droplets, Download, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X, Eye } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, Search, Droplets, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X, Eye } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { isPastClosingTime } from '../../lib/stationData';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -99,6 +99,10 @@ export default function Washers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [exporting, setExporting] = useState(false);
+  const [exportMonth, setExportMonth] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  });
   const isToday = selectedDate === todayKey();
 
   // L'historique d'une date passée n'est chargé qu'à la demande (aujourd'hui
@@ -233,72 +237,166 @@ export default function Washers() {
     recordDailyAttendance(id, patch);
   };
 
-  // Export du pointage réel du mois en cours : une ligne par employé, une colonne
-  // par jour, avec les heures réellement travaillées (calculées depuis clockInAt/
-  // clockOutAt, pas un forfait fixe) — voir loadAttendanceForMonth dans useAppState.
-  const exportToCSV = async () => {
+  // Export du pointage RÉEL d'un mois — classeur Excel professionnel à 3
+  // feuilles, à partir des vraies données de `attendance_records`
+  // (loadAttendanceForMonth) :
+  //   • « Synthèse »        : 1 ligne / employé — jours travaillés, total
+  //                           heures + total en heures décimales (paie),
+  //                           moyenne/jour, jours repos/congé/maladie/absence,
+  //                           + ligne TOTAL.
+  //   • « Détail par jour » : grille employé × jours du mois (heures ou
+  //                           lettre de statut).
+  //   • « Pointages »       : 1 ligne par (employé, jour) pointé — date,
+  //                           arrivée, départ, heures, minutes — format
+  //                           normalisé, idéal pour un tableau croisé.
+  // Le temps travaillé vient des horodatages réels clockInAt/clockOutAt (ou
+  // total_time figé), jamais d'un forfait. Aujourd'hui = état live ; jours
+  // passés = instantané enregistré ce jour-là. Un employé supprimé depuis
+  // mais qui a pointé ce mois-là reste inclus (nom/rôle figés dans la table).
+  const exportAttendanceToExcel = async () => {
+    const [yStr, mStr] = exportMonth.split('-');
+    const year = Number(yStr);
+    const month = Number(mStr) - 1;
+    if (Number.isNaN(year) || Number.isNaN(month)) return;
+
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
     const todayNum = now.getDate();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const pad = (n) => String(n).padStart(2, '0');
 
     setExporting(true);
-    const monthData = await loadAttendanceForMonth(year, month);
+    let monthData = {};
+    try {
+      monthData = await loadAttendanceForMonth(year, month) || {};
+    } catch (e) {
+      setExporting(false);
+      alert("Impossible de charger le pointage de ce mois.");
+      return;
+    }
     setExporting(false);
 
-    let csvContent = "ID Employé;Prénom & Nom;Rôle;";
-    for (let i = 1; i <= daysInMonth; i++) {
-      const d = new Date(year, month, i);
-      csvContent += `${d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' })};`;
-    }
-    csvContent += "Total Heures;Jours Travaillés;Jours Repos;Jours Congé;Jours Maladie;Jours Absence\n";
+    // Liste des employés du rapport : laveurs actuels + tout employé (même
+    // supprimé) ayant au moins un pointage ce mois-là.
+    const known = new Map((employees || []).map((e) => [e.id, e]));
+    const staff = [];
+    (employees || []).forEach((e) => {
+      if (e.role === 'Laveur') staff.push({ id: e.id, name: e.name, role: e.role, live: e });
+    });
+    Object.keys(monthData).forEach((id) => {
+      if (staff.some((s) => s.id === id)) return;
+      const e = known.get(id);
+      if (e) { staff.push({ id, name: e.name, role: e.role, live: e }); return; }
+      const frozen = Object.values(monthData[id]).find((r) => r.name) || {};
+      staff.push({ id, name: frozen.name || 'Employé supprimé', role: frozen.role || '—', live: null });
+    });
+    staff.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr'));
 
-    washersList.forEach(washer => {
-      let totalMinutes = 0;
-      let countTravail = 0, countRepos = 0, countConge = 0, countMaladie = 0, countAbsence = 0;
-      let row = `${washer.id};${washer.name};${washer.role};`;
-
-      for (let i = 1; i <= daysInMonth; i++) {
-        // Aujourd'hui : état live de l'employé (le plus à jour). Les autres jours :
-        // instantané réellement enregistré ce jour-là (loadAttendanceForMonth).
-        const rec = i === todayNum
-          ? { dailyStatus: washer.dailyStatus, clockInAt: washer.clockInAt, clockOutAt: washer.clockOutAt, totalTime: washer.totalTime }
-          : monthData[washer.id]?.[`${year}-${pad(month + 1)}-${pad(i)}`];
-
-        if (!rec || !rec.dailyStatus) { row += ";"; continue; } // aucune donnée ce jour-là
-
-        if (rec.dailyStatus === 'present') {
-          let minutes = 0;
-          if (rec.totalTime) minutes = parseDurationToMinutes(rec.totalTime);
-          else if (rec.clockInAt && !rec.clockOutAt) minutes = Math.max(0, Math.round((now.getTime() - new Date(rec.clockInAt).getTime()) / 60000));
-          totalMinutes += minutes;
-          countTravail++;
-          row += `${formatMinutesToHM(minutes)};`;
-        } else {
-          row += `${STATUS_LETTER[rec.dailyStatus] || 'A'};`;
-          if (rec.dailyStatus === 'repos') countRepos++;
-          else if (rec.dailyStatus === 'conge') countConge++;
-          else if (rec.dailyStatus === 'maladie') countMaladie++;
-          else countAbsence++;
-        }
+    const recFor = (emp, i) => {
+      if (isCurrentMonth && i === todayNum && emp.live) {
+        return { dailyStatus: emp.live.dailyStatus, clockInAt: emp.live.clockInAt, clockOutAt: emp.live.clockOutAt, totalTime: emp.live.totalTime };
       }
+      return monthData[emp.id]?.[`${year}-${pad(month + 1)}-${pad(i)}`] || null;
+    };
+    const minutesFor = (rec) => {
+      if (!rec || rec.dailyStatus !== 'present') return 0;
+      if (rec.totalTime) return parseDurationToMinutes(rec.totalTime);
+      if (rec.clockInAt && rec.clockOutAt) return Math.max(0, Math.round((new Date(rec.clockOutAt).getTime() - new Date(rec.clockInAt).getTime()) / 60000));
+      if (rec.clockInAt) return Math.max(0, Math.round((now.getTime() - new Date(rec.clockInAt).getTime()) / 60000)); // en cours
+      return 0;
+    };
+    const hhmm = (t) => (t ? new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
+    const STATUS_LABEL = { present: 'Présent', repos: 'Repos', conge: 'Congé', maladie: 'Maladie', absent: 'Absent' };
 
-      row += `${formatMinutesToHM(totalMinutes)};${countTravail};${countRepos};${countConge};${countMaladie};${countAbsence}\n`;
-      csvContent += row;
+    // ── Feuille 1 : Synthèse ──
+    const synthRows = [[
+      'Employé', 'Rôle', 'Jours travaillés', 'Total heures', 'Total (h décimal)',
+      'Moyenne / jour', 'Repos', 'Congés', 'Maladie', 'Absences',
+    ]];
+    const perEmpMin = {};
+    let grandMin = 0, grandDays = 0;
+    staff.forEach((emp) => {
+      let tMin = 0, cT = 0, cR = 0, cC = 0, cM = 0, cA = 0;
+      for (let i = 1; i <= daysInMonth; i++) {
+        const rec = recFor(emp, i);
+        if (!rec || !rec.dailyStatus) continue;
+        if (rec.dailyStatus === 'present') { tMin += minutesFor(rec); cT++; }
+        else if (rec.dailyStatus === 'repos') cR++;
+        else if (rec.dailyStatus === 'conge') cC++;
+        else if (rec.dailyStatus === 'maladie') cM++;
+        else cA++;
+      }
+      perEmpMin[emp.id] = tMin;
+      grandMin += tMin; grandDays += cT;
+      synthRows.push([
+        emp.name, emp.role, cT, formatMinutesToHM(tMin), Number((tMin / 60).toFixed(2)),
+        cT ? formatMinutesToHM(Math.round(tMin / cT)) : '—', cR, cC, cM, cA,
+      ]);
+    });
+    synthRows.push([]);
+    synthRows.push(['TOTAL', '', grandDays, formatMinutesToHM(grandMin), Number((grandMin / 60).toFixed(2)), '', '', '', '', '']);
+
+    // ── Feuille 2 : Détail par jour ──
+    const dayCols = [];
+    for (let i = 1; i <= daysInMonth; i++) {
+      dayCols.push(new Date(year, month, i).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit' }));
+    }
+    const detailRows = [['Employé', 'Rôle', ...dayCols, 'Total']];
+    staff.forEach((emp) => {
+      const row = [emp.name, emp.role];
+      for (let i = 1; i <= daysInMonth; i++) {
+        const rec = recFor(emp, i);
+        if (!rec || !rec.dailyStatus) { row.push(''); continue; }
+        row.push(rec.dailyStatus === 'present' ? formatMinutesToHM(minutesFor(rec)) : (STATUS_LETTER[rec.dailyStatus] || 'A'));
+      }
+      row.push(formatMinutesToHM(perEmpMin[emp.id] || 0));
+      detailRows.push(row);
+    });
+    detailRows.push([]);
+    detailRows.push(['Légende :', 'heures = temps travaillé · R = repos · C = congé · M = maladie · A = absence']);
+
+    // ── Feuille 3 : Pointages (long / normalisé) ──
+    const logRows = [['Date', 'Jour', 'Employé', 'Rôle', 'Statut', 'Arrivée', 'Départ', 'Heures', 'Minutes']];
+    staff.forEach((emp) => {
+      for (let i = 1; i <= daysInMonth; i++) {
+        const rec = recFor(emp, i);
+        if (!rec || !rec.dailyStatus) continue;
+        const d = new Date(year, month, i);
+        const min = minutesFor(rec);
+        logRows.push([
+          `${pad(i)}/${pad(month + 1)}/${year}`,
+          d.toLocaleDateString('fr-FR', { weekday: 'long' }),
+          emp.name, emp.role,
+          STATUS_LABEL[rec.dailyStatus] || rec.dailyStatus,
+          hhmm(rec.clockInAt), hhmm(rec.clockOutAt),
+          rec.dailyStatus === 'present' ? formatMinutesToHM(min) : '',
+          rec.dailyStatus === 'present' ? min : '',
+        ]);
+      }
     });
 
-    // Encodage spécial pour que Excel reconnaisse bien les accents (BOM UTF-8)
-    const BOM = "﻿";
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Pointage_Mensuel_${month + 1}_${year}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const wb = XLSX.utils.book_new();
+    wb.Props = {
+      Title: `Pointage ${exportMonth}`,
+      Subject: 'Temps de travail réel',
+      Author: stationProfile?.name || 'Clean Car Galsen',
+      CreatedDate: now,
+    };
+
+    const wsSynth = XLSX.utils.aoa_to_sheet(synthRows);
+    wsSynth['!cols'] = [{ wch: 26 }, { wch: 12 }, { wch: 15 }, { wch: 13 }, { wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 8 }, { wch: 9 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, wsSynth, 'Synthèse');
+
+    const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
+    wsDetail['!cols'] = [{ wch: 26 }, { wch: 12 }, ...dayCols.map(() => ({ wch: 9 })), { wch: 11 }];
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Détail par jour');
+
+    const wsLog = XLSX.utils.aoa_to_sheet(logRows);
+    wsLog['!cols'] = [{ wch: 12 }, { wch: 11 }, { wch: 26 }, { wch: 12 }, { wch: 10 }, { wch: 9 }, { wch: 9 }, { wch: 11 }, { wch: 9 }];
+    XLSX.utils.book_append_sheet(wb, wsLog, 'Pointages');
+
+    const safeStation = (stationProfile?.name || 'Station').replace(/[^\w\-]+/g, '_');
+    XLSX.writeFile(wb, `Pointage_${exportMonth}_${safeStation}.xlsx`);
   };
 
   const filteredWashers = washersList.filter(m => m?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -323,19 +421,27 @@ export default function Washers() {
           <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Gestion des <span className="text-blue-400">Laveurs</span></h1>
           <p className="text-neutral-400 text-lg">Sélectionnez les laveurs présents et gérez leur pointage journalier.</p>
         </div>
-        <div className="flex gap-4">
-          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-6 py-3 flex items-center gap-3">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-5 py-3 flex items-center gap-3">
             <Droplets className="w-5 h-5 text-blue-400" />
             <span className="text-sm font-bold text-blue-400">{presentWashers.length} Présents Aujourd'hui</span>
           </div>
+          <input
+            type="month"
+            value={exportMonth}
+            max={todayKey().slice(0, 7)}
+            onChange={(e) => setExportMonth(e.target.value)}
+            title="Mois à extraire"
+            className="bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-emerald-500"
+          />
           <button
-            onClick={exportToCSV}
+            onClick={exportAttendanceToExcel}
             disabled={exporting}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait text-white rounded-xl px-6 py-3 flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-500/20"
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait text-white rounded-xl px-5 py-3 flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-500/20"
           >
-            {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-            <span className="hidden md:inline">{exporting ? 'Extraction...' : 'Extraire Pointage Mensuel'}</span>
-            <span className="md:hidden">{exporting ? '...' : 'Export'}</span>
+            {exporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
+            <span className="hidden md:inline">{exporting ? 'Extraction…' : 'Extraire le pointage (Excel)'}</span>
+            <span className="md:hidden">{exporting ? '…' : 'Excel'}</span>
           </button>
         </div>
       </div>

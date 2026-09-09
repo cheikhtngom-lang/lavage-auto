@@ -626,6 +626,10 @@ export function AppStateProvider({ children }) {
             byEmployeeDay[row.employee_id] ||= {};
             byEmployeeDay[row.employee_id][row.work_date] = {
                 dailyStatus: row.daily_status, clockInAt: row.clock_in_at, clockOutAt: row.clock_out_at, totalTime: row.total_time,
+                // name/role figés au moment du pointage — permettent d'inclure
+                // dans l'export mensuel un employé supprimé depuis (voir
+                // exportAttendanceToExcel dans Washers.jsx).
+                name: row.name, role: row.role,
             };
         });
         return byEmployeeDay;
