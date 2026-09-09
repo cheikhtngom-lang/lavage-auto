@@ -585,6 +585,20 @@ export function AppStateProvider({ children }) {
         return () => clearInterval(interval);
     }, [activeWashes, durationConfig]);
 
+    // Signale au minuteur d'inactivité (lib/idleTimeout.js) qu'un lavage est
+    // en cours : tant que le départ le plus récent est frais, la session ne
+    // s'expire pas (le gérant est au travail). Écrit l'epoch du départ le plus
+    // récent, ou efface la clé s'il n'y a plus de lavage en cours.
+    useEffect(() => {
+        try {
+            const starts = activeWashes
+                .map((w) => (w.startedAt ? new Date(w.startedAt).getTime() : 0))
+                .filter((t) => t > 0);
+            if (starts.length) localStorage.setItem('ccg_active_wash_since', String(Math.max(...starts)));
+            else localStorage.removeItem('ccg_active_wash_since');
+        } catch { /* stockage indisponible : le minuteur retombe sur son défaut */ }
+    }, [activeWashes]);
+
     // Historique de pointage par jour : { "2026-08-12": { [employeeId]: { name, role, dailyStatus, status, clockIn, clockOut, totalTime... } } }
     // Alimenté au fil de l'eau à chaque action de pointage du jour (voir recordDailyAttendance),
     // pour permettre de consulter qui a travaillé et combien d'heures à une date passée (page Laveurs).

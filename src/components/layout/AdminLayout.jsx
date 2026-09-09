@@ -7,14 +7,25 @@ import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { hasPerm } from '../../lib/permissions';
 import { isSubscriptionEnded } from '../../lib/stationRenewal';
+import { setSessionExpiredHandler } from '../../lib/idleTimeout';
 import StationOnboarding from '../onboarding/StationOnboarding';
+import SessionLockOverlay from '../SessionLockOverlay';
 import TrialBanner from './TrialBanner';
 
 export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [sessionLocked, setSessionLocked] = useState(false);
   const { stationProfile, stationProfileLoaded, stationBilling, myPermissions } = useAppState();
+
+  // La session station qui expire pour inactivité n'éjecte plus vers la page
+  // de connexion : on affiche un écran verrouillé qui continue de surveiller
+  // la file et de biper (voir SessionLockOverlay + lib/idleTimeout.js).
+  useEffect(() => {
+    setSessionExpiredHandler(() => setSessionLocked(true));
+    return () => setSessionExpiredHandler(null);
+  }, []);
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
   // Tant que le profil n'a pas fini de charger, ne JAMAIS afficher "⚙️
   // Configurer" — le nom vide par défaut ne veut pas dire "non configurée",
@@ -81,6 +92,8 @@ export default function AdminLayout() {
 
   return (
     <div className="flex h-screen bg-neutral-950 text-white overflow-hidden font-sans">
+      {sessionLocked && <SessionLockOverlay stationName={stationProfile?.name} />}
+
       {/* Onboarding station : uniquement pour le propriétaire (role='admin'),
           jamais pour un collaborateur 'staff'. */}
       {getCurrentRole() === 'admin' && <StationOnboarding />}
