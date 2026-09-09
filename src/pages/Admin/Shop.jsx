@@ -14,16 +14,25 @@ import {
 const emptyForm = {
   id: null, name: '', description: '', category: 'Pneus', price: '', stock: '',
   promoType: '', promoPercent: '', promoBuyQty: '2', promoFreeQty: '1',
-  promoStartsAt: '', promoEndsAt: '', imageUrl: null, active: true,
+  promoStartDate: '', promoStartTime: '', promoEndDate: '', promoEndTime: '',
+  imageUrl: null, active: true,
 };
 const PERCENT_PRESETS = [10, 20, 30, 50];
 
-// ISO -> valeur d'un <input type="datetime-local"> (heure locale, sans les secondes).
-function toLocalInput(iso) {
-  if (!iso) return '';
+// ISO -> { date: 'AAAA-MM-JJ', time: 'HH:MM' } en heure locale.
+function splitLocal(iso) {
+  if (!iso) return { date: '', time: '' };
   const d = new Date(iso);
   const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return {
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+// date + heure (heure optionnelle) -> chaîne 'AAAA-MM-JJTHH:MM' ou '' si pas de date.
+function combineLocal(date, time, fallbackTime) {
+  if (!date) return '';
+  return `${date}T${time || fallbackTime}`;
 }
 
 export default function Shop() {
@@ -63,8 +72,10 @@ export default function Shop() {
       promoPercent: p.promo_percent == null ? '' : String(p.promo_percent),
       promoBuyQty: p.promo_buy_qty == null ? '2' : String(p.promo_buy_qty),
       promoFreeQty: p.promo_free_qty == null ? '1' : String(p.promo_free_qty),
-      promoStartsAt: toLocalInput(p.promo_starts_at),
-      promoEndsAt: toLocalInput(p.promo_ends_at),
+      promoStartDate: splitLocal(p.promo_starts_at).date,
+      promoStartTime: splitLocal(p.promo_starts_at).time,
+      promoEndDate: splitLocal(p.promo_ends_at).date,
+      promoEndTime: splitLocal(p.promo_ends_at).time,
       imageUrl: p.image_url || null, active: p.active,
     });
     setImageError(''); setError(''); setShowModal(true);
@@ -99,13 +110,15 @@ export default function Shop() {
         setError('Renseignez « X achetés » et « Y offerts » (au moins 1 chacun).'); return;
       }
     }
-    if (form.promoType && form.promoStartsAt && form.promoEndsAt &&
-        new Date(form.promoEndsAt) <= new Date(form.promoStartsAt)) {
+    const promoStartsAt = combineLocal(form.promoStartDate, form.promoStartTime, '00:00');
+    const promoEndsAt = combineLocal(form.promoEndDate, form.promoEndTime, '23:59');
+    if (form.promoType && promoStartsAt && promoEndsAt &&
+        new Date(promoEndsAt) <= new Date(promoStartsAt)) {
       setError('La fin de la promo doit être après son début.'); return;
     }
     setSaving(true); setError('');
     try {
-      await saveProduct(stationId, form);
+      await saveProduct(stationId, { ...form, promoStartsAt, promoEndsAt });
       setShowModal(false);
       await refresh();
     } catch (err) {
@@ -363,21 +376,31 @@ export default function Shop() {
 
                   {form.promoType && (
                     <>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-neutral-400 mb-1">Début <span className="text-neutral-600">(vide = maintenant)</span></label>
-                          <input type="datetime-local" value={form.promoStartsAt}
-                            onChange={(e) => setForm({ ...form, promoStartsAt: e.target.value })}
+                      <div>
+                        <label className="block text-xs font-medium text-neutral-400 mb-1">Début <span className="text-neutral-600">(date vide = démarre maintenant)</span></label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <input type="date" value={form.promoStartDate}
+                            onChange={(e) => setForm({ ...form, promoStartDate: e.target.value })}
                             className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-neutral-400 mb-1">Fin <span className="text-neutral-600">(vide = sans fin)</span></label>
-                          <input type="datetime-local" value={form.promoEndsAt}
-                            onChange={(e) => setForm({ ...form, promoEndsAt: e.target.value })}
-                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                          <input type="time" value={form.promoStartTime}
+                            onChange={(e) => setForm({ ...form, promoStartTime: e.target.value })}
+                            disabled={!form.promoStartDate} title="Heure (optionnel — 00:00 par défaut)"
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500 disabled:opacity-40" />
                         </div>
                       </div>
-                      <p className="text-neutral-600 text-xs">La promo s'active et se désactive automatiquement aux dates choisies.</p>
+                      <div>
+                        <label className="block text-xs font-medium text-neutral-400 mb-1">Fin <span className="text-neutral-600">(date vide = sans fin)</span></label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <input type="date" value={form.promoEndDate} min={form.promoStartDate || undefined}
+                            onChange={(e) => setForm({ ...form, promoEndDate: e.target.value })}
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                          <input type="time" value={form.promoEndTime}
+                            onChange={(e) => setForm({ ...form, promoEndTime: e.target.value })}
+                            disabled={!form.promoEndDate} title="Heure (optionnel — 23:59 par défaut)"
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500 disabled:opacity-40" />
+                        </div>
+                      </div>
+                      <p className="text-neutral-600 text-xs">L'heure est facultative (début à 00:00, fin à 23:59 par défaut). La promo s'active et s'arrête toute seule.</p>
                     </>
                   )}
                 </div>
