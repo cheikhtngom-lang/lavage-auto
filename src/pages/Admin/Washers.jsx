@@ -321,6 +321,7 @@ export default function Washers() {
       'Moyenne / jour', 'Repos', 'Congés', 'Maladie', 'Absences',
     ]];
     const perEmpMin = {};
+    const perEmpCount = {}; // { id: { cT, cR, cC, cM, cA } }
     let grandMin = 0, grandDays = 0;
     staff.forEach((emp) => {
       let tMin = 0, cT = 0, cR = 0, cC = 0, cM = 0, cA = 0;
@@ -334,6 +335,7 @@ export default function Washers() {
         else cA++;
       }
       perEmpMin[emp.id] = tMin;
+      perEmpCount[emp.id] = { cT, cR, cC, cM, cA };
       grandMin += tMin; grandDays += cT;
       synthRows.push([
         emp.name, emp.role, cT, formatMinutesToHM(tMin), Number((tMin / 60).toFixed(2)),
@@ -343,12 +345,14 @@ export default function Washers() {
     synthRows.push([]);
     synthRows.push(['TOTAL', '', grandDays, formatMinutesToHM(grandMin), Number((grandMin / 60).toFixed(2)), '', '', '', '', '']);
 
-    // ── Feuille 2 : Détail par jour ──
+    // ── Feuille 2 : Détail par jour ── grille employé × tous les jours du
+    // mois (01 → 28/29/30/31), puis les colonnes de synthèse par employé.
     const dayCols = [];
     for (let i = 1; i <= daysInMonth; i++) {
       dayCols.push(new Date(year, month, i).toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit' }));
     }
-    const detailRows = [['Employé', 'Rôle', ...dayCols, 'Total']];
+    const tailCols = ['Jours travaillés', 'Total heures', 'Repos', 'Congés', 'Maladie', 'Absences'];
+    const detailRows = [['Employé', 'Rôle', ...dayCols, ...tailCols]];
     staff.forEach((emp) => {
       const row = [emp.name, emp.role];
       for (let i = 1; i <= daysInMonth; i++) {
@@ -356,7 +360,8 @@ export default function Washers() {
         if (!rec || !rec.dailyStatus) { row.push(''); continue; }
         row.push(rec.dailyStatus === 'present' ? formatMinutesToHM(minutesFor(rec, i)) : (STATUS_LETTER[rec.dailyStatus] || 'A'));
       }
-      row.push(formatMinutesToHM(perEmpMin[emp.id] || 0));
+      const c = perEmpCount[emp.id] || { cT: 0, cR: 0, cC: 0, cM: 0, cA: 0 };
+      row.push(c.cT, formatMinutesToHM(perEmpMin[emp.id] || 0), c.cR, c.cC, c.cM, c.cA);
       detailRows.push(row);
     });
     detailRows.push([]);
@@ -395,7 +400,7 @@ export default function Washers() {
     XLSX.utils.book_append_sheet(wb, wsSynth, 'Synthèse');
 
     const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
-    wsDetail['!cols'] = [{ wch: 26 }, { wch: 12 }, ...dayCols.map(() => ({ wch: 9 })), { wch: 11 }];
+    wsDetail['!cols'] = [{ wch: 26 }, { wch: 12 }, ...dayCols.map(() => ({ wch: 9 })), { wch: 15 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 9 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, wsDetail, 'Détail par jour');
 
     const wsLog = XLSX.utils.aoa_to_sheet(logRows);
