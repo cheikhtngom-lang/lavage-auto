@@ -160,31 +160,42 @@ export async function finalizeLavage(admin: any, token: string, custom: any): Pr
 
   // Redistribution automatique et instantanée de la part station. À ce
   // stade la réservation et la transaction sont déjà actées : quoi qu'il
-  // arrive ici, le client garde son lavage confirmé et son reçu. disburse()
+  // arrive ici, le client garde son lavage confirmé et son reçu — seule la
+  // ligne paiements_lavage change de statut. Deux issues possibles quand la
+  // redistribution automatique n'a pas lieu : pas de compte PayDunya
+  // renseigné pour cette station, ou disburse() en échec (ex. PER pas
+  // encore activé sur le compte marchand plateforme) — dans les deux cas,
+  // même statut "manuel" : le Super Admin reverse la station à la main
+  // (add_manual_disbursement.sql, mark_lavage_payments_settled). disburse()
   // ne lève déjà plus d'exception sur une réponse PayDunya inattendue, mais
-  // ce try/catch est un second filet — aucune erreur de redistribution ne
-  // doit jamais empêcher de renvoyer le reçu.
-  try {
-    const res = await disburse({ accountAlias: alias, amount: partStation });
-    await admin.from("paiements_lavage")
-      .update({
-        statut_redistribution: res.ok ? "reussi" : "echec",
-        redistribution_detail: res.detail,
-      })
-      .eq("paydunya_token", token);
-
-    await log(
-      admin,
-      res.ok
-        ? `Lavage payé en ligne (${montantTotal} F) — ${partStation} F reversés à la station`
-        : `Lavage payé en ligne (${montantTotal} F) — ÉCHEC redistribution (${res.step}: ${res.detail})`,
-    );
-  } catch (err) {
-    await admin.from("paiements_lavage")
-      .update({ statut_redistribution: "echec", redistribution_detail: String(err).slice(0, 300) })
-      .eq("paydunya_token", token);
-    await log(admin, `Lavage payé en ligne (${montantTotal} F) — EXCEPTION redistribution : ${String(err).slice(0, 300)}`);
+  // ce try/catch est un second filet, jamais autorisé à empêcher le retour
+  // du reçu.
+  let statut = "reussi";
+  let detail = "";
+  if (!alias) {
+    statut = "manuel";
+    detail = "Aucun compte PayDunya renseigné pour cette station — reversement manuel requis.";
+    await log(admin, `Lavage payé en ligne (${montantTotal} F) — pas de compte PayDunya station, ${partStation} F à reverser manuellement`);
+  } else {
+    try {
+      const res = await disburse({ accountAlias: alias, amount: partStation });
+      statut = res.ok ? "reussi" : "manuel";
+      detail = res.ok ? res.detail : `Redistribution automatique indisponible (${res.step}: ${res.detail}) — reversement manuel requis.`;
+      await log(
+        admin,
+        res.ok
+          ? `Lavage payé en ligne (${montantTotal} F) — ${partStation} F reversés à la station`
+          : `Lavage payé en ligne (${montantTotal} F) — redistribution auto indisponible (${res.step}: ${res.detail}), reversement manuel requis (${partStation} F)`,
+      );
+    } catch (err) {
+      statut = "manuel";
+      detail = `Exception redistribution : ${String(err).slice(0, 300)} — reversement manuel requis.`;
+      await log(admin, `Lavage payé en ligne (${montantTotal} F) — EXCEPTION redistribution : ${String(err).slice(0, 300)}, reversement manuel requis`);
+    }
   }
+  await admin.from("paiements_lavage")
+    .update({ statut_redistribution: statut, redistribution_detail: detail })
+    .eq("paydunya_token", token);
 
   return {
     kind: "lavage",

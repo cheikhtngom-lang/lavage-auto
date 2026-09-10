@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search, Wallet } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -18,9 +18,32 @@ export default function Billing() {
   const {
     stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
     stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
+    lavagePayments, markLavagePaymentsSettled,
   } = useSuperAdminState();
   const [reminded, setReminded] = useState({});
+  const [settling, setSettling] = useState({});
   const pendingRenewals = stationRenewalPayments.filter((p) => p.status === 'PENDING');
+
+  // Lavages payés en ligne dont la part station n'a pas (encore) atteint son
+  // compte PayDunya — regroupés par station, la plateforme les reverse à la
+  // main (Wave/Orange Money/virement) et marque le lot comme réglé d'un
+  // coup. Voir add_manual_disbursement.sql / _shared/finalizePayment.ts.
+  const pendingLavagePayouts = lavagePayments.filter((p) => p.statutRedistribution === 'manuel' || p.statutRedistribution === 'echec');
+  const lavagePayoutsByStation = Object.values(
+    pendingLavagePayouts.reduce((acc, p) => {
+      const key = p.stationId || p.stationName;
+      if (!acc[key]) acc[key] = { stationId: p.stationId, stationName: p.stationName, total: 0, ids: [] };
+      acc[key].total += p.partStation || 0;
+      acc[key].ids.push(p.id);
+      return acc;
+    }, {}),
+  );
+
+  const handleSettleLavage = async (group) => {
+    setSettling((prev) => ({ ...prev, [group.stationId]: true }));
+    await markLavagePaymentsSettled(group.ids);
+    setSettling((prev) => ({ ...prev, [group.stationId]: false }));
+  };
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -104,6 +127,37 @@ export default function Billing() {
                     <XCircle className="w-4 h-4" /> Rejeter
                   </button>
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {lavagePayoutsByStation.length > 0 && (
+        <div className="glass-card rounded-2xl overflow-hidden border border-orange-500/20 bg-orange-500/[0.03] mb-10">
+          <div className="px-6 py-4 border-b border-orange-500/20 flex items-center gap-2">
+            <Wallet className="w-5 h-5 text-orange-400" />
+            <h2 className="text-lg font-bold text-white">Reversements lavage en attente</h2>
+          </div>
+          <p className="px-6 pt-4 text-sm text-neutral-400">
+            Ces stations ont des lavages payés en ligne dont la part ne leur a pas encore été reversée
+            automatiquement (pas de compte PayDunya renseigné, ou redistribution PER indisponible).
+            Réglez-les hors application (Wave / Orange Money / virement), puis marquez le lot comme reversé.
+          </p>
+          <div className="divide-y divide-white/5 mt-2">
+            {lavagePayoutsByStation.map((g) => (
+              <div key={g.stationId} className="p-5 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold text-white">{g.stationName || 'Sans nom'}</p>
+                  <p className="text-sm text-neutral-400">{g.ids.length} paiement(s) — {g.total.toLocaleString('fr-FR')} FCFA dus</p>
+                </div>
+                <button
+                  onClick={() => { if (window.confirm(`Confirmer avoir reversé ${g.total.toLocaleString('fr-FR')} FCFA à ${g.stationName} hors application ?`)) handleSettleLavage(g); }}
+                  disabled={settling[g.stationId]}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-60 text-emerald-400 rounded-lg transition-colors text-xs font-bold"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Marquer comme reversé
+                </button>
               </div>
             ))}
           </div>

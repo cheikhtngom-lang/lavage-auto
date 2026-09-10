@@ -699,10 +699,10 @@ export default function Settings() {
                     placeholder="Email ou n° mobile money de votre compte PayDunya"
                     className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   <p className="text-neutral-500 text-xs">
-                    Obligatoire pour encaisser les lavages payés en ligne : la part qui vous revient
-                    (montant du lavage moins la commission plateforme) est reversée automatiquement
-                    sur ce compte, dès la confirmation du paiement. Sans cet identifiant, vos clients
-                    ne peuvent régler que sur place.
+                    Le paiement en ligne reste disponible pour vos clients même sans ce compte. Mais en
+                    le renseignant, la part qui vous revient (montant du lavage moins la commission
+                    plateforme) est reversée automatiquement dessus dès la confirmation du paiement —
+                    sinon, la plateforme vous la reverse manuellement (Wave/Orange Money/virement).
                   </p>
                   {paydunyaError && <p className="text-red-400 text-xs">{paydunyaError}</p>}
                   <button type="button" onClick={handleSavePaydunya} disabled={paydunyaSaving}

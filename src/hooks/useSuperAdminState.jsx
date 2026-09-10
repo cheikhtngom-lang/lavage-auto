@@ -136,6 +136,22 @@ const rowToRenewalPayment = (row) => ({
     createdAt: row.created_at,
 });
 
+// Reversements de lavages payés en ligne (add_paydunya_per.sql +
+// add_manual_disbursement.sql) — une ligne par facture PayDunya. Statut
+// 'manuel' = pas de compte PayDunya station renseigné, ou redistribution
+// automatique indisponible : le Super Admin doit reverser à la main.
+const rowToLavagePayment = (row) => ({
+    id: row.id,
+    stationId: row.station_id,
+    stationName: row.stations?.name || '',
+    montantTotal: row.montant_total,
+    partStation: row.part_station,
+    partPlateforme: row.part_plateforme,
+    statutRedistribution: row.statut_redistribution,
+    redistributionDetail: row.redistribution_detail,
+    createdAt: row.created_at,
+});
+
 const SuperAdminStateContext = createContext(null);
 
 export function SuperAdminStateProvider({ children }) {
@@ -147,6 +163,7 @@ export function SuperAdminStateProvider({ children }) {
     const [superUserSubscriptions, setSuperUserSubscriptions] = useState([]);
     const [stationAds, setStationAds] = useState([]);
     const [stationRenewalPayments, setStationRenewalPayments] = useState([]);
+    const [lavagePayments, setLavagePayments] = useState([]);
     // getItemPosition/estimateItemWaitTime (stationData.js) lisent un cache
     // hors-React (queueSnapshot, simple variable de module) — le recharger ne
     // suffit donc pas à rafraîchir l'écran automobiliste : rien ne dit à React
@@ -206,6 +223,13 @@ export function SuperAdminStateProvider({ children }) {
         setStationRenewalPayments((data || []).map(rowToRenewalPayment));
     }, []);
 
+    // Reversements de lavages en ligne — RLS renvoie déjà le bon sous-ensemble
+    // (une station voit les siens, le Super Admin les voit tous).
+    const loadLavagePayments = useCallback(async () => {
+        const { data } = await supabase.from('paiements_lavage').select('*, stations(name)').order('created_at', { ascending: false });
+        setLavagePayments((data || []).map(rowToLavagePayment));
+    }, []);
+
     // Grille tarifaire de TOUTES les stations (lecture publique) — alimente le
     // cache lu par stationData.js (comparaison de prix/durée côté client, pour
     // n'importe quelle station, pas seulement "ma" station admin).
@@ -255,7 +279,8 @@ export function SuperAdminStateProvider({ children }) {
         loadSuperUserSubscriptions();
         loadStationAds();
         loadStationRenewalPayments();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); };
+        loadLavagePayments();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); loadLavagePayments(); };
         window.addEventListener('focus', refresh);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
         // (voir schema.sql) : un changement pendant qu'un autre onglet Super
@@ -286,6 +311,7 @@ export function SuperAdminStateProvider({ children }) {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'super_user_subscriptions' }, loadSuperUserSubscriptions)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_ads' }, loadStationAds)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_renewal_payments' }, loadStationRenewalPayments)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage' }, loadLavagePayments)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews' }, loadReviews)
             .subscribe();
         // Filet de sécurité (reconnexion Realtime manquée) — plus espacé
@@ -477,6 +503,20 @@ export function SuperAdminStateProvider({ children }) {
         if (payment) logAction(`Renouvellement rejeté : ${payment.stationName}`);
     };
 
+    // Marque un ou plusieurs reversements de lavage comme réglés à la main
+    // (Wave/Orange Money/virement, hors application) — via le RPC dédié
+    // (add_manual_disbursement.sql) puisque paiements_lavage n'a aucune
+    // policy d'écriture côté client.
+    const markLavagePaymentsSettled = async (ids) => {
+        if (!ids || ids.length === 0) return;
+        const { error } = await supabase.rpc('mark_lavage_payments_settled', { p_ids: ids });
+        if (error) { console.error(error); return; }
+        setLavagePayments((prev) => prev.map((p) => (ids.includes(p.id) ? { ...p, statutRedistribution: 'reussi' } : p)));
+        const total = lavagePayments.filter((p) => ids.includes(p.id)).reduce((s, p) => s + (p.partStation || 0), 0);
+        const stationName = lavagePayments.find((p) => ids.includes(p.id))?.stationName;
+        logAction(`Reversement lavage marqué réglé : ${stationName || ''} (${total.toLocaleString('fr-FR')} FCFA)`);
+    };
+
     const sendBillingReminder = (id) => {
         const station = stations.find((s) => s.id === id);
         if (station) logAction(`Relance de facturation envoyée à : ${station.name}`);
@@ -534,6 +574,7 @@ export function SuperAdminStateProvider({ children }) {
             superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,
             stationAds, confirmAdPayment, rejectAdPayment,
             stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
+            lavagePayments, markLavagePaymentsSettled,
         }}>
             {children}
         </SuperAdminStateContext.Provider>

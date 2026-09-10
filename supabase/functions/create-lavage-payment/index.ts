@@ -78,12 +78,13 @@ Deno.serve(async (req) => {
     const billing = Array.isArray(station.station_billing)
       ? station.station_billing[0]
       : station.station_billing;
+    // Pas de blocage si la station n'a pas encore de compte PayDunya : la
+    // redistribution automatique sera simplement sautée côté callback
+    // (statut "manuel"), et le Super Admin reverse la station à la main
+    // (Wave/Orange Money/banque) — voir add_manual_disbursement.sql et
+    // _shared/finalizePayment.ts. Le paiement en ligne reste possible pour
+    // toutes les stations dès aujourd'hui.
     const alias: string | null = billing?.paydunya_account_alias ?? null;
-    if (!alias) {
-      return json({
-        error: "Cette station n'a pas encore renseigné son compte PayDunya. Paiement en ligne indisponible — réglez sur place.",
-      }, 400);
-    }
 
     const { partStation, partPlateforme, taux } = splitLavage(
       montantTotal,
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
         partStation: String(partStation),
         partPlateforme: String(partPlateforme),
         tauxCommission: String(taux),
-        paydunyaAccountAlias: alias,
+        paydunyaAccountAlias: alias || "",
         items: JSON.stringify(
           items.map((it) => ({
             vehicleLabel: it.vehicleLabel.slice(0, 120),
