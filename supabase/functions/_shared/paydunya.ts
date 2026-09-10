@@ -86,12 +86,38 @@ export async function createInvoice(opts: {
 
 // Revérification obligatoire du statut réel d'une facture : on ne fait
 // jamais confiance au seul contenu du callback reçu.
+//
+// Lit la réponse en texte d'abord (pas resp.json() directement) : si
+// PayDunya renvoie autre chose que du JSON (page d'erreur HTML, blocage
+// Cloudflare, mauvaise URL selon PAYDUNYA_MODE...), l'exception porte le
+// code HTTP + un extrait du corps au lieu d'un simple "Unexpected token '<'"
+// impossible à diagnostiquer depuis les logs.
 export async function confirmInvoice(token: string): Promise<any> {
   const resp = await fetch(
     `${PAYDUNYA_BASE_URL}/checkout-invoice/confirm/${token}`,
     { headers: paydunyaHeaders },
   );
-  return await resp.json();
+  const text = await resp.text();
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    throw new Error(`confirmInvoice: réponse non-JSON (HTTP ${resp.status}, URL ${PAYDUNYA_BASE_URL}) — ${text.slice(0, 300)}`);
+  }
+}
+
+// Lit une réponse fetch en JSON sans jamais lever d'exception sur un corps
+// non-JSON (page d'erreur HTML, blocage...) — utilisé par disburse() pour
+// qu'un problème de redistribution (ex. PER pas encore activé sur le compte
+// PayDunya) ne puisse jamais faire planter toute la finalisation : la
+// réservation et le reçu du client sont déjà acquis à ce stade, seule la
+// redistribution vers la station est en jeu.
+async function safeJson(resp: Response): Promise<{ ok: true; body: any } | { ok: false; status: number; text: string }> {
+  const text = await resp.text();
+  try {
+    return { ok: true, body: JSON.parse(text) };
+  } catch (_) {
+    return { ok: false, status: resp.status, text: text.slice(0, 300) };
+  }
 }
 
 // ─── Redistribution PER (disburse) ───────────────────────────────────--
@@ -99,6 +125,10 @@ export async function confirmInvoice(token: string): Promise<any> {
 // submit-invoice (exécute). withdraw_mode "paydunya" => les fonds vont sur
 // le compte PayDunya de la station (elle les retire ensuite vers Orange
 // Money / Wave / banque quand elle veut, indépendamment de la plateforme).
+//
+// Ne lève JAMAIS d'exception : renvoie toujours { ok, step, detail }, même
+// si PayDunya répond par autre chose que du JSON (l'API PER peut ne pas
+// être activée sur le compte marchand, par exemple).
 export async function disburse(opts: {
   accountAlias: string;
   amount: number;
@@ -113,7 +143,15 @@ export async function disburse(opts: {
       withdraw_mode: opts.withdrawMode ?? "paydunya",
     }),
   });
-  const got = await getResp.json();
+  const getResult = await safeJson(getResp);
+  if (!getResult.ok) {
+    return {
+      ok: false,
+      step: "get-invoice",
+      detail: `réponse non-JSON (HTTP ${getResult.status}) — ${getResult.text}`,
+    };
+  }
+  const got = getResult.body;
   if (got?.response_code !== "00" || !got?.disburse_token) {
     return {
       ok: false,
@@ -130,7 +168,15 @@ export async function disburse(opts: {
       disburse_id: opts.accountAlias,
     }),
   });
-  const sub = await subResp.json();
+  const subResult = await safeJson(subResp);
+  if (!subResult.ok) {
+    return {
+      ok: false,
+      step: "submit-invoice",
+      detail: `réponse non-JSON (HTTP ${subResult.status}) — ${subResult.text}`,
+    };
+  }
+  const sub = subResult.body;
   return {
     ok: sub?.response_code === "00",
     step: "submit-invoice",

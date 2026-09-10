@@ -45,19 +45,32 @@ Deno.serve(async (req) => {
     if (ct.includes("application/json")) {
       const b = await req.json();
       token = b?.data?.invoice?.token ?? b?.invoice?.token ?? b?.token;
+      if (!token) {
+        await log(admin, `IPN sans jeton (JSON) — corps reçu: ${JSON.stringify(b).slice(0, 500)}`);
+        return OK;
+      }
     } else {
       // Format documenté par PayDunya : x-www-form-urlencoded, champ "data"
       // contenant un JSON avec le jeton sous invoice.token.
       const form = await req.formData();
       const raw = form.get("data");
       if (raw) {
-        const parsed = JSON.parse(raw.toString());
-        token = parsed?.invoice?.token ?? parsed?.token;
+        try {
+          const parsed = JSON.parse(raw.toString());
+          token = parsed?.invoice?.token ?? parsed?.token;
+        } catch (parseErr) {
+          await log(admin, `IPN: champ "data" non-JSON — ${raw.toString().slice(0, 500)}`);
+          return OK;
+        }
       }
-    }
-    if (!token) {
-      await log(admin, "IPN sans jeton exploitable — payload non reconnu");
-      return OK;
+      if (!token) {
+        // Diagnostic : quels champs PayDunya a-t-il réellement envoyés ? (le
+        // nom du champ ou la forme du JSON peut différer de la doc si "data"
+        // n'a rien donné.)
+        const entries = [...form.entries()].map(([k, v]) => `${k}=${String(v).slice(0, 200)}`);
+        await log(admin, `IPN sans jeton (form) — champs reçus: ${entries.join(" | ") || "(aucun)"}`);
+        return OK;
+      }
     }
 
     // Revérification obligatoire du statut réel auprès de PayDunya (jamais

@@ -158,21 +158,33 @@ export async function finalizeLavage(admin: any, token: string, custom: any): Pr
     .update({ reservation_ids: createdIds })
     .eq("paydunya_token", token);
 
-  // Redistribution automatique et instantanée de la part station.
-  const res = await disburse({ accountAlias: alias, amount: partStation });
-  await admin.from("paiements_lavage")
-    .update({
-      statut_redistribution: res.ok ? "reussi" : "echec",
-      redistribution_detail: res.detail,
-    })
-    .eq("paydunya_token", token);
+  // Redistribution automatique et instantanée de la part station. À ce
+  // stade la réservation et la transaction sont déjà actées : quoi qu'il
+  // arrive ici, le client garde son lavage confirmé et son reçu. disburse()
+  // ne lève déjà plus d'exception sur une réponse PayDunya inattendue, mais
+  // ce try/catch est un second filet — aucune erreur de redistribution ne
+  // doit jamais empêcher de renvoyer le reçu.
+  try {
+    const res = await disburse({ accountAlias: alias, amount: partStation });
+    await admin.from("paiements_lavage")
+      .update({
+        statut_redistribution: res.ok ? "reussi" : "echec",
+        redistribution_detail: res.detail,
+      })
+      .eq("paydunya_token", token);
 
-  await log(
-    admin,
-    res.ok
-      ? `Lavage payé en ligne (${montantTotal} F) — ${partStation} F reversés à la station`
-      : `Lavage payé en ligne (${montantTotal} F) — ÉCHEC redistribution (${res.step}: ${res.detail})`,
-  );
+    await log(
+      admin,
+      res.ok
+        ? `Lavage payé en ligne (${montantTotal} F) — ${partStation} F reversés à la station`
+        : `Lavage payé en ligne (${montantTotal} F) — ÉCHEC redistribution (${res.step}: ${res.detail})`,
+    );
+  } catch (err) {
+    await admin.from("paiements_lavage")
+      .update({ statut_redistribution: "echec", redistribution_detail: String(err).slice(0, 300) })
+      .eq("paydunya_token", token);
+    await log(admin, `Lavage payé en ligne (${montantTotal} F) — EXCEPTION redistribution : ${String(err).slice(0, 300)}`);
+  }
 
   return {
     kind: "lavage",
