@@ -6,8 +6,19 @@ project_id = "kyilblxendvqclifregf"
 
 # paydunya-callback est appelée par les serveurs PayDunya, qui n'envoient
 # aucun JWT Supabase. Sans ceci, la gateway répond 401 et aucun paiement
-# n'est jamais confirmé.
+# n'est jamais confirmé — AVANT même que le code de la fonction ne s'exécute,
+# donc sans aucune trace nulle part (voir docs/PayDunya-PER.md). C'est la
+# cause n°1 à vérifier si un paiement PayDunya réussit côté client sans que
+# rien n'apparaisse côté station : Dashboard Supabase > Edge Functions >
+# paydunya-callback > Details > "Enforce JWT Verification" doit être décoché,
+# et redéployer avec --no-verify-jwt si le doute persiste.
 [functions.paydunya-callback]
+verify_jwt = false
+
+# Même raisonnement : appelée par le navigateur du client au retour de
+# PayDunya (jamais un appel authentifié Supabase), en secours si l'IPN
+# ci-dessus n'arrive jamais — voir _shared/finalizePayment.ts.
+[functions.finalize-paydunya-payment]
 verify_jwt = false
 
 # create-lavage-payment / create-platform-payment gardent verify_jwt = true
