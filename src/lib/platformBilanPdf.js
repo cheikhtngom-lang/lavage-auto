@@ -1,7 +1,7 @@
 // Export PDF du Bilan de la plateforme (Super Admin > Bilan) — même mise en
-// page "rapport d'expert" que lib/bilanPdf.js (station), adaptée aux
-// données Super Admin (pas de logo/cachet de station, revenus par source
-// plutôt que par service/moyen de paiement).
+// page "rapport d'expert" que lib/bilanPdf.js (station), adaptée aux données
+// Super Admin : revenu réellement encaissé + estimation récurrente, chaque
+// source détaillée, statut des abonnements et lavages payés en ligne.
 import jsPDF from 'jspdf';
 import { fcfa } from './bilan';
 
@@ -22,7 +22,7 @@ const deltaColor = (d) => {
   return d > 0 ? GREEN : RED;
 };
 
-export async function downloadPlatformBilanPdf({ bilan }) {
+export async function downloadPlatformBilanPdf({ bilan, mrrNow = 0, modulesNow = 0, statusBreakdown = [] }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const { current: cur, previous: prev, deltas, range, prevLabel, trend, partial } = bilan;
   let y = MX;
@@ -58,10 +58,10 @@ export async function downloadPlatformBilanPdf({ bilan }) {
 
   // ─── Bandeau KPI ─────────────────────────────────────────────────
   const kpis = [
-    { label: 'Revenu total plateforme', value: fcfa(cur.totalRevenue), d: deltas.totalRevenue },
-    { label: 'Abonnements stations (est.)', value: fcfa(cur.stationRevenue), d: deltas.stationRevenue },
-    { label: 'Publicités', value: fcfa(cur.adsRevenue), d: deltas.adsRevenue },
-    { label: 'Super User', value: fcfa(cur.suRevenue), d: deltas.suRevenue },
+    { label: 'Revenu reellement encaisse', value: fcfa(cur.realCollected), d: deltas.realCollected },
+    { label: 'Revenu consolide (avec est.)', value: fcfa(cur.totalRevenue), d: deltas.totalRevenue },
+    { label: 'Abonnements stations (est.)', value: fcfa(cur.subscriptionEstimate), d: deltas.subscriptionEstimate },
+    { label: 'Commission lavages en ligne', value: fcfa(cur.washCommissionRevenue), d: deltas.washCommissionRevenue },
   ];
   const kw = (CONTENT_W - 9) / 4;
   kpis.forEach((k, i) => {
@@ -76,26 +76,37 @@ export async function downloadPlatformBilanPdf({ bilan }) {
       doc.text(`${deltaText(k.d)} vs ${prevLabel}`, x + 3, y + 18);
     }
   });
-  y += 30;
+  y += 28;
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+  doc.text(
+    `Reel = paiements dates (pubs, Super User, renouvellements confirmes, commission lavages). Abonnements/modules = estimation recurrente. MRR valide a ce jour : ${fcfa(mrrNow)}${modulesNow > 0 ? ` + ${fcfa(modulesNow)} modules` : ''}.`,
+    MX, y, { maxWidth: CONTENT_W },
+  );
+  y += 10;
 
   // ─── Synthèse comparée ─────────────────────────────────────────────
   sectionTitle('Synthèse comparée');
   const rows = [
-    ['Revenu total plateforme', fcfa(cur.totalRevenue), fcfa(prev.totalRevenue), deltas.totalRevenue],
-    ['Abonnements stations (estimation)', fcfa(cur.stationRevenue), fcfa(prev.stationRevenue), deltas.stationRevenue],
-    ['Publicités (réel)', fcfa(cur.adsRevenue), fcfa(prev.adsRevenue), deltas.adsRevenue],
-    ['Super User (réel)', fcfa(cur.suRevenue), fcfa(prev.suRevenue), deltas.suRevenue],
+    ['Revenu reellement encaisse', fcfa(cur.realCollected), fcfa(prev.realCollected), deltas.realCollected],
+    ['Revenu consolide (avec estimation)', fcfa(cur.totalRevenue), fcfa(prev.totalRevenue), deltas.totalRevenue],
+    ['Abonnements stations (estimation)', fcfa(cur.subscriptionEstimate), fcfa(prev.subscriptionEstimate), deltas.subscriptionEstimate],
+    ['Modules & add-ons (estimation)', fcfa(cur.moduleRevenue), fcfa(prev.moduleRevenue), deltas.moduleRevenue],
+    ['Renouvellements confirmes (reel)', fcfa(cur.renewalRevenue), fcfa(prev.renewalRevenue), deltas.renewalRevenue],
+    ['Publicites (reel)', fcfa(cur.adsRevenue), fcfa(prev.adsRevenue), deltas.adsRevenue],
+    ['Super User (reel)', fcfa(cur.suRevenue), fcfa(prev.suRevenue), deltas.suRevenue],
+    ['Commission lavages en ligne (reel)', fcfa(cur.washCommissionRevenue), fcfa(prev.washCommissionRevenue), deltas.washCommissionRevenue],
     ['Nouvelles stations', String(cur.newStations), String(prev.newStations), deltas.newStations],
     ['Nouveaux automobilistes', String(cur.newMotorists), String(prev.newMotorists), deltas.newMotorists],
-    ['Stations actives (à date)', String(cur.activeStations), String(prev.activeStations), null],
+    ['Abonnements valides (a date)', String(cur.validatedStations), String(prev.validatedStations), null],
+    ['Stations actives (a date)', String(cur.activeStations), String(prev.activeStations), null],
   ];
-  const c1 = MX, c2 = MX + 78, c3 = MX + 128, c4 = PAGE_W - MX;
+  const c1 = MX, c2 = MX + 82, c3 = MX + 130, c4 = PAGE_W - MX;
   doc.setFillColor(...PALE); doc.rect(MX, y, CONTENT_W, 7, 'F');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...BLUE);
   doc.text('INDICATEUR', c1 + 2, y + 4.7);
   doc.text(range.label.toUpperCase(), c2, y + 4.7);
   doc.text(prevLabel.toUpperCase(), c3, y + 4.7);
-  doc.text('ÉVOL.', c4 - 2, y + 4.7, { align: 'right' });
+  doc.text('EVOL.', c4 - 2, y + 4.7, { align: 'right' });
   y += 7;
   rows.forEach(([label, a, b, d], i) => {
     ensure(8);
@@ -112,7 +123,7 @@ export async function downloadPlatformBilanPdf({ bilan }) {
   });
   y += 6;
 
-  // ─── Répartition par plan ───────────────────────────────────────────
+  // ─── Blocs de barres ───────────────────────────────────────────────
   const barBlock = (title, entries, fmt = fcfa) => {
     const list = (entries || []).filter((e) => e.value > 0).sort((a, b) => b.value - a.value);
     sectionTitle(title);
@@ -121,11 +132,11 @@ export async function downloadPlatformBilanPdf({ bilan }) {
       doc.text('Aucune donnée sur cette période.', MX, y + 2); y += 10; return;
     }
     const max = Math.max(...list.map((e) => e.value));
-    const barX = MX + 52, barW = CONTENT_W - 52 - 32;
+    const barX = MX + 58, barW = CONTENT_W - 58 - 34;
     list.forEach((e) => {
       ensure(9);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...DARK);
-      doc.text(doc.splitTextToSize(e.label, 48)[0], MX, y + 3.4);
+      doc.text(doc.splitTextToSize(e.label, 54)[0], MX, y + 3.4);
       doc.setFillColor(235, 237, 242); doc.roundedRect(barX, y, barW, 4, 1, 1, 'F');
       doc.setFillColor(...BLUE); doc.roundedRect(barX, y, Math.max(1, (e.value / max) * barW), 4, 1, 1, 'F');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...DARK);
@@ -135,15 +146,66 @@ export async function downloadPlatformBilanPdf({ bilan }) {
     y += 5;
   };
 
-  barBlock('Revenu par source (période)', [
-    { label: 'Abonnements stations', value: cur.stationRevenue },
+  barBlock('Revenu consolidé par source (période)', [
+    { label: 'Abonnements stations (est.)', value: cur.subscriptionEstimate },
+    { label: 'Modules & add-ons (est.)', value: cur.moduleRevenue },
     { label: 'Publicités', value: cur.adsRevenue },
     { label: 'Super User', value: cur.suRevenue },
+    { label: 'Commission lavages en ligne', value: cur.washCommissionRevenue },
   ]);
-  barBlock('Revenu estimé par plan (à date)', Object.entries(cur.planRevenue || {}).map(([label, value]) => ({ label, value })));
+  barBlock('Revenu réellement encaissé par source (période)', [
+    { label: 'Renouvellements confirmés', value: cur.renewalRevenue },
+    { label: 'Publicités', value: cur.adsRevenue },
+    { label: 'Super User', value: cur.suRevenue },
+    { label: 'Commission lavages en ligne', value: cur.washCommissionRevenue },
+  ]);
+  barBlock('Revenu récurrent estimé par plan (à date)', Object.entries(cur.planRevenue || {}).map(([label, value]) => ({ label, value })));
+
+  // ─── Statut des abonnements ────────────────────────────────────────
+  if ((statusBreakdown || []).length) {
+    sectionTitle('Statut des abonnements de stations (à ce jour)');
+    const sc1 = MX, sc2 = MX + 90, sc3 = PAGE_W - MX;
+    doc.setFillColor(...PALE); doc.rect(MX, y, CONTENT_W, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...BLUE);
+    doc.text('STATUT', sc1 + 2, y + 4.7);
+    doc.text('STATIONS', sc2, y + 4.7);
+    doc.text('MRR THEORIQUE', sc3 - 2, y + 4.7, { align: 'right' });
+    y += 7;
+    statusBreakdown.forEach((s, i) => {
+      ensure(7);
+      if (i % 2) { doc.setFillColor(249, 250, 252); doc.rect(MX, y, CONTENT_W, 7, 'F'); }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
+      doc.text(String(s.label), sc1 + 2, y + 4.8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(s.count), sc2, y + 4.8);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRAY);
+      doc.text(s.mrr > 0 ? fcfa(s.mrr) : '—', sc3 - 2, y + 4.8, { align: 'right' });
+      y += 7;
+    });
+    y += 6;
+  }
+
+  // ─── Lavages payés en ligne ────────────────────────────────────────
+  sectionTitle('Lavages payés en ligne (PayDunya) — période');
+  const washRows = [
+    ['Paiements en ligne', String(cur.washCount)],
+    ['Volume encaisse (montant client)', fcfa(cur.washGrossVolume)],
+    ['Commission plateforme', fcfa(cur.washCommissionRevenue)],
+    ['Reverse aux stations (part station)', fcfa(cur.washStationPayout)],
+  ];
+  washRows.forEach(([label, val], i) => {
+    ensure(7);
+    if (i % 2) { doc.setFillColor(249, 250, 252); doc.rect(MX, y, CONTENT_W, 7, 'F'); }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
+    doc.text(label, MX + 2, y + 4.8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(val), PAGE_W - MX - 2, y + 4.8, { align: 'right' });
+    y += 7;
+  });
+  y += 6;
 
   // ─── Évolution du revenu sur la période ─────────────────────────────
-  sectionTitle('Évolution du revenu sur la période');
+  sectionTitle('Évolution du revenu consolidé sur la période');
   if ((trend || []).some((t) => t.total > 0)) {
     const chH = 34, base = y + chH, maxT = Math.max(1, ...trend.map((t) => t.total));
     const slot = CONTENT_W / trend.length;

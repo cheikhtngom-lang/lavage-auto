@@ -6,15 +6,9 @@ import {
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
+import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-
-const STATUS_META = {
-  a_jour: { label: 'À jour', color: '#10b981' },
-  en_retard: { label: 'Impayé', color: '#ef4444' },
-  essai: { label: 'Essai gratuit', color: '#3b82f6' },
-  illimite: { label: 'Accès illimité', color: '#a855f7' },
-};
 
 const PLAN_COLORS = ['#a855f7', '#3b82f6', '#f59e0b', '#10b981', '#ec4899'];
 
@@ -56,18 +50,19 @@ export default function SuperAdminAnalytics() {
   const newMotoristsThisPeriod = clientAccounts.filter(c => new Date(c.createdAt) >= lastBucket.start && new Date(c.createdAt) < lastBucket.end).length;
   const newMotoristsPrevPeriod = clientAccounts.filter(c => new Date(c.createdAt) >= prevBucket.start && new Date(c.createdAt) < prevBucket.end).length;
 
-  // Les stations en accès illimité (voir grantUnlimitedAccess) ne paient rien
-  // — exclues de toute métrique de revenu, sinon MRR/ARPU/cumul prétendraient
-  // facturer des stations gratuites à vie.
-  const payingActiveStations = activeStations.filter(s => s.subscriptionStatus !== 'illimite');
-  const mrr = payingActiveStations.reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
-  const arpu = payingActiveStations.length > 0 ? mrr / payingActiveStations.length : 0;
+  // MRR / ARPU sur les seuls abonnements RÉELLEMENT validés (paiement à jour) —
+  // jamais les essais gratuits, les impayés ni les accès illimités offerts.
+  // Même définition partout (lib/platformRevenue.js).
+  const paidStations = validatedStations(stations);
+  const mrr = validatedMRR(stations, PLANS);
+  const modMrr = modulesMRR(stations);
+  const arpu = paidStations.length > 0 ? mrr / paidStations.length : 0;
 
-  // Estimation des recettes cumulées : prix du plan x nombre de mois écoulés depuis l'inscription,
-  // pour les stations actives / à jour. Faute d'historique de facturation réel, c'est une estimation
-  // clairement identifiée comme telle dans l'UI, pas un montant encaissé garanti.
-  const cumulativeRevenue = stations
-    .filter(s => (s.status === 'active' || s.subscriptionStatus === 'a_jour') && s.subscriptionStatus !== 'illimite')
+  // Estimation des recettes cumulées : prix du plan x nombre de mois écoulés depuis
+  // l'inscription, pour les stations dont l'abonnement est validé aujourd'hui. Faute
+  // d'historique de facturation réel, c'est une estimation clairement identifiée
+  // comme telle dans l'UI, pas un montant encaissé garanti.
+  const cumulativeRevenue = paidStations
     .reduce((sum, s) => {
       const price = PLANS[s.plan]?.price || 0;
       const months = Math.max(1, Math.floor((now - new Date(s.joinedAt)) / (30 * 24 * 3600 * 1000)) + 1);
@@ -78,29 +73,27 @@ export default function SuperAdminAnalytics() {
 
   const planDistribution = Object.keys(PLANS).map((key, i) => {
     const count = stations.filter(s => s.plan === key).length;
-    const revenue = stations.filter(s => s.plan === key && s.status === 'active' && s.subscriptionStatus !== 'illimite').reduce((sum) => sum + (PLANS[key]?.price || 0), 0);
+    const revenue = paidStations.filter(s => s.plan === key).reduce((sum) => sum + (PLANS[key]?.price || 0), 0);
     return { key, label: PLANS[key].label, count, revenue, color: PLAN_COLORS[i % PLAN_COLORS.length] };
   });
   const totalPlanCount = Math.max(1, planDistribution.reduce((s, p) => s + p.count, 0));
 
-  const statusDistribution = Object.keys(STATUS_META).map(key => ({
-    key,
-    ...STATUS_META[key],
-    count: stations.filter(s => s.subscriptionStatus === key).length,
-  }));
+  const statusDistribution = subscriptionBreakdown(stations, PLANS);
   const totalStatusCount = Math.max(1, statusDistribution.reduce((s, p) => s + p.count, 0));
 
-  // MRR mois par mois sur la période choisie (trimestre/semestre/année),
-  // basé sur les stations déjà inscrites à cette date-là.
+  // Évolution du MRR mois par mois : estimation basée sur les abonnements
+  // validés AUJOURD'HUI, projetés depuis leur date d'inscription (aucun
+  // historique de facturation n'est conservé — voir Bilan). Clairement
+  // annoté "estimation" dans l'UI.
   const mrrMonthsCount = MRR_PERIODS.find(p => p.key === mrrPeriod)?.months || 6;
   const mrrMonths = useMemo(() => Array.from({ length: mrrMonthsCount }).map((_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (mrrMonthsCount - 1 - i), 1);
     const end = addMonths(d, 1);
-    const value = stations
-      .filter(s => new Date(s.joinedAt) < end && s.status !== 'suspendue' && s.subscriptionStatus !== 'illimite')
+    const value = paidStations
+      .filter(s => new Date(s.joinedAt) < end)
       .reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
     return { label: d.toLocaleDateString('fr-FR', { month: 'short', ...(mrrMonthsCount > 12 ? { year: '2-digit' } : {}) }), value };
-  }), [mrrMonthsCount, stations, PLANS]);
+  }), [mrrMonthsCount, stations, PLANS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const topStationsByClients = [...stations].sort((a, b) => (b.clientsCount || 0) - (a.clientsCount || 0)).slice(0, 5);
 
@@ -114,9 +107,10 @@ export default function SuperAdminAnalytics() {
 
   const kpis = [
     {
-      title: 'Abonnements de stations actifs', value: activeStations.length, icon: Building2,
+      title: 'Abonnements stations validés', value: paidStations.length, icon: Building2,
       color: 'text-blue-400', bg: 'bg-blue-500/10',
-      delta: newStationsThisPeriod - newStationsPrevPeriod, deltaLabel: `${newStationsThisPeriod} nouvelles sur la période`,
+      delta: newStationsThisPeriod - newStationsPrevPeriod,
+      deltaLabel: `${activeStations.length} station${activeStations.length > 1 ? 's' : ''} active${activeStations.length > 1 ? 's' : ''} · ${newStationsThisPeriod} nouvelle${newStationsThisPeriod > 1 ? 's' : ''} sur la période`,
     },
     {
       title: 'Automobilistes inscrits', value: totalAutomobilistes, icon: Users,
@@ -125,15 +119,16 @@ export default function SuperAdminAnalytics() {
     },
     {
       title: 'Revenu Récurrent Mensuel', value: mrr, suffix: ' FCFA', icon: CreditCard,
-      color: 'text-purple-400', bg: 'bg-purple-500/10', deltaLabel: `${activeStations.length} stations facturées`,
+      color: 'text-purple-400', bg: 'bg-purple-500/10',
+      deltaLabel: `${paidStations.length} abonnement${paidStations.length > 1 ? 's' : ''} validé${paidStations.length > 1 ? 's' : ''}${modMrr > 0 ? ` · +${modMrr.toLocaleString('fr-FR')} FCFA modules` : ''}`,
     },
     {
       title: 'Recettes cumulées (estimation)', value: cumulativeRevenue, suffix: ' FCFA', icon: Wallet,
-      color: 'text-amber-400', bg: 'bg-amber-500/10', deltaLabel: 'Depuis l’inscription de chaque station',
+      color: 'text-amber-400', bg: 'bg-amber-500/10', deltaLabel: 'Plan × mois écoulés depuis l’inscription (abonnements validés)',
     },
     {
       title: 'Revenu moyen par station (ARPU)', value: arpu, suffix: ' FCFA', icon: TrendingUp,
-      color: 'text-pink-400', bg: 'bg-pink-500/10', deltaLabel: 'Par station active / mois',
+      color: 'text-pink-400', bg: 'bg-pink-500/10', deltaLabel: 'Par abonnement validé / mois',
     },
     {
       title: 'Taux de rétention réseau', value: retentionRate, suffix: '%', icon: Gauge,
@@ -276,7 +271,7 @@ export default function SuperAdminAnalytics() {
                     style={{ backgroundColor: p.color, boxShadow: `0 0 10px ${p.color}80` }}
                   />
                 </div>
-                <p className="text-xs text-neutral-500 mt-1">{fmtFCFA(p.revenue)} / mois si actives</p>
+                <p className="text-xs text-neutral-500 mt-1">{fmtFCFA(p.revenue)} / mois (abonnements validés)</p>
               </div>
             ))}
             {planDistribution.every(p => p.count === 0) && (
@@ -336,7 +331,7 @@ export default function SuperAdminAnalytics() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-amber-400" />
-            <h2 className="text-xl font-bold text-white">Évolution des recettes d'abonnement (MRR)</h2>
+            <h2 className="text-xl font-bold text-white">Évolution du MRR validé <span className="text-neutral-500 font-normal text-base">(estimation)</span></h2>
           </div>
           <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
             {MRR_PERIODS.map(p => (

@@ -4,26 +4,36 @@ import { motion } from 'framer-motion';
 import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
+import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function SuperAdminDashboard() {
   useDocumentTitle('Tableau de bord');
-  const { stations, PLANS } = useSuperAdminState();
+  const { stations, clientAccounts, PLANS } = useSuperAdminState();
   const [granularity, setGranularity] = useState('mois');
 
   const activeStations = stations.filter(s => s.status === 'active');
   const pendingStations = stations.filter(s => s.status === 'en_attente');
   const overdueStations = stations.filter(s => s.subscriptionStatus === 'en_retard');
-  const mrr = activeStations.reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
-  const totalClients = stations.reduce((sum, s) => sum + (Number(s.clientsCount) || 0), 0);
+
+  // MRR = abonnements RÉELLEMENT validés (paiement à jour) uniquement — jamais
+  // les essais gratuits, les impayés ni les accès illimités offerts. Source
+  // partagée avec Analytique / Facturation / Bilan (lib/platformRevenue.js).
+  const paidStations = validatedStations(stations);
+  const mrr = validatedMRR(stations, PLANS);
+  const modMrr = modulesMRR(stations);
+  const statusBreakdown = subscriptionBreakdown(stations, PLANS);
+  // Comptes automobilistes réellement inscrits (profiles role=automobiliste),
+  // pas la somme des estimations "clients déclarés" saisies par station.
+  const totalClients = clientAccounts.length;
 
   const stats = [
-    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10", detail: "Stations avec un compte validé et opérationnel sur la plateforme." },
-    { title: "Automobilistes Déclarés", value: totalClients, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10", detail: "Nombre total de clients enregistrés, toutes stations confondues." },
+    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10", detail: "Stations avec un compte validé et opérationnel sur la plateforme (tous statuts d'abonnement confondus)." },
+    { title: "Automobilistes inscrits", value: totalClients, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10", detail: "Nombre réel de comptes automobilistes créés sur la plateforme, toutes stations confondues." },
     { title: "En attente de validation", value: pendingStations.length, icon: Clock, color: "text-orange-400", bg: "bg-orange-500/10", detail: "Nouvelles inscriptions de stations en attente de validation manuelle avant activation." },
-    { title: "Revenu Récurrent (MRR)", value: mrr, suffix: " FCFA", icon: CreditCard, color: "text-purple-400", bg: "bg-purple-500/10", detail: "Somme des abonnements mensuels des stations actives — hors accès illimité offerts (voir Facturation)." }
+    { title: "Revenu Récurrent (MRR)", value: mrr, suffix: " FCFA", icon: CreditCard, color: "text-purple-400", bg: "bg-purple-500/10", detail: `${paidStations.length} abonnement(s) validé(s) (paiement à jour) × prix du plan. Hors essais gratuits, impayés et accès illimités.${modMrr > 0 ? ` Modules & add-ons en sus : +${modMrr.toLocaleString('fr-FR')} FCFA/mois.` : ''}` }
   ];
 
   // Nombre de stations par plan (indépendant du statut de paiement — une
@@ -150,10 +160,21 @@ export default function SuperAdminDashboard() {
             })}
           </div>
         </div>
-        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-          <span className="text-neutral-500 text-xs uppercase tracking-wider mb-2">MRR Total</span>
-          <span className="text-3xl font-bold text-white mb-2">{mrr.toLocaleString('fr-FR')} FCFA</span>
-          <span className="text-neutral-500 text-xs">Revenu récurrent mensuel (stations actives)</span>
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex flex-col">
+          <span className="text-neutral-500 text-xs uppercase tracking-wider mb-2">MRR validé</span>
+          <span className="text-3xl font-bold text-white">{mrr.toLocaleString('fr-FR')} <span className="text-lg text-neutral-400">FCFA</span></span>
+          <span className="text-neutral-500 text-xs mb-4">{paidStations.length} abonnement{paidStations.length > 1 ? 's' : ''} validé{paidStations.length > 1 ? 's' : ''} · paiement à jour{modMrr > 0 ? ` · +${modMrr.toLocaleString('fr-FR')} FCFA modules` : ''}</span>
+          <div className="space-y-2 mt-auto pt-4 border-t border-white/10">
+            {statusBreakdown.map((s) => (
+              <div key={s.key} className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-2 text-neutral-400">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  {s.label}
+                </span>
+                <span className="text-neutral-300 font-medium">{s.count}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </motion.div>
 

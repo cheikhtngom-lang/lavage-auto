@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search, Wallet } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
+import { validatedMRR, validatedStations, modulesMRR } from '../../lib/platformRevenue';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
 
@@ -56,11 +57,13 @@ export default function Billing() {
   const currentPage = Math.min(page, totalPages);
   const paginatedStations = filteredStations.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  // Les stations en accès illimité ne paient rien — exclues du revenu récurrent,
-  // sinon le MRR affiché prétendrait facturer des stations gratuites à vie.
-  const mrr = stations
-    .filter(s => s.status === 'active' && s.subscriptionStatus !== 'illimite')
-    .reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
+  // MRR = uniquement les abonnements RÉELLEMENT validés (paiement à jour) —
+  // hors essais gratuits, impayés et accès illimités offerts. Définition
+  // partagée avec Vue d'ensemble / Analytique / Bilan (lib/platformRevenue.js).
+  const paidStations = validatedStations(stations);
+  const mrr = validatedMRR(stations, PLANS);
+  const modMrr = modulesMRR(stations);
+  const trialCount = stations.filter(s => s.subscriptionStatus === 'essai').length;
   const overdueCount = stations.filter(s => s.subscriptionStatus === 'en_retard').length;
   const overdueAmount = stations
     .filter(s => s.subscriptionStatus === 'en_retard')
@@ -79,11 +82,21 @@ export default function Billing() {
         <p className="text-neutral-400 text-lg">Suivez les revenus récurrents de la plateforme et les impayés.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
         <div className="glass-card rounded-2xl p-6 border border-white/5 bg-white/[0.02]">
           <div className="p-3 rounded-xl bg-purple-500/10 w-fit mb-4"><CreditCard className="w-6 h-6 text-purple-400" /></div>
           <p className="text-neutral-400 text-sm font-medium mb-1">Revenu Récurrent Mensuel</p>
           <h3 className="text-3xl font-bold text-white">{mrr.toLocaleString('fr-FR')} FCFA</h3>
+          <p className="text-xs text-neutral-500 mt-1">
+            {paidStations.length} abonnement{paidStations.length > 1 ? 's' : ''} validé{paidStations.length > 1 ? 's' : ''}
+            {modMrr > 0 ? ` · +${modMrr.toLocaleString('fr-FR')} FCFA modules` : ''}
+          </p>
+        </div>
+        <div className="glass-card rounded-2xl p-6 border border-white/5 bg-white/[0.02]">
+          <div className="p-3 rounded-xl bg-emerald-500/10 w-fit mb-4"><CheckCircle2 className="w-6 h-6 text-emerald-400" /></div>
+          <p className="text-neutral-400 text-sm font-medium mb-1">Abonnements validés</p>
+          <h3 className="text-3xl font-bold text-white">{paidStations.length}</h3>
+          <p className="text-xs text-neutral-500 mt-1">{trialCount} en essai gratuit</p>
         </div>
         <div className="glass-card rounded-2xl p-6 border border-white/5 bg-white/[0.02]">
           <div className="p-3 rounded-xl bg-red-500/10 w-fit mb-4"><AlertTriangle className="w-6 h-6 text-red-400" /></div>
@@ -92,7 +105,7 @@ export default function Billing() {
         </div>
         <div className="glass-card rounded-2xl p-6 border border-white/5 bg-white/[0.02]">
           <div className="p-3 rounded-xl bg-orange-500/10 w-fit mb-4"><Clock className="w-6 h-6 text-orange-400" /></div>
-          <p className="text-neutral-400 text-sm font-medium mb-1">Montant en attente</p>
+          <p className="text-neutral-400 text-sm font-medium mb-1">Montant impayé en attente</p>
           <h3 className="text-3xl font-bold text-white">{overdueAmount.toLocaleString('fr-FR')} FCFA</h3>
         </div>
       </div>
