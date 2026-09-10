@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Sparkles, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, FileBarChart, Boxes } from 'lucide-react';
+import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, FileBarChart, Boxes } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -51,7 +51,7 @@ export default function SuperAdminLayout() {
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
         <div className="flex items-center">
-          <Sparkles className="w-6 h-6 text-purple-400 mr-2" />
+          <img src="/icons/icon-192.png" alt="Clean Car Galsen" className="w-6 h-6 rounded-md object-cover mr-2 flex-shrink-0" />
           <span className="font-bold text-lg">Super Admin</span>
         </div>
         <div className="ml-auto">
@@ -81,8 +81,8 @@ export default function SuperAdminLayout() {
         <div className="hidden md:block absolute -top-24 left-1/2 -translate-x-1/2 w-40 h-40 bg-white/[0.04] rounded-full blur-3xl pointer-events-none" />
 
         <div className="h-20 flex items-center px-6 border-b border-white/5 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-blue-500 flex items-center justify-center mr-3 shadow-lg shadow-purple-500/20">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center mr-3 shadow-lg shadow-purple-500/20 overflow-hidden">
+            <img src="/icons/icon-192.png" alt="Clean Car Galsen" className="w-full h-full object-cover" />
           </div>
           <span className="font-bold text-lg tracking-wide truncate max-w-[140px] text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400">
             Super Admin

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Droplets, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 export default function MainLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -21,8 +21,8 @@ export default function MainLayout() {
       >
         <div className="container mx-auto px-4 h-20 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
-              <Droplets className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow overflow-hidden">
+              <img src="/icons/icon-192.png" alt="Clean Car Galsen" className="w-full h-full object-cover" />
             </div>
             <span className="font-bold text-xl tracking-wide text-white">Clean Car <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-yellow-400 to-red-500">Galsen</span></span>
           </Link>
@@ -79,8 +79,8 @@ export default function MainLayout() {
       {/* Footer */}
       <footer className="relative z-10 w-full border-t border-white/10 bg-black py-10 text-center text-neutral-500 text-sm">
         <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center flex-shrink-0">
-            <Droplets className="w-3.5 h-3.5 text-white" />
+          <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img src="/icons/icon-192.png" alt="Clean Car Galsen" className="w-full h-full object-cover" />
           </div>
           <span className="font-bold text-lg tracking-tight text-white">Clean Car Galsen</span>
         </div>

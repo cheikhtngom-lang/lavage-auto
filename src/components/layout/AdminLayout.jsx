@@ -107,11 +107,11 @@ export default function AdminLayout() {
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
         <div className="flex items-center">
-          {stationProfile?.logo ? (
-            <img src={stationProfile.logo} alt="Logo" className="w-6 h-6 rounded-md object-cover mr-2 flex-shrink-0" />
-          ) : (
-            <Droplets className="w-6 h-6 text-emerald-400 mr-2" />
-          )}
+          <img
+            src={stationProfile?.logo || '/icons/icon-192.png'}
+            alt="Logo"
+            className="w-6 h-6 rounded-md object-cover mr-2 flex-shrink-0"
+          />
           {stationName === null ? (
             <div className="h-5 w-28 rounded bg-white/10 animate-pulse" />
           ) : (
@@ -143,12 +143,8 @@ export default function AdminLayout() {
         <div className="hidden md:block absolute -top-24 left-1/2 -translate-x-1/2 w-40 h-40 bg-white/[0.04] rounded-full blur-3xl pointer-events-none" />
 
         <div className="h-20 flex items-center px-6 border-b border-white/5 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center mr-3 shadow-lg shadow-blue-500/20 overflow-hidden flex-shrink-0">
-            {stationProfile?.logo ? (
-              <img src={stationProfile.logo} alt="Logo" className="w-full h-full object-cover" />
-            ) : (
-              <Droplets className="w-5 h-5 text-white" />
-            )}
+          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center mr-3 shadow-lg shadow-blue-500/20 overflow-hidden flex-shrink-0">
+            <img src={stationProfile?.logo || '/icons/icon-192.png'} alt="Logo" className="w-full h-full object-cover" />
           </div>
           {stationName === null ? (
             <div className="h-5 w-28 rounded bg-white/10 animate-pulse" />
