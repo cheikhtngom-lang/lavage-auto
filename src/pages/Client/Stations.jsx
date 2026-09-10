@@ -180,13 +180,14 @@ export default function Stations() {
 
   const vehicles = account?.vehicles || [];
   const selectedVehicles = vehicles.filter(v => selectedVehicleIds.includes(v.id));
-  // Les motos n'ont qu'un seul type de lavage disponible — dès que la sélection
-  // ne contient que des deux-roues, on restreint le choix à "Lavage Simple".
-  const onlyMotoSelected = selectedVehicles.length > 0 && selectedVehicles.every(v => v.category === 'Moto');
-  const availableServices = onlyMotoSelected ? ['Lavage Simple'] : ['Lavage Simple', 'Lavage Complet', 'Lavage Moteur'];
+  // Les motos/tricycles n'ont qu'un seul type de lavage disponible — dès que la
+  // sélection ne contient que des véhicules de cette catégorie, on restreint le
+  // choix à "Lavage Complet".
+  const onlyMotoSelected = selectedVehicles.length > 0 && selectedVehicles.every(v => getPricingCategory(v.category) === 'Moto');
+  const availableServices = onlyMotoSelected ? ['Lavage Complet'] : ['Lavage Simple', 'Lavage Complet', 'Lavage Moteur'];
 
   useEffect(() => {
-    if (onlyMotoSelected && service !== 'Lavage Simple') setService('Lavage Simple');
+    if (onlyMotoSelected && service !== 'Lavage Complet') setService('Lavage Complet');
   }, [onlyMotoSelected, service]);
   // Places encore disponibles pour ce client dans cette station, compte tenu de
   // ses véhicules déjà actifs (file + en lavage) — voir MAX_ACTIVE_VEHICLES_PER_CLIENT.
@@ -843,7 +844,7 @@ export default function Stations() {
                           ))}
                         </div>
                         {onlyMotoSelected && (
-                          <p className="text-neutral-500 text-xs mt-1.5">Un seul type de lavage est proposé pour les motos.</p>
+                          <p className="text-neutral-500 text-xs mt-1.5">Un seul type de lavage est proposé pour les motos et tricycles.</p>
                         )}
                       </div>
                     )}

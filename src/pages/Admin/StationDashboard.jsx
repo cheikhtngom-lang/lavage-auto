@@ -58,6 +58,7 @@ function todayKey() { return dateKey(new Date()); }
 // ---- Types de véhicules par défaut ----
 const DEFAULT_VEHICLE_TYPES = [
   { label: '🏍️ Moto / Scooter', value: 'Moto / Scooter' },
+  { label: '🛺 Tricycle', value: 'Tricycle' },
   { label: '🚗 Berline / Citadine', value: 'Berline / Citadine' },
   { label: '🚗 Renault Logan', value: 'Renault Logan' },
   { label: '🚗 Toyota Corolla', value: 'Toyota Corolla' },
@@ -82,6 +83,7 @@ const DEFAULT_VEHICLE_TYPES = [
 // corriger ensuite manuellement si besoin.
 const VEHICLE_TYPE_PRICING_CATEGORY = {
   'Moto / Scooter': 'Moto',
+  'Tricycle': 'Moto',
   'Berline / Citadine': 'Particulier',
   'Renault Logan': 'Particulier',
   'Toyota Corolla': 'Particulier',
@@ -1124,8 +1126,8 @@ export default function StationDashboard() {
                       value={newWash.category}
                       onChange={(e) => {
                         const category = e.target.value;
-                        // Les motos n'ont qu'un seul type de lavage disponible.
-                        setNewWash({ ...newWash, category, service: category === 'Moto' ? 'Lavage Simple' : newWash.service });
+                        // Les motos/tricycles n'ont qu'un seul type de lavage disponible.
+                        setNewWash({ ...newWash, category, service: category === 'Moto' ? 'Lavage Complet' : newWash.service });
                       }}
                     >
                       <option value="Moto">{PRICING_CATEGORY_LABELS.Moto}</option>
@@ -1142,9 +1144,15 @@ export default function StationDashboard() {
                       disabled={newWash.category === 'Moto'}
                       onChange={(e) => setNewWash({...newWash, service: e.target.value})}
                     >
-                      <option value="Lavage Simple">Lavage Simple</option>
-                      {newWash.category !== 'Moto' && <option value="Lavage Complet">Lavage Complet</option>}
-                      {newWash.category !== 'Moto' && <option value="Lavage Moteur">Lavage Moteur</option>}
+                      {newWash.category === 'Moto' ? (
+                        <option value="Lavage Complet">Lavage Complet</option>
+                      ) : (
+                        <>
+                          <option value="Lavage Simple">Lavage Simple</option>
+                          <option value="Lavage Complet">Lavage Complet</option>
+                          <option value="Lavage Moteur">Lavage Moteur</option>
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>

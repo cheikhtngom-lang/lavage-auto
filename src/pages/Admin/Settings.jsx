@@ -14,9 +14,11 @@ import { listStationClients, exportStationData, exportStationClientData } from '
 import { hasModule } from '../../lib/stationModules';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
-// Une grille tarifaire = une catégorie de pricingConfig + ses 3 prestations.
-// Trois grilles distinctes, dans l'ordre où l'admin pense ses véhicules :
-// voitures particulières, bus/minibus, puis camions et bus grande capacité.
+// Une grille tarifaire = une catégorie de pricingConfig + ses prestations.
+// La moto/tricycle est traitée à part (un seul prix, voir plus bas dans le
+// rendu de l'onglet "tarifs") ; ces trois grilles-ci ont chacune 3 prestations,
+// dans l'ordre où l'admin pense ses véhicules : voitures particulières,
+// bus/minibus, puis camions et bus grande capacité.
 const PRICING_GRIDS = [
   { category: 'Particulier', title: 'Voitures Particulières', icon: '🚗', hint: 'Berlines, citadines, SUV / 4x4...' },
   { category: 'Transport', title: 'Bus et Minibus', icon: '🚐', hint: 'Minibus (6 places), car rapide, bus standard...' },
@@ -26,7 +28,7 @@ const PRICING_SERVICES = ['Lavage Simple', 'Lavage Complet', 'Lavage Moteur'];
 
 // Mêmes catégories que la grille tarifaire — chacune a ses 3 durées propres,
 // car un lavage complet ou moteur prend plus de temps qu'un lavage simple.
-// La moto est traitée à part : un seul type de lavage existe pour les deux-roues.
+// La moto/tricycle est traitée à part : un seul type de lavage existe pour elle.
 const DURATION_GRIDS = [
   { category: 'Particulier', title: 'Voitures Particulières', icon: '🚗' },
   { category: 'Transport', title: 'Bus et Minibus', icon: '🚐' },
@@ -35,10 +37,11 @@ const DURATION_GRIDS = [
 
 const MAX_LOGO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — au-delà, ça alourdit trop le stockage local
 
-// Catégories disponibles pour la réduction ciblée — la moto n'a que "Lavage Simple"
-// (voir DURATION_GRIDS/moto plus haut), donc ses services proposés sont limités.
+// Catégories disponibles pour la réduction ciblée — la moto/tricycle n'a que
+// "Lavage Complet" (voir DURATION_GRIDS/moto plus haut), donc ses services
+// proposés sont limités.
 const PROMO_CATEGORIES = ['Moto', 'Particulier', 'Transport', 'Camion'];
-const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Simple'] : PRICING_SERVICES);
+const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Complet'] : PRICING_SERVICES);
 
 export default function Settings() {
   useDocumentTitle('Paramètres station');
@@ -828,24 +831,24 @@ export default function Settings() {
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">Ajustez les durées de référence (en minutes) pour chaque type de lavage. Un lavage complet ou moteur prend logiquement plus de temps qu'un lavage simple.</p>
 
                 <div className="space-y-10">
-                  {/* Moto — un seul type de lavage existe pour les deux-roues */}
+                  {/* Moto / Tricycle — un seul type de lavage existe pour cette catégorie */}
                   <div>
                     <div className="flex items-center gap-3 mb-1">
                       <span className="text-2xl">🏍️</span>
-                      <h3 className="text-lg font-bold text-white">Moto / Scooter</h3>
+                      <h3 className="text-lg font-bold text-white">Moto / Scooter / Tricycle</h3>
                     </div>
-                    <p className="text-neutral-500 text-xs mb-4">Un seul type de lavage est proposé pour les deux-roues.</p>
+                    <p className="text-neutral-500 text-xs mb-4">Un seul type de lavage est proposé pour cette catégorie.</p>
                     <div className="max-w-xs">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-neutral-400">Lavage Simple</label>
+                        <label className="text-sm font-medium text-neutral-400">Lavage Complet</label>
                         <div className="relative">
                           <input
                             type="number"
                             min="0"
-                            value={duration?.Moto?.["Lavage Simple"] ?? ''}
+                            value={duration?.Moto?.["Lavage Complet"] ?? ''}
                             onChange={e => setDuration({
                               ...duration,
-                              Moto: { ...(duration?.Moto || {}), "Lavage Simple": parseInt(e.target.value) || 0 },
+                              Moto: { ...(duration?.Moto || {}), "Lavage Complet": parseInt(e.target.value) || 0 },
                             })}
                             className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 pr-14 text-white focus:outline-none focus:border-blue-500"
                           />
@@ -896,6 +899,33 @@ export default function Settings() {
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">Configurez le prix de vos prestations en FCFA, par catégorie de véhicule.</p>
 
                 <div className="space-y-10">
+                  {/* Moto / Tricycle — un seul type de lavage existe pour cette catégorie */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <span className="text-2xl">🏍️</span>
+                      <h3 className="text-lg font-bold text-white">Grille tarifaire — Moto / Scooter / Tricycle</h3>
+                    </div>
+                    <p className="text-neutral-500 text-xs mb-4">Deux-roues et tricycles. Un seul type de lavage est proposé pour cette catégorie.</p>
+                    <div className="max-w-xs">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-400">Lavage Complet</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            value={pricing?.Moto?.["Lavage Complet"] ?? ''}
+                            onChange={e => setPricing({
+                              ...pricing,
+                              Moto: { ...(pricing?.Moto || {}), "Lavage Complet": parseInt(e.target.value) || 0 },
+                            })}
+                            className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 pr-16 text-white focus:outline-none focus:border-blue-500"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 text-xs font-medium">FCFA</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {PRICING_GRIDS.map(grid => (
                     <div key={grid.category}>
                       <div className="flex items-center gap-3 mb-1">

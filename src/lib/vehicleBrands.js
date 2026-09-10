@@ -21,6 +21,7 @@ export function setCustomBrandsCache(rows) {
 // utilisé pour facturer correctement une réservation faite avec un véhicule du garage.
 export const VEHICLE_CATEGORIES = [
   { value: 'Moto / Scooter', label: '🏍️ Moto / Scooter', pricingCategory: 'Moto' },
+  { value: 'Tricycle', label: '🛺 Tricycle', pricingCategory: 'Moto' },
   { value: 'Berline / Citadine', label: '🚗 Berline / Citadine', pricingCategory: 'Particulier' },
   { value: 'SUV / 4x4', label: '🚙 SUV / 4x4', pricingCategory: 'Particulier' },
   { value: 'Utilitaire / Minibus', label: '🚐 Minibus (6 places) / Utilitaire', pricingCategory: 'Transport' },
@@ -38,7 +39,7 @@ export function getPricingCategory(category) {
 // utilisés partout où l'admin ou le client voit une catégorie brute affichée
 // (grille tarifaire, badge de la file d'attente...).
 export const PRICING_CATEGORY_LABELS = {
-  Moto: 'Moto / Scooter',
+  Moto: 'Moto / Scooter / Tricycle',
   Particulier: 'Voitures Particulières',
   Transport: 'Bus et Minibus',
   Camion: 'Camion et Bus +50 places',
@@ -48,6 +49,10 @@ const MOTO_BRANDS = [
   'Yamaha', 'Honda', 'Suzuki', 'Kawasaki', 'TVS', 'Bajaj', 'Hero', 'Haojue',
   'SYM', 'KTM', 'Peugeot Motocycles', 'Piaggio', 'Vespa', 'Royal Enfield',
   'CFMoto', 'Lifan', 'Zongshen', 'Kymco', 'Sanya', 'Loncin', 'Qlink', 'Sanili',
+];
+
+const TRICYCLE_BRANDS = [
+  'Bajaj', 'TVS', 'Piaggio', 'DAYUN', 'JMSTAR', 'Foton', 'Loncin', 'Zongshen',
 ];
 
 const CAR_BRANDS = [
@@ -78,6 +83,7 @@ const BUS_BRANDS = [
 
 const BRANDS_BY_CATEGORY = {
   'Moto / Scooter': MOTO_BRANDS,
+  'Tricycle': TRICYCLE_BRANDS,
   'Berline / Citadine': CAR_BRANDS,
   'SUV / 4x4': CAR_BRANDS,
   'Utilitaire / Minibus': UTILITY_BRANDS,
