@@ -283,6 +283,24 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
+    // Rendez-vous vidange de la station (tous statuts, triés par créneau) —
+    // voir add_vidange_feature.sql / src/pages/Admin/Vidange.jsx. Déclaré ici
+    // (avant le useEffect principal ci-dessous qui l'appelle) et non plus bas
+    // avec le reste de la config vidange : une const référencée dans une
+    // dépendance de useEffect AVANT sa propre déclaration plante tout le
+    // provider (temporal dead zone), pas juste un avertissement silencieux.
+    const [vidangeBookings, setVidangeBookings] = useState([]);
+    const loadVidangeBookings = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setVidangeBookings([]); return; }
+        const { data } = await supabase.from('vidange_bookings').select('*').eq('station_id', stationId).order('scheduled_at', { ascending: true });
+        setVidangeBookings((data || []).map((row) => ({
+            id: row.id, clientName: row.client_name, vehicleLabel: row.vehicle_label, category: row.category,
+            oilType: row.oil_type, filtreHuile: row.filtre_huile, filtreAir: row.filtre_air, mileage: row.mileage,
+            scheduledAt: row.scheduled_at, amount: row.amount, paid: row.paid, paymentMethod: row.payment_method,
+            status: row.status, createdAt: row.created_at,
+        })));
+    }, [stationId]);
+
     // Abonnements de la station
     const [clientSubscriptions, setClientSubscriptions] = useState([]);
     const [clientSubscriptionInvoices, setClientSubscriptionInvoices] = useState([]);
@@ -579,20 +597,6 @@ export function AppStateProvider({ children }) {
             vidange_filtre_air_price: patch.vidangeFiltreAirPrice,
         }).eq('id', stationId);
     };
-
-    // Rendez-vous vidange de la station (tous statuts, triés par créneau) —
-    // voir add_vidange_feature.sql / src/pages/Admin/Vidange.jsx.
-    const [vidangeBookings, setVidangeBookings] = useState([]);
-    const loadVidangeBookings = useCallback(async () => {
-        if (!stationId || stationId === 'default') { setVidangeBookings([]); return; }
-        const { data } = await supabase.from('vidange_bookings').select('*').eq('station_id', stationId).order('scheduled_at', { ascending: true });
-        setVidangeBookings((data || []).map((row) => ({
-            id: row.id, clientName: row.client_name, vehicleLabel: row.vehicle_label, category: row.category,
-            oilType: row.oil_type, filtreHuile: row.filtre_huile, filtreAir: row.filtre_air, mileage: row.mileage,
-            scheduledAt: row.scheduled_at, amount: row.amount, paid: row.paid, paymentMethod: row.payment_method,
-            status: row.status, createdAt: row.created_at,
-        })));
-    }, [stationId]);
 
     const updateVidangeBookingStatus = async (id, status) => {
         await supabase.from('vidange_bookings').update({ status }).eq('id', id);
