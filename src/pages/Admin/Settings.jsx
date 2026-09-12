@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus } from 'lucide-react';
+import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus, Wrench } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -12,6 +12,7 @@ import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, create
 import { payPlatformOnline } from '../../lib/paydunya';
 import { listStationClients, exportStationData, exportStationClientData } from '../../lib/rgpdExport';
 import { hasModule } from '../../lib/stationModules';
+import { OIL_TYPES, VIDANGE_CATEGORY_GRID } from '../../lib/vidange';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses prestations.
@@ -45,7 +46,7 @@ const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Complet']
 
 export default function Settings() {
   useDocumentTitle('Paramètres station');
-  const { stationProfile, stationBilling, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds } = useAppState();
+  const { stationProfile, stationBilling, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds, vidangePricingConfig, updateVidangePricing, updateVidangeSettings } = useAppState();
   const { stations, updateStation } = useSuperAdminState();
   const navigate = useNavigate();
   const isNewStation = !stationProfile?.name || stationProfile.name.trim() === '';
@@ -135,6 +136,48 @@ export default function Settings() {
   const [paydunyaSaved, setPaydunyaSaved] = useState(false);
   const [paydunyaError, setPaydunyaError] = useState('');
   useEffect(() => { setPaydunyaAlias(stationBilling?.paydunyaAlias || ''); }, [stationBilling?.paydunyaAlias]);
+
+  // Vidange (rendez-vous) : activation + créneaux/capacité + suppléments,
+  // tab autonome avec son propre bouton "Enregistrer" (comme Promotions/
+  // Publicité/PayDunya ci-dessus) plutôt que le bouton global "profil/tarifs/
+  // temps" — voir add_vidange_feature.sql.
+  const [vidangeSettings, setVidangeSettings] = useState({
+    vidangeEnabled: stationProfile?.vidangeEnabled || false,
+    vidangeSlotMinutes: stationProfile?.vidangeSlotMinutes || 60,
+    vidangeDailyCapacity: stationProfile?.vidangeDailyCapacity || 1,
+    vidangeFiltreHuilePrice: stationProfile?.vidangeFiltreHuilePrice ?? '',
+    vidangeFiltreAirPrice: stationProfile?.vidangeFiltreAirPrice ?? '',
+  });
+  useEffect(() => {
+    setVidangeSettings({
+      vidangeEnabled: stationProfile?.vidangeEnabled || false,
+      vidangeSlotMinutes: stationProfile?.vidangeSlotMinutes || 60,
+      vidangeDailyCapacity: stationProfile?.vidangeDailyCapacity || 1,
+      vidangeFiltreHuilePrice: stationProfile?.vidangeFiltreHuilePrice ?? '',
+      vidangeFiltreAirPrice: stationProfile?.vidangeFiltreAirPrice ?? '',
+    });
+  }, [stationProfile]);
+  const [vidangePricing, setVidangePricing] = useState(vidangePricingConfig);
+  useEffect(() => { setVidangePricing(vidangePricingConfig); }, [vidangePricingConfig]);
+  const [vidangeSaving, setVidangeSaving] = useState(false);
+  const [vidangeSaved, setVidangeSaved] = useState(false);
+
+  const handleSaveVidange = async () => {
+    setVidangeSaving(true);
+    await Promise.all([
+      updateVidangeSettings({
+        ...vidangeSettings,
+        vidangeSlotMinutes: parseInt(vidangeSettings.vidangeSlotMinutes, 10) || 60,
+        vidangeDailyCapacity: parseInt(vidangeSettings.vidangeDailyCapacity, 10) || 1,
+        vidangeFiltreHuilePrice: vidangeSettings.vidangeFiltreHuilePrice === '' ? null : parseInt(vidangeSettings.vidangeFiltreHuilePrice, 10) || 0,
+        vidangeFiltreAirPrice: vidangeSettings.vidangeFiltreAirPrice === '' ? null : parseInt(vidangeSettings.vidangeFiltreAirPrice, 10) || 0,
+      }),
+      updateVidangePricing(vidangePricing),
+    ]);
+    setVidangeSaving(false);
+    setVidangeSaved(true);
+    setTimeout(() => setVidangeSaved(false), 2500);
+  };
 
   const handleSavePaydunya = async () => {
     setPaydunyaSaving(true);
@@ -504,6 +547,7 @@ export default function Settings() {
             { id: 'employes', label: 'Gestion Employés', icon: Users },
             { id: 'temps', label: 'Temps Estimés', icon: Clock },
             { id: 'tarifs', label: 'Grille Tarifaire', icon: CreditCard },
+            { id: 'vidange', label: 'Vidange', icon: Wrench },
             { id: 'promotions', label: 'Promotions', icon: Megaphone },
             { id: 'publicite', label: 'Passer une pub', icon: Camera },
             { id: 'securite', label: 'Sécurité & Accès', icon: Shield },
@@ -956,6 +1000,113 @@ export default function Settings() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'vidange' && (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-8">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Wrench className="w-5 h-5 text-blue-400" /> Vidange</h2>
+                <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">
+                  Proposez la vidange en rendez-vous à vos clients, avec paiement en ligne — voir l'onglet <button type="button" onClick={() => navigate('/admin/vidange')} className="text-blue-400 underline">Vidange</button> pour suivre les rendez-vous.
+                </p>
+
+                <label className="flex items-center gap-3 mb-8 cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={vidangeSettings.vidangeEnabled}
+                    onChange={(e) => setVidangeSettings({ ...vidangeSettings, vidangeEnabled: e.target.checked })}
+                    className="w-5 h-5 rounded accent-blue-600"
+                  />
+                  <span className="text-white font-medium">Activer la vidange pour cette station</span>
+                </label>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Durée d'un créneau (minutes)</label>
+                    <input
+                      type="number" min="15" step="15"
+                      value={vidangeSettings.vidangeSlotMinutes}
+                      onChange={(e) => setVidangeSettings({ ...vidangeSettings, vidangeSlotMinutes: e.target.value })}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Vidanges en parallèle par créneau</label>
+                    <input
+                      type="number" min="1"
+                      value={vidangeSettings.vidangeDailyCapacity}
+                      onChange={(e) => setVidangeSettings({ ...vidangeSettings, vidangeDailyCapacity: e.target.value })}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-white mb-1">Suppléments optionnels</h3>
+                <p className="text-neutral-500 text-xs mb-4">Laissez vide si vous ne proposez pas l'option — prix fixe, quelle que soit la catégorie de véhicule.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Filtre à huile (FCFA)</label>
+                    <input
+                      type="number" min="0" placeholder="Non proposé"
+                      value={vidangeSettings.vidangeFiltreHuilePrice}
+                      onChange={(e) => setVidangeSettings({ ...vidangeSettings, vidangeFiltreHuilePrice: e.target.value })}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Filtre à air (FCFA)</label>
+                    <input
+                      type="number" min="0" placeholder="Non proposé"
+                      value={vidangeSettings.vidangeFiltreAirPrice}
+                      onChange={(e) => setVidangeSettings({ ...vidangeSettings, vidangeFiltreAirPrice: e.target.value })}
+                      className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-white mb-4">Grille tarifaire — par catégorie de véhicule et type d'huile</h3>
+                <div className="space-y-10 mb-8">
+                  {VIDANGE_CATEGORY_GRID.map((grid) => (
+                    <div key={grid.category}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-2xl">{grid.icon}</span>
+                        <h4 className="text-base font-bold text-white">{grid.title}</h4>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {OIL_TYPES.map((oilType) => (
+                          <div className="space-y-2" key={oilType}>
+                            <label className="text-sm font-medium text-neutral-400">Huile {oilType}</label>
+                            <div className="relative">
+                              <input
+                                type="number" min="0" placeholder="Non proposé"
+                                value={vidangePricing?.[grid.category]?.[oilType] ?? ''}
+                                onChange={(e) => setVidangePricing({
+                                  ...vidangePricing,
+                                  [grid.category]: { ...(vidangePricing?.[grid.category] || {}), [oilType]: parseInt(e.target.value, 10) || 0 },
+                                })}
+                                className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 pr-16 text-white focus:outline-none focus:border-blue-500"
+                              />
+                              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 text-xs font-medium">FCFA</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={handleSaveVidange}
+                  disabled={vidangeSaving}
+                  className={`px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2 ${
+                    vidangeSaved ? 'bg-emerald-500 text-white shadow-emerald-500/20' : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/20'
+                  }`}
+                >
+                  {vidangeSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : vidangeSaved ? <CheckCircle2 className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+                  {vidangeSaving ? 'Enregistrement...' : vidangeSaved ? 'Enregistré !' : 'Enregistrer la vidange'}
+                </button>
               </CardContent>
             </Card>
           )}

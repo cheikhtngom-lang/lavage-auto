@@ -208,6 +208,150 @@ export async function finalizeLavage(admin: any, token: string, custom: any): Pr
   };
 }
 
+export type VidangeReceipt = {
+  kind: "vidange";
+  alreadyProcessed: boolean;
+  station: { name: string; address: string; phone: string; logo: string | null; cachet: string | null };
+  client: string;
+  items: Array<{ label: string; service: string; amount: number }>;
+  total: number;
+  receiptId: string;
+  scheduledAt: string;
+};
+
+async function readVidangeReceipt(
+  admin: any,
+  token: string,
+  station: VidangeReceipt["station"],
+  clientName: string,
+  fallbackTotal: number,
+): Promise<VidangeReceipt> {
+  const { data: row } = await admin.from("paiements_lavage")
+    .select("vidange_ids").eq("paydunya_token", token).maybeSingle();
+  const ids: string[] = row?.vidange_ids || [];
+  const { data: booking } = ids.length
+    ? await admin.from("vidange_bookings").select("vehicle_label, oil_type, amount, scheduled_at").eq("id", ids[0]).maybeSingle()
+    : { data: null };
+  return {
+    kind: "vidange",
+    alreadyProcessed: true,
+    station,
+    client: clientName,
+    items: booking ? [{ label: booking.vehicle_label, service: `Vidange ${booking.oil_type}`, amount: booking.amount }] : [],
+    total: booking?.amount ?? fallbackTotal,
+    receiptId: token.slice(0, 10).toUpperCase(),
+    scheduledAt: booking?.scheduled_at ?? "",
+  };
+}
+
+// ─── Vidange : création du rendez-vous (déjà payé) + reçu + redistribution.
+// Même logique que finalizeLavage, mais UN seul rendez-vous (pas un panier) —
+// voir add_vidange_feature.sql. Le grand livre de reversements
+// (paiements_lavage) est réutilisé tel quel, distingué par type_service.
+export async function finalizeVidange(admin: any, token: string, custom: any): Promise<VidangeReceipt | null> {
+  const montantTotal = Number(custom.montantTotal || 0);
+  const partStation = Number(custom.partStation || 0);
+  const partPlateforme = Number(custom.partPlateforme || 0);
+  const taux = Number(custom.tauxCommission || 0);
+  const alias: string = custom.paydunyaAccountAlias;
+  const stationId: string = custom.stationId;
+  const clientId: string | null = custom.clientId || null;
+  const clientName: string = custom.clientName || "Client";
+
+  const station = await stationBrandingFor(admin, stationId);
+
+  if (!custom.vehicleLabel || !custom.scheduledAt) {
+    console.error("finalizeVidange: données incomplètes", custom);
+    await log(admin, `PayDunya: données vidange incomplètes pour le jeton ${token} — voir logs`);
+    return null;
+  }
+
+  // Verrou d'idempotence : 1 seule ligne par jeton PayDunya (même table que
+  // le lavage, voir la note d'architecture dans add_vidange_feature.sql).
+  const { error: insErr } = await admin.from("paiements_lavage").insert({
+    station_id: stationId,
+    client_id: clientId,
+    montant_total: montantTotal,
+    part_station: partStation,
+    part_plateforme: partPlateforme,
+    taux_commission: taux,
+    paydunya_token: token,
+    type_service: "vidange",
+    vidange_ids: [],
+    statut_redistribution: "en_attente",
+  });
+  if (insErr) {
+    if (insErr.code === "23505") return await readVidangeReceipt(admin, token, station, clientName, montantTotal);
+    console.error("paiements_lavage insert (vidange):", insErr);
+    await log(admin, `PayDunya: échec insertion paiements_lavage (vidange) pour ${token} — ${insErr.message}`);
+    return null;
+  }
+
+  const { data: bookingRow, error: bErr } = await admin.from("vidange_bookings").insert({
+    station_id: stationId,
+    client_id: clientId,
+    client_name: clientName,
+    vehicle_label: custom.vehicleLabel,
+    category: custom.category,
+    oil_type: custom.oilType,
+    filtre_huile: custom.filtreHuile === "1",
+    filtre_air: custom.filtreAir === "1",
+    mileage: custom.mileage ? Number(custom.mileage) : null,
+    scheduled_at: custom.scheduledAt,
+    amount: montantTotal,
+    paid: true,
+    payment_method: "PayDunya",
+    status: "confirmee",
+  }).select("id").single();
+  if (bErr || !bookingRow) {
+    console.error("vidange_bookings insert:", bErr);
+    await log(admin, `PayDunya: échec insertion vidange_bookings pour ${token} — ${bErr?.message}`);
+  } else {
+    await admin.from("paiements_lavage").update({ vidange_ids: [bookingRow.id] }).eq("paydunya_token", token);
+  }
+
+  // Redistribution automatique — identique au lavage (voir finalizeLavage) :
+  // la réservation et le reçu du client sont déjà acquis quoi qu'il arrive
+  // ici, seul le statut de reversement change.
+  let statut = "reussi";
+  let detail = "";
+  if (!alias) {
+    statut = "manuel";
+    detail = "Aucun compte PayDunya renseigné pour cette station — reversement manuel requis.";
+    await log(admin, `Vidange payée en ligne (${montantTotal} F) — pas de compte PayDunya station, ${partStation} F à reverser manuellement`);
+  } else {
+    try {
+      const res = await disburse({ accountAlias: alias, amount: partStation });
+      statut = res.ok ? "reussi" : "manuel";
+      detail = res.ok ? res.detail : `Redistribution automatique indisponible (${res.step}: ${res.detail}) — reversement manuel requis.`;
+      await log(
+        admin,
+        res.ok
+          ? `Vidange payée en ligne (${montantTotal} F) — ${partStation} F reversés à la station`
+          : `Vidange payée en ligne (${montantTotal} F) — redistribution auto indisponible (${res.step}: ${res.detail}), reversement manuel requis (${partStation} F)`,
+      );
+    } catch (err) {
+      statut = "manuel";
+      detail = `Exception redistribution : ${String(err).slice(0, 300)} — reversement manuel requis.`;
+      await log(admin, `Vidange payée en ligne (${montantTotal} F) — EXCEPTION redistribution : ${String(err).slice(0, 300)}, reversement manuel requis`);
+    }
+  }
+  await admin.from("paiements_lavage")
+    .update({ statut_redistribution: statut, redistribution_detail: detail })
+    .eq("paydunya_token", token);
+
+  return {
+    kind: "vidange",
+    alreadyProcessed: false,
+    station,
+    client: clientName,
+    items: [{ label: custom.vehicleLabel, service: `Vidange ${custom.oilType}`, amount: montantTotal }],
+    total: montantTotal,
+    receiptId: token.slice(0, 10).toUpperCase(),
+    scheduledAt: custom.scheduledAt,
+  };
+}
+
 // ─── Paiements plateforme : mêmes effets que la confirmation manuelle du
 // Super Admin (voir useSuperAdminState.jsx confirmSuperUserPayment /
 // confirmAdPayment / confirmRenewalPayment). Idempotent : ne rejoue rien si
@@ -276,6 +420,7 @@ export async function routeConfirmedInvoice(admin: any, token: string, invoice: 
   const kind = custom.kind;
 
   if (kind === "lavage") return await finalizeLavage(admin, token, custom);
+  if (kind === "vidange") return await finalizeVidange(admin, token, custom);
   if (kind === "saas" || kind === "superuser" || kind === "ad") {
     await finalizePlatform(admin, token, kind, custom);
     return { kind, alreadyProcessed: false };

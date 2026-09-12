@@ -33,9 +33,10 @@ export default function Billing() {
   const lavagePayoutsByStation = Object.values(
     pendingLavagePayouts.reduce((acc, p) => {
       const key = p.stationId || p.stationName;
-      if (!acc[key]) acc[key] = { stationId: p.stationId, stationName: p.stationName, total: 0, ids: [] };
+      if (!acc[key]) acc[key] = { stationId: p.stationId, stationName: p.stationName, total: 0, ids: [], types: new Set() };
       acc[key].total += p.partStation || 0;
       acc[key].ids.push(p.id);
+      acc[key].types.add(p.typeService === 'vidange' ? 'Vidange' : 'Lavage');
       return acc;
     }, {}),
   );
@@ -164,6 +165,13 @@ export default function Billing() {
                   <p className="font-bold text-white">{g.stationName || 'Sans nom'}</p>
                   <p className="text-sm text-neutral-400">{g.ids.length} paiement(s) — {g.total.toLocaleString('fr-FR')} FCFA dus</p>
                 </div>
+                {g.types.size > 0 && (
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[...g.types].map((t) => (
+                      <span key={t} className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white/5 text-neutral-400 border-white/10">{t}</span>
+                    ))}
+                  </div>
+                )}
                 <button
                   onClick={() => { if (window.confirm(`Confirmer avoir reversé ${g.total.toLocaleString('fr-FR')} FCFA à ${g.stationName} hors application ?`)) handleSettleLavage(g); }}
                   disabled={settling[g.stationId]}

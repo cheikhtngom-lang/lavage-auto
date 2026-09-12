@@ -327,9 +327,10 @@ export default function Accounting() {
                     return (
                       <div key={p.id} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0 gap-4 flex-wrap">
                         <div>
-                          <p className="text-white text-sm font-medium">
+                          <p className="text-white text-sm font-medium flex items-center gap-2">
                             {(p.partStation || 0).toLocaleString('fr-FR')} FCFA
-                            <span className="text-neutral-500 font-normal"> sur {(p.montantTotal || 0).toLocaleString('fr-FR')} FCFA encaissés</span>
+                            <span className="text-neutral-500 font-normal">sur {(p.montantTotal || 0).toLocaleString('fr-FR')} FCFA encaissés</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border bg-white/5 text-neutral-400 border-white/10">{p.typeService === 'vidange' ? 'Vidange' : 'Lavage'}</span>
                           </p>
                           <p className="text-neutral-500 text-xs">
                             {new Date(p.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}

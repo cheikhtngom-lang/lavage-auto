@@ -42,3 +42,15 @@ export function payLavageOnline({ stationId, clientName, reservationGroupId, ite
 export function payPlatformOnline({ kind, rowId }) {
   return invokeAndRedirect('create-platform-payment', { kind, rowId });
 }
+
+// Vidange : UN rendez-vous (pas un panier) — voir add_vidange_feature.sql.
+// Même principe que payLavageOnline : rien n'est créé avant le paiement, le
+// rendez-vous n'existe qu'une fois payé (créé par paydunya-callback via
+// finalizeVidange). `amount` est calculé côté client (grille vidangePricing +
+// suppléments filtre déjà en cache) puis revalidé côté serveur (montant
+// entier positif) — même modèle de confiance que le lavage.
+export function payVidangeOnline({ stationId, clientName, vehicleLabel, category, oilType, filtreHuile, filtreAir, mileage, scheduledAt, amount }) {
+  return invokeAndRedirect('create-vidange-payment', {
+    stationId, clientName, vehicleLabel, category, oilType, filtreHuile, filtreAir, mileage, scheduledAt, amount,
+  });
+}

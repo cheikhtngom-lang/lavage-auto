@@ -18,6 +18,7 @@ import { DEFAULT_PROMO } from './promoDefaults';
 // ─── Cache Supabase (alimenté par useSuperAdminState.jsx à chaque poll) ──
 let stationsCache = {};
 let pricingCache = {};
+let vidangePricingCache = {};
 let queueSnapshot = [];
 let publicStats = {};
 let reviewsCache = {};
@@ -33,6 +34,17 @@ export function setWashPricingCache(rows) {
     const entry = (pricingCache[row.station_id] ||= { pricing: {}, duration: {} });
     (entry.pricing[row.category] ||= {})[row.service] = row.price;
     (entry.duration[row.category] ||= {})[row.service] = row.duration_minutes;
+  });
+}
+
+// Grille tarifaire vidange de TOUTES les stations (lecture publique, comme
+// wash_pricing) — voir add_vidange_feature.sql. Forme : { [stationId]: {
+// [category]: { [oilType]: price } } }.
+export function setVidangePricingCache(rows) {
+  vidangePricingCache = {};
+  (rows || []).forEach((row) => {
+    const entry = (vidangePricingCache[row.station_id] ||= {});
+    (entry[row.category] ||= {})[row.oil_type] = row.price;
   });
 }
 
@@ -100,6 +112,26 @@ export function getStationDurationConfig(stationId) {
 
 export function getStationPromo(stationId) {
   return stationsCache[stationId]?.promoConfig || DEFAULT_PROMO;
+}
+
+// Grille tarifaire vidange d'une station donnée — {} si elle n'a encore rien
+// configuré (à distinguer de getStationPricing, dont le fallback DEFAULT_PRICING
+// n'a pas d'équivalent ici : la vidange est opt-in, pas de valeurs par défaut).
+export function getVidangePricing(stationId) {
+  return vidangePricingCache[stationId] || {};
+}
+
+// Configuration vidange d'une station (activation, durée de créneau, capacité,
+// suppléments) — directement sur la ligne `stations` (voir add_vidange_feature.sql).
+export function getVidangeStationConfig(stationId) {
+  const s = stationsCache[stationId];
+  return {
+    enabled: !!s?.vidangeEnabled,
+    slotMinutes: s?.vidangeSlotMinutes || 60,
+    dailyCapacity: s?.vidangeDailyCapacity || 1,
+    filtreHuilePrice: s?.vidangeFiltreHuilePrice ?? null,
+    filtreAirPrice: s?.vidangeFiltreAirPrice ?? null,
+  };
 }
 
 export function getStationWaitingCount(stationId) {

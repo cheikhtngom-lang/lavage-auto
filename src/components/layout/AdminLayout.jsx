@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart, Store } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart, Store, Wrench } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
@@ -62,6 +62,7 @@ export default function AdminLayout() {
   const allNavigation = [
     { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null },
     { name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage' },
+    { name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage' },
     { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
     { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage' },
     { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },

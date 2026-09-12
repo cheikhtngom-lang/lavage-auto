@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download, Star } from 'lucide-react';
+import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download, Star, Wrench, Store, Calendar } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
@@ -18,7 +18,12 @@ import { downloadReceiptPdf } from '../../lib/receipt';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
 import { vehicleCapFor } from '../../lib/superUser';
 import { hasModule } from '../../lib/stationModules';
-import { payLavageOnline } from '../../lib/paydunya';
+import { payLavageOnline, payVidangeOnline } from '../../lib/paydunya';
+import {
+  OIL_TYPES, VIDANGE_CATEGORY_GRID, getVidangePricing, getVidangeStationConfig,
+  computeVidangeSlots, loadVidangeBookedSlots, vidangeOptionsPrice, createVidangeBooking,
+} from '../../lib/vidange';
+import { supabase } from '../../lib/supabaseClient';
 
 function haversineDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -178,6 +183,67 @@ export default function Stations() {
   const [promoCodeInput, setPromoCodeInput] = useState('');
   const [showUpsellModal, setShowUpsellModal] = useState(false);
 
+  // ─── Boutique de la station consultée (voir lib/shop.js) — même donnée que
+  // la page Boutique dédiée (/dashboard/boutique), filtrée à CETTE station.
+  // RLS ne renvoie quelque chose que si le client a déjà une relation avec
+  // elle (réservation passée ou favori) : vide sinon, section simplement masquée.
+  const [stationShopProducts, setStationShopProducts] = useState([]);
+  useEffect(() => {
+    if (!selectedStation || !account) { setStationShopProducts([]); return; }
+    let cancelled = false;
+    supabase.from('shop_products').select('*').eq('station_id', selectedStation.id).eq('active', true)
+      .order('created_at', { ascending: false }).then(({ data }) => { if (!cancelled) setStationShopProducts(data || []); });
+    return () => { cancelled = true; };
+  }, [selectedStation?.id, account?.id]);
+
+  // ─── Vidange (rendez-vous, voir lib/vidange.js) ────────────────────────
+  const [vidangeVehicleId, setVidangeVehicleId] = useState(null);
+  const [vidangeOilType, setVidangeOilType] = useState('');
+  const [vidangeFiltreHuile, setVidangeFiltreHuile] = useState(false);
+  const [vidangeFiltreAir, setVidangeFiltreAir] = useState(false);
+  const [vidangeMileage, setVidangeMileage] = useState('');
+  const [vidangeDate, setVidangeDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [vidangeTime, setVidangeTime] = useState(null);
+  const [vidangeSlots, setVidangeSlots] = useState([]);
+  const [vidangeSlotsLoading, setVidangeSlotsLoading] = useState(false);
+
+  const vidangeVehicle = (account?.vehicles || []).find((v) => v.id === vidangeVehicleId) || null;
+  const vidangeCategory = vidangeVehicle ? getPricingCategory(vidangeVehicle.category) : null;
+  const vidangeOilOptions = (vidangeCategory && selectedStation?.vidangePricing?.[vidangeCategory])
+    ? OIL_TYPES.filter((t) => (selectedStation.vidangePricing[vidangeCategory][t] || 0) > 0)
+    : [];
+  useEffect(() => {
+    if (vidangeOilOptions.length > 0 && !vidangeOilOptions.includes(vidangeOilType)) setVidangeOilType(vidangeOilOptions[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vidangeCategory, vidangeOilOptions.join(',')]);
+
+  const vidangePrice = (vidangeCategory && vidangeOilType && selectedStation)
+    ? (selectedStation.vidangePricing?.[vidangeCategory]?.[vidangeOilType] || 0)
+      + vidangeOptionsPrice(selectedStation.vidangeConfig, { filtreHuile: vidangeFiltreHuile, filtreAir: vidangeFiltreAir })
+    : 0;
+
+  // Recharge les créneaux déjà pris dès que la station ou la date change, pour
+  // calculer la disponibilité (voir computeVidangeSlots).
+  useEffect(() => {
+    if (!selectedStation || modalStep !== 'vidange-form') return;
+    let cancelled = false;
+    setVidangeSlotsLoading(true);
+    loadVidangeBookedSlots(selectedStation.id, vidangeDate).then((booked) => {
+      if (cancelled) return;
+      setVidangeSlots(computeVidangeSlots({
+        dateStr: vidangeDate,
+        openTime: selectedStation.openTime,
+        closeTime: selectedStation.closeTime,
+        slotMinutes: selectedStation.vidangeConfig?.slotMinutes,
+        dailyCapacity: selectedStation.vidangeConfig?.dailyCapacity,
+        bookedSlots: booked,
+      }));
+      setVidangeSlotsLoading(false);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStation?.id, vidangeDate, modalStep]);
+
   const vehicles = account?.vehicles || [];
   const selectedVehicles = vehicles.filter(v => selectedVehicleIds.includes(v.id));
   // Les motos/tricycles n'ont qu'un seul type de lavage disponible — dès que la
@@ -240,6 +306,8 @@ export default function Stations() {
         lat: typeof s.lat === 'number' ? s.lat : null,
         lng: typeof s.lng === 'number' ? s.lng : null,
         open: isStationOpenNow(profile),
+        openTime: profile?.openTime,
+        closeTime: profile?.closeTime,
         waitingCount: getStationWaitingCount(s.id),
         // Distinct de waitingCount : véhicules déjà en cours de lavage — sans ça,
         // un client voyait "0 en attente" alors que la station était occupée.
@@ -249,6 +317,11 @@ export default function Stations() {
         promoMessage: isBannerActive(promo) ? promo.banner.message : null,
         isFeatured: !!featuredAd || isModuleFeatured,
         featuredMessage: featuredAd?.message || null,
+        // Vidange (add_vidange_feature.sql) — opt-in par station, aucun forfait
+        // requis. vidangeConfig.enabled conditionne l'affichage du bouton
+        // "Réserver une vidange" dans la fiche station ci-dessous.
+        vidangeConfig: getVidangeStationConfig(s.id),
+        vidangePricing: getVidangePricing(s.id),
       };
     })
     .sort((a, b) => {
@@ -302,6 +375,16 @@ export default function Stations() {
     setPaymentProcessing(false);
   };
 
+  const resetVidangeState = () => {
+    setVidangeVehicleId(null);
+    setVidangeOilType('');
+    setVidangeFiltreHuile(false);
+    setVidangeFiltreAir(false);
+    setVidangeMileage('');
+    setVidangeDate(new Date().toISOString().slice(0, 10));
+    setVidangeTime(null);
+  };
+
   const openStationDetail = (station) => {
     setSelectedStation(station);
     setModalStep('detail');
@@ -309,6 +392,7 @@ export default function Stations() {
     setService('Lavage Simple');
     setPromoCodeInput('');
     resetPaymentState();
+    resetVidangeState();
   };
 
   useEffect(() => {
@@ -508,6 +592,69 @@ export default function Stations() {
         items,
       });
       // Redirection PayDunya en cours — la suite se passe au retour + callback.
+    } catch (err) {
+      setPaymentProcessing(false);
+      alert(err.message || "Le paiement en ligne n'a pas pu démarrer. Réessayez, ou choisissez « Payer à la station ».");
+    }
+  };
+
+  // ─── Vidange : ouverture, validation du formulaire, paiement ───────────
+  const handleReserveVidangeClick = () => {
+    if (!selectedStation) return;
+    if (!account) {
+      window.location.href = '/login.html?mode=register&role=automobiliste&returnTo=reserve';
+      return;
+    }
+    resetVidangeState();
+    resetPaymentState();
+    setModalStep('vidange-form');
+  };
+
+  const goToVidangePayment = (e) => {
+    e.preventDefault();
+    if (!vidangeVehicle || !vidangeOilType || !vidangeTime || !account || !selectedStation) return;
+    setModalStep('vidange-payment');
+  };
+
+  const vidangeScheduledIso = vidangeTime;
+
+  const finalizeVidangeOnSite = async () => {
+    if (!vidangeVehicle || !vidangeOilType || !vidangeTime || !account || !selectedStation) return;
+    const vehicleLabel = `${vidangeVehicle.brand}${vidangeVehicle.plate ? ` (${vidangeVehicle.plate})` : ''}`;
+    try {
+      await createVidangeBooking(selectedStation.id, {
+        clientId: account.id, clientName: account.name, vehicleLabel, category: vidangeCategory,
+        oilType: vidangeOilType, filtreHuile: vidangeFiltreHuile, filtreAir: vidangeFiltreAir,
+        mileage: vidangeMileage ? parseInt(vidangeMileage, 10) : null, scheduledAt: vidangeScheduledIso,
+        amount: vidangePrice, paid: false, paymentMethod: null,
+      });
+    } catch (err) {
+      alert(err.message || "La réservation n'a pas pu être enregistrée. Réessayez.");
+      return;
+    }
+    setTicketInfo({
+      kind: 'vidange',
+      client: account.name, vehicle: vehicleLabel, station: selectedStation.name,
+      oilType: vidangeOilType, scheduledAt: vidangeScheduledIso, total: vidangePrice, paid: false,
+    });
+    setSelectedStation(null);
+    setShowTicket(true);
+  };
+
+  // Paiement en ligne RÉEL via PayDunya — même principe que finalizeReservationPaydunya :
+  // rien n'est créé ici, le rendez-vous n'existe qu'une fois payé (voir
+  // paydunya-callback -> finalizeVidange).
+  const finalizeVidangePaydunya = async () => {
+    if (!vidangeVehicle || !vidangeOilType || !vidangeTime || !account || !selectedStation) return;
+    setPaymentProcessing(true);
+    const vehicleLabel = `${vidangeVehicle.brand}${vidangeVehicle.plate ? ` (${vidangeVehicle.plate})` : ''}`;
+    try {
+      await payVidangeOnline({
+        stationId: selectedStation.id, clientName: account.name, vehicleLabel, category: vidangeCategory,
+        oilType: vidangeOilType, filtreHuile: vidangeFiltreHuile, filtreAir: vidangeFiltreAir,
+        mileage: vidangeMileage ? parseInt(vidangeMileage, 10) : null, scheduledAt: vidangeScheduledIso,
+        amount: vidangePrice,
+      });
     } catch (err) {
       setPaymentProcessing(false);
       alert(err.message || "Le paiement en ligne n'a pas pu démarrer. Réessayez, ou choisissez « Payer à la station ».");
@@ -789,6 +936,34 @@ export default function Stations() {
                   {!account && selectedStation.open && (
                     <p className="text-xs text-neutral-500 text-center mt-3">Compte automobiliste requis — inscription rapide si besoin.</p>
                   )}
+
+                  {/* Boutique de cette station — même donnée que /dashboard/boutique,
+                      visible seulement si le client a déjà une relation avec elle
+                      (RLS shop_products, voir add_station_shop.sql). */}
+                  {stationShopProducts.length > 0 && (
+                    <div className="mt-6 pt-5 border-t border-white/10">
+                      <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2"><Store className="w-4 h-4 text-blue-400" /> Boutique de cette station</h3>
+                      <div className="space-y-2 mb-3">
+                        {stationShopProducts.slice(0, 3).map((p) => (
+                          <div key={p.id} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+                            <span className="text-white text-sm truncate pr-2">{p.name}</span>
+                            <span className="text-blue-400 text-sm font-bold whitespace-nowrap">{(p.price || 0).toLocaleString('fr-FR')} FCFA</span>
+                          </div>
+                        ))}
+                      </div>
+                      <Link to="/dashboard/boutique" className="text-blue-400 hover:text-white text-xs font-medium">Voir toute la boutique →</Link>
+                    </div>
+                  )}
+
+                  {/* Vidange en rendez-vous — opt-in par station (voir add_vidange_feature.sql) */}
+                  {account && selectedStation.vidangeConfig?.enabled && (
+                    <div className="mt-6 pt-5 border-t border-white/10">
+                      <button onClick={handleReserveVidangeClick}
+                        className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
+                        <Wrench className="w-5 h-5 text-blue-400" /> Réserver une vidange
+                      </button>
+                    </div>
+                  )}
                 </>
               ) : modalStep === 'limit' ? (
                 <>
@@ -877,6 +1052,174 @@ export default function Stations() {
                     )}
                   </form>
                 </>
+              ) : modalStep === 'vidange-form' ? (
+                <>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 bg-blue-500/20 rounded-xl"><Wrench className="w-5 h-5 text-blue-400" /></div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Réserver une vidange</h2>
+                      <p className="text-neutral-400 text-sm">{selectedStation.name} · {account?.name}</p>
+                    </div>
+                  </div>
+                  <form onSubmit={goToVidangePayment} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-400 mb-1.5">Véhicule <span className="text-red-400">*</span></label>
+                      <VehiclePicker
+                        vehicles={vehicles}
+                        selectedIds={vidangeVehicleId ? [vidangeVehicleId] : []}
+                        onToggle={(id) => setVidangeVehicleId((prev) => (prev === id ? null : id))}
+                        onVehicleCreated={(v) => setVidangeVehicleId(v.id)}
+                        maxSelectable={1}
+                        onFreeLimitReached={() => { setSelectedStation(null); setShowUpsellModal(true); }}
+                      />
+                    </div>
+
+                    {vidangeVehicle && vidangeOilOptions.length === 0 && (
+                      <p className="text-amber-400 text-sm bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
+                        Cette station n'a pas encore de tarif vidange pour la catégorie "{vidangeCategory}".
+                      </p>
+                    )}
+
+                    {vidangeVehicle && vidangeOilOptions.length > 0 && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-400 mb-1.5">Type d'huile</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {vidangeOilOptions.map((t) => (
+                              <button key={t} type="button" onClick={() => setVidangeOilType(t)}
+                                className={`px-3 py-2.5 rounded-xl text-sm font-medium border transition-all ${vidangeOilType === t ? 'bg-blue-600 border-blue-500 text-white' : 'bg-neutral-950 border-white/10 text-neutral-400 hover:border-white/20 hover:text-white'}`}>{t}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {(selectedStation.vidangeConfig?.filtreHuilePrice != null || selectedStation.vidangeConfig?.filtreAirPrice != null) && (
+                          <div className="space-y-2">
+                            <label className="block text-sm font-medium text-neutral-400 mb-1.5">Suppléments <span className="text-neutral-600">(optionnel)</span></label>
+                            {selectedStation.vidangeConfig.filtreHuilePrice != null && (
+                              <label className="flex items-center justify-between gap-3 bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 cursor-pointer">
+                                <span className="text-sm text-neutral-300 flex items-center gap-2">
+                                  <input type="checkbox" checked={vidangeFiltreHuile} onChange={(e) => setVidangeFiltreHuile(e.target.checked)} className="w-4 h-4 rounded accent-blue-600" />
+                                  Filtre à huile
+                                </span>
+                                <span className="text-neutral-400 text-sm">+{selectedStation.vidangeConfig.filtreHuilePrice.toLocaleString('fr-FR')} FCFA</span>
+                              </label>
+                            )}
+                            {selectedStation.vidangeConfig.filtreAirPrice != null && (
+                              <label className="flex items-center justify-between gap-3 bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 cursor-pointer">
+                                <span className="text-sm text-neutral-300 flex items-center gap-2">
+                                  <input type="checkbox" checked={vidangeFiltreAir} onChange={(e) => setVidangeFiltreAir(e.target.checked)} className="w-4 h-4 rounded accent-blue-600" />
+                                  Filtre à air
+                                </span>
+                                <span className="text-neutral-400 text-sm">+{selectedStation.vidangeConfig.filtreAirPrice.toLocaleString('fr-FR')} FCFA</span>
+                              </label>
+                            )}
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-400 mb-1.5">Kilométrage actuel <span className="text-neutral-600">(optionnel)</span></label>
+                          <input type="number" min="0" value={vidangeMileage} onChange={(e) => setVidangeMileage(e.target.value)}
+                            placeholder="Ex: 85000"
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-400 mb-1.5">Date du rendez-vous</label>
+                          <input type="date" min={new Date().toISOString().slice(0, 10)} value={vidangeDate}
+                            onChange={(e) => { setVidangeDate(e.target.value); setVidangeTime(null); }}
+                            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors" />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-neutral-400 mb-1.5">Créneau</label>
+                          {vidangeSlotsLoading ? (
+                            <div className="flex items-center gap-2 text-neutral-500 text-sm py-2"><Loader2 className="w-4 h-4 animate-spin" /> Chargement des créneaux…</div>
+                          ) : vidangeSlots.length === 0 ? (
+                            <p className="text-neutral-500 text-sm">Aucun créneau disponible ce jour — choisissez une autre date.</p>
+                          ) : (
+                            <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto pr-1">
+                              {vidangeSlots.map((s) => (
+                                <button key={s.iso} type="button" disabled={!s.available} onClick={() => setVidangeTime(s.iso)}
+                                  className={`px-2 py-2 rounded-lg text-xs font-medium border transition-all ${
+                                    vidangeTime === s.iso ? 'bg-blue-600 border-blue-500 text-white' :
+                                    !s.available ? 'bg-neutral-950/50 border-white/5 text-neutral-700 cursor-not-allowed line-through' :
+                                    'bg-neutral-950 border-white/10 text-neutral-300 hover:border-white/20'
+                                  }`}>{s.label}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {vidangeOilType && (
+                          <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between">
+                            <span className="text-neutral-400 text-sm">Total estimé</span>
+                            <span className="text-lg font-bold text-white">{vidangePrice.toLocaleString('fr-FR')} <span className="text-xs font-medium text-neutral-400">FCFA</span></span>
+                          </div>
+                        )}
+
+                        <div className="pt-2">
+                          <button type="submit" disabled={!vidangeTime}
+                            className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
+                            Continuer vers le paiement <ArrowRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </form>
+                </>
+              ) : modalStep === 'vidange-payment' ? (
+                <>
+                  <div className="flex items-center gap-3 mb-2">
+                    <button onClick={() => setModalStep('vidange-form')} className="p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0" title="Retour">
+                      <ArrowRight className="w-4 h-4 text-neutral-400 rotate-180" />
+                    </button>
+                    <div className="p-2.5 bg-blue-500/20 rounded-xl"><Wallet className="w-5 h-5 text-blue-400" /></div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Mode de paiement</h2>
+                      <p className="text-neutral-400 text-sm">{selectedStation.name} · Vidange {vidangeOilType}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-5 flex items-center justify-between">
+                    <span className="text-neutral-400 text-sm">Montant à régler</span>
+                    <span className="text-2xl font-bold text-white">{vidangePrice.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-400">FCFA</span></span>
+                  </div>
+
+                  {paymentProcessing ? (
+                    <div className="flex flex-col items-center justify-center py-10 gap-3">
+                      <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+                      <p className="text-neutral-300 text-sm">Redirection vers le paiement sécurisé…</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <button type="button" onClick={finalizeVidangePaydunya}
+                        className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 transition-colors text-left">
+                        <div className="w-11 h-11 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                          <Smartphone className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white font-bold">Payer en ligne — {vidangePrice.toLocaleString('fr-FR')} FCFA</p>
+                          <p className="text-neutral-500 text-xs">Wave, Orange Money ou carte, via PayDunya</p>
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-3 py-1">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="text-xs text-neutral-600 uppercase tracking-wider">Ou</span>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
+                      <button type="button" onClick={finalizeVidangeOnSite}
+                        className="w-full flex items-center gap-4 px-5 py-4 rounded-xl border border-dashed border-white/10 text-neutral-300 hover:text-white hover:border-white/30 transition-colors text-left">
+                        <div className="w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center flex-shrink-0">
+                          <Wallet className="w-5 h-5 text-neutral-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold">Payer à la station</p>
+                          <p className="text-neutral-500 text-xs">Espèces ou mobile money sur place, au rendez-vous</p>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <>
                   <div className="flex items-center gap-3 mb-2">
@@ -943,58 +1286,99 @@ export default function Stations() {
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20 }}
               className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="bg-gradient-to-r from-blue-600/30 to-emerald-500/30 p-4 text-center border-b border-white/10">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
-                  className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto mb-2">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                </motion.div>
-                <h2 className="text-lg font-bold text-white mb-1">{ticketInfo.vehicles.length > 1 ? 'Réservations confirmées !' : 'Réservation confirmée !'}</h2>
-                <p className="text-neutral-400 text-xs">{ticketInfo.vehicles.length > 1 ? `${ticketInfo.vehicles.length} places sont réservées` : 'Votre place est réservée'}</p>
-              </div>
-              <div className="p-4">
-                <div className="text-center mb-3">
-                  <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold mb-1">Numéro de ticket</p>
-                  <p className="text-2xl font-bold font-mono text-blue-400 tracking-wider">{ticketInfo.ticketNumber}</p>
-                </div>
-                <div className="space-y-2 border-t border-white/10 py-3 mb-3">
-                  {[
-                    { label: 'Station', value: ticketInfo.station },
-                    { label: 'Client', value: ticketInfo.client },
-                    { label: 'Service', value: ticketInfo.service },
-                    { label: 'Paiement', value: ticketInfo.paid ? `Payé via ${ticketInfo.method}` : 'À régler sur place', accent: ticketInfo.paid ? 'text-emerald-400' : 'text-orange-400' },
-                  ].map(row => (
-                    <div key={row.label} className="flex justify-between text-sm"><span className="text-neutral-400">{row.label}</span><span className={`font-medium ${row.accent || 'text-white'}`}>{row.value}</span></div>
-                  ))}
-                </div>
-                <div className="space-y-2 border-b border-white/10 pb-3 mb-3">
-                  {ticketInfo.vehicles.map((v) => (
-                    <div key={v.vehicle} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2">
-                      <span className="text-white text-sm font-medium truncate pr-2">{v.vehicle}</span>
-                      <span className="text-blue-400 text-xs font-bold bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-md whitespace-nowrap">n{String.fromCharCode(176)}{v.position}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-1 gap-3 mb-4">
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
-                    <p className="text-2xl font-bold text-emerald-400">~{ticketInfo.estimatedWait}</p>
-                    <p className="text-xs text-neutral-500 mt-1">Minutes d&apos;attente estimée</p>
+              {ticketInfo.kind === 'vidange' ? (
+                <>
+                  <div className="bg-gradient-to-r from-blue-600/30 to-emerald-500/30 p-4 text-center border-b border-white/10">
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
+                      className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto mb-2">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    </motion.div>
+                    <h2 className="text-lg font-bold text-white mb-1">Rendez-vous confirmé !</h2>
+                    <p className="text-neutral-400 text-xs">Votre vidange est réservée</p>
                   </div>
-                </div>
-                {ticketInfo.paid && (
-                  <button onClick={handleDownloadReceipt}
-                    className="w-full mb-2.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors font-bold text-sm flex items-center justify-center gap-2">
-                    <Download className="w-4 h-4" /> Télécharger le reçu (PDF)
-                  </button>
-                )}
-                <div className="flex gap-3">
-                  <button onClick={() => setShowTicket(false)}
-                    className="flex-1 py-2.5 rounded-xl border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-sm">Fermer</button>
-                  <button onClick={() => { setShowTicket(false); navigate('/dashboard'); }}
-                    className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all flex items-center justify-center gap-2 text-sm">
-                    <Droplets className="w-4 h-4" /> Suivre en direct
-                  </button>
-                </div>
-              </div>
+                  <div className="p-4">
+                    <div className="text-center mb-3 flex flex-col items-center gap-1">
+                      <Calendar className="w-6 h-6 text-blue-400 mb-1" />
+                      <p className="text-lg font-bold text-white">{new Date(ticketInfo.scheduledAt).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}</p>
+                      <p className="text-blue-400 font-medium">{new Date(ticketInfo.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <div className="space-y-2 border-t border-white/10 py-3 mb-4">
+                      {[
+                        { label: 'Station', value: ticketInfo.station },
+                        { label: 'Véhicule', value: ticketInfo.vehicle },
+                        { label: 'Prestation', value: `Vidange ${ticketInfo.oilType}` },
+                        { label: 'Montant', value: `${(ticketInfo.total || 0).toLocaleString('fr-FR')} FCFA` },
+                        { label: 'Paiement', value: 'À régler sur place', accent: 'text-orange-400' },
+                      ].map(row => (
+                        <div key={row.label} className="flex justify-between text-sm"><span className="text-neutral-400">{row.label}</span><span className={`font-medium ${row.accent || 'text-white'}`}>{row.value}</span></div>
+                      ))}
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => setShowTicket(false)}
+                        className="flex-1 py-2.5 rounded-xl border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-sm">Fermer</button>
+                      <button onClick={() => { setShowTicket(false); navigate('/dashboard'); }}
+                        className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all flex items-center justify-center gap-2 text-sm">
+                        Mon espace
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bg-gradient-to-r from-blue-600/30 to-emerald-500/30 p-4 text-center border-b border-white/10">
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 300 }}
+                      className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto mb-2">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                    </motion.div>
+                    <h2 className="text-lg font-bold text-white mb-1">{ticketInfo.vehicles.length > 1 ? 'Réservations confirmées !' : 'Réservation confirmée !'}</h2>
+                    <p className="text-neutral-400 text-xs">{ticketInfo.vehicles.length > 1 ? `${ticketInfo.vehicles.length} places sont réservées` : 'Votre place est réservée'}</p>
+                  </div>
+                  <div className="p-4">
+                    <div className="text-center mb-3">
+                      <p className="text-xs text-neutral-500 uppercase tracking-widest font-bold mb-1">Numéro de ticket</p>
+                      <p className="text-2xl font-bold font-mono text-blue-400 tracking-wider">{ticketInfo.ticketNumber}</p>
+                    </div>
+                    <div className="space-y-2 border-t border-white/10 py-3 mb-3">
+                      {[
+                        { label: 'Station', value: ticketInfo.station },
+                        { label: 'Client', value: ticketInfo.client },
+                        { label: 'Service', value: ticketInfo.service },
+                        { label: 'Paiement', value: ticketInfo.paid ? `Payé via ${ticketInfo.method}` : 'À régler sur place', accent: ticketInfo.paid ? 'text-emerald-400' : 'text-orange-400' },
+                      ].map(row => (
+                        <div key={row.label} className="flex justify-between text-sm"><span className="text-neutral-400">{row.label}</span><span className={`font-medium ${row.accent || 'text-white'}`}>{row.value}</span></div>
+                      ))}
+                    </div>
+                    <div className="space-y-2 border-b border-white/10 pb-3 mb-3">
+                      {ticketInfo.vehicles.map((v) => (
+                        <div key={v.vehicle} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2">
+                          <span className="text-white text-sm font-medium truncate pr-2">{v.vehicle}</span>
+                          <span className="text-blue-400 text-xs font-bold bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-md whitespace-nowrap">n{String.fromCharCode(176)}{v.position}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 mb-4">
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+                        <p className="text-2xl font-bold text-emerald-400">~{ticketInfo.estimatedWait}</p>
+                        <p className="text-xs text-neutral-500 mt-1">Minutes d&apos;attente estimée</p>
+                      </div>
+                    </div>
+                    {ticketInfo.paid && (
+                      <button onClick={handleDownloadReceipt}
+                        className="w-full mb-2.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors font-bold text-sm flex items-center justify-center gap-2">
+                        <Download className="w-4 h-4" /> Télécharger le reçu (PDF)
+                      </button>
+                    )}
+                    <div className="flex gap-3">
+                      <button onClick={() => setShowTicket(false)}
+                        className="flex-1 py-2.5 rounded-xl border border-white/10 text-neutral-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-sm">Fermer</button>
+                      <button onClick={() => { setShowTicket(false); navigate('/dashboard'); }}
+                        className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all flex items-center justify-center gap-2 text-sm">
+                        <Droplets className="w-4 h-4" /> Suivre en direct
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}

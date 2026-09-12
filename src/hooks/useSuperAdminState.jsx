@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { setStationsCache, setWashPricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
+import { setStationsCache, setWashPricingCache, setVidangePricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
 
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
@@ -46,6 +46,13 @@ const rowToStation = (row) => ({
     logo: row.logo_url,
     cachet: row.cachet_url,
     promoConfig: row.promo_config || {},
+    // Vidange (add_vidange_feature.sql) — configuration opt-in de la station,
+    // lue par n'importe quel client via lib/stationData.js:getVidangeStationConfig.
+    vidangeEnabled: !!row.vidange_enabled,
+    vidangeSlotMinutes: row.vidange_slot_minutes || 60,
+    vidangeDailyCapacity: row.vidange_daily_capacity || 1,
+    vidangeFiltreHuilePrice: row.vidange_filtre_huile_price ?? null,
+    vidangeFiltreAirPrice: row.vidange_filtre_air_price ?? null,
     joinedAt: row.created_at,
     plan: row.station_billing?.plan || 'Starter',
     activeModules: row.station_billing?.active_modules || [],
@@ -149,6 +156,9 @@ const rowToLavagePayment = (row) => ({
     partPlateforme: row.part_plateforme,
     statutRedistribution: row.statut_redistribution,
     redistributionDetail: row.redistribution_detail,
+    // 'lavage' | 'vidange' (add_vidange_feature.sql) — même grand livre de
+    // reversements pour les deux prestations, distinguées par ce champ.
+    typeService: row.type_service || 'lavage',
     createdAt: row.created_at,
 });
 
@@ -238,6 +248,13 @@ export function SuperAdminStateProvider({ children }) {
         setWashPricingCache(data || []);
     }, []);
 
+    // Grille tarifaire vidange de TOUTES les stations (lecture publique) — même
+    // principe que loadWashPricing, table séparée (voir add_vidange_feature.sql).
+    const loadVidangePricing = useCallback(async () => {
+        const { data } = await supabase.from('vidange_pricing').select('*');
+        setVidangePricingCache(data || []);
+    }, []);
+
     // File d'attente anonymisée (aucun nom de client) + compteurs publics de
     // TOUTES les stations — fonctions SQL dédiées (SECURITY DEFINER) car RLS
     // interdit normalement à un client de lire les réservations des autres
@@ -270,6 +287,7 @@ export function SuperAdminStateProvider({ children }) {
         loadStations();
         loadClientAccounts();
         loadWashPricing();
+        loadVidangePricing();
         loadQueueSnapshot();
         loadReviews();
         loadDisputes();
@@ -280,7 +298,7 @@ export function SuperAdminStateProvider({ children }) {
         loadStationAds();
         loadStationRenewalPayments();
         loadLavagePayments();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); loadLavagePayments(); };
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadVidangePricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); loadLavagePayments(); };
         window.addEventListener('focus', refresh);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
         // (voir schema.sql) : un changement pendant qu'un autre onglet Super
@@ -304,6 +322,7 @@ export function SuperAdminStateProvider({ children }) {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_billing' }, loadStations)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadClientAccounts)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'wash_pricing' }, loadWashPricing)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'vidange_pricing' }, loadVidangePricing)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'disputes' }, loadDisputes)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_log' }, loadAuditLog)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, loadPlans)
@@ -323,7 +342,7 @@ export function SuperAdminStateProvider({ children }) {
             clearInterval(interval);
             supabase.removeChannel(channel);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadVidangePricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments]);
 
     // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
     // et persiste en tâche de fond — appelée en fire-and-forget après quasi

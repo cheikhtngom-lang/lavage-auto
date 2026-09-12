@@ -21,5 +21,6 @@ verify_jwt = false
 [functions.finalize-paydunya-payment]
 verify_jwt = false
 
-# create-lavage-payment / create-platform-payment gardent verify_jwt = true
-# (défaut) : appelées depuis le front par un utilisateur connecté.
+# create-lavage-payment / create-platform-payment / create-vidange-payment
+# gardent verify_jwt = true (défaut) : appelées depuis le front par un
+# utilisateur connecté.

@@ -30,6 +30,7 @@ import Accounting from './pages/Admin/Accounting';
 import Analytics from './pages/Admin/Analytics';
 import Team from './pages/Admin/Team';
 import Washers from './pages/Admin/Washers';
+import Vidange from './pages/Admin/Vidange';
 import Settings from './pages/Admin/Settings';
 import Subscriptions from './pages/Admin/Subscriptions';
 import Bilan from './pages/Admin/Bilan';
@@ -129,6 +130,7 @@ function App() {
                 <Route path="shop" element={<RequireShopAccess><Shop /></RequireShopAccess>} />
                 <Route path="team" element={<RequirePerm perm="team.manage"><Team /></RequirePerm>} />
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
+                <Route path="vidange" element={<RequirePerm perm="vidange.manage"><Vidange /></RequirePerm>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />
               </Route>

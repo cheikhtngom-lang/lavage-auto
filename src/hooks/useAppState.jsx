@@ -278,6 +278,7 @@ export function AppStateProvider({ children }) {
             partStation: row.part_station,
             statutRedistribution: row.statut_redistribution,
             redistributionDetail: row.redistribution_detail,
+            typeService: row.type_service || 'lavage',
             createdAt: row.created_at,
         })));
     }, [stationId]);
@@ -398,7 +399,8 @@ export function AppStateProvider({ children }) {
         loadStationAds();
         loadSubscriptions();
         loadLavagePayments();
-        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); };
+        loadVidangeBookings();
+        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
         // sont dans la publication supabase_realtime (voir schema.sql) : un
@@ -417,11 +419,12 @@ export function AppStateProvider({ children }) {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews', filter: `station_id=eq.${stationId}` }, loadReviews)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `station_id=eq.${stationId}` }, loadEmployees)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage', filter: `station_id=eq.${stationId}` }, loadLavagePayments)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'vidange_bookings', filter: `station_id=eq.${stationId}` }, loadVidangeBookings)
                 .subscribe()
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, stationId]);
+    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -451,6 +454,11 @@ export function AppStateProvider({ children }) {
         logo: row?.logo_url || null,
         cachet: row?.cachet_url || null,
         dailyRevenueTarget: row?.daily_revenue_target ?? 50000,
+        vidangeEnabled: !!row?.vidange_enabled,
+        vidangeSlotMinutes: row?.vidange_slot_minutes || 60,
+        vidangeDailyCapacity: row?.vidange_daily_capacity || 1,
+        vidangeFiltreHuilePrice: row?.vidange_filtre_huile_price ?? null,
+        vidangeFiltreAirPrice: row?.vidange_filtre_air_price ?? null,
     });
     const rowToBilling = (row) => ({
         plan: row?.plan || 'Starter',
@@ -527,6 +535,69 @@ export function AppStateProvider({ children }) {
         });
         return () => { cancelled = true; };
     }, [stationId]);
+
+    // Grille tarifaire vidange — table séparée de wash_pricing (voir
+    // add_vidange_feature.sql), pas de valeurs par défaut : {} tant que la
+    // station n'a rien configuré (contrairement au lavage, la vidange est
+    // opt-in, voir stationProfile.vidangeEnabled ci-dessous).
+    const [vidangePricingConfig, setVidangePricingConfig] = useState({});
+    const loadVidangePricingConfig = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setVidangePricingConfig({}); return; }
+        const { data } = await supabase.from('vidange_pricing').select('*').eq('station_id', stationId);
+        const pricing = {};
+        (data || []).forEach((row) => { (pricing[row.category] ||= {})[row.oil_type] = row.price; });
+        setVidangePricingConfig(pricing);
+    }, [stationId]);
+    useEffect(() => { loadVidangePricingConfig(); }, [loadVidangePricingConfig]);
+
+    // Écrit la grille vidange complète (mêmes catégories que VIDANGE_CATEGORY_GRID),
+    // upsert comme syncWashPricing — voir updatePricing plus bas.
+    const updateVidangePricing = async (newConfig) => {
+        setVidangePricingConfig(newConfig);
+        if (!stationId || stationId === 'default') return;
+        const rows = [];
+        Object.entries(newConfig).forEach(([category, services]) => {
+            Object.entries(services || {}).forEach(([oilType, price]) => {
+                rows.push({ station_id: stationId, category, oil_type: oilType, price: parseInt(price, 10) || 0 });
+            });
+        });
+        if (rows.length === 0) return;
+        await supabase.from('vidange_pricing').upsert(rows, { onConflict: 'station_id,category,oil_type' });
+    };
+
+    // Activation + réglages vidange (créneaux, capacité, suppléments) — colonnes
+    // directement sur `stations` (voir add_vidange_feature.sql), regroupées avec
+    // le reste du profil station pour n'avoir qu'un seul chargement.
+    const updateVidangeSettings = async (patch) => {
+        setStationProfile((prev) => ({ ...prev, ...patch }));
+        if (!stationId || stationId === 'default') return;
+        await supabase.from('stations').update({
+            vidange_enabled: patch.vidangeEnabled,
+            vidange_slot_minutes: patch.vidangeSlotMinutes,
+            vidange_daily_capacity: patch.vidangeDailyCapacity,
+            vidange_filtre_huile_price: patch.vidangeFiltreHuilePrice,
+            vidange_filtre_air_price: patch.vidangeFiltreAirPrice,
+        }).eq('id', stationId);
+    };
+
+    // Rendez-vous vidange de la station (tous statuts, triés par créneau) —
+    // voir add_vidange_feature.sql / src/pages/Admin/Vidange.jsx.
+    const [vidangeBookings, setVidangeBookings] = useState([]);
+    const loadVidangeBookings = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setVidangeBookings([]); return; }
+        const { data } = await supabase.from('vidange_bookings').select('*').eq('station_id', stationId).order('scheduled_at', { ascending: true });
+        setVidangeBookings((data || []).map((row) => ({
+            id: row.id, clientName: row.client_name, vehicleLabel: row.vehicle_label, category: row.category,
+            oilType: row.oil_type, filtreHuile: row.filtre_huile, filtreAir: row.filtre_air, mileage: row.mileage,
+            scheduledAt: row.scheduled_at, amount: row.amount, paid: row.paid, paymentMethod: row.payment_method,
+            status: row.status, createdAt: row.created_at,
+        })));
+    }, [stationId]);
+
+    const updateVidangeBookingStatus = async (id, status) => {
+        await supabase.from('vidange_bookings').update({ status }).eq('id', id);
+        await loadVidangeBookings();
+    };
 
     // Alerte sonore : bipe en boucle tant qu'un lavage en cours dépasse sa
     // durée estimée, pour prévenir le gérant même s'il n'a pas l'onglet "File
@@ -1103,7 +1174,9 @@ export function AppStateProvider({ children }) {
         updateStationProfile(defaultStationProfile);
         if (stationId && stationId !== 'default') {
             supabase.from('wash_pricing').delete().eq('station_id', stationId).then(() => {});
-            supabase.from('stations').update({ promo_config: {} }).eq('id', stationId).then(() => {});
+            supabase.from('vidange_pricing').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('vidange_bookings').delete().eq('station_id', stationId).then(() => loadVidangeBookings());
+            supabase.from('stations').update({ promo_config: {}, vidange_enabled: false }).eq('id', stationId).then(() => {});
             supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
             supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
             supabase.from('expenses').delete().eq('station_id', stationId).then(() => loadExpenses());
@@ -1124,6 +1197,8 @@ export function AppStateProvider({ children }) {
             clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, deleteClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription,
             stationAds, loadStationAds,
             lavagePayments,
+            vidangePricingConfig, updateVidangePricing, updateVidangeSettings,
+            vidangeBookings, updateVidangeBookingStatus,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely

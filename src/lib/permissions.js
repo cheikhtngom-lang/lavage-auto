@@ -13,6 +13,7 @@
 export const PERMISSIONS = [
   { key: 'dashboard',           label: "File d'attente / Vue d'ensemble", group: 'Exploitation' },
   { key: 'washers.manage',      label: 'Laveurs, planning & pointage',    group: 'Exploitation' },
+  { key: 'vidange.manage',      label: 'Vidange (rendez-vous & tarifs)',  group: 'Exploitation' },
   { key: 'washer.self',         label: 'Accès laveur (ses lavages + son pointage)', group: 'Exploitation' },
   { key: 'transactions.view',   label: 'Transactions',                    group: 'Finances' },
   { key: 'accounting.manage',   label: 'Comptabilité & dépenses',         group: 'Finances' },
@@ -41,6 +42,7 @@ export function hasPerm(permissions, key) {
 export const ROUTE_PERMISSION = {
   '/admin/queue': null,
   '/admin/washers': 'washers.manage',
+  '/admin/vidange': 'vidange.manage',
   '/admin/transactions': 'transactions.view',
   '/admin/accounting': 'accounting.manage',
   '/admin/subscriptions': 'subscriptions.manage',

@@ -305,17 +305,18 @@ export default function ClientOverview() {
   const dismissedAdIds = account?.dismissedAdIds || [];
   const activeAds = stationAds.filter(a => deriveAdStatus(a) === 'ACTIVE' && !dismissedAdIds.includes(a.id));
 
-  // Offres des stations où le client a déjà une relation (lavage payé au
-  // moins une fois, ou véhicule actuellement dans une file) — contrairement
-  // aux publicités ci-dessus, ce n'est PAS un broadcast plateforme : le
-  // bandeau promo gratuit (Admin > Promotions) n'est montré ici qu'aux
-  // clients déjà passés par CETTE station.
-  const historyStationIds = new Set([...loyaltyEntries.map(e => String(e.station.id)), ...reservations.map(r => String(r.station.id))]);
-  const promoOffers = [...historyStationIds].map(id => {
-    const station = activeStations.find(s => String(s.id) === id);
-    const promo = station ? getStationPromo(id) : null;
-    if (!station || !isBannerActive(promo)) return null;
-    return { stationId: id, stationName: station.name, message: promo.banner.message };
+  // Offres en cours, toutes stations actives confondues — contrairement aux
+  // publicités ci-dessus ce n'est PAS un broadcast plateforme mais le bandeau
+  // promo gratuit configuré par chaque station (Admin > Promotions).
+  // Auparavant limité aux stations où le client avait déjà une relation
+  // (lavage payé, véhicule en file) : un nouveau client qui n'avait encore
+  // jamais réservé nulle part ne voyait alors aucune promo, y compris pour
+  // une station qu'il découvrait. Aligné sur Client/Stations.jsx, qui montre
+  // déjà ces mêmes promos à n'importe quel visiteur en recherche de station.
+  const promoOffers = activeStations.map((station) => {
+    const promo = getStationPromo(station.id);
+    if (!isBannerActive(promo)) return null;
+    return { stationId: station.id, stationName: station.name, message: promo.banner.message };
   }).filter(Boolean);
 
   const openReview = (tx) => { setReviewingTx(tx); setReviewRating(0); setReviewComment(''); };
@@ -390,16 +391,21 @@ export default function ClientOverview() {
         </div>
       )}
 
-      {/* Offres des stations où j'ai déjà réservé */}
+      {/* Offres en cours chez les stations partenaires (nouveau client compris) */}
       {promoOffers.length > 0 && (
         <div className="mb-8 space-y-3">
           {promoOffers.map((offer) => (
-            <div key={offer.stationId} className="w-full flex items-center gap-3 bg-blue-950/30 border border-blue-500/20 rounded-2xl px-5 py-4">
+            <button
+              key={offer.stationId}
+              onClick={() => navigate(`/dashboard/stations?stationId=${offer.stationId}`)}
+              className="w-full flex items-center gap-3 bg-blue-950/30 border border-blue-500/20 rounded-2xl px-5 py-4 hover:bg-blue-950/50 transition-colors text-left"
+            >
               <Gift className="w-5 h-5 text-blue-400 flex-shrink-0" />
               <span className="text-sm text-blue-200/80 flex-1">
                 <strong className="text-blue-400">{offer.stationName} :</strong> {offer.message}
               </span>
-            </div>
+              <ArrowRight className="w-4 h-4 text-blue-400 flex-shrink-0" />
+            </button>
           ))}
         </div>
       )}
