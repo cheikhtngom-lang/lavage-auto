@@ -36,7 +36,7 @@ export default function Billing() {
       if (!acc[key]) acc[key] = { stationId: p.stationId, stationName: p.stationName, total: 0, ids: [], types: new Set() };
       acc[key].total += p.partStation || 0;
       acc[key].ids.push(p.id);
-      acc[key].types.add(p.typeService === 'vidange' ? 'Vidange' : 'Lavage');
+      acc[key].types.add(p.typeService === 'vidange' ? 'Vidange' : p.typeService === 'boutique' ? 'Boutique' : 'Lavage');
       return acc;
     }, {}),
   );

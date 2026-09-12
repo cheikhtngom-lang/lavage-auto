@@ -301,6 +301,21 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
+    // Commandes boutique payées en ligne (add_shop_orders.sql) — même
+    // remarque que loadVidangeBookings : déclaré avant le useEffect principal
+    // qui le référence (TDZ sinon).
+    const [shopOrders, setShopOrders] = useState([]);
+    const loadShopOrders = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setShopOrders([]); return; }
+        const { data } = await supabase.from('shop_orders').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
+        setShopOrders((data || []).map((row) => ({
+            id: row.id, clientName: row.client_name, productName: row.product_name, unitPrice: row.unit_price,
+            quantity: row.quantity, amount: row.amount, fulfillmentType: row.fulfillment_type,
+            deliveryAddress: row.delivery_address, deliveryPhone: row.delivery_phone,
+            paid: row.paid, paymentMethod: row.payment_method, status: row.status, createdAt: row.created_at,
+        })));
+    }, [stationId]);
+
     // Abonnements de la station
     const [clientSubscriptions, setClientSubscriptions] = useState([]);
     const [clientSubscriptionInvoices, setClientSubscriptionInvoices] = useState([]);
@@ -418,7 +433,8 @@ export function AppStateProvider({ children }) {
         loadSubscriptions();
         loadLavagePayments();
         loadVidangeBookings();
-        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); };
+        loadShopOrders();
+        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
         // sont dans la publication supabase_realtime (voir schema.sql) : un
@@ -438,11 +454,12 @@ export function AppStateProvider({ children }) {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `station_id=eq.${stationId}` }, loadEmployees)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage', filter: `station_id=eq.${stationId}` }, loadLavagePayments)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'vidange_bookings', filter: `station_id=eq.${stationId}` }, loadVidangeBookings)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_orders', filter: `station_id=eq.${stationId}` }, loadShopOrders)
                 .subscribe()
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, stationId]);
+    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, loadShopOrders, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -601,6 +618,11 @@ export function AppStateProvider({ children }) {
     const updateVidangeBookingStatus = async (id, status) => {
         await supabase.from('vidange_bookings').update({ status }).eq('id', id);
         await loadVidangeBookings();
+    };
+
+    const updateShopOrderStatus = async (id, status) => {
+        await supabase.from('shop_orders').update({ status }).eq('id', id);
+        await loadShopOrders();
     };
 
     // Alerte sonore : bipe en boucle tant qu'un lavage en cours dépasse sa
@@ -1180,6 +1202,7 @@ export function AppStateProvider({ children }) {
             supabase.from('wash_pricing').delete().eq('station_id', stationId).then(() => {});
             supabase.from('vidange_pricing').delete().eq('station_id', stationId).then(() => {});
             supabase.from('vidange_bookings').delete().eq('station_id', stationId).then(() => loadVidangeBookings());
+            supabase.from('shop_orders').delete().eq('station_id', stationId).then(() => loadShopOrders());
             supabase.from('stations').update({ promo_config: {}, vidange_enabled: false }).eq('id', stationId).then(() => {});
             supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
             supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
@@ -1203,6 +1226,7 @@ export function AppStateProvider({ children }) {
             lavagePayments,
             vidangePricingConfig, updateVidangePricing, updateVidangeSettings,
             vidangeBookings, updateVidangeBookingStatus,
+            shopOrders, updateShopOrderStatus,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely

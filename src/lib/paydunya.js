@@ -54,3 +54,12 @@ export function payVidangeOnline({ stationId, clientName, vehicleLabel, category
     stationId, clientName, vehicleLabel, category, oilType, filtreHuile, filtreAir, mileage, scheduledAt, amount,
   });
 }
+
+// Boutique : un produit + une quantité (pas un panier multi-produits) — voir
+// add_shop_orders.sql. Le prix est recalculé côté serveur à partir du produit
+// (pas de `amount` envoyé ici, contrairement au lavage/à la vidange).
+export function payShopOnline({ stationId, clientName, productId, quantity, fulfillmentType, deliveryAddress, deliveryPhone }) {
+  return invokeAndRedirect('create-shop-payment', {
+    stationId, clientName, productId, quantity, fulfillmentType, deliveryAddress, deliveryPhone,
+  });
+}

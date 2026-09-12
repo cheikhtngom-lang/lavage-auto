@@ -352,6 +352,154 @@ export async function finalizeVidange(admin: any, token: string, custom: any): P
   };
 }
 
+export type ShopReceipt = {
+  kind: "boutique";
+  alreadyProcessed: boolean;
+  station: { name: string; address: string; phone: string; logo: string | null; cachet: string | null };
+  client: string;
+  items: Array<{ label: string; service: string; amount: number }>;
+  total: number;
+  receiptId: string;
+  fulfillmentType: string;
+  deliveryAddress: string;
+};
+
+async function readShopReceipt(
+  admin: any,
+  token: string,
+  station: ShopReceipt["station"],
+  clientName: string,
+  fallbackTotal: number,
+): Promise<ShopReceipt> {
+  const { data: row } = await admin.from("paiements_lavage")
+    .select("shop_order_ids").eq("paydunya_token", token).maybeSingle();
+  const ids: string[] = row?.shop_order_ids || [];
+  const { data: order } = ids.length
+    ? await admin.from("shop_orders").select("product_name, quantity, amount, fulfillment_type, delivery_address").eq("id", ids[0]).maybeSingle()
+    : { data: null };
+  return {
+    kind: "boutique",
+    alreadyProcessed: true,
+    station,
+    client: clientName,
+    items: order ? [{ label: order.product_name, service: `x${order.quantity}`, amount: order.amount }] : [],
+    total: order?.amount ?? fallbackTotal,
+    receiptId: token.slice(0, 10).toUpperCase(),
+    fulfillmentType: order?.fulfillment_type ?? "retrait",
+    deliveryAddress: order?.delivery_address ?? "",
+  };
+}
+
+// ─── Boutique : création de la commande (déjà payée) + reçu + redistribution.
+// Même logique que finalizeLavage/finalizeVidange — voir add_shop_orders.sql.
+export async function finalizeShopOrder(admin: any, token: string, custom: any): Promise<ShopReceipt | null> {
+  const montantTotal = Number(custom.montantTotal || 0);
+  const partStation = Number(custom.partStation || 0);
+  const partPlateforme = Number(custom.partPlateforme || 0);
+  const taux = Number(custom.tauxCommission || 0);
+  const alias: string = custom.paydunyaAccountAlias;
+  const stationId: string = custom.stationId;
+  const clientId: string | null = custom.clientId || null;
+  const clientName: string = custom.clientName || "Client";
+  const quantity = Number(custom.quantity || 1);
+
+  const station = await stationBrandingFor(admin, stationId);
+
+  if (!custom.productId || !custom.productName) {
+    console.error("finalizeShopOrder: données incomplètes", custom);
+    await log(admin, `PayDunya: données commande boutique incomplètes pour le jeton ${token} — voir logs`);
+    return null;
+  }
+
+  const { error: insErr } = await admin.from("paiements_lavage").insert({
+    station_id: stationId,
+    client_id: clientId,
+    montant_total: montantTotal,
+    part_station: partStation,
+    part_plateforme: partPlateforme,
+    taux_commission: taux,
+    paydunya_token: token,
+    type_service: "boutique",
+    shop_order_ids: [],
+    statut_redistribution: "en_attente",
+  });
+  if (insErr) {
+    if (insErr.code === "23505") return await readShopReceipt(admin, token, station, clientName, montantTotal);
+    console.error("paiements_lavage insert (boutique):", insErr);
+    await log(admin, `PayDunya: échec insertion paiements_lavage (boutique) pour ${token} — ${insErr.message}`);
+    return null;
+  }
+
+  const { data: orderRow, error: oErr } = await admin.from("shop_orders").insert({
+    station_id: stationId,
+    client_id: clientId,
+    client_name: clientName,
+    product_id: custom.productId,
+    product_name: custom.productName,
+    unit_price: Number(custom.unitPrice || 0),
+    quantity,
+    amount: montantTotal,
+    fulfillment_type: custom.fulfillmentType === "livraison" ? "livraison" : "retrait",
+    delivery_address: custom.deliveryAddress || null,
+    delivery_phone: custom.deliveryPhone || null,
+    paid: true,
+    payment_method: "PayDunya",
+    status: "confirmee",
+  }).select("id").single();
+  if (oErr || !orderRow) {
+    console.error("shop_orders insert:", oErr);
+    await log(admin, `PayDunya: échec insertion shop_orders pour ${token} — ${oErr?.message}`);
+  } else {
+    await admin.from("paiements_lavage").update({ shop_order_ids: [orderRow.id] }).eq("paydunya_token", token);
+    // Décrémente le stock si suivi (même effet que shop_adjust_stock, en
+    // service_role ici puisqu'on n'a pas de session utilisateur station).
+    const { data: prod } = await admin.from("shop_products").select("stock").eq("id", custom.productId).maybeSingle();
+    if (prod && prod.stock != null) {
+      await admin.from("shop_products").update({ stock: Math.max(0, prod.stock - quantity) }).eq("id", custom.productId);
+    }
+  }
+
+  // Redistribution automatique — identique au lavage/à la vidange.
+  let statut = "reussi";
+  let detail = "";
+  if (!alias) {
+    statut = "manuel";
+    detail = "Aucun compte PayDunya renseigné pour cette station — reversement manuel requis.";
+    await log(admin, `Boutique payée en ligne (${montantTotal} F) — pas de compte PayDunya station, ${partStation} F à reverser manuellement`);
+  } else {
+    try {
+      const res = await disburse({ accountAlias: alias, amount: partStation });
+      statut = res.ok ? "reussi" : "manuel";
+      detail = res.ok ? res.detail : `Redistribution automatique indisponible (${res.step}: ${res.detail}) — reversement manuel requis.`;
+      await log(
+        admin,
+        res.ok
+          ? `Boutique payée en ligne (${montantTotal} F) — ${partStation} F reversés à la station`
+          : `Boutique payée en ligne (${montantTotal} F) — redistribution auto indisponible (${res.step}: ${res.detail}), reversement manuel requis (${partStation} F)`,
+      );
+    } catch (err) {
+      statut = "manuel";
+      detail = `Exception redistribution : ${String(err).slice(0, 300)} — reversement manuel requis.`;
+      await log(admin, `Boutique payée en ligne (${montantTotal} F) — EXCEPTION redistribution : ${String(err).slice(0, 300)}, reversement manuel requis`);
+    }
+  }
+  await admin.from("paiements_lavage")
+    .update({ statut_redistribution: statut, redistribution_detail: detail })
+    .eq("paydunya_token", token);
+
+  return {
+    kind: "boutique",
+    alreadyProcessed: false,
+    station,
+    client: clientName,
+    items: [{ label: custom.productName, service: `x${quantity}`, amount: montantTotal }],
+    total: montantTotal,
+    receiptId: token.slice(0, 10).toUpperCase(),
+    fulfillmentType: custom.fulfillmentType === "livraison" ? "livraison" : "retrait",
+    deliveryAddress: custom.deliveryAddress || "",
+  };
+}
+
 // ─── Paiements plateforme : mêmes effets que la confirmation manuelle du
 // Super Admin (voir useSuperAdminState.jsx confirmSuperUserPayment /
 // confirmAdPayment / confirmRenewalPayment). Idempotent : ne rejoue rien si
@@ -421,6 +569,7 @@ export async function routeConfirmedInvoice(admin: any, token: string, invoice: 
 
   if (kind === "lavage") return await finalizeLavage(admin, token, custom);
   if (kind === "vidange") return await finalizeVidange(admin, token, custom);
+  if (kind === "boutique") return await finalizeShopOrder(admin, token, custom);
   if (kind === "saas" || kind === "superuser" || kind === "ad") {
     await finalizePlatform(admin, token, kind, custom);
     return { kind, alreadyProcessed: false };

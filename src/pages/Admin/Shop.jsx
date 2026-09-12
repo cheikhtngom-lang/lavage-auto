@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search, Minus, Tag } from 'lucide-react';
+import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search, Minus, Tag, ClipboardList, CheckCircle2, XCircle, Truck, MapPin } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { useAppState } from '../../hooks/useAppState';
@@ -37,9 +37,17 @@ function combineLocal(date, time, fallbackTime) {
 
 export default function Shop() {
   useDocumentTitle('Boutique');
-  const { stationBilling } = useAppState();
+  const { stationBilling, shopOrders, updateShopOrderStatus } = useAppState();
   const stationId = getCurrentStationId();
   const canShop = stationHasShop(stationBilling);
+
+  const [view, setView] = useState('produits'); // 'produits' | 'commandes'
+  const [orderUpdating, setOrderUpdating] = useState({});
+  const handleOrderStatus = async (id, status) => {
+    setOrderUpdating((prev) => ({ ...prev, [id]: true }));
+    await updateShopOrderStatus(id, status);
+    setOrderUpdating((prev) => ({ ...prev, [id]: false }));
+  };
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -175,14 +183,79 @@ export default function Shop() {
           </h1>
           <p className="text-neutral-400 text-lg">Vendez vos produits (pneus, huiles, pare-brise…) à vos clients.</p>
         </div>
-        <button onClick={openAdd}
-          className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2">
-          <Plus className="w-5 h-5" /> Ajouter un produit
-        </button>
+        {view === 'produits' && (
+          <button onClick={openAdd}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2">
+            <Plus className="w-5 h-5" /> Ajouter un produit
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-2 mb-8 border-b border-white/10">
+        {[
+          { id: 'produits', label: 'Produits', icon: Store },
+          { id: 'commandes', label: `Commandes${shopOrders.filter((o) => o.status === 'confirmee').length > 0 ? ` (${shopOrders.filter((o) => o.status === 'confirmee').length})` : ''}`, icon: ClipboardList },
+        ].map((tab) => (
+          <button key={tab.id} onClick={() => setView(tab.id)}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-colors ${view === tab.id ? 'border-blue-500 text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}>
+            <tab.icon className="w-4 h-4" /> {tab.label}
+          </button>
+        ))}
       </div>
 
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
+      {view === 'commandes' ? (
+        shopOrders.length === 0 ? (
+          <Card className="border-white/5 bg-white/[0.02] border-dashed">
+            <CardContent className="p-12 text-center">
+              <ClipboardList className="w-10 h-10 text-neutral-500 mx-auto mb-4" />
+              <p className="text-neutral-300 font-medium mb-1">Aucune commande pour l'instant</p>
+              <p className="text-neutral-500 text-sm">Les achats payés en ligne par vos clients apparaîtront ici.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
+            {shopOrders.map((o) => (
+              <div key={o.id} className="p-5 flex flex-wrap items-center justify-between gap-4 border-b border-white/5 last:border-0">
+                <div className="min-w-[200px]">
+                  <p className="font-bold text-white">{o.productName} <span className="text-neutral-500 font-normal">x{o.quantity}</span></p>
+                  <p className="text-neutral-500 text-xs mt-1">{o.clientName} · {new Date(o.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+                <div className="min-w-[160px]">
+                  {o.fulfillmentType === 'livraison' ? (
+                    <p className="text-sm text-neutral-300 flex items-start gap-1.5"><Truck className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" /> <span>Livraison<br /><span className="text-neutral-500 text-xs">{o.deliveryAddress}{o.deliveryPhone ? ` · ${o.deliveryPhone}` : ''}</span></span></p>
+                  ) : (
+                    <p className="text-sm text-neutral-300 flex items-center gap-1.5"><MapPin className="w-4 h-4 text-emerald-400" /> Retrait en station</p>
+                  )}
+                </div>
+                <div className="text-right min-w-[100px]">
+                  <p className="text-white font-bold">{(o.amount || 0).toLocaleString('fr-FR')} FCFA</p>
+                  <p className="text-neutral-500 text-xs mt-1">Payé ({o.paymentMethod || 'en ligne'})</p>
+                </div>
+                <span className={`text-xs font-medium px-3 py-1 rounded-full border ${
+                  o.status === 'terminee' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                  o.status === 'annulee' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                  'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                }`}>{o.status === 'terminee' ? (o.fulfillmentType === 'livraison' ? 'Livrée' : 'Remise') : o.status === 'annulee' ? 'Annulée' : 'À traiter'}</span>
+                {o.status === 'confirmee' && (
+                  <div className="flex gap-2">
+                    <button onClick={() => handleOrderStatus(o.id, 'terminee')} disabled={orderUpdating[o.id]}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-60 text-emerald-400 rounded-lg transition-colors text-xs font-bold">
+                      <CheckCircle2 className="w-4 h-4" /> {o.fulfillmentType === 'livraison' ? 'Livrée' : 'Remise'}
+                    </button>
+                    <button onClick={() => { if (window.confirm('Annuler cette commande ?')) handleOrderStatus(o.id, 'annulee'); }} disabled={orderUpdating[o.id]}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-60 text-red-400 rounded-lg transition-colors text-xs font-bold">
+                      <XCircle className="w-4 h-4" /> Annuler
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      ) : (
+      <>
       {products.length > 0 && (
         <div className="relative mb-6 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
@@ -275,6 +348,8 @@ export default function Shop() {
             );
           })}
         </div>
+      )}
+      </>
       )}
 
       <AnimatePresence>
