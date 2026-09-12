@@ -262,6 +262,26 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
+    // Reversements des lavages payés en ligne (Comptabilité > "Reversements") —
+    // même table que Super Admin > Facturation (add_paydunya_per.sql +
+    // add_manual_disbursement.sql), scopée à cette station. RLS restreint déjà
+    // la lecture aux lignes de la station, `.eq('station_id', ...)` évite juste
+    // un aller-retour inutile si jamais elle ne l'était pas. Écriture (marquer
+    // réglé) réservée au Super Admin — la station est ici en lecture seule.
+    const [lavagePayments, setLavagePayments] = useState([]);
+    const loadLavagePayments = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setLavagePayments([]); return; }
+        const { data } = await supabase.from('paiements_lavage').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
+        setLavagePayments((data || []).map((row) => ({
+            id: row.id,
+            montantTotal: row.montant_total,
+            partStation: row.part_station,
+            statutRedistribution: row.statut_redistribution,
+            redistributionDetail: row.redistribution_detail,
+            createdAt: row.created_at,
+        })));
+    }, [stationId]);
+
     // Abonnements de la station
     const [clientSubscriptions, setClientSubscriptions] = useState([]);
     const [clientSubscriptionInvoices, setClientSubscriptionInvoices] = useState([]);
@@ -377,7 +397,8 @@ export function AppStateProvider({ children }) {
         loadShiftTemplates();
         loadStationAds();
         loadSubscriptions();
-        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); };
+        loadLavagePayments();
+        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
         // sont dans la publication supabase_realtime (voir schema.sql) : un
@@ -395,11 +416,12 @@ export function AppStateProvider({ children }) {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `station_id=eq.${stationId}` }, loadExpenses)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews', filter: `station_id=eq.${stationId}` }, loadReviews)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `station_id=eq.${stationId}` }, loadEmployees)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage', filter: `station_id=eq.${stationId}` }, loadLavagePayments)
                 .subscribe()
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, stationId]);
+    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -1101,6 +1123,7 @@ export function AppStateProvider({ children }) {
             scheduleByDate, loadScheduleRange, setShiftForDay,
             clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, deleteClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription,
             stationAds, loadStationAds,
+            lavagePayments,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely

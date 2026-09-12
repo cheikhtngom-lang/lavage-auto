@@ -2,11 +2,23 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone, Clock, CheckCircle2 } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const EXPENSE_CATEGORIES = ['Savon', 'Eau', 'Électricité', 'Matériel', 'Autre'];
+
+// Statuts de reversement d'un lavage payé en ligne (table paiements_lavage,
+// voir add_paydunya_per.sql + add_manual_disbursement.sql). Même vocabulaire
+// que Super Admin > Facturation (SuperAdmin/Billing.jsx), vu côté station :
+// 'echec' est un ancien statut conservé pour compatibilité, plus jamais écrit
+// par le code applicatif, mais traité comme 'manuel' à l'affichage.
+const LAVAGE_STATUS = {
+  en_attente: { label: 'Redistribution en cours', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  manuel: { label: 'À reverser par la plateforme', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+  echec: { label: 'À reverser par la plateforme', className: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+  reussi: { label: 'Reversé', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+};
 
 // Mêmes helpers de découpage temporel que Washers.jsx/dateBuckets.js (lundi =
 // début de semaine), dupliqués localement par cohérence avec ces fichiers.
@@ -79,7 +91,7 @@ function TrendBadge({ pct, invert = false }) {
 
 export default function Accounting() {
   useDocumentTitle('Comptabilité');
-  const { transactions, expenses, addExpense, stationProfile, clientSubscriptionInvoices } = useAppState();
+  const { transactions, expenses, addExpense, stationProfile, clientSubscriptionInvoices, lavagePayments } = useAppState();
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [newExpense, setNewExpense] = useState({ label: '', amount: '', category: 'Savon' });
@@ -261,6 +273,79 @@ export default function Accounting() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reversements des lavages payés en ligne (paiements_lavage) — même
+          donnée que Super Admin > Facturation, ici en lecture seule côté
+          station : quand l'admin plateforme marque un lot comme reversé, le
+          statut passe à "Reversé" ici en direct (Realtime, voir useAppState). */}
+      {lavagePayments.length > 0 && (() => {
+        const pendingPayout = lavagePayments.filter((p) => p.statutRedistribution === 'manuel' || p.statutRedistribution === 'echec');
+        const pendingPayoutTotal = pendingPayout.reduce((sum, p) => sum + (p.partStation || 0), 0);
+        const settled = lavagePayments.filter((p) => p.statutRedistribution === 'reussi');
+        const settledTotal = settled.reduce((sum, p) => sum + (p.partStation || 0), 0);
+        const inProgress = lavagePayments.filter((p) => p.statutRedistribution === 'en_attente');
+        const recent = lavagePayments.slice(0, 8);
+        return (
+          <>
+            <h2 className="text-xl font-bold text-white mb-4">Reversements de vos lavages en ligne</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <Card className="border-white/5 bg-gradient-to-br from-orange-900/20 to-black relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl group-hover:bg-orange-500/20 transition-colors"></div>
+                <CardContent className="p-6 relative z-10">
+                  <div className="p-3 bg-orange-500/20 rounded-xl w-fit mb-4"><Clock className="w-6 h-6 text-orange-400" /></div>
+                  <p className="text-neutral-400 text-sm font-medium mb-1">En attente de reversement</p>
+                  <h3 className="text-3xl font-bold text-white">{pendingPayoutTotal.toLocaleString('fr-FR')} FCFA</h3>
+                  <p className="text-neutral-500 text-xs mt-2">{pendingPayout.length} paiement{pendingPayout.length > 1 ? 's' : ''} à recevoir de la plateforme</p>
+                </CardContent>
+              </Card>
+              <Card className="border-white/5 bg-gradient-to-br from-emerald-900/20 to-black relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-emerald-500/20 transition-colors"></div>
+                <CardContent className="p-6 relative z-10">
+                  <div className="p-3 bg-emerald-500/20 rounded-xl w-fit mb-4"><CheckCircle2 className="w-6 h-6 text-emerald-400" /></div>
+                  <p className="text-neutral-400 text-sm font-medium mb-1">Déjà reversé</p>
+                  <h3 className="text-3xl font-bold text-white">{settledTotal.toLocaleString('fr-FR')} FCFA</h3>
+                  <p className="text-neutral-500 text-xs mt-2">{settled.length} paiement{settled.length > 1 ? 's' : ''} réglé{settled.length > 1 ? 's' : ''}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-white/5 bg-gradient-to-br from-blue-900/20 to-black relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-colors"></div>
+                <CardContent className="p-6 relative z-10">
+                  <div className="p-3 bg-blue-500/20 rounded-xl w-fit mb-4"><Smartphone className="w-6 h-6 text-blue-400" /></div>
+                  <p className="text-neutral-400 text-sm font-medium mb-1">Redistribution automatique en cours</p>
+                  <h3 className="text-3xl font-bold text-white">{inProgress.length}</h3>
+                  <p className="text-neutral-500 text-xs mt-2">Arrive directement sur votre compte PayDunya</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="border-white/5 bg-white/[0.02] mb-8">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-bold text-white mb-4">Détail des reversements récents</h3>
+                <div className="space-y-3">
+                  {recent.map((p) => {
+                    const status = LAVAGE_STATUS[p.statutRedistribution] || LAVAGE_STATUS.manuel;
+                    return (
+                      <div key={p.id} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0 gap-4 flex-wrap">
+                        <div>
+                          <p className="text-white text-sm font-medium">
+                            {(p.partStation || 0).toLocaleString('fr-FR')} FCFA
+                            <span className="text-neutral-500 font-normal"> sur {(p.montantTotal || 0).toLocaleString('fr-FR')} FCFA encaissés</span>
+                          </p>
+                          <p className="text-neutral-500 text-xs">
+                            {new Date(p.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {p.statutRedistribution === 'reussi' && p.redistributionDetail ? ` · ${p.redistributionDetail}` : ''}
+                          </p>
+                        </div>
+                        <span className={`text-xs font-medium px-3 py-1 rounded-full border shrink-0 ${status.className}`}>{status.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        );
+      })()}
 
       {/* Charts & Goals */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
