@@ -11,7 +11,7 @@ import AnnouncementComposer from '../ui/AnnouncementComposer';
 export default function SuperAdminLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { superUserSubscriptions, stationAds, platformAnnouncements, sendPlatformAnnouncement } = useSuperAdminState();
+  const { superUserSubscriptions, stationAds, stations, sendPlatformAnnouncement } = useSuperAdminState();
   const pendingSuperUserCount = superUserSubscriptions.filter((s) => s.status === 'PENDING').length;
   const pendingAdsCount = stationAds.filter((a) => a.status === 'PENDING').length;
 
@@ -58,9 +58,9 @@ export default function SuperAdminLayout() {
         <div className="ml-auto flex items-center gap-2">
           <AnnouncementComposer
             label="Annonce"
-            recipientHint="Visible par toutes les stations partenaires, dans leur clochette de notifications."
+            submitLabel="Envoyer à toutes les stations"
             onSend={sendPlatformAnnouncement}
-            recent={platformAnnouncements.slice(0, 10)}
+            targetStations={stations}
           />
           <SuperUserNotifBell />
         </div>
@@ -156,9 +156,9 @@ export default function SuperAdminLayout() {
         <div className="hidden md:flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
           <AnnouncementComposer
             label="Annonce"
-            recipientHint="Visible par toutes les stations partenaires, dans leur clochette de notifications."
+            submitLabel="Envoyer à toutes les stations"
             onSend={sendPlatformAnnouncement}
-            recent={platformAnnouncements.slice(0, 10)}
+            targetStations={stations}
           />
           <SuperUserNotifBell />
         </div>

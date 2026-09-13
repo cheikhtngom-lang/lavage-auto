@@ -7,7 +7,7 @@ import AnnouncementComposer from '../ui/AnnouncementComposer';
 // d'annonce aux stations + historique avec retrait (voir
 // add_announcement_retire.sql). Inspiré de admin-dashboard.html côté
 // GestionImmo, adapté au vocabulaire "stations" de Lavage Auto.
-export default function PlatformAnnouncementsCard({ announcements, onSend, onRetire }) {
+export default function PlatformAnnouncementsCard({ announcements, onSend, onRetire, stations }) {
   const recent = announcements.slice(0, 10);
 
   const handleRetire = (a) => {
@@ -26,9 +26,10 @@ export default function PlatformAnnouncementsCard({ announcements, onSend, onRet
 
       <AnnouncementComposer
         label="Envoyer une annonce aux stations"
-        recipientHint="Visible par toutes les stations partenaires, dans leur clochette de notifications."
+        submitLabel="Envoyer à toutes les stations"
         onSend={onSend}
         variant="block"
+        targetStations={stations}
       />
 
       <h3 className="text-sm font-bold text-neutral-500 mt-8 mb-3">Annonces envoyées récemment</h3>
@@ -47,6 +48,7 @@ export default function PlatformAnnouncementsCard({ announcements, onSend, onRet
                 </div>
                 <p className="text-xs text-neutral-500 mt-0.5">
                   {new Date(a.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  {a.targetStationId && <span className="text-blue-400"> · {a.targetStationName || 'station'}</span>}
                 </p>
               </div>
               {a.active && (

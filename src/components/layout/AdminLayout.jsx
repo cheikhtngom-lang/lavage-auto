@@ -21,7 +21,7 @@ export default function AdminLayout() {
   const [sessionLocked, setSessionLocked] = useState(false);
   const {
     stationProfile, stationProfileLoaded, stationBilling, myPermissions,
-    receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sentAnnouncements, sendStationAnnouncement,
+    receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sentAnnouncements, sendStationAnnouncement, loadStationKnownClients,
   } = useAppState();
   const canSendAnnouncements = hasPerm(myPermissions || [], 'announcements.manage');
 
@@ -133,9 +133,10 @@ export default function AdminLayout() {
           {canSendAnnouncements && (
             <AnnouncementComposer
               label="Annonce"
-              recipientHint="Vos clients abonnés et ceux qui ont déjà réservé chez vous la verront dans leur clochette de notifications."
+              submitLabel="Envoyer à vos clients"
               onSend={sendStationAnnouncement}
               recent={sentAnnouncements}
+              loadTargetClients={loadStationKnownClients}
             />
           )}
           <AnnouncementBell
@@ -242,9 +243,10 @@ export default function AdminLayout() {
           {canSendAnnouncements && (
             <AnnouncementComposer
               label="Annonce"
-              recipientHint="Vos clients abonnés et ceux qui ont déjà réservé chez vous la verront dans leur clochette de notifications."
+              submitLabel="Envoyer à vos clients"
               onSend={sendStationAnnouncement}
               recent={sentAnnouncements}
+              loadTargetClients={loadStationKnownClients}
             />
           )}
           <AnnouncementBell

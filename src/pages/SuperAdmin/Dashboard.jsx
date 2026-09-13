@@ -247,6 +247,7 @@ export default function SuperAdminDashboard() {
           announcements={platformAnnouncements}
           onSend={sendPlatformAnnouncement}
           onRetire={retirePlatformAnnouncement}
+          stations={stations}
         />
       </div>
     </div>

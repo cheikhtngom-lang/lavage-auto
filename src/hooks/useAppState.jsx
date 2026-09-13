@@ -3,7 +3,7 @@ import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
-import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi } from '../lib/announcements';
+import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi, loadStationKnownClients as loadStationKnownClientsApi } from '../lib/announcements';
 
 // Chaque station a ses propres données, séparées des autres (file d'attente,
 // employés, transactions...). En pratique, ce provider est remonté (via `key`
@@ -599,6 +599,14 @@ export function AppStateProvider({ children }) {
         await sendStationAnnouncementApi(stationId, payload);
         await loadSentAnnouncements();
     };
+
+    // Alimente le sélecteur de destinataires de AnnouncementComposer (abonnés
+    // avec compte + clients ayant réservé) — chargé à la demande, à
+    // l'ouverture du composeur, pas dans la boucle de rafraîchissement globale.
+    const loadStationKnownClients = useCallback(async () => {
+        if (!stationId || stationId === 'default') return [];
+        return await loadStationKnownClientsApi();
+    }, [stationId]);
 
     // Grille tarifaire + durées — une ligne par (catégorie, service) dans
     // `wash_pricing` au lieu de deux blobs JSON séparés (voir supabase/schema.sql).
@@ -1279,7 +1287,7 @@ export function AppStateProvider({ children }) {
             vidangePricingConfig, updateVidangePricing, updateVidangeSettings,
             vidangeBookings, updateVidangeBookingStatus,
             shopOrders, updateShopOrderStatus,
-            receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement,
+            receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement, loadStationKnownClients,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely

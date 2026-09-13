@@ -10,12 +10,15 @@ const rowToAnnouncement = (row) => ({
   title: row.title,
   message: row.message,
   active: row.active !== false,
+  targetStationId: row.target_station_id || null,
+  targetStationName: row.target_station?.name || '',
+  targetClientIds: row.target_client_ids || [],
   createdAt: row.created_at,
 });
 
 export async function loadPlatformAnnouncements() {
   const { data, error } = await supabase
-    .from('announcements').select('*')
+    .from('announcements').select('*, target_station:stations!target_station_id(name)')
     .eq('scope', 'platform_to_stations')
     .order('created_at', { ascending: false })
     .limit(30);
@@ -36,20 +39,38 @@ export async function loadStationAnnouncements() {
   return (data || []).map(rowToAnnouncement);
 }
 
-export async function sendPlatformAnnouncement({ title, message }) {
+export async function sendPlatformAnnouncement({ title, message, targetStationId }) {
   const { data: { user } } = await supabase.auth.getUser();
   const { error } = await supabase.from('announcements').insert({
     scope: 'platform_to_stations', title: title.trim(), message: message.trim(), created_by: user?.id || null,
+    target_station_id: targetStationId || null,
   });
   if (error) throw new Error(error.message);
 }
 
-export async function sendStationAnnouncement(stationId, { title, message }) {
+export async function sendStationAnnouncement(stationId, { title, message, targetClientIds }) {
   const { data: { user } } = await supabase.auth.getUser();
   const { error } = await supabase.from('announcements').insert({
     scope: 'station_to_clients', station_id: stationId, title: title.trim(), message: message.trim(), created_by: user?.id || null,
+    target_client_ids: (targetClientIds && targetClientIds.length > 0) ? targetClientIds : null,
   });
   if (error) throw new Error(error.message);
+}
+
+// Clients "connus" de la station courante (abonnés avec compte + clients
+// ayant réservé, dédupliqués) — alimente le sélecteur de destinataires de
+// AnnouncementComposer. Voir station_known_clients() dans
+// add_announcement_targeting.sql (auto-scopée à la station de l'appelant).
+export async function loadStationKnownClients() {
+  const { data, error } = await supabase.rpc('station_known_clients');
+  if (error) throw new Error(error.message);
+  return (data || []).map((row) => ({
+    clientId: row.client_id,
+    name: row.client_name,
+    phone: row.client_phone,
+    isSubscriber: row.is_subscriber,
+    subscriptionStatus: row.subscription_status,
+  }));
 }
 
 // "Retirer" une annonce déjà envoyée — désactive plutôt que supprimer, pour
