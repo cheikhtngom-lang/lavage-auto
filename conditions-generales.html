@@ -168,7 +168,18 @@
     </script>
 
     <footer class="w-full border-t border-white/10 bg-black py-10 text-center text-neutral-500 text-sm">
-        <p>&copy; 2024 Clean Car Galsen. Tous droits réservés.</p>
+        <p class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mb-3">
+            <a href="mailto:bustaneimmo2021@gmail.com" class="hover:text-white transition-colors">bustaneimmo2021@gmail.com</a>
+            <span class="phone-contact relative inline-block align-middle">
+                <button type="button" class="phone-trigger hover:text-white transition-colors" onclick="togglePhoneMenu(event)">77 715 65 45</button>
+                <span class="phone-menu hidden absolute z-20 mt-2 left-1/2 -translate-x-1/2 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden text-sm whitespace-nowrap text-left">
+                    <a href="tel:+221777156545" class="flex items-center gap-2 px-4 py-2.5 text-neutral-200 hover:bg-white/5 transition-colors">📞 Appeler</a>
+                    <a href="https://wa.me/221777156545" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-4 py-2.5 text-neutral-200 hover:bg-white/5 transition-colors border-t border-white/5">💬 WhatsApp</a>
+                </span>
+            </span>
+        </p>
+        <p>&copy; <span id="footer-year">2026</span> Clean Car Galsen. Tous droits réservés.</p>
+        <script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
         <p class="mt-2 flex items-center justify-center gap-4">
             <a href="/" class="hover:text-white transition-colors">Retour à l'accueil</a>
             <a href="/confidentialite.html" class="hover:text-white transition-colors">Politique de confidentialité</a>

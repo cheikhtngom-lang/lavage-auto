@@ -66,7 +66,9 @@ export default function AdminLayout() {
     // "mod_vidange" — voir RequireVidangeAccess dans App.jsx.
     { name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: ['Business'], module: 'mod_vidange' },
     { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
-    { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage' },
+    // Comptabilité : réservée aux forfaits Pro et Business — voir
+    // RequireAccountingAccess dans App.jsx.
+    { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ['Pro', 'Business'] },
     { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
     { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
     // Bilan : réservé au forfait Business (35 000), ou débloqué par le

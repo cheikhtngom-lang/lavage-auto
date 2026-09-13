@@ -66,6 +66,17 @@ function RequirePerm({ perm, children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
+// Comptabilité réservée aux forfaits Pro et Business (pas de module de
+// déblocage : contrairement à Bilan/Boutique/Vidange, elle ne fait pas
+// partie du catalogue d'add-ons payants, voir lib/stationModules.js).
+function RequireAccountingAccess({ children }) {
+  const { stationBilling, myPermissions } = useAppState();
+  if (stationBilling == null || myPermissions == null) return null;
+  const canSeeAccounting = stationBilling.plan === 'Pro' || stationBilling.plan === 'Business';
+  if (canSeeAccounting && hasPerm(myPermissions, 'accounting.manage')) return children;
+  return <Navigate to="/admin/queue" replace />;
+}
+
 // Le Bilan est réservé au forfait Business (35 000) — ou débloqué
 // indépendamment du plan via le module "mod_bilan" (Super Admin > Modules,
 // voir lib/stationModules.js). On attend le chargement de la facturation
@@ -135,7 +146,7 @@ function App() {
                 <Route index element={<Navigate to="/admin/queue" replace />} />
                 <Route path="queue" element={<StationDashboard />} />
                 <Route path="transactions" element={<RequirePerm perm="transactions.view"><AdminTransactions /></RequirePerm>} />
-                <Route path="accounting" element={<RequirePerm perm="accounting.manage"><Accounting /></RequirePerm>} />
+                <Route path="accounting" element={<RequireAccountingAccess><Accounting /></RequireAccountingAccess>} />
                 <Route path="analytics" element={<RequirePerm perm="analytics.view"><Analytics /></RequirePerm>} />
                 <Route path="bilan" element={<RequireBusinessPlan><Bilan /></RequireBusinessPlan>} />
                 <Route path="shop" element={<RequireShopAccess><Shop /></RequireShopAccess>} />
