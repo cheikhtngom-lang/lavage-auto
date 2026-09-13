@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '../lib/supabaseClient';
 import { setStationsCache, setWashPricingCache, setVidangePricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
+import { loadPlatformAnnouncements, sendPlatformAnnouncement as sendPlatformAnnouncementApi } from '../lib/announcements';
 
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
 // une ligne par clé ; sert de secours si la table est vide/pas encore lue).
@@ -240,6 +241,20 @@ export function SuperAdminStateProvider({ children }) {
         setLavagePayments((data || []).map(rowToLavagePayment));
     }, []);
 
+    // Annonces diffusées à toutes les stations (add_announcements.sql) —
+    // déclaré ici, avant le useEffect principal qui l'appelle (une const
+    // référencée avant sa propre déclaration plante tout le provider, voir
+    // le même écueil corrigé dans useAppState.jsx pour la vidange).
+    const [platformAnnouncements, setPlatformAnnouncements] = useState([]);
+    const loadAnnouncements = useCallback(async () => {
+        setPlatformAnnouncements(await loadPlatformAnnouncements());
+    }, []);
+    const sendPlatformAnnouncement = async (payload) => {
+        await sendPlatformAnnouncementApi(payload);
+        await loadAnnouncements();
+        logAction(`Annonce diffusée à toutes les stations : « ${payload.title} »`);
+    };
+
     // Grille tarifaire de TOUTES les stations (lecture publique) — alimente le
     // cache lu par stationData.js (comparaison de prix/durée côté client, pour
     // n'importe quelle station, pas seulement "ma" station admin).
@@ -298,7 +313,8 @@ export function SuperAdminStateProvider({ children }) {
         loadStationAds();
         loadStationRenewalPayments();
         loadLavagePayments();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadVidangePricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); loadLavagePayments(); };
+        loadAnnouncements();
+        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadVidangePricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); loadLavagePayments(); loadAnnouncements(); };
         window.addEventListener('focus', refresh);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
         // (voir schema.sql) : un changement pendant qu'un autre onglet Super
@@ -331,6 +347,7 @@ export function SuperAdminStateProvider({ children }) {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_ads' }, loadStationAds)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_renewal_payments' }, loadStationRenewalPayments)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage' }, loadLavagePayments)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, loadAnnouncements)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews' }, loadReviews)
             .subscribe();
         // Filet de sécurité (reconnexion Realtime manquée) — plus espacé
@@ -342,7 +359,7 @@ export function SuperAdminStateProvider({ children }) {
             clearInterval(interval);
             supabase.removeChannel(channel);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadVidangePricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadVidangePricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments, loadAnnouncements]);
 
     // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
     // et persiste en tâche de fond — appelée en fire-and-forget après quasi
@@ -594,6 +611,7 @@ export function SuperAdminStateProvider({ children }) {
             stationAds, confirmAdPayment, rejectAdPayment,
             stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
             lavagePayments, markLavagePaymentsSettled,
+            platformAnnouncements, sendPlatformAnnouncement,
         }}>
             {children}
         </SuperAdminStateContext.Provider>

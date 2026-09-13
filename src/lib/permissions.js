@@ -22,6 +22,7 @@ export const PERMISSIONS = [
   { key: 'shop.manage',         label: 'Boutique (catalogue produits)',   group: 'Administration' },
   { key: 'team.manage',         label: "Équipe & rôles",                  group: 'Administration' },
   { key: 'settings.manage',     label: 'Paramètres de la station',        group: 'Administration' },
+  { key: 'announcements.manage', label: 'Annonces aux clients',           group: 'Administration' },
 ];
 
 export const PERMISSION_GROUPS = ['Exploitation', 'Finances', 'Administration'];

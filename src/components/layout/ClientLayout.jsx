@@ -7,11 +7,12 @@ import { useClientAccount } from '../../hooks/useClientAccount';
 import { clearSession } from '../../lib/accounts';
 import ClientOnboarding from '../onboarding/ClientOnboarding';
 import SuperUserWelcomeOverlay from '../client/SuperUserWelcomeOverlay';
+import AnnouncementBell from '../ui/AnnouncementBell';
 
 export default function ClientLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { account, loading, superUserStatus } = useClientAccount();
+  const { account, loading, superUserStatus, stationAnnouncements, dismissAnnouncement } = useClientAccount();
   const isSuperUser = superUserStatus === 'ACTIVE';
 
   // Pas de compte automobiliste connecté : direction la page de connexion
@@ -72,6 +73,15 @@ export default function ClientLayout() {
             <Droplets className="w-6 h-6 text-blue-400 mr-2" />
           )}
           <span className={cn("font-bold text-lg truncate max-w-[160px]", isSuperUser && "text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400")}>{account.name}</span>
+        </div>
+        <div className="ml-auto">
+          <AnnouncementBell
+            announcements={stationAnnouncements}
+            dismissedIds={account.dismissedAnnouncementIds || []}
+            onDismiss={dismissAnnouncement}
+            label="Annonces de vos stations"
+            emptyLabel="Aucune annonce de vos stations pour le moment."
+          />
         </div>
       </div>
 
@@ -168,6 +178,16 @@ export default function ClientLayout() {
 
       {/* Main Content */}
       <main className="flex-1 relative overflow-y-auto overflow-x-hidden pt-16 md:pt-0">
+        <div className="hidden md:flex items-center justify-end h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
+          <AnnouncementBell
+            announcements={stationAnnouncements}
+            dismissedIds={account.dismissedAnnouncementIds || []}
+            onDismiss={dismissAnnouncement}
+            label="Annonces de vos stations"
+            emptyLabel="Aucune annonce de vos stations pour le moment."
+          />
+        </div>
+
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 

@@ -6,11 +6,12 @@ import { cn } from '../../lib/utils';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import SuperUserNotifBell from '../superadmin/SuperUserNotifBell';
+import AnnouncementComposer from '../ui/AnnouncementComposer';
 
 export default function SuperAdminLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { superUserSubscriptions, stationAds } = useSuperAdminState();
+  const { superUserSubscriptions, stationAds, platformAnnouncements, sendPlatformAnnouncement } = useSuperAdminState();
   const pendingSuperUserCount = superUserSubscriptions.filter((s) => s.status === 'PENDING').length;
   const pendingAdsCount = stationAds.filter((a) => a.status === 'PENDING').length;
 
@@ -54,7 +55,13 @@ export default function SuperAdminLayout() {
           <img src="/icons/icon-192.png" alt="Clean Car Galsen" className="w-6 h-6 rounded-md object-cover mr-2 flex-shrink-0" />
           <span className="font-bold text-lg">Super Admin</span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <AnnouncementComposer
+            label="Annonce"
+            recipientHint="Visible par toutes les stations partenaires, dans leur clochette de notifications."
+            onSend={sendPlatformAnnouncement}
+            recent={platformAnnouncements.slice(0, 10)}
+          />
           <SuperUserNotifBell />
         </div>
       </div>
@@ -146,7 +153,13 @@ export default function SuperAdminLayout() {
             pousse le contenu au lieu de flotter par-dessus, pour que la
             clochette ne recouvre plus jamais un bouton de page (voir aussi
             le Header Mobile plus haut, qui a sa propre clochette dédiée). */}
-        <div className="hidden md:flex items-center justify-end h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
+        <div className="hidden md:flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
+          <AnnouncementComposer
+            label="Annonce"
+            recipientHint="Visible par toutes les stations partenaires, dans leur clochette de notifications."
+            onSend={sendPlatformAnnouncement}
+            recent={platformAnnouncements.slice(0, 10)}
+          />
           <SuperUserNotifBell />
         </div>
 

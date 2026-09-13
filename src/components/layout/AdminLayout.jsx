@@ -6,6 +6,8 @@ import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { hasPerm } from '../../lib/permissions';
+import AnnouncementBell from '../ui/AnnouncementBell';
+import AnnouncementComposer from '../ui/AnnouncementComposer';
 import { isSubscriptionEnded } from '../../lib/stationRenewal';
 import { setSessionExpiredHandler } from '../../lib/idleTimeout';
 import StationOnboarding from '../onboarding/StationOnboarding';
@@ -17,7 +19,11 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [sessionLocked, setSessionLocked] = useState(false);
-  const { stationProfile, stationProfileLoaded, stationBilling, myPermissions } = useAppState();
+  const {
+    stationProfile, stationProfileLoaded, stationBilling, myPermissions,
+    receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sentAnnouncements, sendStationAnnouncement,
+  } = useAppState();
+  const canSendAnnouncements = hasPerm(myPermissions || [], 'announcements.manage');
 
   // La session station qui expire pour inactivité n'éjecte plus vers la page
   // de connexion : on affiche un écran verrouillé qui continue de surveiller
@@ -123,6 +129,23 @@ export default function AdminLayout() {
             <span className={`font-bold text-lg truncate max-w-[160px] ${!isConfigured ? 'text-orange-400' : ''}`}>{stationName}</span>
           )}
         </div>
+        <div className="ml-auto flex items-center gap-2">
+          {canSendAnnouncements && (
+            <AnnouncementComposer
+              label="Annonce"
+              recipientHint="Vos clients abonnés et ceux qui ont déjà réservé chez vous la verront dans leur clochette de notifications."
+              onSend={sendStationAnnouncement}
+              recent={sentAnnouncements}
+            />
+          )}
+          <AnnouncementBell
+            announcements={receivedAnnouncements}
+            dismissedIds={dismissedAnnouncementIds}
+            onDismiss={dismissAnnouncement}
+            label="Annonces de la plateforme"
+            emptyLabel="Aucune annonce de la plateforme pour le moment."
+          />
+        </div>
       </div>
 
       {/* Overlay Mobile */}
@@ -214,6 +237,24 @@ export default function AdminLayout() {
         {/* Animated Background Gradients */}
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div className="hidden md:flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
+          {canSendAnnouncements && (
+            <AnnouncementComposer
+              label="Annonce"
+              recipientHint="Vos clients abonnés et ceux qui ont déjà réservé chez vous la verront dans leur clochette de notifications."
+              onSend={sendStationAnnouncement}
+              recent={sentAnnouncements}
+            />
+          )}
+          <AnnouncementBell
+            announcements={receivedAnnouncements}
+            dismissedIds={dismissedAnnouncementIds}
+            onDismiss={dismissAnnouncement}
+            label="Annonces de la plateforme"
+            emptyLabel="Aucune annonce de la plateforme pour le moment."
+          />
+        </div>
 
         <TrialBanner billing={stationBilling} />
 

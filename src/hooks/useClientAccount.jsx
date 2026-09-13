@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '../lib/supabaseClient';
 import { getLatestSubscription, deriveSuperUserStatus } from '../lib/superUser';
 import { getStationName } from '../lib/stationData';
+import { loadStationAnnouncements } from '../lib/announcements';
 
 const ClientAccountContext = createContext(null);
 
@@ -35,6 +36,7 @@ export function ClientAccountProvider({ children }) {
             favoriteStationIds: profile.favorite_station_ids || [],
             hiddenStationIds: profile.hidden_station_ids || [],
             dismissedAdIds: profile.dismissed_ad_ids || [],
+            dismissedAnnouncementIds: profile.dismissed_announcement_ids || [],
             photoUrl: profile.photo_url || null,
         });
         setLoading(false);
@@ -59,11 +61,20 @@ export function ClientAccountProvider({ children }) {
         setSuperUserSub(await getLatestSubscription(clientId));
     }, []);
 
+    // Annonces des stations connues (add_announcements.sql) — pas propre à
+    // ce client (RLS scope déjà à "stations où j'ai réservé/un abonnement/en
+    // favori"), déclaré avant l'effet ci-dessous qui l'appelle (TDZ sinon).
+    const [stationAnnouncements, setStationAnnouncements] = useState([]);
+    const loadClientAnnouncements = useCallback(async () => {
+        setStationAnnouncements(await loadStationAnnouncements());
+    }, []);
+
     useEffect(() => {
         if (!account?.id) return;
         loadActivity(account.id, account.phone);
         loadSuperUserSub(account.id);
-        const refresh = () => { loadActivity(account.id, account.phone); loadSuperUserSub(account.id); };
+        loadClientAnnouncements();
+        const refresh = () => { loadActivity(account.id, account.phone); loadSuperUserSub(account.id); loadClientAnnouncements(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions` sont dans la publication supabase_realtime
         // (voir schema.sql) : la position en file/le passage en lavage arrivent en
@@ -93,10 +104,11 @@ export function ClientAccountProvider({ children }) {
             .channel(`client-live-${account.id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `client_id=eq.${account.id}` }, notifyNewReservation)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `client_id=eq.${account.id}` }, refresh)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, loadClientAnnouncements)
             .subscribe();
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
-    }, [account?.id, account?.phone, loadActivity, loadSuperUserSub]);
+    }, [account?.id, account?.phone, loadActivity, loadSuperUserSub, loadClientAnnouncements]);
 
     const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id, account.phone); }, [account?.id, account?.phone, loadActivity]);
     const refreshSuperUser = useCallback(() => { if (account?.id) loadSuperUserSub(account.id); }, [account?.id, loadSuperUserSub]);
@@ -110,6 +122,7 @@ export function ClientAccountProvider({ children }) {
         if (patch.favoriteStationIds !== undefined) dbPatch.favorite_station_ids = patch.favoriteStationIds;
         if (patch.hiddenStationIds !== undefined) dbPatch.hidden_station_ids = patch.hiddenStationIds;
         if (patch.dismissedAdIds !== undefined) dbPatch.dismissed_ad_ids = patch.dismissedAdIds;
+        if (patch.dismissedAnnouncementIds !== undefined) dbPatch.dismissed_announcement_ids = patch.dismissedAnnouncementIds;
         if (patch.photoUrl !== undefined) dbPatch.photo_url = patch.photoUrl;
         if (Object.keys(dbPatch).length > 0) {
             await supabase.from('profiles').update(dbPatch).eq('id', account.id);
@@ -169,11 +182,22 @@ export function ClientAccountProvider({ children }) {
         updateProfile({ dismissedAdIds: [...dismissed, adId] });
     };
 
+    // Marque une annonce de station comme lue — même principe que dismissAd,
+    // tableau séparé (dismissed_announcement_ids) pour ne pas mélanger les
+    // deux (une pub payante plateforme, une annonce gratuite de station).
+    const dismissAnnouncement = (id) => {
+        if (!account) return;
+        const dismissed = account.dismissedAnnouncementIds || [];
+        if (dismissed.includes(id)) return;
+        updateProfile({ dismissedAnnouncementIds: [...dismissed, id] });
+    };
+
     return (
         <ClientAccountContext.Provider value={{
             account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation, dismissAd,
             reservations, myTransactions, myStationSubscriptions, refreshActivity,
             superUserSub, superUserStatus, refreshSuperUser,
+            stationAnnouncements, dismissAnnouncement,
         }}>
             {children}
         </ClientAccountContext.Provider>

@@ -3,6 +3,7 @@ import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
+import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi } from '../lib/announcements';
 
 // Chaque station a ses propres données, séparées des autres (file d'attente,
 // employés, transactions...). En pratique, ce provider est remonté (via `key`
@@ -316,6 +317,24 @@ export function AppStateProvider({ children }) {
         })));
     }, [stationId]);
 
+    // Annonces (add_announcements.sql) — reçues : diffusions plateforme
+    // (Super Admin -> toutes les stations), pas scopées à `stationId` — voir
+    // client_knows_station_for_announcements/RLS, n'importe quel compte
+    // station les voit. Envoyées : celles que CETTE station a diffusées à
+    // ses clients, pour l'historique "Envoyées récemment" du composeur.
+    const [receivedAnnouncements, setReceivedAnnouncements] = useState([]);
+    const loadReceivedAnnouncements = useCallback(async () => {
+        setReceivedAnnouncements(await loadPlatformAnnouncements());
+    }, []);
+    const [sentAnnouncements, setSentAnnouncements] = useState([]);
+    const loadSentAnnouncements = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setSentAnnouncements([]); return; }
+        const { data } = await supabase.from('announcements').select('*')
+            .eq('scope', 'station_to_clients').eq('station_id', stationId)
+            .order('created_at', { ascending: false }).limit(10);
+        setSentAnnouncements((data || []).map((row) => ({ id: row.id, title: row.title, message: row.message, createdAt: row.created_at })));
+    }, [stationId]);
+
     // Abonnements de la station
     const [clientSubscriptions, setClientSubscriptions] = useState([]);
     const [clientSubscriptionInvoices, setClientSubscriptionInvoices] = useState([]);
@@ -434,7 +453,9 @@ export function AppStateProvider({ children }) {
         loadLavagePayments();
         loadVidangeBookings();
         loadShopOrders();
-        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); };
+        loadReceivedAnnouncements();
+        loadSentAnnouncements();
+        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); loadReceivedAnnouncements(); loadSentAnnouncements(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
         // sont dans la publication supabase_realtime (voir schema.sql) : un
@@ -455,11 +476,12 @@ export function AppStateProvider({ children }) {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage', filter: `station_id=eq.${stationId}` }, loadLavagePayments)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'vidange_bookings', filter: `station_id=eq.${stationId}` }, loadVidangeBookings)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_orders', filter: `station_id=eq.${stationId}` }, loadShopOrders)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => { loadReceivedAnnouncements(); loadSentAnnouncements(); })
                 .subscribe()
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, loadShopOrders, stationId]);
+    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, loadShopOrders, loadReceivedAnnouncements, loadSentAnnouncements, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -547,6 +569,36 @@ export function AppStateProvider({ children }) {
         })();
         return () => { cancelled = true; };
     }, [stationId]);
+
+    // Lu/non-lu des annonces (add_announcements.sql), propre au COMPTE
+    // connecté (owner ou collaborateur — chacun sa propre ligne `profiles`),
+    // pas à la station : même principe que dismissed_ad_ids côté
+    // automobiliste (useClientAccount.jsx), juste un tableau d'ids ignorés.
+    const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState([]);
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (cancelled || !user) return;
+            const { data } = await supabase.from('profiles').select('dismissed_announcement_ids').eq('id', user.id).maybeSingle();
+            if (!cancelled) setDismissedAnnouncementIds(data?.dismissed_announcement_ids || []);
+        })();
+        return () => { cancelled = true; };
+    }, [stationId]);
+
+    const dismissAnnouncement = async (id) => {
+        if (dismissedAnnouncementIds.includes(id)) return;
+        const next = [...dismissedAnnouncementIds, id];
+        setDismissedAnnouncementIds(next);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) await supabase.from('profiles').update({ dismissed_announcement_ids: next }).eq('id', user.id);
+    };
+
+    const sendStationAnnouncement = async (payload) => {
+        if (!stationId || stationId === 'default') return;
+        await sendStationAnnouncementApi(stationId, payload);
+        await loadSentAnnouncements();
+    };
 
     // Grille tarifaire + durées — une ligne par (catégorie, service) dans
     // `wash_pricing` au lieu de deux blobs JSON séparés (voir supabase/schema.sql).
@@ -1227,6 +1279,7 @@ export function AppStateProvider({ children }) {
             vidangePricingConfig, updateVidangePricing, updateVidangeSettings,
             vidangeBookings, updateVidangeBookingStatus,
             shopOrders, updateShopOrderStatus,
+            receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely
