@@ -22,7 +22,6 @@ export default function AdminLayout() {
     stationProfile, stationProfileLoaded, stationBilling, myPermissions,
     receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement,
   } = useAppState();
-  const canSendAnnouncements = hasPerm(myPermissions || [], 'announcements.manage');
 
   // La session station qui expire pour inactivité n'éjecte plus vers la page
   // de connexion : on affiche un écran verrouillé qui continue de surveiller
@@ -130,15 +129,6 @@ export default function AdminLayout() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {canSendAnnouncements && (
-            <Link
-              to="/admin/annonces"
-              className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
-              title="Annonce"
-            >
-              <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
-            </Link>
-          )}
           <AnnouncementBell
             announcements={receivedAnnouncements}
             dismissedIds={dismissedAnnouncementIds}
@@ -240,15 +230,6 @@ export default function AdminLayout() {
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
         <div className="hidden md:flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
-          {canSendAnnouncements && (
-            <Link
-              to="/admin/annonces"
-              className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
-              title="Annonce"
-            >
-              <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
-            </Link>
-          )}
           <AnnouncementBell
             announcements={receivedAnnouncements}
             dismissedIds={dismissedAnnouncementIds}

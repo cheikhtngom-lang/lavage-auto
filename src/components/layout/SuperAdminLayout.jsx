@@ -56,13 +56,6 @@ export default function SuperAdminLayout() {
           <span className="font-bold text-lg">Super Admin</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Link
-            to="/superadmin/annonces"
-            className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
-            title="Annonce"
-          >
-            <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
-          </Link>
           <SuperUserNotifBell />
         </div>
       </div>
@@ -155,13 +148,6 @@ export default function SuperAdminLayout() {
             clochette ne recouvre plus jamais un bouton de page (voir aussi
             le Header Mobile plus haut, qui a sa propre clochette dédiée). */}
         <div className="hidden md:flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
-          <Link
-            to="/superadmin/annonces"
-            className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
-            title="Annonce"
-          >
-            <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
-          </Link>
           <SuperUserNotifBell />
         </div>
 
