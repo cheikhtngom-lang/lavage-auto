@@ -7,11 +7,12 @@ import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBucke
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
+import PlatformAnnouncementsCard from '../../components/superadmin/PlatformAnnouncementsCard';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function SuperAdminDashboard() {
   useDocumentTitle('Tableau de bord');
-  const { stations, clientAccounts, PLANS } = useSuperAdminState();
+  const { stations, clientAccounts, PLANS, platformAnnouncements, sendPlatformAnnouncement, retirePlatformAnnouncement } = useSuperAdminState();
   const [granularity, setGranularity] = useState('mois');
 
   const activeStations = stations.filter(s => s.status === 'active');
@@ -240,6 +241,14 @@ export default function SuperAdminDashboard() {
           </div>
         )}
       </motion.div>
+
+      <div className="mt-12">
+        <PlatformAnnouncementsCard
+          announcements={platformAnnouncements}
+          onSend={sendPlatformAnnouncement}
+          onRetire={retirePlatformAnnouncement}
+        />
+      </div>
     </div>
   );
 }

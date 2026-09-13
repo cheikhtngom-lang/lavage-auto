@@ -9,6 +9,7 @@ const rowToAnnouncement = (row) => ({
   stationName: row.stations?.name || '',
   title: row.title,
   message: row.message,
+  active: row.active !== false,
   createdAt: row.created_at,
 });
 
@@ -48,5 +49,12 @@ export async function sendStationAnnouncement(stationId, { title, message }) {
   const { error } = await supabase.from('announcements').insert({
     scope: 'station_to_clients', station_id: stationId, title: title.trim(), message: message.trim(), created_by: user?.id || null,
   });
+  if (error) throw new Error(error.message);
+}
+
+// "Retirer" une annonce déjà envoyée — désactive plutôt que supprimer, pour
+// garder l'historique (badge Active/Retirée). Voir add_announcement_retire.sql.
+export async function retireAnnouncement(id) {
+  const { error } = await supabase.from('announcements').update({ active: false }).eq('id', id);
   if (error) throw new Error(error.message);
 }

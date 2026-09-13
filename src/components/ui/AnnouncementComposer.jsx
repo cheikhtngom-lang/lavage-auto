@@ -5,7 +5,7 @@ import { Megaphone, X, Loader2, CheckCircle2, Send } from 'lucide-react';
 // Action rapide "Envoyer une annonce" — réutilisée par le Super Admin
 // (-> toutes les stations) et par la station (-> ses clients). Voir
 // add_announcements.sql / lib/announcements.js.
-export default function AnnouncementComposer({ label = 'Annonce', recipientHint, onSend, recent = [] }) {
+export default function AnnouncementComposer({ label = 'Annonce', recipientHint, onSend, recent = [], variant = 'pill' }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -33,13 +33,22 @@ export default function AnnouncementComposer({ label = 'Annonce', recipientHint,
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
-        title={label}
-      >
-        <Megaphone className="w-4 h-4" /> <span className="hidden sm:inline">{label}</span>
-      </button>
+      {variant === 'block' ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-white text-sm font-semibold transition-colors"
+        >
+          <Megaphone className="w-4 h-4 text-neutral-400" /> {label}
+        </button>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
+          title={label}
+        >
+          <Megaphone className="w-4 h-4" /> <span className="hidden sm:inline">{label}</span>
+        </button>
+      )}
 
       <AnimatePresence>
         {open && (

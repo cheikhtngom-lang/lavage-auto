@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '../lib/supabaseClient';
 import { setStationsCache, setWashPricingCache, setVidangePricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
-import { loadPlatformAnnouncements, sendPlatformAnnouncement as sendPlatformAnnouncementApi } from '../lib/announcements';
+import { loadPlatformAnnouncements, sendPlatformAnnouncement as sendPlatformAnnouncementApi, retireAnnouncement } from '../lib/announcements';
 
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
 // une ligne par clé ; sert de secours si la table est vide/pas encore lue).
@@ -253,6 +253,11 @@ export function SuperAdminStateProvider({ children }) {
         await sendPlatformAnnouncementApi(payload);
         await loadAnnouncements();
         logAction(`Annonce diffusée à toutes les stations : « ${payload.title} »`);
+    };
+    const retirePlatformAnnouncement = async (id, title) => {
+        await retireAnnouncement(id);
+        await loadAnnouncements();
+        logAction(`Annonce retirée : « ${title} »`);
     };
 
     // Grille tarifaire de TOUTES les stations (lecture publique) — alimente le
@@ -611,7 +616,7 @@ export function SuperAdminStateProvider({ children }) {
             stationAds, confirmAdPayment, rejectAdPayment,
             stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
             lavagePayments, markLavagePaymentsSettled,
-            platformAnnouncements, sendPlatformAnnouncement,
+            platformAnnouncements, sendPlatformAnnouncement, retirePlatformAnnouncement,
         }}>
             {children}
         </SuperAdminStateContext.Provider>
