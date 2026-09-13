@@ -31,6 +31,12 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
+// "Supports" — comptes pouvant se connecter à la station, propriétaire
+// compris. Mêmes valeurs que src/lib/planLimits.js (TEAM_SEAT_LIMITS) et le
+// trigger Postgres enforce_team_seat_limit (add_plan_gating.sql), qui reste
+// la vraie barrière si cet Edge Function est contourné.
+const TEAM_SEAT_LIMITS: Record<string, number> = { Starter: 3, Pro: 5, Business: 9999 };
+
 function makeToken() {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -113,6 +119,22 @@ Deno.serve(async (req) => {
     }
     if (existing && existing.status === "suspended") {
       return json({ error: "Ce compte est suspendu. Réactivez-le au lieu de le réinviter." }, 409);
+    }
+
+    // ── Plafond de comptes ("supports") du forfait — seulement pertinent
+    // pour un TOUT NOUVEAU membre (réinviter un "invited" existant ne prend
+    // pas un siège de plus). Le trigger Postgres enforce_team_seat_limit
+    // reste la vraie barrière si ce contrôle est contourné.
+    if (!existing) {
+      const { data: billing } = await admin
+        .from("station_billing").select("plan").eq("station_id", stationId).maybeSingle();
+      const limit = TEAM_SEAT_LIMITS[billing?.plan ?? "Starter"] ?? TEAM_SEAT_LIMITS.Starter;
+      const { count } = await admin
+        .from("station_members").select("id", { count: "exact", head: true })
+        .eq("station_id", stationId).in("status", ["invited", "active"]);
+      if ((count || 0) + 1 >= limit) {
+        return json({ error: `Limite de comptes atteinte pour ce forfait (${limit} supports max, propriétaire compris). Passez à un forfait supérieur pour inviter plus de collaborateurs.` }, 403);
+      }
     }
 
     let memberId = existing?.id as string | undefined;

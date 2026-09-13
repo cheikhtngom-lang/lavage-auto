@@ -8,9 +8,16 @@
 // elle-même n'existe pas encore côté station — le badge le signale pour ne
 // pas laisser croire qu'activer le module a un effet immédiat (même
 // convention que le module équivalent du projet GestionImmo).
-import { FileBarChart, Star, Gift, MessageSquareText, Headset, Code2, Store } from 'lucide-react';
+import { FileBarChart, Star, Gift, MessageSquareText, Headset, Code2, Store, Wrench } from 'lucide-react';
 
 export const STATION_MODULES = [
+  {
+    id: 'mod_vidange',
+    name: 'Vidange',
+    desc: 'Rendez-vous de vidange payables en ligne par les clients (normalement réservé au plan Business) — utilisable même en Starter ou Pro.',
+    price: '8 000 FCFA/mois',
+    icon: Wrench,
+  },
   {
     id: 'mod_bilan',
     name: "Bilan d'activité",

@@ -12,7 +12,7 @@ import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, create
 import { payPlatformOnline } from '../../lib/paydunya';
 import { listStationClients, exportStationData, exportStationClientData } from '../../lib/rgpdExport';
 import { hasModule } from '../../lib/stationModules';
-import { OIL_TYPES, VIDANGE_CATEGORY_GRID } from '../../lib/vidange';
+import { OIL_TYPES, VIDANGE_CATEGORY_GRID, stationHasVidange } from '../../lib/vidange';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses prestations.
@@ -54,6 +54,7 @@ export default function Settings() {
   const registryEntry = stations.find(s => s.id === stationId);
   const hasLocation = registryEntry?.lat != null && registryEntry?.lng != null;
   const hasAdvancedLoyalty = hasModule(stationBilling?.activeModules, 'mod_fidelite_plus');
+  const canVidange = stationHasVidange(stationBilling);
 
   const [activeTab, setActiveTab] = useState('profil');
   const [geoStatus, setGeoStatus] = useState(null); // null | 'loading' | 'success' | 'error'
@@ -547,7 +548,9 @@ export default function Settings() {
             { id: 'employes', label: 'Gestion Employés', icon: Users },
             { id: 'temps', label: 'Temps Estimés', icon: Clock },
             { id: 'tarifs', label: 'Grille Tarifaire', icon: CreditCard },
-            { id: 'vidange', label: 'Vidange', icon: Wrench },
+            // Vidange réservée au forfait Business (ou module mod_vidange) —
+            // même logique que Boutique/Bilan, voir RequireVidangeAccess (App.jsx).
+            ...(canVidange ? [{ id: 'vidange', label: 'Vidange', icon: Wrench }] : []),
             { id: 'promotions', label: 'Promotions', icon: Megaphone },
             { id: 'publicite', label: 'Passer une pub', icon: Camera },
             { id: 'securite', label: 'Sécurité & Accès', icon: Shield },
@@ -1004,7 +1007,7 @@ export default function Settings() {
             </Card>
           )}
 
-          {activeTab === 'vidange' && (
+          {activeTab === 'vidange' && canVidange && (
             <Card className="border-white/5 bg-white/[0.02]">
               <CardContent className="p-8">
                 <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Wrench className="w-5 h-5 text-blue-400" /> Vidange</h2>

@@ -25,7 +25,7 @@
 
     <main class="max-w-4xl mx-auto px-4 py-16">
         <h1 class="text-3xl md:text-4xl font-bold mb-2">Politique de confidentialité</h1>
-        <p class="text-neutral-500 text-sm mb-12">Dernière mise à jour : Août 2026</p>
+        <p class="text-neutral-500 text-sm mb-12">Dernière mise à jour : Septembre 2026</p>
 
         <div class="space-y-10 text-neutral-300 leading-relaxed">
             <section>
@@ -39,7 +39,7 @@
                 <ul class="list-disc list-inside space-y-2">
                     <li><strong class="text-white">Compte automobiliste :</strong> nom, prénom, email, numéro de téléphone, véhicules déclarés.</li>
                     <li><strong class="text-white">Compte station :</strong> nom de la station, adresse, coordonnées de contact, coordonnées bancaires/mobile money du gérant.</li>
-                    <li><strong class="text-white">Données de réservation :</strong> historique de lavages, montants payés, moyen de paiement utilisé (Wave / Orange Money).</li>
+                    <li><strong class="text-white">Données de réservation :</strong> historique de lavages, vidanges et achats en boutique, montants payés, moyen de paiement utilisé (Wave / Orange Money).</li>
                     <li><strong class="text-white">Données techniques :</strong> position géographique (uniquement si vous l'autorisez, pour trouver la station la plus proche), données de navigation à des fins statistiques (Google Analytics).</li>
                 </ul>
             </section>
@@ -49,7 +49,7 @@
                 <ul class="list-disc list-inside space-y-2">
                     <li>Gérer votre compte et vos réservations de lavage.</li>
                     <li>Permettre le suivi en temps réel de votre position dans la file d'attente.</li>
-                    <li>Faciliter le paiement de vos lavages via Wave ou Orange Money.</li>
+                    <li>Faciliter le paiement en ligne de vos lavages, vidanges et achats en boutique via Wave, Orange Money ou carte.</li>
                     <li>Vous contacter en cas de besoin lié à votre compte ou une réservation.</li>
                     <li>Améliorer notre plateforme à partir de statistiques d'usage anonymisées.</li>
                 </ul>
@@ -57,7 +57,7 @@
 
             <section>
                 <h2 class="text-xl font-bold text-white mb-3">4. Partage des données</h2>
-                <p>Vos données ne sont jamais vendues à des tiers. Elles sont partagées uniquement avec la station de lavage concernée par votre réservation (pour lui permettre de vous servir), et avec nos prestataires techniques (hébergement, base de données) strictement nécessaires au fonctionnement du service.</p>
+                <p>Vos données ne sont jamais vendues à des tiers. Elles sont partagées uniquement avec la station de lavage concernée par votre réservation (pour lui permettre de vous servir), et avec nos prestataires techniques strictement nécessaires au fonctionnement du service : hébergement et base de données, et, pour tout paiement effectué en ligne (lavage, vidange, boutique), notre prestataire de paiement <strong class="text-white">PayDunya</strong>, à qui sont transmises les informations nécessaires à la transaction (montant, numéro Wave/Orange Money ou carte).</p>
             </section>
 
             <section>
@@ -77,10 +77,30 @@
 
             <section>
                 <h2 class="text-xl font-bold text-white mb-3">8. Contact</h2>
-                <p>Pour toute question concernant cette politique ou vos données personnelles, contactez-nous à : <a href="mailto:bustaneimmo2021@gmail.com" class="text-blue-400 hover:underline">bustaneimmo2021@gmail.com</a>.</p>
+                <p>Pour toute question concernant cette politique ou vos données personnelles, contactez-nous :</p>
+                <ul class="list-disc list-inside space-y-2 mt-3">
+                    <li>Email : <a href="mailto:bustaneimmo2021@gmail.com" class="text-blue-400 hover:underline">bustaneimmo2021@gmail.com</a></li>
+                    <li>Téléphone : <span class="phone-contact relative inline-block align-middle">
+                        <button type="button" class="phone-trigger text-blue-400 hover:underline font-medium" onclick="togglePhoneMenu(event)">77 715 65 45</button>
+                        <span class="phone-menu hidden absolute z-20 mt-2 left-0 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden text-sm whitespace-nowrap">
+                            <a href="tel:+221777156545" class="flex items-center gap-2 px-4 py-2.5 text-neutral-200 hover:bg-white/5 transition-colors">📞 Appeler</a>
+                            <a href="https://wa.me/221777156545" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-4 py-2.5 text-neutral-200 hover:bg-white/5 transition-colors border-t border-white/5">💬 WhatsApp</a>
+                        </span>
+                    </span></li>
+                </ul>
             </section>
         </div>
     </main>
+
+    <script>
+        function togglePhoneMenu(e) {
+            e.stopPropagation();
+            const menu = e.currentTarget.nextElementSibling;
+            document.querySelectorAll('.phone-menu').forEach((m) => { if (m !== menu) m.classList.add('hidden'); });
+            menu.classList.toggle('hidden');
+        }
+        document.addEventListener('click', () => document.querySelectorAll('.phone-menu').forEach((m) => m.classList.add('hidden')));
+    </script>
 
     <footer class="w-full border-t border-white/10 bg-black py-10 text-center text-neutral-500 text-sm">
         <p>&copy; 2024 Clean Car Galsen. Tous droits réservés.</p>

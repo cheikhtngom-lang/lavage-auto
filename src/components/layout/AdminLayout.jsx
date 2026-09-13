@@ -62,17 +62,19 @@ export default function AdminLayout() {
   const allNavigation = [
     { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null },
     { name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage' },
-    { name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage' },
+    // Vidange : réservée au forfait Business, ou débloquée par le module
+    // "mod_vidange" — voir RequireVidangeAccess dans App.jsx.
+    { name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: ['Business'], module: 'mod_vidange' },
     { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
     { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage' },
     { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
     { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
     // Bilan : réservé au forfait Business (35 000), ou débloqué par le
     // module "mod_bilan" — voir RequireBusinessPlan dans App.jsx.
-    { name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plan: 'Business', module: 'mod_bilan' },
-    // Boutique : forfait Business, ou module "mod_boutique" — voir
+    { name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plans: ['Business'], module: 'mod_bilan' },
+    // Boutique : forfaits Pro et Business, ou module "mod_boutique" — voir
     // RequireShopAccess dans App.jsx.
-    { name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plan: 'Business', module: 'mod_boutique' },
+    { name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: ['Pro', 'Business'], module: 'mod_boutique' },
     { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
     { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage' },
   ];
@@ -81,7 +83,7 @@ export default function AdminLayout() {
   // libres — le propriétaire a ['*'] dès le premier rendu, donc aucun flash.
   const navigation = allNavigation.filter((item) => {
     if (item.perm && !hasPerm(myPermissions || [], item.perm)) return false;
-    if (item.plan && stationBilling?.plan !== item.plan && !(item.module && (stationBilling?.activeModules || []).includes(item.module))) return false;
+    if (item.plans && !item.plans.includes(stationBilling?.plan) && !(item.module && (stationBilling?.activeModules || []).includes(item.module))) return false;
     return true;
   });
 

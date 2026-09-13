@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     if (stErr || !station) return json({ error: "Station introuvable." }, 404);
 
     const billing = Array.isArray(station.station_billing) ? station.station_billing[0] : station.station_billing;
-    const hasShop = billing?.plan === "Business" || (billing?.active_modules || []).includes("mod_boutique");
+    const hasShop = billing?.plan === "Pro" || billing?.plan === "Business" || (billing?.active_modules || []).includes("mod_boutique");
     if (!hasShop) return json({ error: "Cette station n'a pas de boutique." }, 403);
 
     const { data: subOk } = await admin.rpc("station_subscription_ok", { sid: stationId });

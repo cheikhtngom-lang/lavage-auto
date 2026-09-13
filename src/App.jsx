@@ -13,6 +13,8 @@ import { SuperAdminStateProvider } from './hooks/useSuperAdminState';
 import { ClientAccountProvider } from './hooks/useClientAccount';
 import { startIdleWatch } from './lib/idleTimeout';
 import { hasPerm } from './lib/permissions';
+import { stationHasShop } from './lib/shop';
+import { stationHasVidange } from './lib/vidange';
 
 // Pages Client
 import ClientOverview from './pages/Client/Dashboard';
@@ -77,13 +79,22 @@ function RequireBusinessPlan({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Boutique : réservée au forfait Business, ou débloquée par le module
-// "mod_boutique" (Super Admin > Modules) — même logique que le Bilan.
+// Boutique : réservée aux forfaits Pro et Business, ou débloquée par le
+// module "mod_boutique" (Super Admin > Modules) — même logique que le Bilan.
 function RequireShopAccess({ children }) {
   const { stationBilling, myPermissions } = useAppState();
   if (stationBilling == null || myPermissions == null) return null;
-  const hasShop = stationBilling.plan === 'Business' || (stationBilling.activeModules || []).includes('mod_boutique');
+  const hasShop = stationHasShop(stationBilling);
   if (hasShop && hasPerm(myPermissions, 'shop.manage')) return children;
+  return <Navigate to="/admin/queue" replace />;
+}
+
+// Vidange : réservée au forfait Business, ou débloquée par le module
+// "mod_vidange" (Super Admin > Modules) — même logique que le Bilan/la Boutique.
+function RequireVidangeAccess({ children }) {
+  const { stationBilling, myPermissions } = useAppState();
+  if (stationBilling == null || myPermissions == null) return null;
+  if (stationHasVidange(stationBilling) && hasPerm(myPermissions, 'vidange.manage')) return children;
   return <Navigate to="/admin/queue" replace />;
 }
 
@@ -130,7 +141,7 @@ function App() {
                 <Route path="shop" element={<RequireShopAccess><Shop /></RequireShopAccess>} />
                 <Route path="team" element={<RequirePerm perm="team.manage"><Team /></RequirePerm>} />
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
-                <Route path="vidange" element={<RequirePerm perm="vidange.manage"><Vidange /></RequirePerm>} />
+                <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />
               </Route>

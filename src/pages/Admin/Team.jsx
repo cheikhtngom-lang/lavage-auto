@@ -9,6 +9,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { getCurrentStationId } from '../../lib/accounts';
 import { hasPerm, PERMISSIONS, PERMISSION_GROUPS, permLabel } from '../../lib/permissions';
+import { maxTeamSeats, usedTeamSeats } from '../../lib/planLimits';
 import {
   fetchRoles, fetchMembers, fetchStationOwner, inviteMember, resendInvite,
   setMemberRole, setMemberStatus, deleteMember,
@@ -28,7 +29,7 @@ function initials(name, email) {
 
 export default function Team() {
   useDocumentTitle('Équipe');
-  const { myPermissions } = useAppState();
+  const { myPermissions, stationBilling } = useAppState();
   const stationId = getCurrentStationId();
   const canManage = hasPerm(myPermissions || [], 'team.manage');
 
@@ -37,6 +38,10 @@ export default function Team() {
   const [owner, setOwner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState('');
+
+  const seatLimit = maxTeamSeats(stationBilling?.plan);
+  const seatsUsed = usedTeamSeats(members);
+  const atSeatLimit = seatsUsed >= seatLimit;
 
   const reload = useCallback(async () => {
     if (!stationId || stationId === 'default') { setLoading(false); return; }
@@ -167,17 +172,23 @@ export default function Team() {
         <div className="lg:col-span-2">
           <Card className="border-white/5 bg-white/[0.02]">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="text-lg font-bold text-white">Collaborateurs</h2>
                 {canManage && (
                   <button
                     onClick={openInvite}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                    disabled={atSeatLimit}
+                    title={atSeatLimit ? `Limite de ${seatLimit} comptes atteinte pour ce forfait` : undefined}
+                    className="bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2"
                   >
                     <UserPlus className="w-4 h-4" /> Inviter
                   </button>
                 )}
               </div>
+              <p className={`text-xs mb-5 ${atSeatLimit ? 'text-amber-400' : 'text-neutral-500'}`}>
+                {seatsUsed}/{seatLimit >= 9999 ? '∞' : seatLimit} comptes utilisés (propriétaire compris)
+                {atSeatLimit && ' — passez à un forfait supérieur pour inviter plus de collaborateurs.'}
+              </p>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[560px]">

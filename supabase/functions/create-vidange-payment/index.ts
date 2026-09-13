@@ -65,11 +65,16 @@ Deno.serve(async (req) => {
     // Station + vidange activée + abonnement + compte PayDunya.
     const { data: station, error: stErr } = await admin
       .from("stations")
-      .select("id, name, vidange_enabled, vidange_daily_capacity, station_billing(paydunya_account_alias, commission_rate)")
+      .select("id, name, vidange_enabled, vidange_daily_capacity, station_billing(paydunya_account_alias, commission_rate, plan, active_modules)")
       .eq("id", stationId)
       .single();
     if (stErr || !station) return json({ error: "Station introuvable." }, 404);
-    if (!station.vidange_enabled) return json({ error: "Cette station ne propose pas la vidange." }, 403);
+    const vidangeBilling = Array.isArray(station.station_billing) ? station.station_billing[0] : station.station_billing;
+    // Réservée au forfait Business (ou module mod_vidange) — même contrôle
+    // que le trigger Postgres sur stations.vidange_enabled (add_plan_gating.sql),
+    // vérifié ici aussi en cas de rétrogradation après activation.
+    const vidangeEligible = vidangeBilling?.plan === "Business" || (vidangeBilling?.active_modules || []).includes("mod_vidange");
+    if (!station.vidange_enabled || !vidangeEligible) return json({ error: "Cette station ne propose pas la vidange." }, 403);
 
     const { data: subOk } = await admin.rpc("station_subscription_ok", { sid: stationId });
     if (subOk === false) {
@@ -93,12 +98,9 @@ Deno.serve(async (req) => {
       return json({ error: "Ce créneau vient d'être pris — choisissez un autre horaire." }, 409);
     }
 
-    const billing = Array.isArray(station.station_billing)
-      ? station.station_billing[0]
-      : station.station_billing;
-    const alias: string | null = billing?.paydunya_account_alias ?? null;
+    const alias: string | null = vidangeBilling?.paydunya_account_alias ?? null;
 
-    const { partStation, partPlateforme, taux } = splitLavage(amount, billing?.commission_rate ?? null);
+    const { partStation, partPlateforme, taux } = splitLavage(amount, vidangeBilling?.commission_rate ?? null);
 
     const invoice = await createInvoice({
       totalAmount: amount,

@@ -25,7 +25,7 @@
 
     <main class="max-w-4xl mx-auto px-4 py-16">
         <h1 class="text-3xl md:text-4xl font-bold mb-2">Conditions Générales d'Utilisation et de Vente</h1>
-        <p class="text-neutral-500 text-sm mb-12">Dernière mise à jour : Août 2026</p>
+        <p class="text-neutral-500 text-sm mb-12">Dernière mise à jour : Septembre 2026</p>
 
         <div class="space-y-10 text-neutral-300 leading-relaxed">
             <section>
@@ -44,8 +44,9 @@
                 <p>La Plateforme met en relation les Automobilistes et les Stations partenaires afin de faciliter la réservation, le suivi en temps réel d'une file d'attente de lavage, et le paiement des prestations de lavage automobile.</p>
                 <ul class="list-disc list-inside space-y-2 mt-3">
                     <li>L'inscription et l'usage de la Plateforme sont <strong class="text-white">gratuits pour l'Automobiliste</strong>. Une offre payante optionnelle (« Super User ») peut être proposée pour débloquer certaines limites d'usage (nombre de véhicules enregistrés), sans aucune obligation.</li>
-                    <li>L'accès de la Station à son espace de gestion est soumis à un <strong class="text-white">abonnement mensuel</strong> selon le plan choisi (Starter, Pro ou Business), précédé d'une période d'essai gratuit d'un (1) mois à compter de la création du compte.</li>
-                    <li>L'Éditeur <strong class="text-white">ne prélève aucune commission</strong> sur les prestations de lavage réglées par l'Automobiliste à la Station. Seul l'abonnement mensuel de la Station est facturé par l'Éditeur.</li>
+                    <li>L'accès de la Station à son espace de gestion est soumis à un <strong class="text-white">abonnement mensuel</strong> selon le plan choisi (Starter, Pro ou Business), précédé d'une période d'essai gratuit d'un (1) mois à compter de la création du compte. Chaque plan inclut un nombre de comptes utilisateurs pour la Station (collaborateurs) : 3 pour Starter, 5 pour Pro, 10 et plus pour Business.</li>
+                    <li>Pour une prestation réglée <strong class="text-white">directement à la Station</strong> (espèces ou mobile money présenté sur place), l'Éditeur ne prélève aucune commission : seul l'abonnement mensuel de la Station est facturé.</li>
+                    <li>Pour une prestation réglée <strong class="text-white">en ligne</strong> sur la Plateforme (Wave, Orange Money ou carte, via le prestataire de paiement PayDunya) — lavage, vidange ou achat en boutique — l'Éditeur prélève une <strong class="text-white">commission de 10 %</strong> sur le montant encaissé ; les 90 % restants sont reversés à la Station.</li>
                 </ul>
             </section>
 
@@ -97,7 +98,7 @@
 
             <section>
                 <h2 class="text-xl font-bold text-white mb-3">8. Paiement des prestations de lavage</h2>
-                <p>L'Éditeur n'est <strong class="text-white">pas partie</strong> au contrat de prestation de lavage conclu entre l'Automobiliste et la Station : la Plateforme est un outil de mise en relation, de réservation et de suivi de file d'attente, et n'intervient ni dans l'encaissement, ni dans la garantie de la prestation de lavage elle-même. Tout litige relatif à la qualité d'un lavage, à un dommage causé au véhicule, ou à un paiement effectué directement à la Station, doit être réglé entre l'Automobiliste et la Station concernée.</p>
+                <p>L'Éditeur n'est <strong class="text-white">pas partie</strong> au contrat de prestation (lavage, vidange, vente en boutique) conclu entre l'Automobiliste et la Station : la Plateforme est un outil de mise en relation, de réservation et de suivi de file d'attente, et ne garantit ni la qualité ni l'exécution de la prestation elle-même. Tout litige relatif à la qualité d'un lavage, à un dommage causé au véhicule, ou à un paiement effectué directement à la Station, doit être réglé entre l'Automobiliste et la Station concernée. Pour un paiement effectué <strong class="text-white">en ligne</strong> sur la Plateforme, les fonds transitent par le prestataire de paiement PayDunya avant reversement à la Station, déduction faite de la commission de l'Éditeur (voir Article 2) ; ce circuit de paiement n'affecte pas la relation contractuelle entre l'Automobiliste et la Station décrite ci-dessus.</p>
             </section>
 
             <section>
@@ -141,10 +142,30 @@
 
             <section>
                 <h2 class="text-xl font-bold text-white mb-3">16. Contact</h2>
-                <p>Pour toute question relative aux présentes CGU, contactez-nous à : <a href="mailto:bustaneimmo2021@gmail.com" class="text-blue-400 hover:underline">bustaneimmo2021@gmail.com</a>.</p>
+                <p>Pour toute question relative aux présentes CGU, contactez-nous :</p>
+                <ul class="list-disc list-inside space-y-2 mt-3">
+                    <li>Email : <a href="mailto:bustaneimmo2021@gmail.com" class="text-blue-400 hover:underline">bustaneimmo2021@gmail.com</a></li>
+                    <li>Téléphone : <span class="phone-contact relative inline-block align-middle">
+                        <button type="button" class="phone-trigger text-blue-400 hover:underline font-medium" onclick="togglePhoneMenu(event)">77 715 65 45</button>
+                        <span class="phone-menu hidden absolute z-20 mt-2 left-0 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden text-sm whitespace-nowrap">
+                            <a href="tel:+221777156545" class="flex items-center gap-2 px-4 py-2.5 text-neutral-200 hover:bg-white/5 transition-colors">📞 Appeler</a>
+                            <a href="https://wa.me/221777156545" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 px-4 py-2.5 text-neutral-200 hover:bg-white/5 transition-colors border-t border-white/5">💬 WhatsApp</a>
+                        </span>
+                    </span></li>
+                </ul>
             </section>
         </div>
     </main>
+
+    <script>
+        function togglePhoneMenu(e) {
+            e.stopPropagation();
+            const menu = e.currentTarget.nextElementSibling;
+            document.querySelectorAll('.phone-menu').forEach((m) => { if (m !== menu) m.classList.add('hidden'); });
+            menu.classList.toggle('hidden');
+        }
+        document.addEventListener('click', () => document.querySelectorAll('.phone-menu').forEach((m) => m.classList.add('hidden')));
+    </script>
 
     <footer class="w-full border-t border-white/10 bg-black py-10 text-center text-neutral-500 text-sm">
         <p>&copy; 2024 Clean Car Galsen. Tous droits réservés.</p>

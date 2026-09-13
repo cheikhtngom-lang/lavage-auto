@@ -20,7 +20,7 @@ import { vehicleCapFor } from '../../lib/superUser';
 import { hasModule } from '../../lib/stationModules';
 import { payLavageOnline, payVidangeOnline } from '../../lib/paydunya';
 import {
-  OIL_TYPES, VIDANGE_CATEGORY_GRID, getVidangePricing, getVidangeStationConfig,
+  OIL_TYPES, VIDANGE_CATEGORY_GRID, getVidangePricing, getVidangeStationConfig, stationHasVidange,
   computeVidangeSlots, loadVidangeBookedSlots, vidangeOptionsPrice, createVidangeBooking,
 } from '../../lib/vidange';
 import { supabase } from '../../lib/supabaseClient';
@@ -317,10 +317,10 @@ export default function Stations() {
         promoMessage: isBannerActive(promo) ? promo.banner.message : null,
         isFeatured: !!featuredAd || isModuleFeatured,
         featuredMessage: featuredAd?.message || null,
-        // Vidange (add_vidange_feature.sql) — opt-in par station, aucun forfait
-        // requis. vidangeConfig.enabled conditionne l'affichage du bouton
-        // "Réserver une vidange" dans la fiche station ci-dessous.
-        vidangeConfig: getVidangeStationConfig(s.id),
+        // Vidange (add_vidange_feature.sql) — réservée au forfait Business (ou
+        // module mod_vidange, voir stationHasVidange) : le bouton "Réserver une
+        // vidange" n'apparaît que si la station y a droit ET l'a activée.
+        vidangeConfig: { ...getVidangeStationConfig(s.id), enabled: getVidangeStationConfig(s.id).enabled && stationHasVidange(s) },
         vidangePricing: getVidangePricing(s.id),
       };
     })

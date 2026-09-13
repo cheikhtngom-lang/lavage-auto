@@ -20,12 +20,12 @@ export const SHOP_CATEGORIES = [
 // Même limite que le logo station / l'image de pub (voir lib/ads.js).
 export const MAX_SHOP_IMAGE_SIZE = 1.5 * 1024 * 1024; // 1,5 Mo
 
-// La station a-t-elle droit à une boutique ? (plan Business ou module
-// mod_boutique) — même logique que le Bilan. Le vrai contrôle est côté
-// Postgres (station_has_shop + policies RLS) ; ceci sert à l'affichage.
+// La station a-t-elle droit à une boutique ? (plan Pro ou Business, ou module
+// mod_boutique) — le vrai contrôle est côté Postgres (station_has_shop +
+// policies RLS) ; ceci sert à l'affichage.
 export function stationHasShop(billing) {
   if (!billing) return false;
-  return billing.plan === 'Business' || (billing.activeModules || []).includes('mod_boutique');
+  return billing.plan === 'Pro' || billing.plan === 'Business' || (billing.activeModules || []).includes('mod_boutique');
 }
 
 // ─── Côté station (admin) ───────────────────────────────────────────--

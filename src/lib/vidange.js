@@ -6,6 +6,15 @@ import { supabase } from './supabaseClient';
 
 export const OIL_TYPES = ['Minérale', 'Semi-Synthèse', 'Synthèse'];
 
+// La station a-t-elle droit à la vidange ? (plan Business, ou module
+// mod_vidange) — le vrai contrôle est côté Postgres (station_has_vidange +
+// trigger sur stations.vidange_enabled, voir add_plan_gating.sql) ; ceci
+// sert à l'affichage (masquer l'onglet Réglages, le lien de menu...).
+export function stationHasVidange(billing) {
+  if (!billing) return false;
+  return billing.plan === 'Business' || (billing.activeModules || []).includes('mod_vidange');
+}
+
 // Mêmes 4 catégories que la grille tarifaire lavage (Settings.jsx), dupliquées
 // ici volontairement : ce fichier ne doit dépendre d'aucune page.
 export const VIDANGE_CATEGORY_GRID = [
