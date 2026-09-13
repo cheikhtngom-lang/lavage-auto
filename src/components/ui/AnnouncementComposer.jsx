@@ -116,15 +116,19 @@ export default function AnnouncementComposer({
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto"
+              className="bg-neutral-900 border border-white/10 rounded-2xl shadow-2xl relative max-h-[90vh] w-full max-w-lg flex flex-col overflow-hidden"
             >
-              <div className="flex items-center justify-between mb-6">
+              {/* En-tête fixe : toujours visible, même quand le formulaire
+                  (ciblage + message) dépasse la hauteur de l'écran et que le
+                  corps ci-dessous défile. */}
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0 border-b border-white/5">
                 <h2 className="text-xl font-bold text-white">Nouvelle Annonce</h2>
                 <button onClick={() => setOpen(false)} className="text-neutral-400 hover:text-white">
                   <X className="w-6 h-6" />
                 </button>
               </div>
 
+              <div className="px-6 pt-4 pb-6 overflow-y-auto">
               <form onSubmit={handleSend} noValidate className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1.5">Sujet</label>
@@ -242,6 +246,7 @@ export default function AnnouncementComposer({
                   </div>
                 </div>
               )}
+              </div>
             </motion.div>
           </div>
         )}
