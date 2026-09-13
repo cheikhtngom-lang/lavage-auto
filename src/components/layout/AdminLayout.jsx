@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart, Store, Wrench } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart, Store, Wrench, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { hasPerm } from '../../lib/permissions';
 import AnnouncementBell from '../ui/AnnouncementBell';
-import AnnouncementComposer from '../ui/AnnouncementComposer';
 import { isSubscriptionEnded } from '../../lib/stationRenewal';
 import { setSessionExpiredHandler } from '../../lib/idleTimeout';
 import StationOnboarding from '../onboarding/StationOnboarding';
@@ -21,7 +20,7 @@ export default function AdminLayout() {
   const [sessionLocked, setSessionLocked] = useState(false);
   const {
     stationProfile, stationProfileLoaded, stationBilling, myPermissions,
-    receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sentAnnouncements, sendStationAnnouncement, loadStationKnownClients,
+    receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement,
   } = useAppState();
   const canSendAnnouncements = hasPerm(myPermissions || [], 'announcements.manage');
 
@@ -84,6 +83,7 @@ export default function AdminLayout() {
     // RequireShopAccess dans App.jsx.
     { name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: ['Pro', 'Business'], module: 'mod_boutique' },
     { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
+    { name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage' },
     { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage' },
   ];
   // Contrôle d'accès "interface" (voir lib/permissions.js). Tant que les
@@ -131,13 +131,13 @@ export default function AdminLayout() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           {canSendAnnouncements && (
-            <AnnouncementComposer
-              label="Annonce"
-              submitLabel="Envoyer à vos clients"
-              onSend={sendStationAnnouncement}
-              recent={sentAnnouncements}
-              loadTargetClients={loadStationKnownClients}
-            />
+            <Link
+              to="/admin/annonces"
+              className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
+              title="Annonce"
+            >
+              <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
+            </Link>
           )}
           <AnnouncementBell
             announcements={receivedAnnouncements}
@@ -241,13 +241,13 @@ export default function AdminLayout() {
 
         <div className="hidden md:flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
           {canSendAnnouncements && (
-            <AnnouncementComposer
-              label="Annonce"
-              submitLabel="Envoyer à vos clients"
-              onSend={sendStationAnnouncement}
-              recent={sentAnnouncements}
-              loadTargetClients={loadStationKnownClients}
-            />
+            <Link
+              to="/admin/annonces"
+              className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
+              title="Annonce"
+            >
+              <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
+            </Link>
           )}
           <AnnouncementBell
             announcements={receivedAnnouncements}

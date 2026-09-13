@@ -37,9 +37,11 @@ import Settings from './pages/Admin/Settings';
 import Subscriptions from './pages/Admin/Subscriptions';
 import Bilan from './pages/Admin/Bilan';
 import Shop from './pages/Admin/Shop';
+import AdminAnnouncements from './pages/Admin/Announcements';
 import SubscriptionEnded from './pages/Admin/SubscriptionEnded';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
+import SuperAdminAnnouncements from './pages/SuperAdmin/Announcements';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
 import SuperAdminStations from './pages/SuperAdmin/Stations';
 import SuperAdminModules from './pages/SuperAdmin/Modules';
@@ -155,11 +157,13 @@ function App() {
                 <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />
+                <Route path="annonces" element={<RequirePerm perm="announcements.manage"><AdminAnnouncements /></RequirePerm>} />
               </Route>
 
               {/* Routes Super Admin */}
               <Route path="/superadmin" element={<SuperAdminLayout />}>
                 <Route index element={<SuperAdminDashboard />} />
+                <Route path="annonces" element={<SuperAdminAnnouncements />} />
                 <Route path="analytics" element={<SuperAdminAnalytics />} />
                 <Route path="stations" element={<SuperAdminStations />} />
                 <Route path="modules" element={<SuperAdminModules />} />

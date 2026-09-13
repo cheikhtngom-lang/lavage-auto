@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, FileBarChart, Boxes } from 'lucide-react';
+import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { clearSession, getCurrentRole } from '../../lib/accounts';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import SuperUserNotifBell from '../superadmin/SuperUserNotifBell';
-import AnnouncementComposer from '../ui/AnnouncementComposer';
 
 export default function SuperAdminLayout() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { superUserSubscriptions, stationAds, stations, sendPlatformAnnouncement } = useSuperAdminState();
+  const { superUserSubscriptions, stationAds } = useSuperAdminState();
   const pendingSuperUserCount = superUserSubscriptions.filter((s) => s.status === 'PENDING').length;
   const pendingAdsCount = stationAds.filter((a) => a.status === 'PENDING').length;
 
@@ -29,6 +28,7 @@ export default function SuperAdminLayout() {
     { name: 'Automobilistes', href: '/superadmin/automobilistes', icon: Users },
     { name: 'Abonnements Super User', href: '/superadmin/super-users', icon: Crown },
     { name: 'Publicités', href: '/superadmin/ads', icon: Megaphone },
+    { name: 'Annonces', href: '/superadmin/annonces', icon: Send },
     { name: 'Facturation', href: '/superadmin/billing', icon: CreditCard },
     { name: 'Bilan', href: '/superadmin/bilan', icon: FileBarChart },
     { name: 'Support', href: '/superadmin/support', icon: LifeBuoy },
@@ -56,12 +56,13 @@ export default function SuperAdminLayout() {
           <span className="font-bold text-lg">Super Admin</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <AnnouncementComposer
-            label="Annonce"
-            submitLabel="Envoyer à toutes les stations"
-            onSend={sendPlatformAnnouncement}
-            targetStations={stations}
-          />
+          <Link
+            to="/superadmin/annonces"
+            className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
+            title="Annonce"
+          >
+            <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
+          </Link>
           <SuperUserNotifBell />
         </div>
       </div>
@@ -154,12 +155,13 @@ export default function SuperAdminLayout() {
             clochette ne recouvre plus jamais un bouton de page (voir aussi
             le Header Mobile plus haut, qui a sa propre clochette dédiée). */}
         <div className="hidden md:flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
-          <AnnouncementComposer
-            label="Annonce"
-            submitLabel="Envoyer à toutes les stations"
-            onSend={sendPlatformAnnouncement}
-            targetStations={stations}
-          />
+          <Link
+            to="/superadmin/annonces"
+            className="flex items-center gap-2 px-4 py-2.5 md:py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors shadow-lg shadow-blue-500/20"
+            title="Annonce"
+          >
+            <Send className="w-4 h-4" /> <span className="hidden sm:inline">Annonce</span>
+          </Link>
           <SuperUserNotifBell />
         </div>
 

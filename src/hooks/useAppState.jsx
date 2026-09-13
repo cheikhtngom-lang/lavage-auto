@@ -3,7 +3,7 @@ import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
-import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi, loadStationKnownClients as loadStationKnownClientsApi } from '../lib/announcements';
+import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi, loadStationKnownClients as loadStationKnownClientsApi, retireAnnouncement } from '../lib/announcements';
 
 // Chaque station a ses propres données, séparées des autres (file d'attente,
 // employés, transactions...). En pratique, ce provider est remonté (via `key`
@@ -331,9 +331,16 @@ export function AppStateProvider({ children }) {
         if (!stationId || stationId === 'default') { setSentAnnouncements([]); return; }
         const { data } = await supabase.from('announcements').select('*')
             .eq('scope', 'station_to_clients').eq('station_id', stationId)
-            .order('created_at', { ascending: false }).limit(10);
-        setSentAnnouncements((data || []).map((row) => ({ id: row.id, title: row.title, message: row.message, createdAt: row.created_at })));
+            .order('created_at', { ascending: false }).limit(50);
+        setSentAnnouncements((data || []).map((row) => ({
+            id: row.id, title: row.title, message: row.message, createdAt: row.created_at,
+            active: row.active !== false, targetClientIds: row.target_client_ids || [],
+        })));
     }, [stationId]);
+    const retireStationAnnouncement = async (id) => {
+        await retireAnnouncement(id);
+        await loadSentAnnouncements();
+    };
 
     // Abonnements de la station
     const [clientSubscriptions, setClientSubscriptions] = useState([]);
@@ -600,9 +607,9 @@ export function AppStateProvider({ children }) {
         await loadSentAnnouncements();
     };
 
-    // Alimente le sélecteur de destinataires de AnnouncementComposer (abonnés
-    // avec compte + clients ayant réservé) — chargé à la demande, à
-    // l'ouverture du composeur, pas dans la boucle de rafraîchissement globale.
+    // Alimente le sélecteur de destinataires de AnnouncementForm (abonnés
+    // avec compte + clients ayant réservé) — chargé à la demande, pas dans
+    // la boucle de rafraîchissement globale.
     const loadStationKnownClients = useCallback(async () => {
         if (!stationId || stationId === 'default') return [];
         return await loadStationKnownClientsApi();
@@ -1287,7 +1294,7 @@ export function AppStateProvider({ children }) {
             vidangePricingConfig, updateVidangePricing, updateVidangeSettings,
             vidangeBookings, updateVidangeBookingStatus,
             shopOrders, updateShopOrderStatus,
-            receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement, loadStationKnownClients,
+            receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement, retireStationAnnouncement, loadStationKnownClients,
             addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely
