@@ -1151,15 +1151,16 @@ export function AppStateProvider({ children }) {
     // "reculer d'un rang" = échanger le created_at avec le véhicule suivant —
     // ça garde l'ordre cohérent partout ailleurs (estimation d'attente côté
     // client, file admin) sans avoir besoin d'une colonne de position dédiée.
+    // L'échange lui-même passe par une fonction Postgres atomique (voir
+    // add_station_push_back_rpc.sql) — deux `update` séparés depuis le
+    // navigateur pouvaient laisser l'ordre incohérent en cas de coupure
+    // réseau pile entre les deux.
     const pushBackOnePosition = (id) => {
         const idx = queue.findIndex((q) => q.id === id);
         if (idx === -1 || idx >= queue.length - 1) return;
-        const current = queue[idx];
-        const next = queue[idx + 1];
-        Promise.all([
-            supabase.from('reservations').update({ created_at: next.createdAt }).eq('id', current.id),
-            supabase.from('reservations').update({ created_at: current.createdAt }).eq('id', next.id),
-        ]).then(() => loadReservations());
+        supabase.rpc('station_push_back_one_position', { p_reservation_id: id })
+            .then(({ error }) => { if (error) console.error('pushBackOnePosition:', error); })
+            .finally(() => loadReservations());
     };
 
     const validatePayment = (id) => {
