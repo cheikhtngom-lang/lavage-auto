@@ -7,10 +7,11 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import {
   PERIOD_TYPES, availablePeriods, periodRange, periodKey, isCurrentPeriod, buildBilan,
+  buildLastTwoMonths, DOW_FR_SHORT,
   fcfa, fcfaCompact, pct,
 } from '../../lib/bilan';
 import { downloadBilanPdf } from '../../lib/bilanPdf';
-import { Donut, Legend, Bars, GroupedBars, AreaLine, Gauge, CHART_COLORS } from '../../components/ui/charts';
+import { Donut, Legend, Bars, GroupedBars, VerticalBars, AreaLine, Gauge, CHART_COLORS } from '../../components/ui/charts';
 
 function Delta({ d, invert = false, className = '' }) {
   if (d == null) return <span className={`text-xs text-neutral-500 ${className}`}>—</span>;
@@ -65,6 +66,10 @@ export default function Bilan() {
   const period = periods.find((p) => periodKey(p) === selKey) || periods[0];
   const bilan = useMemo(() => (period ? buildBilan(data, period) : null), [data, period]);
 
+  // Rubrique fixe "2 derniers mois complets" — indépendante du sélecteur de
+  // période ci-dessus (voir lastTwoCompleteMonths dans lib/bilan.js).
+  const lastTwoMonths = useMemo(() => buildLastTwoMonths(data), [data]);
+
   const [pdfBusy, setPdfBusy] = useState(false);
   const handlePdf = async () => {
     if (!bilan) return;
@@ -80,6 +85,7 @@ export default function Bilan() {
           slug: (stationProfile?.name || 'station').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
         },
         bilan,
+        lastTwoMonths,
       });
     } catch (e) {
       alert('Export PDF impossible : ' + (e?.message || e));
@@ -116,6 +122,24 @@ export default function Bilan() {
     { label: 'Résultat', a: cur.netResult, b: prev.netResult },
     { label: 'Lavages', a: cur.washCount, b: prev.washCount },
   ];
+
+  // Fréquence des réservations : répartition des lavages par jour de semaine
+  // (classée) et par heure (dans l'ordre, pour voir la forme de la journée).
+  const dowData = DOW_FR_SHORT
+    .map((label, i) => ({ label, value: cur.dowCounts[i] }))
+    .sort((a, b) => b.value - a.value);
+  const hourData = cur.hourCounts.map((value, h) => ({ label: `${h}h`, value }));
+
+  // Comparaison des 2 derniers mois calendaires complets (toujours les 2
+  // mêmes, quelle que soit la période choisie plus haut sur la page).
+  // Le nombre de lavages est affiché à part : sur la même échelle que le CA
+  // (centaines de milliers de FCFA), sa barre serait écrasée à quasi rien.
+  const [monthA, monthB] = lastTwoMonths.months; // [plus ancien, plus récent]
+  const twoMonthsMoneyGroups = monthA && monthB ? [
+    { label: 'CA', a: monthB.revenue, b: monthA.revenue },
+    { label: 'Dépenses', a: monthB.expenseTotal, b: monthA.expenseTotal },
+    { label: 'Résultat', a: monthB.netResult, b: monthA.netResult },
+  ] : [];
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
@@ -307,6 +331,35 @@ export default function Bilan() {
           </div>
         </Section>
       </div>
+
+      {/* Fréquence des réservations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <Section title="Réservations par jour de semaine" subtitle="Lavages terminés sur la période">
+          <Bars data={dowData} color="#06b6d4" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
+        </Section>
+        <Section title="Réservations par heure" subtitle="Répartition sur la journée (0h–23h)">
+          <VerticalBars data={hourData} color="#06b6d4" />
+        </Section>
+      </div>
+
+      {/* 2 derniers mois complets (fixe, indépendant du sélecteur ci-dessus) */}
+      {monthA && monthB && (
+        <div className="mt-6">
+          <Section title="2 derniers mois complets" subtitle={`${monthA.label} vs ${monthB.label} — le mois en cours n'est jamais inclus, ses chiffres sont partiels`}>
+            <div className="grid sm:grid-cols-[1fr_auto] gap-6 items-center">
+              <GroupedBars groups={twoMonthsMoneyGroups} labelA={monthB.label} labelB={monthA.label} colorA="#3b82f6" colorB="#525252" formatValue={fcfaCompact} />
+              <div className="sm:border-l sm:border-white/5 sm:pl-6 text-center">
+                <p className="text-xs text-neutral-500 mb-3">Lavages</p>
+                <div className="flex items-center gap-4 justify-center">
+                  <div><p className="text-2xl font-bold text-neutral-400">{monthA.washCount}</p><p className="text-[11px] text-neutral-600">{monthA.label}</p></div>
+                  <span className="text-neutral-700">→</span>
+                  <div><p className="text-2xl font-bold text-blue-400">{monthB.washCount}</p><p className="text-[11px] text-neutral-600">{monthB.label}</p></div>
+                </div>
+              </div>
+            </div>
+          </Section>
+        </div>
+      )}
     </div>
   );
 }

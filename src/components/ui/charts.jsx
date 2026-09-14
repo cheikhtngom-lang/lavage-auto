@@ -133,6 +133,36 @@ export function GroupedBars({ groups, labelA, labelB, colorA = '#3b82f6', colorB
   );
 }
 
+// ─── Barres verticales (une série, beaucoup de catégories — ex. 24h) ──
+export function VerticalBars({ data, color = '#3b82f6', height = 150 }) {
+  const items = data || [];
+  const max = Math.max(1, ...items.map((d) => d.value));
+  if (items.length === 0 || items.every((d) => d.value === 0)) return <EmptyBox height={height} />;
+  const padB = 20, padT = 8, colW = 24;
+  const W = Math.max(320, items.length * colW);
+  return (
+    <div className="overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${height}`} className="w-full" style={{ minWidth: items.length > 13 ? W : undefined, height }}>
+        <line x1="0" x2={W} y1={height - padB} y2={height - padB} stroke="rgba(255,255,255,0.08)" />
+        {items.map((d, i) => {
+          const cx = i * colW + colW / 2;
+          const bw = Math.min(14, colW - 8);
+          const h = (d.value / max) * (height - padT - padB);
+          const baseY = height - padB;
+          return (
+            <g key={d.label + i}>
+              <motion.rect x={cx - bw / 2} width={bw} rx="2" fill={d.color || color}
+                initial={{ height: 0, y: baseY }} animate={{ height: h, y: baseY - h }}
+                transition={{ duration: 0.7, delay: 0.06 + i * 0.02 }} />
+              <text x={cx} y={height - padB + 11} textAnchor="middle" fill="#737373" fontSize="7.5">{d.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Courbe multi-séries (évolution CA / dépenses / résultat) ────────
 export function AreaLine({ data, keys, formatValue = (v) => v.toLocaleString('fr-FR'), height = 220 }) {
   const rows = data || [];

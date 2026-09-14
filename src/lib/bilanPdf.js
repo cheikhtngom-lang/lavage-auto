@@ -4,7 +4,9 @@
 // tableau de synthèse comparée, puis une section par rubrique avec un
 // mini-graphique vectoriel. Aucune capture d'écran (rendu net et léger).
 import jsPDF from 'jspdf';
-import { fcfa, pct } from './bilan';
+import { fcfa, pct, DOW_FR_SHORT } from './bilan';
+
+const CYAN = [6, 182, 212];
 
 const BLUE = [37, 99, 235];
 const GREEN = [16, 133, 88];
@@ -49,7 +51,7 @@ const deltaColor = (d, invert = false) => {
   return good ? GREEN : RED;
 };
 
-export async function downloadBilanPdf({ station, bilan }) {
+export async function downloadBilanPdf({ station, bilan, lastTwoMonths }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const { current: cur, previous: prev, deltas, range, prevLabel, trend, partial } = bilan;
   let y = MX;
@@ -244,6 +246,62 @@ export async function downloadBilanPdf({ station, bilan }) {
     y += 6.5;
   });
   y += 4;
+
+  // ─── Fréquence des réservations (jour de semaine + heure) ────────
+  barBlock('Réservations par jour de semaine', DOW_FR_SHORT.map((label, i) => ({ label, value: cur.dowCounts[i] })), (v) => `${v} lavage${v > 1 ? 's' : ''}`);
+
+  sectionTitle('Réservations par heure de la journée');
+  if (cur.hourCounts.some((n) => n > 0)) {
+    const chH = 28, base = y + chH, maxH = Math.max(1, ...cur.hourCounts);
+    const slot = CONTENT_W / 24;
+    ensure(chH + 12);
+    cur.hourCounts.forEach((v, h) => {
+      const cx = MX + h * slot + slot / 2;
+      const bw = Math.max(1.4, slot - 1.5);
+      const hh = (v / maxH) * chH;
+      doc.setFillColor(...CYAN); doc.rect(cx - bw / 2, base - hh, bw, hh, 'F');
+      if (h % 3 === 0) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(5.5); doc.setTextColor(...GRAY);
+        doc.text(`${h}h`, cx, base + 4, { align: 'center' });
+      }
+    });
+    y = base + 8;
+  } else {
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(...GRAY);
+    doc.text('Aucune donnée sur cette période.', MX, y + 2); y += 10;
+  }
+
+  // ─── 2 derniers mois complets (fixe, indépendant de la période choisie) ─
+  if (lastTwoMonths?.months?.length === 2) {
+    const [mOlder, mRecent] = lastTwoMonths.months;
+    sectionTitle('2 derniers mois complets');
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+    doc.text(`${mOlder.label} vs ${mRecent.label} — le mois en cours n’est jamais inclus, ses chiffres sont partiels`, MX, y + 2);
+    y += 7;
+    doc.setFillColor(...PALE); doc.rect(MX, y, CONTENT_W, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...BLUE);
+    doc.text('INDICATEUR', c1 + 2, y + 4.7);
+    doc.text(mRecent.label.toUpperCase(), c2, y + 4.7);
+    doc.text(mOlder.label.toUpperCase(), c3, y + 4.7);
+    y += 7;
+    [
+      ['Chiffre d’affaires', fcfa(mRecent.revenue), fcfa(mOlder.revenue)],
+      ['Dépenses', fcfa(mRecent.expenseTotal), fcfa(mOlder.expenseTotal)],
+      ['Résultat net', fcfa(mRecent.netResult), fcfa(mOlder.netResult)],
+      ['Lavages réalisés', String(mRecent.washCount), String(mOlder.washCount)],
+    ].forEach(([label, a, b], i) => {
+      ensure(8);
+      if (i % 2) { doc.setFillColor(249, 250, 252); doc.rect(MX, y, CONTENT_W, 7, 'F'); }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...DARK);
+      doc.text(label, c1 + 2, y + 4.8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(a), c2, y + 4.8);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...GRAY);
+      doc.text(String(b), c3, y + 4.8);
+      y += 7;
+    });
+    y += 6;
+  }
 
   if (station.cachet) {
     ensure(28);

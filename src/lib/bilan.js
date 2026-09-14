@@ -16,6 +16,7 @@ export const PERIOD_TYPES = [
 
 const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const DOW_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+export const DOW_FR_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const num = (v) => (Number.isFinite(+v) ? +v : 0);
@@ -148,6 +149,9 @@ function computeSlice({ transactions, expenses, completedWashes, reviews }, rang
     busiestDow: dow.some((n) => n > 0) ? DOW_FR[dow.indexOf(Math.max(...dow))] : null,
     busiestHour: hour.some((n) => n > 0) ? hour.indexOf(Math.max(...hour)) : null,
     activeDays,
+    // Distributions complètes (pas juste le pic) — pour les graphiques de
+    // fréquence des réservations dans Bilan.jsx.
+    dowCounts: dow, hourCounts: hour,
   };
 }
 
@@ -206,6 +210,29 @@ export function buildBilan(data, period) {
     current, previous, deltas,
     trend: subBuckets(data, range, period.type),
   };
+}
+
+// ─── "2 derniers mois complets" ──────────────────────────────────────
+// Rubrique fixe, indépendante du sélecteur de période en haut de page : le
+// mois en cours n'est jamais dedans (il est partiel), donc en septembre on
+// affiche toujours juillet + août, quelle que soit la période choisie plus
+// haut dans la page.
+export function lastTwoCompleteMonths() {
+  const now = new Date();
+  const out = [];
+  for (let back = 2; back >= 1; back--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - back, 1);
+    out.push({ type: 'mensuel', year: d.getFullYear(), index: d.getMonth() + 1 });
+  }
+  return out; // [mois-2, mois-1] — ex. [juillet, août] si on est en septembre
+}
+
+export function buildLastTwoMonths(data) {
+  const months = lastTwoCompleteMonths().map((p) => {
+    const range = periodRange(p);
+    return { label: range.label, ...computeSlice(data, range) };
+  });
+  return { months };
 }
 
 // ─── Formatage ───────────────────────────────────────────────────────
