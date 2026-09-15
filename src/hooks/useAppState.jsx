@@ -997,6 +997,17 @@ export function AppStateProvider({ children }) {
         const paid = !!washData.paid;
         const activeSub = paid ? findEligibleSubscription(washData.clientId, amount) : null;
         const method = activeSub ? 'Abonnement' : 'Espèces';
+        // Affichage optimiste : sans ça, le véhicule ajouté restait invisible
+        // dans la file pendant tout l'aller-retour réseau (insert PUIS
+        // re-fetch complet via loadReservations), donnant l'impression que
+        // l'ajout n'avait rien fait — retiré/remplacé dès que loadReservations
+        // recharge la vraie ligne (voir plus bas), ou retiré si l'insertion échoue.
+        const tempId = `temp-${Date.now()}`;
+        setQueue((prev) => [...prev, {
+            id: tempId, status: 'attente', clientId: washData.clientId || null, client: washData.client,
+            vehicle: washData.vehicle, category: washData.category, service: washData.service,
+            paid, amount, createdAt: new Date().toISOString(),
+        }]);
         supabase.from('reservations').insert({
             station_id: stationId, client_name: washData.client, vehicle_label: washData.vehicle,
             category: washData.category, service: washData.service, paid, amount, status: 'attente',
@@ -1005,17 +1016,24 @@ export function AppStateProvider({ children }) {
             // pour qu'elle apparaisse en direct sur son tableau de bord.
             client_id: washData.clientId || null,
         }).select().single().then(async ({ data, error }) => {
+            if (error) {
+                console.error('addWash:', error);
+                setQueue((prev) => prev.filter((q) => q.id !== tempId));
+                alert("Impossible d'ajouter ce véhicule : " + error.message);
+                return;
+            }
             // Payé directement à l'ajout ("Payé d'avance") : il faut créer la
             // transaction ici (rien d'autre ne le fera jamais, contrairement au
             // flux "Encaisser" plus tard qui passe par validatePayment) — sinon
             // ce lavage n'apparaît jamais en Comptabilité/Transactions et ne
             // déduit jamais un abonnement même quand method serait 'Abonnement'.
-            if (!error && paid) {
-                await supabase.from('transactions').insert({
+            if (paid) {
+                const { error: txError } = await supabase.from('transactions').insert({
                     station_id: stationId, reservation_id: data.id, client_id: washData.clientId || null,
                     client_name: washData.client, vehicle_label: washData.vehicle, service: washData.service,
                     method, amount,
                 });
+                if (txError) console.error('addWash (transaction):', txError);
                 loadTransactions();
             }
             loadReservations();
@@ -1120,7 +1138,21 @@ export function AppStateProvider({ children }) {
     // lavage. assigned_to_name garde le premier laveur (compat Analytics/
     // historique), assigned_washer_names ne contient une valeur QUE s'il y en
     // a plusieurs.
+    // Un id "temp-..." est une ligne optimiste d'addWash pas encore remplacée
+    // par la vraie ligne Supabase (voir addWash) — la fenêtre est courte (un
+    // aller-retour réseau) mais un update dessus ne toucherait aucune ligne
+    // réelle en base, sans erreur ni effet visible : on bloque plutôt que de
+    // laisser le gérant croire que son clic n'a rien fait.
+    const isPendingTempId = (id) => {
+        if (typeof id === 'string' && id.startsWith('temp-')) {
+            alert("Ce véhicule est en cours d'ajout, patientez un instant avant de réessayer.");
+            return true;
+        }
+        return false;
+    };
+
     const startWash = (id, employeeIdOrIds) => {
+        if (isPendingTempId(id)) return;
         const ids = Array.isArray(employeeIdOrIds) ? employeeIdOrIds : [employeeIdOrIds];
         const emps = ids.map(eid => (employees || []).find(e => e.id === eid)).filter(Boolean);
         const names = emps.map(e => e.name);
@@ -1141,6 +1173,7 @@ export function AppStateProvider({ children }) {
     };
 
     const skipWash = (id) => {
+        if (isPendingTempId(id)) return;
         supabase.from('reservations').update({ status: 'annule' }).eq('id', id).then(() => loadReservations());
     };
 
@@ -1164,6 +1197,7 @@ export function AppStateProvider({ children }) {
     };
 
     const validatePayment = (id) => {
+        if (isPendingTempId(id)) return;
         const item = queue.find(q => q.id === id) || activeWashes.find(w => w.id === id);
         if (!item || item.paid) return;
 
@@ -1180,11 +1214,18 @@ export function AppStateProvider({ children }) {
         const activeSub = findEligibleSubscription(item.clientId, amount);
         const method = activeSub ? 'Abonnement' : 'Espèces';
 
-        supabase.from('reservations').update({ paid: true, amount }).eq('id', id).then(async () => {
-            await supabase.from('transactions').insert({
+        supabase.from('reservations').update({ paid: true, amount }).eq('id', id).select().then(async ({ data, error }) => {
+            if (error || !data || data.length === 0) {
+                console.error('validatePayment:', error || 'aucune ligne mise à jour');
+                alert("Impossible de valider ce paiement, réessayez : " + (error?.message || 'la réservation est introuvable.'));
+                loadReservations();
+                return;
+            }
+            const { error: txError } = await supabase.from('transactions').insert({
                 station_id: stationId, reservation_id: id, client_id: item.clientId || null, client_name: item.client, vehicle_label: item.vehicle,
                 service: item.service, method, amount,
             });
+            if (txError) console.error('validatePayment (transaction):', txError);
             loadReservations();
             loadTransactions();
         });

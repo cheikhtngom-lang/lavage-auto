@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { getCurrentRole } from '../lib/accounts';
 import { setStationsCache, setWashPricingCache, setVidangePricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
 import { loadPlatformAnnouncements, sendPlatformAnnouncement as sendPlatformAnnouncementApi, retireAnnouncement } from '../lib/announcements';
@@ -166,6 +167,20 @@ const rowToLavagePayment = (row) => ({
 const SuperAdminStateContext = createContext(null);
 
 export function SuperAdminStateProvider({ children }) {
+    // Ce provider tourne sur TOUTE l'app — y compris les tableaux de bord
+    // station et automobiliste, qui ont besoin de `stations`/`wash_pricing`/
+    // la file anonymisée/etc. Mais une partie de ce qu'il charge (comptes
+    // clients, litiges, journal d'audit, abonnements Super User, reversements,
+    // annonces plateforme) est une donnée 100% Super Admin : aucune page
+    // Client/Admin ne la consomme (vérifié). La charger quand même pour
+    // CHAQUE session connectée — au montage, toutes les 45s, à chaque focus
+    // d'onglet, et via un canal Realtime qui écoutait `profiles`/`disputes`/
+    // `audit_log`/etc. sans le moindre filtre — était la première cause de
+    // lenteur remontée côté station ET automobiliste : 6 requêtes/écoutes en
+    // trop sur 15 pour n'importe quel compte non-Super-Admin. Réservées au
+    // rôle Super Admin ci-dessous (voir isSuperAdmin).
+    const isSuperAdmin = getCurrentRole() === 'super_admin';
+
     const [stations, setStations] = useState([]);
     const [disputes, setDisputes] = useState([]);
     const [auditLog, setAuditLog] = useState([]);
@@ -305,21 +320,26 @@ export function SuperAdminStateProvider({ children }) {
 
     useEffect(() => {
         loadStations();
-        loadClientAccounts();
         loadWashPricing();
         loadVidangePricing();
         loadQueueSnapshot();
         loadReviews();
-        loadDisputes();
-        loadAuditLog();
         loadPlans();
         loadVehicleBrands();
-        loadSuperUserSubscriptions();
         loadStationAds();
         loadStationRenewalPayments();
-        loadLavagePayments();
-        loadAnnouncements();
-        const refresh = () => { loadStations(); loadClientAccounts(); loadWashPricing(); loadVidangePricing(); loadQueueSnapshot(); loadReviews(); loadDisputes(); loadAuditLog(); loadPlans(); loadVehicleBrands(); loadSuperUserSubscriptions(); loadStationAds(); loadStationRenewalPayments(); loadLavagePayments(); loadAnnouncements(); };
+        if (isSuperAdmin) {
+            loadClientAccounts();
+            loadDisputes();
+            loadAuditLog();
+            loadSuperUserSubscriptions();
+            loadLavagePayments();
+            loadAnnouncements();
+        }
+        const refresh = () => {
+            loadStations(); loadWashPricing(); loadVidangePricing(); loadQueueSnapshot(); loadReviews(); loadPlans(); loadVehicleBrands(); loadStationAds(); loadStationRenewalPayments();
+            if (isSuperAdmin) { loadClientAccounts(); loadDisputes(); loadAuditLog(); loadSuperUserSubscriptions(); loadLavagePayments(); loadAnnouncements(); }
+        };
         window.addEventListener('focus', refresh);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
         // (voir schema.sql) : un changement pendant qu'un autre onglet Super
@@ -341,20 +361,26 @@ export function SuperAdminStateProvider({ children }) {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, loadQueueSnapshot)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, loadStations)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_billing' }, loadStations)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadClientAccounts)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'wash_pricing' }, loadWashPricing)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'vidange_pricing' }, loadVidangePricing)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'disputes' }, loadDisputes)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_log' }, loadAuditLog)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'plans' }, loadPlans)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'custom_vehicle_brands' }, loadVehicleBrands)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'super_user_subscriptions' }, loadSuperUserSubscriptions)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_ads' }, loadStationAds)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_renewal_payments' }, loadStationRenewalPayments)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage' }, loadLavagePayments)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, loadAnnouncements)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews' }, loadReviews)
-            .subscribe();
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews' }, loadReviews);
+        // Tables 100% Super Admin (voir isSuperAdmin plus haut) : un automobiliste
+        // ou une station n'a aucune raison d'écouter les changements de PROFILS
+        // DE TOUS LES AUTRES UTILISATEURS de la plateforme, par exemple.
+        if (isSuperAdmin) {
+            channel
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, loadClientAccounts)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'disputes' }, loadDisputes)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_log' }, loadAuditLog)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'super_user_subscriptions' }, loadSuperUserSubscriptions)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage' }, loadLavagePayments)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, loadAnnouncements);
+        }
+        channel.subscribe();
         // Filet de sécurité (reconnexion Realtime manquée) — plus espacé
         // maintenant que le direct fait le gros du travail, même logique que
         // useAppState.jsx.
