@@ -549,47 +549,49 @@ export default function ClientOverview() {
         </div>
 
         <div className="glass-card rounded-2xl overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-white/5 bg-white/[0.02]">
-                <th className="p-5 font-semibold text-neutral-400">Date & Station</th>
-                <th className="p-5 font-semibold text-neutral-400">Service</th>
-                <th className="p-5 font-semibold text-neutral-400">Prix</th>
-                <th className="p-5 font-semibold text-neutral-400">Statut</th>
-                <th className="p-5 font-semibold text-neutral-400 text-right">Reçu</th>
-                <th className="p-5 font-semibold text-neutral-400 text-right">Avis</th>
-              </tr>
-            </thead>
-            <tbody>
-              {myTransactions.length === 0 ? (
-                <tr><td colSpan="6" className="p-10 text-center text-neutral-500"><Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />Aucune transaction enregistrée pour le moment.</td></tr>
-              ) : (
-                paginatedTransactions.map((tx, index) => (
-                  <motion.tr initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }} key={`${tx.stationId}-${tx.id}`} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                    <td className="p-5"><p className="font-bold text-white">{tx.date}</p><p className="text-sm text-neutral-400">{tx.stationName}</p></td>
-                    <td className="p-5 text-neutral-300">{tx.service}</td>
-                    <td className="p-5 font-medium text-white">{tx.amount?.toLocaleString()} FCFA</td>
-                    <td className="p-5"><Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Payé</Badge></td>
-                    <td className="p-5 text-right">
-                      <button onClick={() => downloadTransactionReceipt(tx)} title="Télécharger le reçu (PDF)"
-                        className="text-xs font-medium text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1">
-                        <Download className="w-3.5 h-3.5" /> PDF
-                      </button>
-                    </td>
-                    <td className="p-5 text-right">
-                      {isReviewed(tx) ? (
-                        <span className="text-xs text-neutral-500 flex items-center justify-end gap-1"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> Noté</span>
-                      ) : (
-                        <button onClick={() => openReview(tx)} className="text-xs font-medium text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 ml-auto">
-                          <Star className="w-3.5 h-3.5" /> Noter
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-white/5 bg-white/[0.02]">
+                  <th className="p-5 font-semibold text-neutral-400">Date & Station</th>
+                  <th className="p-5 font-semibold text-neutral-400">Service</th>
+                  <th className="p-5 font-semibold text-neutral-400">Prix</th>
+                  <th className="p-5 font-semibold text-neutral-400">Statut</th>
+                  <th className="p-5 font-semibold text-neutral-400 text-right">Reçu</th>
+                  <th className="p-5 font-semibold text-neutral-400 text-right">Avis</th>
+                </tr>
+              </thead>
+              <tbody>
+                {myTransactions.length === 0 ? (
+                  <tr><td colSpan="6" className="p-10 text-center text-neutral-500"><Clock className="w-10 h-10 mx-auto mb-3 opacity-30" />Aucune transaction enregistrée pour le moment.</td></tr>
+                ) : (
+                  paginatedTransactions.map((tx, index) => (
+                    <motion.tr initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }} key={`${tx.stationId}-${tx.id}`} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
+                      <td className="p-5"><p className="font-bold text-white">{tx.date}</p><p className="text-sm text-neutral-400">{tx.stationName}</p></td>
+                      <td className="p-5 text-neutral-300">{tx.service}</td>
+                      <td className="p-5 font-medium text-white">{tx.amount?.toLocaleString()} FCFA</td>
+                      <td className="p-5"><Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">Payé</Badge></td>
+                      <td className="p-5 text-right">
+                        <button onClick={() => downloadTransactionReceipt(tx)} title="Télécharger le reçu (PDF)"
+                          className="text-xs font-medium text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1">
+                          <Download className="w-3.5 h-3.5" /> PDF
                         </button>
-                      )}
-                    </td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="p-5 text-right">
+                        {isReviewed(tx) ? (
+                          <span className="text-xs text-neutral-500 flex items-center justify-end gap-1"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> Noté</span>
+                        ) : (
+                          <button onClick={() => openReview(tx)} className="text-xs font-medium text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 ml-auto">
+                            <Star className="w-3.5 h-3.5" /> Noter
+                          </button>
+                        )}
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
           {myTransactions.length > 0 && (
             <Pagination
               page={currentPage}
