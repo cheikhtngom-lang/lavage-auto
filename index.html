@@ -573,6 +573,29 @@
             </div>
         </section>
 
+        <!-- Vidéo de présentation (motion design) — cliquer pour lire, pas d'autoplay :
+             contrairement à la vidéo de fond du hero (muette, en boucle), celle-ci a du
+             son et dure 44s, donc lue à la demande via les contrôles natifs du navigateur
+             plutôt qu'imposée au chargement. `preload="none"` : le fichier (~1,8 Mo,
+             réencodé depuis 10,5 Mo d'origine) n'est téléchargé que si le visiteur lance
+             la lecture. -->
+        <section class="w-full max-w-5xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
+            <div class="reveal-item text-center mb-10">
+                <h2 class="text-3xl md:text-5xl font-bold mb-4">Voyez Clean Car Galsen en vidéo</h2>
+                <p class="text-neutral-400 max-w-2xl mx-auto">Réservation, file d'attente, encaissement : la plateforme en images.</p>
+            </div>
+            <div class="reveal-item glass-card rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+                <video
+                    controls
+                    preload="none"
+                    poster="/images/motion-design-poster.jpg"
+                    class="w-full aspect-video bg-black"
+                >
+                    <source src="/videos/motion-design.mp4" type="video/mp4">
+                </video>
+            </div>
+        </section>
+
         <!-- Recherche de Stations (Existante) -->
         <section id="stations-section" class="w-full bg-black/40 py-24 border-y border-white/5 relative z-10 reveal-group">
             <div class="max-w-6xl mx-auto px-4">
