@@ -573,27 +573,155 @@
             </div>
         </section>
 
-        <!-- Vidéo de présentation (motion design) — cliquer pour lire, pas d'autoplay :
-             contrairement à la vidéo de fond du hero (muette, en boucle), celle-ci a du
-             son et dure 44s, donc lue à la demande via les contrôles natifs du navigateur
-             plutôt qu'imposée au chargement. `preload="none"` : le fichier (~1,8 Mo,
-             réencodé depuis 10,5 Mo d'origine) n'est téléchargé que si le visiteur lance
-             la lecture. -->
+        <!-- Vidéo de présentation (motion design) — se lance automatiquement dès
+             qu'elle entre dans l'écran au scroll (IntersectionObserver plus bas),
+             une seule fois. Doit démarrer `muted` : les navigateurs bloquent tout
+             autoplay avec son, seul l'autoplay muet est autorisé partout — c'est
+             aussi ce que demande le client (bouton volume pour activer le son
+             soi-même).
+             Barre de contrôle CUSTOM (pas l'attribut `controls` natif) : demande
+             explicite du client de n'avoir QUE lecture/pause + volume/muet, sans
+             plein écran ni menu "..." — `controlsList`/`disablePictureInPicture`
+             ne suffisent pas à les retirer de façon fiable (le bouton plein écran
+             et le menu "..." restent visibles dans Chrome malgré ces attributs,
+             vérifié), d'où des contrôles maison qui garantissent exactement ce
+             sous-ensemble sur tous les navigateurs.
+             Comme pour le hero, pas d'autoplay en 2G/économie de données/"réduire
+             les animations" — juste la vignette, lecture manuelle via le bouton. -->
         <section class="w-full max-w-5xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
             <div class="reveal-item text-center mb-10">
                 <h2 class="text-3xl md:text-5xl font-bold mb-4">Voyez Clean Car Galsen en vidéo</h2>
                 <p class="text-neutral-400 max-w-2xl mx-auto">Réservation, file d'attente, encaissement : la plateforme en images.</p>
             </div>
-            <div class="reveal-item glass-card rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+            <div class="reveal-item glass-card rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative" id="motion-design-wrap">
                 <video
-                    controls
-                    preload="none"
+                    id="motion-design-video"
+                    muted
+                    playsinline
+                    preload="metadata"
                     poster="/images/motion-design-poster.jpg"
-                    class="w-full aspect-video bg-black"
+                    class="w-full aspect-video bg-black block"
                 >
                     <source src="/videos/motion-design.mp4" type="video/mp4">
                 </video>
+
+                <!-- Grand bouton lecture central, visible tant que la vidéo n'a pas démarré. -->
+                <button id="md-big-play" type="button" aria-label="Lire la vidéo"
+                    class="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors">
+                    <span class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-600/90 flex items-center justify-center shadow-2xl">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    </span>
+                </button>
+
+                <!-- Barre de contrôle : lecture/pause, progression, temps, volume/muet — uniquement. -->
+                <div class="absolute inset-x-0 bottom-0 flex items-center gap-3 px-4 py-3 bg-gradient-to-t from-black/85 via-black/50 to-transparent">
+                    <button id="md-playpause" type="button" aria-label="Lecture / Pause" class="text-white hover:text-blue-400 transition-colors flex-shrink-0">
+                        <svg id="md-icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                        <svg id="md-icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="hidden"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                    </button>
+
+                    <div id="md-progress-track" class="flex-1 h-1.5 bg-white/25 rounded-full cursor-pointer relative">
+                        <div id="md-progress-fill" class="h-full bg-blue-500 rounded-full" style="width:0%"></div>
+                    </div>
+
+                    <span id="md-time" class="text-white text-xs font-mono flex-shrink-0 tabular-nums hidden sm:inline">0:00 / 0:00</span>
+
+                    <button id="md-mute" type="button" aria-label="Activer / couper le son" class="text-white hover:text-blue-400 transition-colors flex-shrink-0">
+                        <svg id="md-icon-vol-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                        </svg>
+                        <svg id="md-icon-vol-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+                        </svg>
+                    </button>
+                    <input id="md-volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume"
+                        class="w-16 sm:w-20 accent-blue-500 flex-shrink-0">
+                </div>
             </div>
+            <script>
+                (function () {
+                    var v = document.getElementById('motion-design-video');
+                    if (!v) return;
+                    var bigPlay = document.getElementById('md-big-play');
+                    var playBtn = document.getElementById('md-playpause');
+                    var iconPlay = document.getElementById('md-icon-play');
+                    var iconPause = document.getElementById('md-icon-pause');
+                    var track = document.getElementById('md-progress-track');
+                    var fill = document.getElementById('md-progress-fill');
+                    var timeEl = document.getElementById('md-time');
+                    var muteBtn = document.getElementById('md-mute');
+                    var iconVolOn = document.getElementById('md-icon-vol-on');
+                    var iconVolOff = document.getElementById('md-icon-vol-off');
+                    var volumeInput = document.getElementById('md-volume');
+
+                    function fmt(s) {
+                        s = Math.max(0, Math.floor(s || 0));
+                        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+                    }
+                    function syncPlayIcon() {
+                        iconPlay.classList.toggle('hidden', !v.paused);
+                        iconPause.classList.toggle('hidden', v.paused);
+                        bigPlay.classList.toggle('hidden', !v.paused);
+                    }
+                    function syncVolumeIcon() {
+                        var off = v.muted || v.volume === 0;
+                        iconVolOn.classList.toggle('hidden', off);
+                        iconVolOff.classList.toggle('hidden', !off);
+                    }
+                    function togglePlay() {
+                        if (v.paused) v.play().catch(function () {}); else v.pause();
+                    }
+                    bigPlay.addEventListener('click', togglePlay);
+                    playBtn.addEventListener('click', togglePlay);
+                    v.addEventListener('play', syncPlayIcon);
+                    v.addEventListener('pause', syncPlayIcon);
+                    v.addEventListener('ended', syncPlayIcon);
+
+                    v.addEventListener('timeupdate', function () {
+                        var pct = v.duration ? (v.currentTime / v.duration) * 100 : 0;
+                        fill.style.width = pct + '%';
+                        timeEl.textContent = fmt(v.currentTime) + ' / ' + fmt(v.duration);
+                    });
+                    v.addEventListener('loadedmetadata', function () {
+                        timeEl.textContent = fmt(v.currentTime) + ' / ' + fmt(v.duration);
+                    });
+                    track.addEventListener('click', function (e) {
+                        var rect = track.getBoundingClientRect();
+                        var ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+                        if (v.duration) v.currentTime = ratio * v.duration;
+                    });
+
+                    muteBtn.addEventListener('click', function () {
+                        v.muted = !v.muted;
+                        if (!v.muted && v.volume === 0) { v.volume = 1; volumeInput.value = 1; }
+                        syncVolumeIcon();
+                    });
+                    volumeInput.addEventListener('input', function () {
+                        v.volume = parseFloat(volumeInput.value);
+                        v.muted = v.volume === 0;
+                        syncVolumeIcon();
+                    });
+                    syncPlayIcon();
+                    syncVolumeIcon();
+
+                    // Lecture automatique (muette) dès l'entrée dans l'écran au scroll,
+                    // une seule fois — sauf 2G/économie de données/"réduire les animations".
+                    if (!('IntersectionObserver' in window)) return;
+                    var c = navigator.connection || {};
+                    var slow = c.saveData || /(^|-)2g$/.test(c.effectiveType || '');
+                    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    if (slow || reduce) return;
+                    var io = new IntersectionObserver(function (entries) {
+                        entries.forEach(function (entry) {
+                            if (entry.isIntersecting) {
+                                v.play().catch(function () {});
+                                io.unobserve(v);
+                            }
+                        });
+                    }, { threshold: 0.5 });
+                    io.observe(v);
+                })();
+            </script>
         </section>
 
         <!-- Recherche de Stations (Existante) -->
