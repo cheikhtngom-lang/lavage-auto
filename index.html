@@ -35,14 +35,21 @@
     <!-- <meta name="google-site-verification" content="VOTRE_CODE_ICI"> -->
 
     <!-- Google Analytics (GA4) — propriété « Clean Car Galsen », ID de mesure G-6EFQN7CBB8.
-         À reporter à l'identique dans login.html, reset-password.html, dashboard.html. -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6EFQN7CBB8"></script>
+         À reporter à l'identique dans login.html, reset-password.html, dashboard.html.
+         Consent Mode v2 : la mesure d'audience démarre refusée par défaut, le
+         script cookie-consent.js (bannière RGPD) la bascule sur "granted"
+         uniquement si le visiteur accepte — voir public/cookie-consent.js. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', { analytics_storage: 'denied' });
+    </script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6EFQN7CBB8"></script>
+    <script>
       gtag('js', new Date());
       gtag('config', 'G-6EFQN7CBB8');
     </script>
+    <script src="/cookie-consent.js" defer></script>
 
 
     <!-- Données structurées — SaaS 100 % en ligne (éditeur de logiciel), pas de

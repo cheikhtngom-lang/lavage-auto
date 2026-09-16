@@ -7,14 +7,20 @@
     <meta name="description" content="Connectez-vous ou créez votre compte Clean Car Galsen : automobiliste ou station de lavage partenaire au Sénégal.">
     <meta name="robots" content="noindex">
 
-    <!-- Google Analytics (GA4) — ID de mesure G-6EFQN7CBB8 (identique aux autres pages HTML). -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6EFQN7CBB8"></script>
+    <!-- Google Analytics (GA4) — ID de mesure G-6EFQN7CBB8 (identique aux autres pages HTML).
+         Consent Mode v2 : refusée par défaut, bascule sur "granted" uniquement si
+         le visiteur accepte la bannière RGPD — voir public/cookie-consent.js. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', { analytics_storage: 'denied' });
+    </script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6EFQN7CBB8"></script>
+    <script>
       gtag('js', new Date());
       gtag('config', 'G-6EFQN7CBB8');
     </script>
+    <script src="/cookie-consent.js" defer></script>
 
 
     <!-- PWA : installable comme une application sur mobile/tablette -->
@@ -368,6 +374,11 @@
                         ✅ Accès gratuit — Réservez et suivez vos lavages en temps réel.
                     </div>
                     <form id="form-register-auto" onsubmit="handleRegisterAuto(event)">
+                        <!-- Piège à robots (anti-spam) : champ invisible pour un humain, que
+                             seul un bot de remplissage automatique complète — voir
+                             handleRegisterAuto, qui rejette silencieusement si rempli. -->
+                        <input type="text" id="reg-auto-hp" name="website" autocomplete="off" tabindex="-1"
+                               style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
                         <div class="space-y-4 mb-5">
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
@@ -413,6 +424,9 @@
                         🏪 Gérez votre station, vos laveurs et votre comptabilité depuis votre tableau de bord.
                     </div>
                     <form id="form-register-agence" onsubmit="handleRegisterAgence(event)">
+                        <!-- Piège à robots (anti-spam), voir la même astuce sur le formulaire Automobiliste. -->
+                        <input type="text" id="reg-agence-hp" name="website" autocomplete="off" tabindex="-1"
+                               style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
                         <div class="space-y-4 mb-5">
                             <div>
                                 <label class="field-label">Nom de l'agence / station</label>
@@ -821,6 +835,9 @@
         // ============ INSCRIPTION AUTOMOBILISTE ============
         async function handleRegisterAuto(e) {
             e.preventDefault();
+            // Piège à robots rempli => très probablement un bot, on abandonne
+            // silencieusement (pas de message d'erreur qui l'aiderait à s'adapter).
+            if (document.getElementById('reg-auto-hp').value) return;
             const errorEl = document.getElementById('reg-auto-error');
             errorEl.classList.add('hidden');
 
@@ -851,6 +868,9 @@
         // ============ INSCRIPTION AGENCE ============
         async function handleRegisterAgence(e) {
             e.preventDefault();
+            // Piège à robots rempli => très probablement un bot, on abandonne
+            // silencieusement (pas de message d'erreur qui l'aiderait à s'adapter).
+            if (document.getElementById('reg-agence-hp').value) return;
             const errorEl = document.getElementById('reg-agence-error');
             errorEl.classList.add('hidden');
 

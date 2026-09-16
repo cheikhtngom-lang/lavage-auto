@@ -9,14 +9,20 @@
          contenu à indexer, on la sort de l'index pour éviter le "contenu pauvre". -->
     <meta name="robots" content="noindex, follow" />
 
-    <!-- Google Analytics (GA4) — ID de mesure G-6EFQN7CBB8 (identique aux autres pages HTML). -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6EFQN7CBB8"></script>
+    <!-- Google Analytics (GA4) — ID de mesure G-6EFQN7CBB8 (identique aux autres pages HTML).
+         Consent Mode v2 : refusée par défaut, bascule sur "granted" uniquement si
+         le visiteur accepte la bannière RGPD — voir public/cookie-consent.js. -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      gtag('consent', 'default', { analytics_storage: 'denied' });
+    </script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6EFQN7CBB8"></script>
+    <script>
       gtag('js', new Date());
       gtag('config', 'G-6EFQN7CBB8');
     </script>
+    <script src="/cookie-consent.js" defer></script>
 
 
     <!-- PWA : installable comme une application sur mobile/tablette -->
