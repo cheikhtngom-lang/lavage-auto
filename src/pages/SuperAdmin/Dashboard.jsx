@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock, Wallet } from 'lucide-react';
@@ -16,18 +16,32 @@ export default function SuperAdminDashboard() {
   const [granularity, setGranularity] = useState('mois');
   const [revenueGranularity, setRevenueGranularity] = useState('mois');
   const [revenueStationId, setRevenueStationId] = useState('all');
-  // Mois/année affichés quand la granularité "Jour"/"Mois" est calendaire
-  // (voir revenueBuckets plus bas) — jamais utilisés en "Semaine"/"Année".
+  // Jour/mois/année précis choisis via les grilles ci-dessous — jamais
+  // utilisés en granularité "Semaine" (fenêtre glissante inchangée).
   const today = new Date();
+  const [revenueDay, setRevenueDay] = useState(today.getDate());
   const [revenueMonth, setRevenueMonth] = useState(today.getMonth());
   const [revenueYear, setRevenueYear] = useState(today.getFullYear());
-  const REVENUE_FIRST_YEAR = 2024;
+  // Première année avec de vraies données — pas une constante figée : calculée
+  // depuis la 1re station inscrite, pour ne proposer que des années où la
+  // plateforme existait réellement (aujourd'hui : 2026 seul, l'appli venant
+  // d'être lancée ; les années suivantes s'ajouteront d'elles-mêmes).
+  const REVENUE_FIRST_YEAR = stations.length > 0
+    ? Math.min(today.getFullYear(), ...stations.map((s) => new Date(s.joinedAt).getFullYear()))
+    : today.getFullYear();
   const revenueYearOptions = [];
   for (let y = REVENUE_FIRST_YEAR; y <= today.getFullYear(); y++) revenueYearOptions.push(y);
   const monthOptions = Array.from({ length: 12 }).map((_, m) => {
     const label = new Date(2000, m, 1).toLocaleDateString('fr-FR', { month: 'long' });
     return { value: m, label: label.charAt(0).toUpperCase() + label.slice(1) };
   });
+  const daysInSelectedMonth = new Date(revenueYear, revenueMonth + 1, 0).getDate();
+  // Un jour choisi dans un mois de 31 jours (ex: le 31) doit être ramené à la
+  // fin du mois si on bascule sur un mois plus court (ex: février) — sans ça
+  // selectedRange calculerait une plage sur un jour qui n'existe pas.
+  useEffect(() => {
+    if (revenueDay > daysInSelectedMonth) setRevenueDay(daysInSelectedMonth);
+  }, [daysInSelectedMonth, revenueDay]);
 
   const activeStations = stations.filter(s => s.status === 'active');
   const pendingStations = stations.filter(s => s.status === 'en_attente');
@@ -68,14 +82,18 @@ export default function SuperAdminDashboard() {
   // espèces + en ligne, table `transactions`) — jamais le MRR de l'abonnement
   // SaaS ci-dessus. Filtrable par période (jour/semaine/mois/année) et par
   // station, indépendamment du graphique "Nouvelles stations" au-dessus.
-  // `.filter(s => s.name?.trim())` exclut une éventuelle station sans nom (le
-  // seul cas qui produirait une ligne vide dans le sélecteur de recherche).
+  // Une station sans `name` renseigné produisait une ligne vide dans l'ancien
+  // <select> natif — la filtrer la rendait invisible/introuvable (régression
+  // signalée : "Baye Lavage" avait disparu). On la garde désormais TOUJOURS
+  // sélectionnable, avec un nom de secours (raison sociale puis ville) plutôt
+  // que de la masquer.
+  const stationLabel = (s) => (s.name || '').trim() || (s.ownerName || '').trim() || (s.city || '').trim() || 'Station sans nom';
   const sortedStationsForFilter = useMemo(
-    () => [...stations].filter((s) => (s.name || '').trim()).sort((a, b) => a.name.localeCompare(b.name)),
+    () => [...stations].sort((a, b) => stationLabel(a).localeCompare(stationLabel(b))),
     [stations]
   );
   const stationFilterOptions = useMemo(
-    () => [{ value: 'all', label: 'Toutes les stations' }, ...sortedStationsForFilter.map((s) => ({ value: s.id, label: s.name }))],
+    () => [{ value: 'all', label: 'Toutes les stations' }, ...sortedStationsForFilter.map((s) => ({ value: s.id, label: stationLabel(s) }))],
     [sortedStationsForFilter]
   );
   // "Jour"/"Mois" sont calendaires (jour 1 -> fin du mois choisi, Janvier ->
@@ -98,13 +116,42 @@ export default function SuperAdminDashboard() {
     [revenueBuckets, scopedTransactions]
   );
   const revenuePoints = revenueBuckets.map((b, i) => ({ label: b.label, value: revenueSeries[i] }));
-  const totalRevenueInView = revenueSeries.reduce((s, v) => s + v, 0);
-  const viewStart = revenueBuckets[0]?.start;
-  const viewEnd = revenueBuckets[revenueBuckets.length - 1]?.end;
-  const washCountInView = scopedTransactions.filter((t) => {
+
+  // Le graphique ci-dessous garde tout le mois/toute l'année comme contexte,
+  // mais les 2 chiffres clés ("Total", "Lavages encaissés") portent sur le
+  // seul jour/mois/année précisément choisi dans la grille — jamais la somme
+  // de toute la fenêtre affichée. "Semaine" (non demandée en précis) reste
+  // la somme de toute la fenêtre glissante visible, comme avant.
+  const selectedRange = useMemo(() => {
+    if (revenueGranularity === 'jour') {
+      const start = new Date(revenueYear, revenueMonth, revenueDay, 0, 0, 0, 0);
+      return { start, end: new Date(start.getTime() + 24 * 3600 * 1000) };
+    }
+    if (revenueGranularity === 'mois') {
+      return { start: new Date(revenueYear, revenueMonth, 1), end: new Date(revenueYear, revenueMonth + 1, 1) };
+    }
+    if (revenueGranularity === 'annee') {
+      return { start: new Date(revenueYear, 0, 1), end: new Date(revenueYear + 1, 0, 1) };
+    }
+    return null;
+  }, [revenueGranularity, revenueYear, revenueMonth, revenueDay]);
+
+  const selectedPeriodLabel = revenueGranularity === 'jour'
+    ? new Date(revenueYear, revenueMonth, revenueDay).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : revenueGranularity === 'mois'
+      ? (() => { const l = new Date(revenueYear, revenueMonth, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }); return l.charAt(0).toUpperCase() + l.slice(1); })()
+      : revenueGranularity === 'annee'
+        ? `Année ${revenueYear}`
+        : null;
+
+  const viewStart = selectedRange ? selectedRange.start : revenueBuckets[0]?.start;
+  const viewEnd = selectedRange ? selectedRange.end : revenueBuckets[revenueBuckets.length - 1]?.end;
+  const transactionsInSelection = scopedTransactions.filter((t) => {
     const d = new Date(t.createdAt);
     return viewStart && viewEnd && d >= viewStart && d < viewEnd;
-  }).length;
+  });
+  const totalRevenueInView = transactionsInSelection.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  const washCountInView = transactionsInSelection.length;
 
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
@@ -219,9 +266,10 @@ export default function SuperAdminDashboard() {
                 </button>
               ))}
             </div>
-            {/* Jour -> mois calendaire à choisir ; Mois -> année civile à choisir
-                (voir revenueBuckets plus haut). Semaine/Année n'ont besoin d'aucun
-                sélecteur supplémentaire. */}
+            {/* Jour -> navigue le mois affiché par la grille de jours ci-dessous ;
+                Mois -> navigue l'année affichée par la grille de mois. Semaine/Année
+                n'ont besoin d'aucun sélecteur de navigation supplémentaire (la
+                grille d'années se suffit à elle-même). */}
             {revenueGranularity === 'jour' && (
               <select
                 value={revenueMonth}
@@ -243,9 +291,64 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
+        {/* Grille de sélection précise — clic direct sur le jour du mois, le
+            mois de l'année, ou l'année souhaitée (au lieu d'une simple liste
+            déroulante) : les 2 chiffres clés en dessous portent sur CE choix
+            précis, pas sur toute la fenêtre affichée par le graphique. */}
+        {revenueGranularity === 'jour' && (
+          <div className="grid grid-cols-7 gap-1.5 mb-6 pb-6 border-b border-white/5">
+            {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map((day) => (
+              <button
+                key={day}
+                type="button"
+                onClick={() => setRevenueDay(day)}
+                className={`aspect-square rounded-lg text-sm font-medium transition-colors ${
+                  day === revenueDay ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-neutral-300 hover:bg-white/10'
+                }`}
+              >
+                {day}
+              </button>
+            ))}
+          </div>
+        )}
+        {revenueGranularity === 'mois' && (
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 mb-6 pb-6 border-b border-white/5">
+            {monthOptions.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setRevenueMonth(m.value)}
+                className={`px-2 py-2.5 rounded-lg text-sm font-medium transition-colors truncate ${
+                  m.value === revenueMonth ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-neutral-300 hover:bg-white/10'
+                }`}
+              >
+                {m.label.slice(0, 3)}
+              </button>
+            ))}
+          </div>
+        )}
+        {revenueGranularity === 'annee' && (
+          <div className="flex flex-wrap gap-1.5 mb-6 pb-6 border-b border-white/5">
+            {revenueYearOptions.map((y) => (
+              <button
+                key={y}
+                type="button"
+                onClick={() => setRevenueYear(y)}
+                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  y === revenueYear ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-neutral-300 hover:bg-white/10'
+                }`}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-end gap-8 my-6">
           <div>
-            <span className="text-neutral-500 text-xs uppercase tracking-wider">Total sur la période affichée</span>
+            <span className="text-neutral-500 text-xs uppercase tracking-wider">
+              {selectedPeriodLabel ? `Total — ${selectedPeriodLabel}` : 'Total sur la période affichée'}
+            </span>
             <p className="text-3xl font-bold text-white">{totalRevenueInView.toLocaleString('fr-FR')} <span className="text-lg text-neutral-400">FCFA</span></p>
           </div>
           <div>
