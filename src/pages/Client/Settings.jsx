@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Check, Smartphone, Loader2, Clock3, Download, FileDown } from 'lucide-react';
+import { User, Phone, Lock, CheckCircle2, Camera, X, Crown, Check, Smartphone, Loader2, Clock3, Download, FileDown, Building2, MapPin, AlertTriangle } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
-import { changePassword } from '../../lib/accounts';
+import { useSuperAdminState } from '../../hooks/useSuperAdminState';
+import { changePassword, convertClientToStation, setSession } from '../../lib/accounts';
 import { MAX_FREE_VEHICLES, CLIENT_PLANS, createSuperUserPayment } from '../../lib/superUser';
 import { payPlatformOnline } from '../../lib/paydunya';
 import { exportClientOwnData } from '../../lib/rgpdExport';
+import { SENEGAL_REGIONS } from '../../lib/regions';
+import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — même limite que le logo station
@@ -14,6 +17,7 @@ const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp'];
 export default function Settings() {
   useDocumentTitle('Paramètres');
   const { account, updateProfile, superUserStatus, superUserSub, refreshSuperUser } = useClientAccount();
+  const { PLANS } = useSuperAdminState();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const subscriptionRef = useRef(null);
@@ -31,6 +35,18 @@ export default function Settings() {
 
   const [rgpdBusy, setRgpdBusy] = useState(false);
   const [rgpdError, setRgpdError] = useState('');
+
+  // Conversion automobiliste -> station (voir lib/accounts.js
+  // convertClientToStation + add_client_to_station_conversion.sql). Pas de
+  // nom/email de gérant à ressaisir : le RPC reprend ceux du profil existant.
+  const [showStationForm, setShowStationForm] = useState(false);
+  const [stationForm, setStationForm] = useState({ name: '', address: '', quartier: '', region: '', phone: account?.phone || '', plan: 'Starter' });
+  const [stationCoords, setStationCoords] = useState({ lat: null, lng: null });
+  const [geoStatus, setGeoStatus] = useState(null);
+  const [geoMessage, setGeoMessage] = useState('');
+  const [showConversionConfirm, setShowConversionConfirm] = useState(false);
+  const [conversionBusy, setConversionBusy] = useState(false);
+  const [conversionError, setConversionError] = useState('');
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('SUPER_USER');
@@ -165,6 +181,90 @@ export default function Settings() {
       setRgpdError(err.message || "Impossible de générer l'export.");
     } finally {
       setRgpdBusy(false);
+    }
+  };
+
+  // Même logique que captureStationLocation() (login.html) et handleLocateStation
+  // (Admin/Settings.jsx) — mais la station n'existe pas encore, donc on garde
+  // les coordonnées en state local jusqu'à la conversion effective.
+  const handleCaptureLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoStatus('error');
+      setGeoMessage("La géolocalisation n'est pas disponible sur cet appareil.");
+      return;
+    }
+    setGeoStatus('loading');
+    setGeoMessage('Localisation en cours...');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setStationCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus('success');
+        setGeoMessage(`Position enregistrée ✓ (précision ~${Math.round(pos.coords.accuracy)} m)`);
+      },
+      (err) => {
+        const messages = { 1: 'Permission refusée — activez la localisation dans votre navigateur.', 2: 'Position indisponible pour le moment.', 3: 'Délai dépassé, réessayez.' };
+        setGeoStatus('error');
+        setGeoMessage(messages[err.code] || 'Impossible de récupérer votre position.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleLocateFromQuartier = async () => {
+    if (!stationForm.quartier.trim() || !stationForm.region) {
+      setGeoStatus('error');
+      setGeoMessage("Renseignez d'abord le quartier et la région ci-dessous.");
+      return;
+    }
+    setGeoStatus('loading');
+    setGeoMessage('Recherche du quartier...');
+    try {
+      const result = await geocodeQuartierRegion(stationForm.quartier, stationForm.region);
+      setStationCoords({ lat: result.lat, lng: result.lng });
+      setGeoStatus('success');
+      setGeoMessage(result.precision === 'quartier' ? 'Quartier localisé ✓' : 'Région localisée (quartier introuvable) ✓');
+    } catch (err) {
+      setGeoStatus('error');
+      setGeoMessage(err.message || 'Impossible de localiser ce quartier.');
+    }
+  };
+
+  const handleReviewConversion = (e) => {
+    e.preventDefault();
+    setConversionError('');
+    if (!stationForm.name.trim()) {
+      setConversionError('Le nom de la station est requis.');
+      return;
+    }
+    setShowConversionConfirm(true);
+  };
+
+  // Après conversion, profiles.role n'est plus 'automobiliste' : useClientAccount
+  // videra `account` au prochain rechargement et ClientLayout renverrait vers
+  // login.html. On évite ce détour en mettant à jour la session locale nous-mêmes
+  // puis en rechargeant directement sur l'espace station (même geste que
+  // handleRegisterAgence dans login.html après createStationAccount).
+  const handleConfirmConversion = async () => {
+    setConversionBusy(true);
+    setConversionError('');
+    try {
+      const station = await convertClientToStation({
+        name: stationForm.name.trim(),
+        address: stationForm.address.trim(),
+        quartier: stationForm.quartier.trim(),
+        region: stationForm.region,
+        phone: stationForm.phone.trim(),
+        plan: stationForm.plan,
+        lat: stationCoords.lat,
+        lng: stationCoords.lng,
+      });
+      const remember = localStorage.getItem('isLoggedIn') === 'true';
+      setSession({ role: 'admin', remember, stationId: station.id });
+      window.location.href = '/admin/queue';
+    } catch (err) {
+      setConversionError(err.message || 'Impossible de créer votre espace station, réessayez.');
+      setConversionBusy(false);
+      setShowConversionConfirm(false);
     }
   };
 
@@ -346,6 +446,128 @@ export default function Settings() {
         </button>
         {rgpdError && <p className="text-sm text-red-400 mt-3">{rgpdError}</p>}
       </div>
+
+      <div className="glass-card rounded-2xl p-6 md:p-8 border border-emerald-500/20 bg-emerald-500/[0.03] mt-8">
+        <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+          <Building2 className="w-5 h-5 text-emerald-400" /> Espace professionnel
+        </h2>
+        <p className="text-neutral-400 text-sm mb-5">
+          Vous gérez une station de lavage ? Transformez ce compte automobiliste en compte station pour accéder au tableau de bord de gestion (file d'attente, encaissements, équipe...).
+        </p>
+
+        {!showStationForm ? (
+          <button
+            onClick={() => setShowStationForm(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-3 rounded-xl text-sm transition-colors"
+          >
+            <Building2 className="w-4 h-4" /> Créer mon espace Station
+          </button>
+        ) : (
+          <form onSubmit={handleReviewConversion} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-neutral-400 mb-1.5">Nom de la station</label>
+              <input type="text" required maxLength={100} placeholder="Auto Clean VIP" value={stationForm.name}
+                onChange={(e) => setStationForm({ ...stationForm, name: e.target.value })}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-400 mb-1.5">Adresse</label>
+              <input type="text" maxLength={150} placeholder="Plateau, Dakar" value={stationForm.address}
+                onChange={(e) => setStationForm({ ...stationForm, address: e.target.value })}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5">Quartier</label>
+                <input type="text" maxLength={100} placeholder="Plateau" value={stationForm.quartier}
+                  onChange={(e) => setStationForm({ ...stationForm, quartier: e.target.value })}
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1.5">Région</label>
+                <select value={stationForm.region} onChange={(e) => setStationForm({ ...stationForm, region: e.target.value })}
+                  className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 appearance-none">
+                  <option value="">Sélectionner...</option>
+                  {SENEGAL_REGIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button type="button" onClick={handleCaptureLocation} disabled={geoStatus === 'loading'}
+                  className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white rounded-xl py-2.5 text-sm font-medium transition-colors disabled:opacity-50">
+                  <MapPin className="w-4 h-4" /> Ma position actuelle
+                </button>
+                <button type="button" onClick={handleLocateFromQuartier} disabled={geoStatus === 'loading'}
+                  className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white rounded-xl py-2.5 text-sm font-medium transition-colors disabled:opacity-50">
+                  🗺️ Localiser mon quartier
+                </button>
+              </div>
+              <p className="text-xs text-neutral-600 mt-1.5">Optionnel — affine la distance affichée aux automobilistes. Le quartier et la région suffisent pour être trouvé.</p>
+              {geoMessage && <p className={`text-xs mt-1.5 ${geoStatus === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>{geoMessage}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-400 mb-1.5 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Téléphone professionnel</label>
+              <input type="tel" value={stationForm.phone} onChange={(e) => setStationForm({ ...stationForm, phone: e.target.value })}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-400 mb-1.5">Offre choisie</label>
+              <div className="grid sm:grid-cols-3 gap-3">
+                {Object.entries(PLANS).map(([key, def]) => (
+                  <button type="button" key={key} onClick={() => setStationForm({ ...stationForm, plan: key })}
+                    className={`text-left px-4 py-3 rounded-xl border transition-colors ${stationForm.plan === key ? 'border-emerald-500 bg-emerald-500/10' : 'border-white/10 bg-white/5 hover:border-emerald-500/40'}`}>
+                    <p className="text-white font-bold text-sm">{def.label}</p>
+                    <p className="text-neutral-500 text-xs">{def.price.toLocaleString('fr-FR')} FCFA/mois</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-neutral-600 mt-1.5">1 mois d'essai gratuit inclus, sans engagement.</p>
+            </div>
+
+            {conversionError && <p className="text-sm text-red-400">{conversionError}</p>}
+
+            <div className="flex items-center gap-3 pt-2">
+              <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl transition-colors">
+                Continuer
+              </button>
+              <button type="button" onClick={() => setShowStationForm(false)} className="text-neutral-400 hover:text-white text-sm font-medium">
+                Annuler
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {showConversionConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+            <button onClick={() => !conversionBusy && setShowConversionConfirm(false)} className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-amber-500/20 rounded-xl"><AlertTriangle className="w-5 h-5 text-amber-400" /></div>
+              <h2 className="text-xl font-bold text-white">Confirmer la conversion</h2>
+            </div>
+            <p className="text-sm text-neutral-300 mb-2">
+              Ce compte (<strong>{account?.email}</strong>) va devenir le compte de connexion de la station <strong>{stationForm.name}</strong>.
+            </p>
+            <p className="text-sm text-neutral-400 mb-6">
+              Vous ne pourrez plus l'utiliser comme compte automobiliste (réservations, garage, fidélité) — utilisez un autre email si vous voulez garder les deux.
+            </p>
+            {conversionError && <p className="text-sm text-red-400 mb-4">{conversionError}</p>}
+            <div className="flex gap-3">
+              <button onClick={handleConfirmConversion} disabled={conversionBusy}
+                className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-colors">
+                {conversionBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
+                {conversionBusy ? 'Création...' : 'Confirmer et créer ma station'}
+              </button>
+              <button onClick={() => setShowConversionConfirm(false)} disabled={conversionBusy}
+                className="px-5 py-3 rounded-xl border border-white/10 text-neutral-300 hover:text-white text-sm font-medium transition-colors">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">

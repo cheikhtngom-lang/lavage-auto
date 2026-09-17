@@ -149,6 +149,20 @@ const rowToRenewalPayment = (row) => ({
 // add_manual_disbursement.sql) — une ligne par facture PayDunya. Statut
 // 'manuel' = pas de compte PayDunya station renseigné, ou redistribution
 // automatique indisponible : le Super Admin doit reverser à la main.
+// Encaissements réels des stations (add_client_to_station_conversion.sql
+// n'y touche pas — table existante, déjà lisible par le Super Admin via la
+// policy `transactions_select`, voir schema.sql). Alimente la carte
+// "Recette générée par les stations" (Dashboard.jsx) : chiffre d'affaires
+// réel des lavages (espèces + en ligne), pas seulement la commission
+// plateforme déjà suivie par lavagePayments/paiements_lavage.
+const rowToStationTransaction = (row) => ({
+    id: row.id,
+    stationId: row.station_id,
+    stationName: row.stations?.name || '',
+    amount: row.amount,
+    createdAt: row.created_at,
+});
+
 const rowToLavagePayment = (row) => ({
     id: row.id,
     stationId: row.station_id,
@@ -190,6 +204,7 @@ export function SuperAdminStateProvider({ children }) {
     const [stationAds, setStationAds] = useState([]);
     const [stationRenewalPayments, setStationRenewalPayments] = useState([]);
     const [lavagePayments, setLavagePayments] = useState([]);
+    const [stationTransactions, setStationTransactions] = useState([]);
     // getItemPosition/estimateItemWaitTime (stationData.js) lisent un cache
     // hors-React (queueSnapshot, simple variable de module) — le recharger ne
     // suffit donc pas à rafraîchir l'écran automobiliste : rien ne dit à React
@@ -254,6 +269,21 @@ export function SuperAdminStateProvider({ children }) {
     const loadLavagePayments = useCallback(async () => {
         const { data } = await supabase.from('paiements_lavage').select('*, stations(name)').order('created_at', { ascending: false });
         setLavagePayments((data || []).map(rowToLavagePayment));
+    }, []);
+
+    // Encaissements réels de TOUTES les stations, bornés aux 5 dernières
+    // années (recul max utilisé par la granularité "Année" côté UI, voir
+    // lib/dateBuckets.js) — évite de rapatrier l'historique complet des
+    // lavages, colonnes minimales (pas de client_id/nom, non nécessaires ici).
+    const loadStationTransactions = useCallback(async () => {
+        const since = new Date();
+        since.setFullYear(since.getFullYear() - 5);
+        const { data } = await supabase
+            .from('transactions')
+            .select('id, station_id, amount, created_at, stations(name)')
+            .gte('created_at', since.toISOString())
+            .order('created_at', { ascending: false });
+        setStationTransactions((data || []).map(rowToStationTransaction));
     }, []);
 
     // Annonces diffusées à toutes les stations (add_announcements.sql) —
@@ -334,11 +364,12 @@ export function SuperAdminStateProvider({ children }) {
             loadAuditLog();
             loadSuperUserSubscriptions();
             loadLavagePayments();
+            loadStationTransactions();
             loadAnnouncements();
         }
         const refresh = () => {
             loadStations(); loadWashPricing(); loadVidangePricing(); loadQueueSnapshot(); loadReviews(); loadPlans(); loadVehicleBrands(); loadStationAds(); loadStationRenewalPayments();
-            if (isSuperAdmin) { loadClientAccounts(); loadDisputes(); loadAuditLog(); loadSuperUserSubscriptions(); loadLavagePayments(); loadAnnouncements(); }
+            if (isSuperAdmin) { loadClientAccounts(); loadDisputes(); loadAuditLog(); loadSuperUserSubscriptions(); loadLavagePayments(); loadStationTransactions(); loadAnnouncements(); }
         };
         window.addEventListener('focus', refresh);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
@@ -378,6 +409,7 @@ export function SuperAdminStateProvider({ children }) {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_log' }, loadAuditLog)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'super_user_subscriptions' }, loadSuperUserSubscriptions)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage' }, loadLavagePayments)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, loadStationTransactions)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, loadAnnouncements);
         }
         channel.subscribe();
@@ -390,7 +422,7 @@ export function SuperAdminStateProvider({ children }) {
             clearInterval(interval);
             supabase.removeChannel(channel);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadVidangePricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments, loadAnnouncements]);
+    }, [loadStations, loadClientAccounts, loadWashPricing, loadVidangePricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments, loadStationTransactions, loadAnnouncements]);
 
     // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
     // et persiste en tâche de fond — appelée en fire-and-forget après quasi
@@ -642,6 +674,7 @@ export function SuperAdminStateProvider({ children }) {
             stationAds, confirmAdPayment, rejectAdPayment,
             stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
             lavagePayments, markLavagePaymentsSettled,
+            stationTransactions,
             platformAnnouncements, sendPlatformAnnouncement, retirePlatformAnnouncement,
         }}>
             {children}

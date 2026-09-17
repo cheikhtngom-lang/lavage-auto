@@ -80,6 +80,27 @@ export async function createStationAccount({ name, address, city, quartier, regi
   return { id: station.id, name: station.name, ownerEmail: loginEmail };
 }
 
+// Transforme un compte automobiliste déjà connecté en compte station (voir
+// Paramètres > "Devenir une station" et add_client_to_station_conversion.sql
+// pour le pourquoi du RPC plutôt que 2 écritures côté client). Ne déconnecte
+// pas : la session Supabase Auth reste la même, seul profiles.role change —
+// à l'appelant de mettre à jour la session locale (setSession) et de
+// rediriger vers /admin/queue.
+export async function convertClientToStation({ name, address, quartier, region, phone, plan, lat, lng }) {
+  const { data, error } = await supabase.rpc('convert_account_to_station', {
+    p_name: name,
+    p_address: address || '',
+    p_quartier: quartier || '',
+    p_region: region || '',
+    p_phone: phone || '',
+    p_lat: typeof lat === 'number' ? lat : null,
+    p_lng: typeof lng === 'number' ? lng : null,
+    p_plan: plan || null,
+  });
+  if (error) throw new Error(error.message);
+  return { id: data.id, name: data.name };
+}
+
 // ─── Connexion ──────────────────────────────────────────────────────────
 // Le rôle vient de la base (profiles.role), pas de l'onglet cliqué dans
 // l'UI de login.html — ça évite de devoir dupliquer la logique de rôle

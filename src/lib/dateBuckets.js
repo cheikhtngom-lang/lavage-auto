@@ -57,3 +57,13 @@ export function countInBuckets(buckets, items, dateField) {
     return d >= b.start && d < b.end;
   }).length);
 }
+
+// Même principe que countInBuckets, mais somme une valeur numérique (ex.
+// recette des lavages) au lieu de compter les lignes — voir "Recette générée
+// par les stations" dans SuperAdmin/Dashboard.jsx.
+export function sumInBuckets(buckets, items, dateField, valueFn) {
+  return buckets.map(b => items.reduce((sum, it) => {
+    const d = new Date(it[dateField]);
+    return (d >= b.start && d < b.end) ? sum + (Number(valueFn(it)) || 0) : sum;
+  }, 0));
+}

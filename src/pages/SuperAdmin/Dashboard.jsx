@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock } from 'lucide-react';
+import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock, Wallet } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
+import { GRANULARITIES, buildBuckets, countInBuckets, sumInBuckets } from '../../lib/dateBuckets';
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
@@ -11,8 +11,10 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function SuperAdminDashboard() {
   useDocumentTitle('Tableau de bord');
-  const { stations, clientAccounts, PLANS } = useSuperAdminState();
+  const { stations, clientAccounts, PLANS, stationTransactions } = useSuperAdminState();
   const [granularity, setGranularity] = useState('mois');
+  const [revenueGranularity, setRevenueGranularity] = useState('mois');
+  const [revenueStationId, setRevenueStationId] = useState('all');
 
   const activeStations = stations.filter(s => s.status === 'active');
   const pendingStations = stations.filter(s => s.status === 'en_attente');
@@ -48,6 +50,29 @@ export default function SuperAdminDashboard() {
   const buckets = useMemo(() => buildBuckets(granularity), [granularity]);
   const newStationsSeries = useMemo(() => countInBuckets(buckets, stations, 'joinedAt'), [buckets, stations]);
   const newStationsPoints = buckets.map((b, i) => ({ label: b.label, value: newStationsSeries[i] }));
+
+  // Recette générée par les stations (chiffre d'affaires réel des lavages —
+  // espèces + en ligne, table `transactions`) — jamais le MRR de l'abonnement
+  // SaaS ci-dessus. Filtrable par période (jour/semaine/mois/année) et par
+  // station, indépendamment du graphique "Nouvelles stations" au-dessus.
+  const sortedStationsForFilter = useMemo(() => [...stations].sort((a, b) => a.name.localeCompare(b.name)), [stations]);
+  const revenueBuckets = useMemo(() => buildBuckets(revenueGranularity), [revenueGranularity]);
+  const scopedTransactions = useMemo(
+    () => revenueStationId === 'all' ? stationTransactions : stationTransactions.filter((t) => t.stationId === revenueStationId),
+    [stationTransactions, revenueStationId]
+  );
+  const revenueSeries = useMemo(
+    () => sumInBuckets(revenueBuckets, scopedTransactions, 'createdAt', (t) => t.amount),
+    [revenueBuckets, scopedTransactions]
+  );
+  const revenuePoints = revenueBuckets.map((b, i) => ({ label: b.label, value: revenueSeries[i] }));
+  const totalRevenueInView = revenueSeries.reduce((s, v) => s + v, 0);
+  const viewStart = revenueBuckets[0]?.start;
+  const viewEnd = revenueBuckets[revenueBuckets.length - 1]?.end;
+  const washCountInView = scopedTransactions.filter((t) => {
+    const d = new Date(t.createdAt);
+    return viewStart && viewEnd && d >= viewStart && d < viewEnd;
+  }).length;
 
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
@@ -125,6 +150,66 @@ export default function SuperAdminDashboard() {
           </motion.div>
         ))}
       </div>
+
+      {/* Recette générée par les stations (chiffre d'affaires lavages réel,
+          pas l'abonnement SaaS — voir Répartition des Abonnements/MRR plus bas) */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="glass-card rounded-2xl p-8 mb-12"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-emerald-400" /> Recette générée par les stations
+            </h2>
+            <p className="text-neutral-500 text-sm mt-1">Chiffre d'affaires réel des lavages (espèces + en ligne) — pas l'abonnement SaaS des stations.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={revenueStationId}
+              onChange={(e) => setRevenueStationId(e.target.value)}
+              className="bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 appearance-none"
+            >
+              <option value="all">Toutes les stations</option>
+              {sortedStationsForFilter.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
+              {GRANULARITIES.map(g => (
+                <button
+                  key={g.key}
+                  onClick={() => setRevenueGranularity(g.key)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                    revenueGranularity === g.key ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-8 my-6">
+          <div>
+            <span className="text-neutral-500 text-xs uppercase tracking-wider">Total sur la période affichée</span>
+            <p className="text-3xl font-bold text-white">{totalRevenueInView.toLocaleString('fr-FR')} <span className="text-lg text-neutral-400">FCFA</span></p>
+          </div>
+          <div>
+            <span className="text-neutral-500 text-xs uppercase tracking-wider">Lavages encaissés</span>
+            <p className="text-3xl font-bold text-white">{washCountInView.toLocaleString('fr-FR')}</p>
+          </div>
+        </div>
+
+        {stationTransactions.length === 0 ? (
+          <p className="text-neutral-500 text-sm">Aucun encaissement enregistré pour le moment.</p>
+        ) : (
+          <LineChart points={revenuePoints} color="#10b981" height={260} formatValue={(v) => `${Math.round(v).toLocaleString('fr-FR')} FCFA`} />
+        )}
+      </motion.div>
 
       {/* Répartition des Abonnements */}
       <motion.div
