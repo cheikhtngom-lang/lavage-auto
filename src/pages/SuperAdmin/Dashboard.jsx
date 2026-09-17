@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock, Wallet } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { GRANULARITIES, buildBuckets, countInBuckets, sumInBuckets } from '../../lib/dateBuckets';
+import { GRANULARITIES, buildBuckets, countInBuckets, sumInBuckets, buildDayBucketsForMonth, buildMonthBucketsForYear, buildYearBuckets } from '../../lib/dateBuckets';
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
+import SearchSelect from '../../components/ui/SearchSelect';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function SuperAdminDashboard() {
@@ -15,6 +16,18 @@ export default function SuperAdminDashboard() {
   const [granularity, setGranularity] = useState('mois');
   const [revenueGranularity, setRevenueGranularity] = useState('mois');
   const [revenueStationId, setRevenueStationId] = useState('all');
+  // Mois/année affichés quand la granularité "Jour"/"Mois" est calendaire
+  // (voir revenueBuckets plus bas) — jamais utilisés en "Semaine"/"Année".
+  const today = new Date();
+  const [revenueMonth, setRevenueMonth] = useState(today.getMonth());
+  const [revenueYear, setRevenueYear] = useState(today.getFullYear());
+  const REVENUE_FIRST_YEAR = 2024;
+  const revenueYearOptions = [];
+  for (let y = REVENUE_FIRST_YEAR; y <= today.getFullYear(); y++) revenueYearOptions.push(y);
+  const monthOptions = Array.from({ length: 12 }).map((_, m) => {
+    const label = new Date(2000, m, 1).toLocaleDateString('fr-FR', { month: 'long' });
+    return { value: m, label: label.charAt(0).toUpperCase() + label.slice(1) };
+  });
 
   const activeStations = stations.filter(s => s.status === 'active');
   const pendingStations = stations.filter(s => s.status === 'en_attente');
@@ -55,8 +68,27 @@ export default function SuperAdminDashboard() {
   // espèces + en ligne, table `transactions`) — jamais le MRR de l'abonnement
   // SaaS ci-dessus. Filtrable par période (jour/semaine/mois/année) et par
   // station, indépendamment du graphique "Nouvelles stations" au-dessus.
-  const sortedStationsForFilter = useMemo(() => [...stations].sort((a, b) => a.name.localeCompare(b.name)), [stations]);
-  const revenueBuckets = useMemo(() => buildBuckets(revenueGranularity), [revenueGranularity]);
+  // `.filter(s => s.name?.trim())` exclut une éventuelle station sans nom (le
+  // seul cas qui produirait une ligne vide dans le sélecteur de recherche).
+  const sortedStationsForFilter = useMemo(
+    () => [...stations].filter((s) => (s.name || '').trim()).sort((a, b) => a.name.localeCompare(b.name)),
+    [stations]
+  );
+  const stationFilterOptions = useMemo(
+    () => [{ value: 'all', label: 'Toutes les stations' }, ...sortedStationsForFilter.map((s) => ({ value: s.id, label: s.name }))],
+    [sortedStationsForFilter]
+  );
+  // "Jour"/"Mois" sont calendaires (jour 1 -> fin du mois choisi, Janvier ->
+  // Décembre de l'année choisie) plutôt qu'une fenêtre glissante — voir
+  // lib/dateBuckets.js. "Semaine" garde la fenêtre glissante existante
+  // (non demandée en calendaire), "Année" liste chaque année depuis
+  // REVENUE_FIRST_YEAR jusqu'à aujourd'hui.
+  const revenueBuckets = useMemo(() => {
+    if (revenueGranularity === 'jour') return buildDayBucketsForMonth(revenueYear, revenueMonth);
+    if (revenueGranularity === 'mois') return buildMonthBucketsForYear(revenueYear);
+    if (revenueGranularity === 'annee') return buildYearBuckets(REVENUE_FIRST_YEAR);
+    return buildBuckets(revenueGranularity);
+  }, [revenueGranularity, revenueYear, revenueMonth]);
   const scopedTransactions = useMemo(
     () => revenueStationId === 'all' ? stationTransactions : stationTransactions.filter((t) => t.stationId === revenueStationId),
     [stationTransactions, revenueStationId]
@@ -167,16 +199,13 @@ export default function SuperAdminDashboard() {
             <p className="text-neutral-500 text-sm mt-1">Chiffre d'affaires réel des lavages (espèces + en ligne) — pas l'abonnement SaaS des stations.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <select
+            <SearchSelect
               value={revenueStationId}
-              onChange={(e) => setRevenueStationId(e.target.value)}
-              className="bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 appearance-none"
-            >
-              <option value="all">Toutes les stations</option>
-              {sortedStationsForFilter.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+              onChange={setRevenueStationId}
+              options={stationFilterOptions}
+              placeholder="Rechercher une station..."
+              className="w-56"
+            />
             <div className="flex gap-1 bg-white/5 border border-white/10 rounded-xl p-1 w-fit">
               {GRANULARITIES.map(g => (
                 <button
@@ -190,6 +219,27 @@ export default function SuperAdminDashboard() {
                 </button>
               ))}
             </div>
+            {/* Jour -> mois calendaire à choisir ; Mois -> année civile à choisir
+                (voir revenueBuckets plus haut). Semaine/Année n'ont besoin d'aucun
+                sélecteur supplémentaire. */}
+            {revenueGranularity === 'jour' && (
+              <select
+                value={revenueMonth}
+                onChange={(e) => setRevenueMonth(Number(e.target.value))}
+                className="bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 appearance-none"
+              >
+                {monthOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+            )}
+            {(revenueGranularity === 'jour' || revenueGranularity === 'mois') && (
+              <select
+                value={revenueYear}
+                onChange={(e) => setRevenueYear(Number(e.target.value))}
+                className="bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 appearance-none"
+              >
+                {revenueYearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
           </div>
         </div>
 

@@ -51,6 +51,42 @@ export function buildBuckets(granularity) {
   });
 }
 
+// Tous les jours d'un mois calendaire donné (1 -> dernier jour), contrairement
+// à buildBuckets('jour') qui montre une fenêtre glissante des 14 derniers
+// jours — sert à naviguer un mois précis (voir "Recette générée par les
+// stations", SuperAdmin/Dashboard.jsx : sélecteur Mois/Année dédié).
+export function buildDayBucketsForMonth(year, month) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: daysInMonth }).map((_, i) => {
+    const day = i + 1;
+    const start = new Date(year, month, day, 0, 0, 0, 0);
+    const end = new Date(year, month, day + 1, 0, 0, 0, 0);
+    return { start, end, label: String(day) };
+  });
+}
+
+// Les 12 mois calendaires (Janvier -> Décembre) d'une année donnée, par
+// opposition à buildBuckets('mois') qui montre une fenêtre glissante des 12
+// derniers mois (pouvant chevaucher deux années civiles).
+export function buildMonthBucketsForYear(year) {
+  return Array.from({ length: 12 }).map((_, m) => {
+    const start = new Date(year, m, 1, 0, 0, 0, 0);
+    const end = new Date(year, m + 1, 1, 0, 0, 0, 0);
+    return { start, end, label: start.toLocaleDateString('fr-FR', { month: 'short' }) };
+  });
+}
+
+// Une ligne par année civile, de `fromYear` à l'année en cours incluse —
+// contrairement à buildBuckets('annee'), qui montre toujours exactement 5 ans
+// glissants (même quand la plateforme n'existait pas encore sur une partie de
+// cette période).
+export function buildYearBuckets(fromYear) {
+  const currentYear = new Date().getFullYear();
+  const years = [];
+  for (let y = fromYear; y <= currentYear; y++) years.push(y);
+  return years.map((y) => ({ start: new Date(y, 0, 1), end: new Date(y + 1, 0, 1), label: String(y) }));
+}
+
 export function countInBuckets(buckets, items, dateField) {
   return buckets.map(b => items.filter(it => {
     const d = new Date(it[dateField]);
