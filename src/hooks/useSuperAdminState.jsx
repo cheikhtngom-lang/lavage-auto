@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentRole } from '../lib/accounts';
 import { setStationsCache, setWashPricingCache, setVidangePricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
@@ -194,6 +194,18 @@ export function SuperAdminStateProvider({ children }) {
     // trop sur 15 pour n'importe quel compte non-Super-Admin. Réservées au
     // rôle Super Admin ci-dessous (voir isSuperAdmin).
     const isSuperAdmin = getCurrentRole() === 'super_admin';
+    // La file anonymisée (all_stations_queue_snapshot/station_public_stats)
+    // n'a de consommateur que côté automobiliste/visiteur anonyme
+    // (getItemPosition/estimateItemWaitTime/getStationWaitingCount, voir
+    // Client/Dashboard.jsx + Client/Stations.jsx) : une station voit SA
+    // propre file via useAppState (déjà scoped station_id), le Super Admin
+    // ne l'affiche nulle part. La charger et écouter TOUTE la table
+    // `reservations` (aucun filtre possible : la file compare plusieurs
+    // stations à la fois) pour des sessions admin/super_admin était du poids
+    // pur — et, plus grave, un simple changement de réservation QUELQUE
+    // PART sur la plateforme réveillait alors CHAQUE session station/super
+    // admin ouverte pour rien (fan-out inutile sous forte charge concurrente).
+    const needsQueueData = !isSuperAdmin && getCurrentRole() !== 'admin';
 
     const [stations, setStations] = useState([]);
     const [disputes, setDisputes] = useState([]);
@@ -335,6 +347,18 @@ export function SuperAdminStateProvider({ children }) {
         setQueueSnapshotVersion((v) => v + 1);
     }, []);
 
+    // La table `reservations` change en continu (toutes stations confondues) —
+    // sans ce petit debounce, une station qui traite plusieurs voitures d'affilée
+    // redéclenchait autant de rechargements immédiats sur CHAQUE session
+    // automobiliste/anonyme connectée. 1,2 s est imperceptible pour l'affichage
+    // "position dans la file" mais regroupe une rafale de changements en un seul
+    // appel RPC.
+    const queueReloadTimer = useRef(null);
+    const scheduleQueueReload = useCallback(() => {
+        if (queueReloadTimer.current) clearTimeout(queueReloadTimer.current);
+        queueReloadTimer.current = setTimeout(loadQueueSnapshot, 1200);
+    }, [loadQueueSnapshot]);
+
     const loadReviews = useCallback(async () => {
         const { data } = await supabase.from('station_reviews').select('*');
         setReviewsCache(data || []);
@@ -352,7 +376,7 @@ export function SuperAdminStateProvider({ children }) {
         loadStations();
         loadWashPricing();
         loadVidangePricing();
-        loadQueueSnapshot();
+        if (needsQueueData) loadQueueSnapshot();
         loadReviews();
         loadPlans();
         loadVehicleBrands();
@@ -368,7 +392,8 @@ export function SuperAdminStateProvider({ children }) {
             loadAnnouncements();
         }
         const refresh = () => {
-            loadStations(); loadWashPricing(); loadVidangePricing(); loadQueueSnapshot(); loadReviews(); loadPlans(); loadVehicleBrands(); loadStationAds(); loadStationRenewalPayments();
+            loadStations(); loadWashPricing(); loadVidangePricing(); loadReviews(); loadPlans(); loadVehicleBrands(); loadStationAds(); loadStationRenewalPayments();
+            if (needsQueueData) loadQueueSnapshot();
             if (isSuperAdmin) { loadClientAccounts(); loadDisputes(); loadAuditLog(); loadSuperUserSubscriptions(); loadLavagePayments(); loadStationTransactions(); loadAnnouncements(); }
         };
         window.addEventListener('focus', refresh);
@@ -384,12 +409,17 @@ export function SuperAdminStateProvider({ children }) {
         // d'attente affiché côté automobiliste (getItemPosition/estimateItemWaitTime,
         // stationData.js) de se mettre à jour en direct dès qu'un véhicule
         // (n'importe lequel, à n'importe quelle station) change de statut, au
-        // lieu d'attendre jusqu'à 45s ou un changement d'onglet. Ce provider
-        // tourne sur toute l'app, pas seulement le Super Admin (voir plus haut),
-        // donc ce canal est déjà actif pendant qu'un automobiliste navigue.
-        const channel = supabase
-            .channel('superadmin-live')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, loadQueueSnapshot)
+        // lieu d'attendre jusqu'à 45s ou un changement d'onglet. Uniquement pour
+        // les sessions qui en ont réellement besoin (needsQueueData ci-dessus) —
+        // une station/le Super Admin n'a aucune raison d'être réveillé par CHAQUE
+        // changement de réservation sur TOUTE la plateforme (fan-out inutile sous
+        // forte charge). `scheduleQueueReload` regroupe en plus les rafales de
+        // changements (plusieurs voitures traitées d'affilée) en un seul appel.
+        const channel = supabase.channel('superadmin-live');
+        if (needsQueueData) {
+            channel.on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, scheduleQueueReload);
+        }
+        channel
             .on('postgres_changes', { event: '*', schema: 'public', table: 'stations' }, loadStations)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'station_billing' }, loadStations)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'wash_pricing' }, loadWashPricing)
@@ -420,9 +450,10 @@ export function SuperAdminStateProvider({ children }) {
         return () => {
             window.removeEventListener('focus', refresh);
             clearInterval(interval);
+            if (queueReloadTimer.current) clearTimeout(queueReloadTimer.current);
             supabase.removeChannel(channel);
         };
-    }, [loadStations, loadClientAccounts, loadWashPricing, loadVidangePricing, loadQueueSnapshot, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments, loadStationTransactions, loadAnnouncements]);
+    }, [needsQueueData, loadStations, loadClientAccounts, loadWashPricing, loadVidangePricing, loadQueueSnapshot, scheduleQueueReload, loadReviews, loadDisputes, loadAuditLog, loadPlans, loadVehicleBrands, loadSuperUserSubscriptions, loadStationAds, loadStationRenewalPayments, loadStationTransactions, loadAnnouncements]);
 
     // Écrit tout de suite en local (retour instantané dans le Journal d'audit)
     // et persiste en tâche de fond — appelée en fire-and-forget après quasi
