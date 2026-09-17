@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock, Wallet, CalendarDays, ChevronDown } from 'lucide-react';
+import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock, Wallet, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets, sumInBuckets, buildDayBucketsForMonth, buildMonthBucketsForYear, buildYearBuckets } from '../../lib/dateBuckets';
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
@@ -10,11 +10,105 @@ import AnimatedCounter from '../../components/ui/AnimatedCounter';
 import SearchSelect from '../../components/ui/SearchSelect';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
+const WEEKDAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+// Grille calendaire complète d'un mois (semaines de 7 colonnes, alignée comme
+// un vrai calendrier) — les jours hors mois (fin du mois précédent/début du
+// suivant) sont inclus pour l'alignement mais grisés et non cliquables.
+function buildCalendarMatrix(year, month) {
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // lundi = 0
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const prevMonthDays = new Date(year, month, 0).getDate();
+  const cells = [];
+  for (let i = firstDow - 1; i >= 0; i--) cells.push({ day: prevMonthDays - i, inMonth: false });
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, inMonth: true });
+  let next = 1;
+  while (cells.length % 7 !== 0) cells.push({ day: next++, inMonth: false });
+  return cells;
+}
+
+// Calendrier "Jour" façon Power BI (Manuel) : navigation mois par mois,
+// en-têtes Lun-Dim, sélection en attente tant que "Appliquer" n'est pas
+// cliqué — se réinitialise sur le jour/mois/année déjà appliqués à chaque
+// ouverture (le composant est démonté/remonté par AnimatePresence, voir
+// RevenueDateFilter, donc useState(initialX) repart toujours de la bonne
+// valeur sans effet de reset explicite à écrire).
+function DayCalendarPicker({ initialDay, initialMonth, initialYear, onApply }) {
+  // La sélection "en attente" est une vraie date (jour+mois+année) — naviguer
+  // vers un autre mois ne doit PAS faire apparaître un jour du même numéro
+  // comme sélectionné là-bas (ex: le 14 avril choisi ne doit pas surligner le
+  // 14 mai si on navigue sans cliquer un nouveau jour).
+  const [pending, setPending] = useState({ day: initialDay, month: initialMonth, year: initialYear });
+  const [viewMonth, setViewMonth] = useState(initialMonth);
+  const [viewYear, setViewYear] = useState(initialYear);
+
+  const goPrevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); } else setViewMonth(viewMonth - 1);
+  };
+  const goNextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); } else setViewMonth(viewMonth + 1);
+  };
+
+  const headerLabel = (() => {
+    const l = new Date(viewYear, viewMonth, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    return l.charAt(0).toUpperCase() + l.slice(1);
+  })();
+
+  const cells = buildCalendarMatrix(viewYear, viewMonth);
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-medium text-white">{headerLabel}</span>
+        <div className="flex flex-col -space-y-1">
+          <button type="button" onClick={goPrevMonth} className="text-neutral-400 hover:text-white p-0.5" aria-label="Mois précédent">
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" onClick={goNextMonth} className="text-neutral-400 hover:text-white p-0.5" aria-label="Mois suivant">
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {WEEKDAYS_FR.map((w) => (
+          <span key={w} className="text-center text-[10px] font-medium text-neutral-500">{w}</span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-3">
+        {cells.map((cell, i) => {
+          const isSelectedDay = cell.inMonth && cell.day === pending.day && viewMonth === pending.month && viewYear === pending.year;
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={!cell.inMonth}
+              onClick={() => setPending({ day: cell.day, month: viewMonth, year: viewYear })}
+              className={`aspect-square rounded-full text-xs font-medium transition-colors ${
+                !cell.inMonth ? 'text-neutral-700 cursor-default' :
+                isSelectedDay ? 'bg-purple-600 text-white' : 'text-neutral-300 hover:bg-white/10'
+              }`}
+            >
+              {cell.day}
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => onApply(pending.day, pending.month, pending.year)}
+        className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-sm transition-colors"
+      >
+        Appliquer
+      </button>
+    </>
+  );
+}
+
 // Filtre date compact façon Power BI (un bouton qui ouvre un calendrier/une
 // grille au clic, au lieu de l'afficher en permanence dans la carte — voir
 // "Recette générée par les stations" ci-dessous, qui devenait encombrée avec
 // la grille + le graphique affichés ensemble en continu).
-function RevenueDateFilter({ granularity, day, month, year, monthOptions, yearOptions, daysInMonth, triggerLabel, onSelectDay, onSelectMonth, onSelectYear }) {
+function RevenueDateFilter({ granularity, day, month, year, monthOptions, yearOptions, triggerLabel, onApplyDay, onSelectMonth, onSelectYear }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -48,38 +142,12 @@ function RevenueDateFilter({ granularity, day, month, year, monthOptions, yearOp
             style={{ width: granularity === 'annee' ? 220 : 280 }}
           >
             {granularity === 'jour' && (
-              <>
-                <div className="flex items-center gap-2 mb-3">
-                  <select
-                    value={month}
-                    onChange={(e) => onSelectMonth(Number(e.target.value))}
-                    className="flex-1 min-w-0 bg-neutral-950 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 appearance-none"
-                  >
-                    {monthOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
-                  <select
-                    value={year}
-                    onChange={(e) => onSelectYear(Number(e.target.value))}
-                    className="bg-neutral-950 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 appearance-none"
-                  >
-                    {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => { onSelectDay(d); setOpen(false); }}
-                      className={`aspect-square rounded-md text-xs font-medium transition-colors ${
-                        d === day ? 'bg-purple-600 text-white' : 'text-neutral-300 hover:bg-white/10'
-                      }`}
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <DayCalendarPicker
+                initialDay={day}
+                initialMonth={month}
+                initialYear={year}
+                onApply={(d, m, y) => { onApplyDay(d, m, y); setOpen(false); }}
+              />
             )}
             {granularity === 'mois' && (
               <>
@@ -234,6 +302,7 @@ export default function SuperAdminDashboard() {
     () => sumInBuckets(revenueBuckets, scopedTransactions, 'createdAt', (t) => t.amount),
     [revenueBuckets, scopedTransactions]
   );
+  const revenuePoints = revenueBuckets.map((b, i) => ({ label: b.label, value: revenueSeries[i] }));
   // Le tableau ci-dessous garde tout le mois/toute l'année comme contexte,
   // mais les 2 chiffres clés ("Total", "Lavages encaissés") portent sur le
   // seul jour/mois/année précisément choisi — jamais la somme de toute la
@@ -414,9 +483,8 @@ export default function SuperAdminDashboard() {
               year={revenueYear}
               monthOptions={monthOptions}
               yearOptions={revenueYearOptions}
-              daysInMonth={daysInSelectedMonth}
               triggerLabel={selectedPeriodLabel || 'Fenêtre glissante'}
-              onSelectDay={setRevenueDay}
+              onApplyDay={(d, m, y) => { setRevenueDay(d); setRevenueMonth(m); setRevenueYear(y); }}
               onSelectMonth={setRevenueMonth}
               onSelectYear={setRevenueYear}
             />
@@ -436,15 +504,17 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        {/* Tableau façon Power BI (visuel Table) — remplace le graphique en
-            ligne, jugé encombré une fois combiné à la grille de sélection.
-            Une ligne par jour/mois/année/semaine visible, cliquable pour
-            sélectionner (même effet que RevenueDateFilter), triée
-            chronologiquement, total en pied de tableau. */}
         {stationTransactions.length === 0 ? (
           <p className="text-neutral-500 text-sm">Aucun encaissement enregistré pour le moment.</p>
         ) : (
-          <div className="rounded-xl border border-white/10 overflow-hidden">
+          <>
+          <LineChart points={revenuePoints} color="#10b981" height={220} formatValue={(v) => `${Math.round(v).toLocaleString('fr-FR')} FCFA`} />
+
+          {/* Tableau façon Power BI (visuel Table), sous le graphique — une
+              ligne par jour/mois/année/semaine visible, cliquable pour
+              sélectionner (même effet que RevenueDateFilter), triée
+              chronologiquement, total en pied de tableau. */}
+          <div className="mt-6 rounded-xl border border-white/10 overflow-hidden">
             <div className="overflow-y-auto" style={{ maxHeight: 360 }}>
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-neutral-900 z-10">
@@ -487,6 +557,7 @@ export default function SuperAdminDashboard() {
               </table>
             </div>
           </div>
+          </>
         )}
       </motion.div>
 
