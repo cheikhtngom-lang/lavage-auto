@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock, Wallet } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Users, Building2, CreditCard, AlertTriangle, TrendingUp, Sparkles, Clock, Wallet, CalendarDays, ChevronDown } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets, sumInBuckets, buildDayBucketsForMonth, buildMonthBucketsForYear, buildYearBuckets } from '../../lib/dateBuckets';
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
@@ -9,6 +9,125 @@ import LineChart from '../../components/ui/LineChart';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
 import SearchSelect from '../../components/ui/SearchSelect';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+
+// Filtre date compact façon Power BI (un bouton qui ouvre un calendrier/une
+// grille au clic, au lieu de l'afficher en permanence dans la carte — voir
+// "Recette générée par les stations" ci-dessous, qui devenait encombrée avec
+// la grille + le graphique affichés ensemble en continu).
+function RevenueDateFilter({ granularity, day, month, year, monthOptions, yearOptions, daysInMonth, triggerLabel, onSelectDay, onSelectMonth, onSelectYear }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  if (granularity === 'semaine') return null;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white hover:border-white/20 transition-colors"
+      >
+        <CalendarDays className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+        <span className="truncate">{triggerLabel}</span>
+        <ChevronDown className={`w-4 h-4 text-neutral-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute z-50 right-0 mt-2 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl p-3"
+            style={{ width: granularity === 'annee' ? 220 : 280 }}
+          >
+            {granularity === 'jour' && (
+              <>
+                <div className="flex items-center gap-2 mb-3">
+                  <select
+                    value={month}
+                    onChange={(e) => onSelectMonth(Number(e.target.value))}
+                    className="flex-1 min-w-0 bg-neutral-950 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 appearance-none"
+                  >
+                    {monthOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                  <select
+                    value={year}
+                    onChange={(e) => onSelectYear(Number(e.target.value))}
+                    className="bg-neutral-950 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 appearance-none"
+                  >
+                    {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => { onSelectDay(d); setOpen(false); }}
+                      className={`aspect-square rounded-md text-xs font-medium transition-colors ${
+                        d === day ? 'bg-purple-600 text-white' : 'text-neutral-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {granularity === 'mois' && (
+              <>
+                <select
+                  value={year}
+                  onChange={(e) => onSelectYear(Number(e.target.value))}
+                  className="w-full mb-3 bg-neutral-950 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500 appearance-none"
+                >
+                  {yearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {monthOptions.map((m) => (
+                    <button
+                      key={m.value}
+                      type="button"
+                      onClick={() => { onSelectMonth(m.value); setOpen(false); }}
+                      className={`px-2 py-2 rounded-md text-xs font-medium transition-colors truncate ${
+                        m.value === month ? 'bg-purple-600 text-white' : 'text-neutral-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {m.label.slice(0, 3)}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {granularity === 'annee' && (
+              <div className="grid grid-cols-3 gap-1.5">
+                {yearOptions.map((y) => (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => { onSelectYear(y); setOpen(false); }}
+                    className={`px-2 py-2 rounded-md text-xs font-medium transition-colors ${
+                      y === year ? 'bg-purple-600 text-white' : 'text-neutral-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function SuperAdminDashboard() {
   useDocumentTitle('Tableau de bord');
@@ -115,13 +234,11 @@ export default function SuperAdminDashboard() {
     () => sumInBuckets(revenueBuckets, scopedTransactions, 'createdAt', (t) => t.amount),
     [revenueBuckets, scopedTransactions]
   );
-  const revenuePoints = revenueBuckets.map((b, i) => ({ label: b.label, value: revenueSeries[i] }));
-
-  // Le graphique ci-dessous garde tout le mois/toute l'année comme contexte,
+  // Le tableau ci-dessous garde tout le mois/toute l'année comme contexte,
   // mais les 2 chiffres clés ("Total", "Lavages encaissés") portent sur le
-  // seul jour/mois/année précisément choisi dans la grille — jamais la somme
-  // de toute la fenêtre affichée. "Semaine" (non demandée en précis) reste
-  // la somme de toute la fenêtre glissante visible, comme avant.
+  // seul jour/mois/année précisément choisi — jamais la somme de toute la
+  // fenêtre affichée. "Semaine" (non demandée en précis) reste la somme de
+  // toute la fenêtre glissante visible, comme avant.
   const selectedRange = useMemo(() => {
     if (revenueGranularity === 'jour') {
       const start = new Date(revenueYear, revenueMonth, revenueDay, 0, 0, 0, 0);
@@ -152,6 +269,27 @@ export default function SuperAdminDashboard() {
   });
   const totalRevenueInView = transactionsInSelection.reduce((s, t) => s + (Number(t.amount) || 0), 0);
   const washCountInView = transactionsInSelection.length;
+
+  // Total/nombre de lavages sur TOUTE la période affichée par le tableau
+  // (ligne "Total" en pied de tableau) — distinct de totalRevenueInView, qui
+  // ne porte que sur la ligne précisément sélectionnée.
+  const fullRangeStart = revenueBuckets[0]?.start;
+  const fullRangeEnd = revenueBuckets[revenueBuckets.length - 1]?.end;
+  const fullRangeWashCount = scopedTransactions.filter((t) => {
+    const d = new Date(t.createdAt);
+    return fullRangeStart && fullRangeEnd && d >= fullRangeStart && d < fullRangeEnd;
+  }).length;
+  const fullRangeRevenue = revenueSeries.reduce((s, v) => s + v, 0);
+
+  // Cliquer une ligne du tableau équivaut à cliquer le jour/mois/année
+  // correspondant dans RevenueDateFilter — même sélection, deux chemins.
+  const handleBucketClick = (bucket) => {
+    if (revenueGranularity === 'jour') setRevenueDay(bucket.start.getDate());
+    else if (revenueGranularity === 'mois') setRevenueMonth(bucket.start.getMonth());
+    else if (revenueGranularity === 'annee') setRevenueYear(bucket.start.getFullYear());
+  };
+
+  const revenueColumnLabel = revenueGranularity === 'jour' ? 'Jour' : revenueGranularity === 'mois' ? 'Mois' : revenueGranularity === 'annee' ? 'Année' : 'Semaine';
 
   return (
     <div className="p-8 max-w-7xl mx-auto relative z-10">
@@ -266,83 +404,24 @@ export default function SuperAdminDashboard() {
                 </button>
               ))}
             </div>
-            {/* Jour -> navigue le mois affiché par la grille de jours ci-dessous ;
-                Mois -> navigue l'année affichée par la grille de mois. Semaine/Année
-                n'ont besoin d'aucun sélecteur de navigation supplémentaire (la
-                grille d'années se suffit à elle-même). */}
-            {revenueGranularity === 'jour' && (
-              <select
-                value={revenueMonth}
-                onChange={(e) => setRevenueMonth(Number(e.target.value))}
-                className="bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 appearance-none"
-              >
-                {monthOptions.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-              </select>
-            )}
-            {(revenueGranularity === 'jour' || revenueGranularity === 'mois') && (
-              <select
-                value={revenueYear}
-                onChange={(e) => setRevenueYear(Number(e.target.value))}
-                className="bg-neutral-950 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 appearance-none"
-              >
-                {revenueYearOptions.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
-            )}
+            {/* Bouton compact façon Power BI : ouvre le calendrier/la grille au
+                clic au lieu de l'afficher en permanence (voir RevenueDateFilter
+                en haut du fichier). */}
+            <RevenueDateFilter
+              granularity={revenueGranularity}
+              day={revenueDay}
+              month={revenueMonth}
+              year={revenueYear}
+              monthOptions={monthOptions}
+              yearOptions={revenueYearOptions}
+              daysInMonth={daysInSelectedMonth}
+              triggerLabel={selectedPeriodLabel || 'Fenêtre glissante'}
+              onSelectDay={setRevenueDay}
+              onSelectMonth={setRevenueMonth}
+              onSelectYear={setRevenueYear}
+            />
           </div>
         </div>
-
-        {/* Grille de sélection précise — clic direct sur le jour du mois, le
-            mois de l'année, ou l'année souhaitée (au lieu d'une simple liste
-            déroulante) : les 2 chiffres clés en dessous portent sur CE choix
-            précis, pas sur toute la fenêtre affichée par le graphique. */}
-        {revenueGranularity === 'jour' && (
-          <div className="grid grid-cols-7 gap-1.5 mb-6 pb-6 border-b border-white/5">
-            {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map((day) => (
-              <button
-                key={day}
-                type="button"
-                onClick={() => setRevenueDay(day)}
-                className={`aspect-square rounded-lg text-sm font-medium transition-colors ${
-                  day === revenueDay ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-neutral-300 hover:bg-white/10'
-                }`}
-              >
-                {day}
-              </button>
-            ))}
-          </div>
-        )}
-        {revenueGranularity === 'mois' && (
-          <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 mb-6 pb-6 border-b border-white/5">
-            {monthOptions.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                onClick={() => setRevenueMonth(m.value)}
-                className={`px-2 py-2.5 rounded-lg text-sm font-medium transition-colors truncate ${
-                  m.value === revenueMonth ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-neutral-300 hover:bg-white/10'
-                }`}
-              >
-                {m.label.slice(0, 3)}
-              </button>
-            ))}
-          </div>
-        )}
-        {revenueGranularity === 'annee' && (
-          <div className="flex flex-wrap gap-1.5 mb-6 pb-6 border-b border-white/5">
-            {revenueYearOptions.map((y) => (
-              <button
-                key={y}
-                type="button"
-                onClick={() => setRevenueYear(y)}
-                className={`px-5 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  y === revenueYear ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30' : 'bg-white/5 text-neutral-300 hover:bg-white/10'
-                }`}
-              >
-                {y}
-              </button>
-            ))}
-          </div>
-        )}
 
         <div className="flex flex-wrap items-end gap-8 my-6">
           <div>
@@ -357,10 +436,57 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
+        {/* Tableau façon Power BI (visuel Table) — remplace le graphique en
+            ligne, jugé encombré une fois combiné à la grille de sélection.
+            Une ligne par jour/mois/année/semaine visible, cliquable pour
+            sélectionner (même effet que RevenueDateFilter), triée
+            chronologiquement, total en pied de tableau. */}
         {stationTransactions.length === 0 ? (
           <p className="text-neutral-500 text-sm">Aucun encaissement enregistré pour le moment.</p>
         ) : (
-          <LineChart points={revenuePoints} color="#10b981" height={260} formatValue={(v) => `${Math.round(v).toLocaleString('fr-FR')} FCFA`} />
+          <div className="rounded-xl border border-white/10 overflow-hidden">
+            <div className="overflow-y-auto" style={{ maxHeight: 360 }}>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-neutral-900 z-10">
+                  <tr className="text-neutral-500 text-xs uppercase tracking-wider">
+                    <th className="text-left px-4 py-3 font-medium">{revenueColumnLabel}</th>
+                    <th className="text-right px-4 py-3 font-medium">Recette</th>
+                    <th className="text-right px-4 py-3 font-medium">Lavages</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {revenueBuckets.map((b, i) => {
+                    const isSelectable = revenueGranularity !== 'semaine';
+                    const isSelected = selectedRange && b.start.getTime() === selectedRange.start.getTime();
+                    const count = scopedTransactions.filter((t) => {
+                      const d = new Date(t.createdAt);
+                      return d >= b.start && d < b.end;
+                    }).length;
+                    return (
+                      <tr
+                        key={i}
+                        onClick={isSelectable ? () => handleBucketClick(b) : undefined}
+                        className={`border-t border-white/5 transition-colors ${isSelectable ? 'cursor-pointer' : ''} ${
+                          isSelected ? 'bg-purple-600/15' : 'hover:bg-white/[0.03]'
+                        }`}
+                      >
+                        <td className={`px-4 py-2.5 capitalize ${isSelected ? 'text-white font-semibold' : 'text-neutral-300'}`}>{b.label}</td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums ${isSelected ? 'text-white font-semibold' : 'text-neutral-300'}`}>{revenueSeries[i].toLocaleString('fr-FR')} FCFA</td>
+                        <td className={`px-4 py-2.5 text-right tabular-nums ${isSelected ? 'text-white font-semibold' : 'text-neutral-400'}`}>{count}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-white/10 bg-white/[0.03]">
+                    <td className="px-4 py-3 font-bold text-white">Total</td>
+                    <td className="px-4 py-3 text-right font-bold text-white tabular-nums">{fullRangeRevenue.toLocaleString('fr-FR')} FCFA</td>
+                    <td className="px-4 py-3 text-right font-bold text-white tabular-nums">{fullRangeWashCount.toLocaleString('fr-FR')}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
         )}
       </motion.div>
 
