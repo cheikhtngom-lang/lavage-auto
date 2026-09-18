@@ -937,7 +937,12 @@ export function AppStateProvider({ children }) {
         if (!stationId || stationId === 'default') return;
         supabase.from('stations').update({ promo_config: newPr }).eq('id', stationId).then(() => {});
     };
-    const updateStationProfile = (newP) => {
+    const updateStationProfile = (rawP) => {
+        // Un nom de station vide n'est jamais valide (la station affichait
+        // "⚙️ Configurer" à la place de son nom partout, cause d'un vrai cas en
+        // production) : si le champ est vidé ou ne contient que des espaces, on
+        // garde le nom actuel plutôt que d'écraser la base avec du vide.
+        const newP = { ...rawP, name: (rawP?.name || '').trim() || stationProfile?.name || '' };
         setStationProfile(newP);
         if (!stationId || stationId === 'default') return;
         supabase.from('stations').update({
@@ -1283,11 +1288,18 @@ export function AppStateProvider({ children }) {
             cleaned.push(`${demoEmps.length} employé(s) fictif(s) supprimé(s)`);
         }
 
-        // 2. Profil station : réinitialiser si toujours le nom de démo
+        // 2. Profil station : réinitialiser téléphone/adresse s'ils portent
+        // encore les valeurs de démo. Le nom, lui, n'est plus jamais vidé (un
+        // nom vide est refusé, voir updateStationProfile) : s'il vaut encore
+        // le nom de démo, on le signale simplement pour que l'admin le change.
+        const hasDemoPhone = DEMO_STATION_PHONE === stationProfile?.phone;
+        const hasDemoAddress = stationProfile?.address === 'Plateau, Dakar';
+        if (hasDemoPhone || hasDemoAddress) {
+            updateStationProfile({ ...stationProfile, phone: hasDemoPhone ? '' : stationProfile.phone, address: hasDemoAddress ? '' : stationProfile.address });
+            cleaned.push('Téléphone/adresse fictifs effacés (à reconfigurer dans Paramètres)');
+        }
         if (stationProfile?.name === DEMO_STATION_NAME) {
-            const cleanProfile = { ...stationProfile, name: '', phone: DEMO_STATION_PHONE === stationProfile.phone ? '' : stationProfile.phone, address: stationProfile.address === 'Plateau, Dakar' ? '' : stationProfile.address };
-            updateStationProfile(cleanProfile);
-            cleaned.push('Nom de station fictif effacé (à reconfigurer dans Paramètres)');
+            cleaned.push(`Le nom de la station est encore « ${DEMO_STATION_NAME} » (nom fictif) — à remplacer dans Paramètres`);
         }
 
         return cleaned;

@@ -205,7 +205,7 @@ export default function Billing() {
           <p className="text-neutral-400">{stations.length === 0 ? "Ajoutez des stations partenaires depuis l'onglet Stations." : 'Ajustez votre recherche.'}</p>
         </div>
       ) : (
-        <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
+        <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02] overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-white/10">

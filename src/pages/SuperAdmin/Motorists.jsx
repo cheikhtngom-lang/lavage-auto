@@ -87,7 +87,23 @@ export default function Motorists() {
         </div>
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden border-white/5">
-          <table className="w-full text-left border-collapse">
+          {/* Mobile : une carte par automobiliste (le tableau à 5 colonnes était
+              coupé par overflow-hidden — email tronqué, Véhicules/Favoris/Date
+              hors-écran). Le tableau reste réservé à md et plus. */}
+          <div className="md:hidden divide-y divide-white/5">
+            {paginated.map((c) => (
+              <button key={c.id} type="button" onClick={() => setSelected(c)} className="w-full text-left p-4 hover:bg-white/5 transition-colors">
+                <p className="font-bold text-white">{c.name || 'Sans nom'}</p>
+                <p className="text-sm text-neutral-400 break-all mt-0.5">{c.email || c.phone || '—'}</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-neutral-500">
+                  <span><span className="text-neutral-300 font-medium">{c.vehicles?.length || 0}</span> véhicule{(c.vehicles?.length || 0) > 1 ? 's' : ''}</span>
+                  <span><span className="text-neutral-300 font-medium">{c.favoriteStationIds?.length || 0}</span> favori{(c.favoriteStationIds?.length || 0) > 1 ? 's' : ''}</span>
+                  <span>Inscrit le {c.createdAt ? new Date(c.createdAt).toLocaleDateString('fr-FR') : '—'}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+          <table className="hidden md:table w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-white/10 text-neutral-400 text-sm bg-black/20">
                 <th className="p-5 font-medium">Automobiliste</th>

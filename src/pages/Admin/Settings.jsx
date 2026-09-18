@@ -84,6 +84,7 @@ export default function Settings() {
   
   // States for CTAs
   const [isSaving, setIsSaving] = useState(false);
+  const [nameError, setNameError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   
   const [isCreatingEmp, setIsCreatingEmp] = useState(false);
@@ -191,6 +192,12 @@ export default function Settings() {
   };
 
   const handleSave = () => {
+    // Un nom vide effaçait le nom de la station partout dans l'app ("⚙️ Configurer").
+    if (!(profile?.name || '').trim()) {
+      setNameError('Le nom de la station est obligatoire.');
+      return;
+    }
+    setNameError('');
     setIsSaving(true);
 
     updateStationProfile(profile);
@@ -435,8 +442,10 @@ export default function Settings() {
   // "Enregistrer les modifications" qui persiste tout le profil d'un coup).
   const handleSaveProfileName = (e) => {
     e.preventDefault();
+    if (!(profile?.name || '').trim()) { setNameError('Le nom de la station est obligatoire.'); return; }
+    setNameError('');
     updateStationProfile(profile);
-    if (registryEntry) updateStation(stationId, { name: profile?.name || registryEntry.name });
+    if (registryEntry) updateStation(stationId, { name: profile.name.trim() });
     setNameSaved(true);
     setTimeout(() => setNameSaved(false), 2500);
   };
@@ -630,7 +639,8 @@ export default function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Nom de la station</label>
-                    <input type="text" value={profile?.name || ''} onChange={e => setProfile({...profile, name: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                    <input type="text" value={profile?.name || ''} onChange={e => { setProfile({...profile, name: e.target.value}); setNameError(''); }} className={`w-full bg-neutral-900 border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 ${nameError ? 'border-red-500/60' : 'border-white/10'}`} />
+                    {nameError && <p className="text-red-400 text-xs">{nameError}</p>}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Téléphone de contact</label>
@@ -770,8 +780,9 @@ export default function Settings() {
                 <form onSubmit={handleSaveProfileName} className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Nom de la station</label>
-                    <input type="text" required value={profile?.name || ''} onChange={e => setProfile({...profile, name: e.target.value})}
+                    <input type="text" required value={profile?.name || ''} onChange={e => { setProfile({...profile, name: e.target.value}); setNameError(''); }}
                       className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                    {nameError && <p className="text-red-400 text-xs">{nameError}</p>}
                   </div>
                   <div className="flex items-center gap-3 pt-2">
                     <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl transition-colors">

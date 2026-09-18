@@ -483,7 +483,11 @@ export function SuperAdminStateProvider({ children }) {
         return newStation;
     };
 
-    const updateStation = async (id, patch) => {
+    const updateStation = async (id, rawPatch) => {
+        // Même règle que updateStationProfile (useAppState) : jamais de nom vide.
+        const patch = { ...rawPatch };
+        if ('name' in patch && !String(patch.name || '').trim()) delete patch.name;
+        else if ('name' in patch) patch.name = String(patch.name).trim();
         const station = stations.find((s) => s.id === id);
         const { stationPatch, billingPatch } = splitStationPatch(patch);
         if (Object.keys(stationPatch).length) await supabase.from('stations').update(stationPatch).eq('id', id);
