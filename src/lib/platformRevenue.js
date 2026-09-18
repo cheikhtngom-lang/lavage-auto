@@ -4,7 +4,7 @@
 //
 // « Abonnement validé » = station dont le paiement d'abonnement est confirmé
 // (station_billing.subscription_status = 'a_jour'). Sont donc EXCLUS du MRR :
-//   - 'essai'     : période d'essai d'un mois, la station ne paie pas encore
+//   - 'essai'     : période d'essai de 15 jours, la station ne paie pas encore
 //   - 'en_retard' : abonnement impayé
 //   - 'illimite'  : accès gratuit à vie accordé manuellement par le Super Admin
 //

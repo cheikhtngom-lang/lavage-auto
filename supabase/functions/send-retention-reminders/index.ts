@@ -56,7 +56,7 @@ function stationReminder(fullName: string | null) {
     subject: "Ajoutez votre premier laveur pour démarrer",
     html: `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111;">
       <h1 style="font-size:20px;color:#2563eb;">Votre station attend son premier lavage${first ? `, ${first}` : ""}</h1>
-      <p style="font-size:15px;line-height:1.5;">Votre essai gratuit d'1 mois est en cours. Ajoutez votre premier laveur pour pouvoir démarrer un lavage dès aujourd'hui.</p>
+      <p style="font-size:15px;line-height:1.5;">Votre essai gratuit de 15 jours est en cours. Ajoutez votre premier laveur pour pouvoir démarrer un lavage dès aujourd'hui.</p>
       <p style="margin:24px 0;"><a href="${APP_BASE_URL}/admin/team" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600;display:inline-block;">Ajouter mon premier laveur</a></p>
       <p style="font-size:13px;color:#666;">— L'équipe Clean Car Galsen</p>
     </div>`,

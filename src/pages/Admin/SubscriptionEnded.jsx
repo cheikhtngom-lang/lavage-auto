@@ -90,7 +90,7 @@ export default function SubscriptionEnded() {
           <p className="text-sm text-neutral-400 mb-6">
             {stationBilling.subscriptionStatus === 'en_retard'
               ? "Votre abonnement est marqué impayé. L'accès à votre tableau de bord est suspendu jusqu'au renouvellement."
-              : "Votre mois d'essai gratuit est terminé. Renouvelez votre abonnement pour retrouver l'accès à votre tableau de bord."}
+              : "Votre période d'essai gratuit est terminée. Renouvelez votre abonnement pour retrouver l'accès à votre tableau de bord."}
           </p>
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 flex items-center justify-between">

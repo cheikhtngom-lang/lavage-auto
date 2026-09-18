@@ -1,8 +1,8 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
-import { trialDaysRemaining, trialProgressPercent, trialUrgency, TRIAL_DURATION_DAYS } from '../../lib/stationTrial';
+import { trialDaysRemaining, trialProgressPercent, trialUrgency, trialTotalDays } from '../../lib/stationTrial';
 
-// Bandeau d'essai gratuit (1 mois) affiché au-dessus de l'espace station tant
+// Bandeau d'essai gratuit (15 jours) affiché au-dessus de l'espace station tant
 // que subscription_status === 'essai' (voir add_station_trial.sql). N'agit
 // jamais automatiquement sur l'abonnement à l'expiration — c'est toujours le
 // Super Admin qui bascule manuellement vers "a_jour"/"en_retard" (voir
@@ -18,6 +18,7 @@ export default function TrialBanner({ billing }) {
 
   const daysRemaining = trialDaysRemaining(billing.trialEndsAt);
   const percent = trialProgressPercent(billing.trialEndsAt);
+  const totalDays = trialTotalDays(billing.trialEndsAt);
   const isExpired = daysRemaining <= 0;
   const style = URGENCY_STYLES[trialUrgency(billing.trialEndsAt)];
 
@@ -27,12 +28,12 @@ export default function TrialBanner({ billing }) {
         <Sparkles className="w-4 h-4" />
         {isExpired
           ? "Essai gratuit terminé"
-          : `Essai gratuit — ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''} sur ${TRIAL_DURATION_DAYS}`}
+          : `Essai gratuit — ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''} sur ${totalDays}`}
       </span>
       <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden min-w-[120px]">
         <div className={`h-full rounded-full transition-all duration-500 ${style.bar}`} style={{ width: `${percent}%` }} />
       </div>
-      <span className="text-xs text-neutral-400 flex-shrink-0">{TRIAL_DURATION_DAYS - daysRemaining}/{TRIAL_DURATION_DAYS} jours utilisés</span>
+      <span className="text-xs text-neutral-400 flex-shrink-0">{totalDays - daysRemaining}/{totalDays} jours utilisés</span>
     </div>
   );
 }

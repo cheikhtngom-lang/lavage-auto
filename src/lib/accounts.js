@@ -66,7 +66,7 @@ export async function createStationAccount({ name, address, city, quartier, regi
   // handle_new_station() crée la ligne station_billing avec plan='Starter' par
   // défaut (voir supabase/schema.sql) — on applique ensuite l'offre réellement
   // choisie sur la page de tarifs/le formulaire d'inscription (essai gratuit
-  // d'1 mois inchangé, voir add_station_trial.sql).
+  // de 15 jours inchangé, voir change_trial_to_15_days.sql).
   if (plan) {
     await supabase.from('station_billing').update({ plan }).eq('station_id', station.id);
   }

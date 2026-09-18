@@ -522,7 +522,7 @@ export default function Settings() {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-neutral-600 mt-1.5">1 mois d'essai gratuit inclus, sans engagement.</p>
+              <p className="text-xs text-neutral-600 mt-1.5">15 jours d'essai gratuit inclus, sans engagement.</p>
             </div>
 
             {conversionError && <p className="text-sm text-red-400">{conversionError}</p>}

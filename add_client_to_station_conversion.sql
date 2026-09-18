@@ -65,8 +65,8 @@ begin
   )
   returning * into v_station;
 
-  -- handle_new_station() (voir add_station_trial.sql) vient de créer la ligne
-  -- station_billing avec plan='Starter' + essai d'1 mois — on applique
+  -- handle_new_station() (voir add_station_trial.sql / change_trial_to_15_days.sql)
+  -- vient de créer la ligne station_billing avec plan='Starter' + essai daté — on applique
   -- ensuite l'offre réellement choisie si elle diffère du défaut.
   if p_plan is not null then
     update public.station_billing set plan = p_plan where station_id = v_station.id;

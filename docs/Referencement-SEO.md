@@ -184,10 +184,10 @@ Le code est propre et le site est indexable. Ce qui manque à Google pour classe
 > Clean Car Galsen digitalise les stations de lavage auto : file d'attente virtuelle, réservation en ligne, planning des laveurs, paiement Wave / Orange Money.
 
 **Description moyenne (~300 caractères) :**
-> Clean Car Galsen est une plateforme SaaS sénégalaise pour les stations de lavage automobile. Elle gère la file d'attente virtuelle, la réservation en ligne, le suivi du lavage en temps réel, le planning et le pointage des laveurs, la comptabilité et l'encaissement par Wave ou Orange Money — sans commission sur les lavages. Essai gratuit d'un mois, sans engagement.
+> Clean Car Galsen est une plateforme SaaS sénégalaise pour les stations de lavage automobile. Elle gère la file d'attente virtuelle, la réservation en ligne, le suivi du lavage en temps réel, le planning et le pointage des laveurs, la comptabilité et l'encaissement par Wave ou Orange Money — sans commission sur les lavages. Essai gratuit de 15 jours, sans engagement.
 
 **Description longue (~700 caractères — Crunchbase, G2, Product Hunt) :**
-> Clean Car Galsen aide les stations de lavage automobile au Sénégal à passer du carnet papier à un poste de commande numérique. Les automobilistes réservent un créneau en ligne et suivent l'avancement de leur lavage en direct ; la station pilote sa file d'attente, estime les temps d'attente, planifie et pointe ses laveurs (y compris les affectations à plusieurs laveurs pour les gros véhicules), tient sa comptabilité (dépenses, objectifs de recette) et encaisse par Wave ou Orange Money directement sur son compte marchand, sans commission sur les lavages. Trois forfaits mensuels sans engagement (Starter 10 000, Pro 20 000, Business 35 000 FCFA), précédés d'un mois d'essai gratuit. Aucun matériel à acheter : tout fonctionne dans le navigateur.
+> Clean Car Galsen aide les stations de lavage automobile au Sénégal à passer du carnet papier à un poste de commande numérique. Les automobilistes réservent un créneau en ligne et suivent l'avancement de leur lavage en direct ; la station pilote sa file d'attente, estime les temps d'attente, planifie et pointe ses laveurs (y compris les affectations à plusieurs laveurs pour les gros véhicules), tient sa comptabilité (dépenses, objectifs de recette) et encaisse par Wave ou Orange Money directement sur son compte marchand, sans commission sur les lavages. Trois forfaits mensuels sans engagement (Starter 10 000, Pro 20 000, Business 35 000 FCFA), précédés de 15 jours d'essai gratuit. Aucun matériel à acheter : tout fonctionne dans le navigateur.
 
 **Ancres de lien à alterner :**
 `Clean Car Galsen` · `galsenautocleaner.com` · `logiciel de gestion pour station de lavage` · `plateforme de réservation de lavage auto` · `Clean Car Galsen, le SaaS des stations de lavage`
@@ -201,7 +201,7 @@ Le code est propre et le site est indexable. Ce qui manque à Google pour classe
 > • Planning et pointage des laveurs
 > • Comptabilité et encaissement Wave / Orange Money, sans commission
 >
-> 1 mois d'essai gratuit, sans engagement, sans matériel à acheter.
+> 15 jours d'essai gratuit, sans engagement, sans matériel à acheter.
 > 👉 https://galsenautocleaner.com
 
 **Message aux stations déjà clientes (demande de lien) :**
