@@ -5,26 +5,7 @@ import { Clock, Users, Car, Target, TrendingUp, Banknote, Receipt, Calendar } fr
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-
-// Conversion Catmull-Rom -> Bézier cubique, pour tracer une courbe lissée
-// passant par tous les points (au lieu d'un polyline anguleux).
-function smoothPath(points) {
-  if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-  let d = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? i : i - 1];
-    const p1 = points[i];
-    const p2 = points[i + 1];
-    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
-  }
-  return d;
-}
+import { AreaChart, Donut, Gauge } from '../../components/ui/charts';
 
 // Clé du jour au format YYYY-MM-DD (fuseau local) — même helper qu'ailleurs
 // dans l'app (Washers.jsx, StationDashboard.jsx).
@@ -242,20 +223,6 @@ export default function Analytics() {
     }).length,
   }));
   const hasFrequencyData = frequencyData.some(d => d.count > 0);
-  const maxCount = Math.max(1, ...frequencyData.map(d => d.count));
-
-  const chartW = 600, chartH = 180, padX = 24, padY = 10;
-  const stepX = frequencyData.length > 1 ? (chartW - padX * 2) / (frequencyData.length - 1) : 0;
-  const chartPoints = frequencyData.map((d, i) => ({
-    x: padX + i * stepX,
-    y: padY + (chartH - padY * 2) * (1 - d.count / maxCount),
-    ...d,
-  }));
-  const linePath = smoothPath(chartPoints);
-  const baseY = chartH - padY;
-  const areaPath = chartPoints.length > 0
-    ? `${linePath} L ${chartPoints[chartPoints.length - 1].x} ${baseY} L ${chartPoints[0].x} ${baseY} Z`
-    : '';
   const peakDateLabel = new Date(`${peakDate}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
@@ -389,33 +356,13 @@ export default function Analytics() {
                 <p className="text-neutral-500 text-sm">Aucun lavage démarré ce jour-là.</p>
               </div>
             ) : (
-              <svg viewBox={`0 0 ${chartW} ${chartH + 22}`} className="w-full h-56">
-                <defs>
-                  <linearGradient id="freqFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#a855f7" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {[0.25, 0.5, 0.75].map((f) => (
-                  <line key={f} x1={padX} x2={chartW - padX} y1={padY + (chartH - padY * 2) * f} y2={padY + (chartH - padY * 2) * f} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                ))}
-                <motion.path d={areaPath} fill="url(#freqFill)" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }} />
-                <motion.path d={linePath} fill="none" stroke="#a855f7" strokeWidth="2.5" strokeLinecap="round"
-                  initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.2, ease: 'easeOut' }} />
-                {chartPoints.map((p, i) => (
-                  <g key={i} className="group cursor-pointer">
-                    <circle cx={p.x} cy={p.y} r="9" fill="transparent" />
-                    <circle cx={p.x} cy={p.y} r="3.5" fill="#0a0a0a" stroke="#a855f7" strokeWidth="2" />
-                    {(i % Math.max(1, Math.ceil(chartPoints.length / 12)) === 0 || i === chartPoints.length - 1) && (
-                      <text x={p.x} y={chartH + 16} textAnchor="middle" fill="#737373" fontSize="9">{p.label}</text>
-                    )}
-                    <g className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <rect x={p.x - 13} y={p.y - 23} width="26" height="16" rx="4" fill="#000" />
-                      <text x={p.x} y={p.y - 11} textAnchor="middle" fill="#fff" fontSize="9" fontWeight="700">{p.count}</text>
-                    </g>
-                  </g>
-                ))}
-              </svg>
+              <AreaChart
+                data={frequencyData}
+                series={[{ key: 'count', label: '', color: '#a855f7' }]}
+                height={300} integer
+                formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`}
+                formatTick={(v) => String(Math.round(v))}
+              />
             )}
           </CardContent>
         </Card>
@@ -431,32 +378,11 @@ export default function Analytics() {
               </div>
             ) : (
               <>
-                <div className="relative w-48 h-48 mx-auto mb-8">
-                  <svg viewBox="0 0 42 42" className="w-full h-full transform -rotate-90 filter drop-shadow-xl">
-                    <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-                    {(() => {
-                      let cumulative = 0;
-                      return serviceEntries.map(([name, amt], i) => {
-                        const pct = serviceTotal > 0 ? (amt / serviceTotal) * 100 : 0;
-                        const dashoffset = -cumulative;
-                        cumulative += pct;
-                        return (
-                          <motion.circle
-                            key={name}
-                            initial={{ strokeDasharray: '0 100' }}
-                            animate={{ strokeDasharray: `${pct} ${100 - pct}` }}
-                            transition={{ duration: 1, delay: 0.2 + i * 0.15 }}
-                            cx="21" cy="21" r="15.91549430918954" fill="transparent"
-                            stroke={DONUT_COLORS[i % DONUT_COLORS.length]} strokeWidth="6" strokeDashoffset={dashoffset}
-                          />
-                        );
-                      });
-                    })()}
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-white">{formatCompact(serviceTotal)}</span>
-                    <span className="text-xs text-neutral-400">Total FCFA</span>
-                  </div>
+                <div className="mb-8">
+                  <Donut
+                    data={serviceEntries.map(([name, amt], i) => ({ label: name, value: amt, color: DONUT_COLORS[i % DONUT_COLORS.length] }))}
+                    centerLabel={formatCompact(serviceTotal)} centerSub="Total FCFA" size={192}
+                  />
                 </div>
 
                 <div className="space-y-4">
@@ -536,24 +462,7 @@ export default function Analytics() {
               <p className="text-neutral-500 text-sm py-8">Aucun client identifié (compte lié) sur cette période.</p>
             ) : (
               <>
-                <div className="relative w-40 h-20 mx-auto overflow-hidden">
-                  <svg viewBox="0 0 100 50" className="w-full h-full drop-shadow-lg">
-                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" strokeLinecap="round" />
-                    <motion.path
-                      initial={{ strokeDasharray: '0 126' }}
-                      animate={{ strokeDasharray: `${(tauxFidelite / 100) * 126} 126` }}
-                      transition={{ duration: 1.5, ease: 'easeOut' }}
-                      d="M 10 50 A 40 40 0 0 1 90 50"
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="12"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute bottom-0 left-0 right-0 text-center">
-                    <span className="text-3xl font-bold text-white">{tauxFidelite}%</span>
-                  </div>
-                </div>
+                <Gauge value={tauxFidelite} max={100} color="#10b981" suffix="%" />
 
                 <div className="flex justify-between mt-6 px-4">
                   <div className="text-left">

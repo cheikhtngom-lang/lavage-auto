@@ -6,6 +6,7 @@ import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets, sumInBuckets, buildDayBucketsForMonth, buildMonthBucketsForYear, buildYearBuckets } from '../../lib/dateBuckets';
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
+import { ColumnChart, Donut, Sparkline } from '../../components/ui/charts';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
 import SearchSelect from '../../components/ui/SearchSelect';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -245,9 +246,19 @@ export default function SuperAdminDashboard() {
   // pas la somme des estimations "clients déclarés" saisies par station.
   const totalClients = clientAccounts.length;
 
+  // Mini-courbes des cartes KPI : cumul mensuel sur les 8 derniers mois, calculé sur les
+  // vraies dates d'inscription (stations / comptes automobilistes) — jamais inventé.
+  const cumulativeByMonth = (items, dateKey, months = 8) => {
+    const now = new Date();
+    return Array.from({ length: months }, (_, i) => {
+      const end = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i) + 1, 1);
+      return items.filter((it) => it[dateKey] && new Date(it[dateKey]) < end).length;
+    });
+  };
+
   const stats = [
-    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10", detail: "Stations avec un compte validé et opérationnel sur la plateforme (tous statuts d'abonnement confondus)." },
-    { title: "Automobilistes inscrits", value: totalClients, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10", detail: "Nombre réel de comptes automobilistes créés sur la plateforme, toutes stations confondues." },
+    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10", spark: cumulativeByMonth(activeStations, 'joinedAt'), sparkColor: '#3b82f6', detail: "Stations avec un compte validé et opérationnel sur la plateforme (tous statuts d'abonnement confondus)." },
+    { title: "Automobilistes inscrits", value: totalClients, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10", spark: cumulativeByMonth(clientAccounts, 'createdAt'), sparkColor: '#10b981', detail: "Nombre réel de comptes automobilistes créés sur la plateforme, toutes stations confondues." },
     { title: "En attente de validation", value: pendingStations.length, icon: Clock, color: "text-orange-400", bg: "bg-orange-500/10", detail: "Nouvelles inscriptions de stations en attente de validation manuelle avant activation." },
     { title: "Revenu Récurrent (MRR)", value: mrr, suffix: " FCFA", icon: CreditCard, color: "text-purple-400", bg: "bg-purple-500/10", detail: `${paidStations.length} abonnement(s) validé(s) (paiement à jour) × prix du plan. Hors essais gratuits, impayés et accès illimités.${modMrr > 0 ? ` Modules & add-ons en sus : +${modMrr.toLocaleString('fr-FR')} FCFA/mois.` : ''}` }
   ];
@@ -257,6 +268,8 @@ export default function SuperAdminDashboard() {
   // répartition ci-dessous, triée par prix croissant pour un ordre stable.
   const planEntries = Object.entries(PLANS).sort((a, b) => a[1].price - b[1].price);
   const PLAN_BAR_COLORS = ['bg-emerald-400', 'bg-purple-500', 'bg-amber-400', 'bg-blue-400'];
+  // Mêmes teintes en hexadécimal, pour l'anneau de répartition (même ordre que ci-dessus).
+  const PLAN_HEX = ['#34d399', '#a855f7', '#fbbf24', '#60a5fa'];
 
   // Croissance réelle : nouvelles stations inscrites, groupées selon la
   // granularité choisie (jour/semaine/mois/année) — même logique de buckets
@@ -415,6 +428,7 @@ export default function SuperAdminDashboard() {
                 <div className={`p-3 rounded-xl ${stat.bg}`}>
                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
                 </div>
+                {stat.spark && stat.spark.some((v) => v > 0) && <Sparkline values={stat.spark} color={stat.sparkColor} />}
               </div>
 
               <div>
@@ -570,6 +584,13 @@ export default function SuperAdminDashboard() {
       >
         <div className="md:col-span-2">
           <h2 className="text-xl font-bold text-white mb-6">Répartition des Abonnements</h2>
+          <div className={stations.length > 0 ? 'grid grid-cols-1 sm:grid-cols-[176px_1fr] gap-8 items-center' : ''}>
+          {stations.length > 0 && (
+            <Donut
+              data={planEntries.map(([key, def], i) => ({ label: def.label, value: stations.filter((s) => s.plan === key).length, color: PLAN_HEX[i % PLAN_HEX.length] }))}
+              centerLabel={String(stations.length)} centerSub="stations" size={176}
+            />
+          )}
           <div className="space-y-5">
             {planEntries.map(([key, def], i) => {
               const count = stations.filter((s) => s.plan === key).length;
@@ -593,6 +614,7 @@ export default function SuperAdminDashboard() {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6 flex flex-col">
@@ -637,7 +659,7 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        <LineChart points={newStationsPoints} color="#a855f7" height={260} formatValue={(v) => `${v} nouvelle${v > 1 ? 's' : ''}`} />
+        <ColumnChart points={newStationsPoints} color="#a855f7" height={260} formatValue={(v) => `${v} nouvelle${v > 1 ? 's' : ''}`} />
       </motion.div>
 
       {/* Dernières stations inscrites */}

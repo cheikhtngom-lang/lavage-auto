@@ -338,7 +338,7 @@ export default function Bilan() {
           <Bars data={dowData} color="#06b6d4" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
         </Section>
         <Section title="Réservations par heure" subtitle="Répartition sur la journée (0h–23h)">
-          <VerticalBars data={hourData} color="#06b6d4" />
+          <VerticalBars data={hourData} color="#06b6d4" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
         </Section>
       </div>
 

@@ -8,6 +8,7 @@ import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
+import { Donut } from '../../components/ui/charts';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const PLAN_COLORS = ['#a855f7', '#3b82f6', '#f59e0b', '#10b981', '#ec4899'];
@@ -285,32 +286,11 @@ export default function SuperAdminAnalytics() {
             <Gauge className="w-5 h-5 text-emerald-400" />
             <h2 className="text-xl font-bold text-white">Fiabilité de paiement des abonnements</h2>
           </div>
-          <div className="relative w-44 h-44 mx-auto mb-8">
-            <svg viewBox="0 0 42 42" className="w-full h-full transform -rotate-90 filter drop-shadow-xl">
-              <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-              {(() => {
-                let offset = 0;
-                return statusDistribution.map((s) => {
-                  const pct = (s.count / totalStatusCount) * 100;
-                  const circle = (
-                    <motion.circle
-                      key={s.key}
-                      initial={{ strokeDasharray: '0 100' }}
-                      animate={{ strokeDasharray: `${pct} ${100 - pct}` }}
-                      transition={{ duration: 1, delay: 0.2 }}
-                      cx="21" cy="21" r="15.91549430918954" fill="transparent"
-                      stroke={s.color} strokeWidth="6" strokeDashoffset={-offset}
-                    />
-                  );
-                  offset += pct;
-                  return circle;
-                });
-              })()}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-white">{stations.length}</span>
-              <span className="text-xs text-neutral-400">Stations</span>
-            </div>
+          <div className="mb-8">
+            <Donut
+              data={statusDistribution.map((s) => ({ label: s.label, value: s.count, color: s.color }))}
+              centerLabel={String(stations.length)} centerSub="Stations" size={176}
+            />
           </div>
           <div className="space-y-3">
             {statusDistribution.map(s => (
