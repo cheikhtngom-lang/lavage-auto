@@ -9,6 +9,9 @@ export default {
     "./merci.html",
     "./confidentialite.html",
     "./conditions-generales.html",
+    "./mentions-legales.html",
+    "./reglement.html",
+    "./accord-traitement-donnees.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {

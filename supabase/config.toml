@@ -24,3 +24,9 @@ verify_jwt = false
 # create-lavage-payment / create-platform-payment / create-vidange-payment /
 # create-shop-payment gardent verify_jwt = true (défaut) : appelées depuis le
 # front par un utilisateur connecté.
+
+# Formulaire « Contact » du footer public : appelée par des visiteurs non
+# connectés (pas de session Supabase). Les protections anti-abus (honeypot,
+# limite de débit par IP hashée, validation) sont dans la fonction elle-même.
+[functions.send-contact-message]
+verify_jwt = false

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
+import { renderSiteFooter } from '../../lib/siteFooter';
 
 export default function MainLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -76,21 +77,9 @@ export default function MainLayout() {
         <Outlet />
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 w-full border-t border-white/10 bg-black py-10 text-center text-neutral-500 text-sm">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <img src="/icons/icon-192.png" alt="Clean Car Galsen" className="w-full h-full object-cover" />
-          </div>
-          <span className="font-bold text-lg tracking-tight text-white">Clean Car Galsen</span>
-        </div>
-        <nav className="flex items-center justify-center gap-6 mb-4 text-neutral-400">
-          <Link to="/" className="hover:text-white transition-colors">Accueil</Link>
-          <Link to="/stations" className="hover:text-white transition-colors">Stations</Link>
-          <Link to="/dashboard" className="hover:text-white transition-colors">Mon Suivi</Link>
-        </nav>
-        <p>&copy; {new Date().getFullYear()} Clean Car Galsen. Tous droits réservés.</p>
-      </footer>
+      {/* Footer : même HTML que la page d'accueil (src/lib/siteFooter.js, contenu statique).
+          Le bouton Contact ouvre la fenêtre montée par dashboard.html (src/contact-modal.js). */}
+      <div className="relative z-10 w-full" dangerouslySetInnerHTML={{ __html: renderSiteFooter({ version: __BUILD_VERSION__ }) }} />
     </div>
   );
 }

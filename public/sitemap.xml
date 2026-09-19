@@ -12,7 +12,7 @@
   <!-- Conditions générales -->
   <url>
     <loc>https://galsenautocleaner.com/conditions-generales.html</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-09-19</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -20,7 +20,31 @@
   <!-- Politique de confidentialité -->
   <url>
     <loc>https://galsenautocleaner.com/confidentialite.html</loc>
-    <lastmod>2026-08-22</lastmod>
+    <lastmod>2026-09-19</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <!-- Mentions légales -->
+  <url>
+    <loc>https://galsenautocleaner.com/mentions-legales.html</loc>
+    <lastmod>2026-09-19</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <!-- Règlement de la plateforme -->
+  <url>
+    <loc>https://galsenautocleaner.com/reglement.html</loc>
+    <lastmod>2026-09-19</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <!-- Accord de traitement des données (DPA) -->
+  <url>
+    <loc>https://galsenautocleaner.com/accord-traitement-donnees.html</loc>
+    <lastmod>2026-09-19</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
