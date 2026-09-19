@@ -118,12 +118,14 @@ Deno.serve(async (req) => {
     });
     if (!resendRes.ok) {
       const detail = await resendRes.text();
-      return json({ error: "Resend a refusé l'envoi", detail }, 502);
+      console.error("send-welcome-email Resend:", detail);
+      return json({ error: "Envoi de l'email impossible pour le moment." }, 502);
     }
 
     await supabase.from("profiles").update({ welcome_email_sent_at: new Date().toISOString() }).eq("id", profileId);
     return json({ sent: true });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    console.error("send-welcome-email:", err);
+    return json({ error: "Une erreur est survenue. Réessayez plus tard." }, 500);
   }
 });

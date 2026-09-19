@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
         .from("station_members")
         .insert({ station_id: stationId, role_id: roleId, email, full_name: fullName, status: "invited", invited_by: callerId })
         .select("id").single();
-      if (insErr || !created) return json({ error: "Création du membre impossible.", detail: insErr?.message }, 500);
+      if (insErr || !created) { console.error("invite-station-member membre:", insErr); return json({ error: "Création du membre impossible." }, 500); }
       memberId = created.id;
     }
 
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     const { error: invErr } = await admin.from("station_invitations").insert({
       station_id: stationId, member_id: memberId, email, token, status: "pending",
     });
-    if (invErr) return json({ error: "Création de l'invitation impossible.", detail: invErr.message }, 500);
+    if (invErr) { console.error("invite-station-member invitation:", invErr); return json({ error: "Création de l'invitation impossible." }, 500); }
 
     // ── Email ───────────────────────────────────────────────────────
     const link = `${APP_BASE_URL}/accept-invitation.html?token=${encodeURIComponent(token)}`;
@@ -189,12 +189,14 @@ Deno.serve(async (req) => {
       if (!r.ok) {
         const detail = await r.text();
         // L'invitation existe en base : on renvoie le lien pour un partage manuel.
-        return json({ ok: true, emailSent: false, link, warning: "Email non envoyé", detail }, 200);
+        console.error("invite-station-member email:", detail);
+        return json({ ok: true, emailSent: false, link, warning: "Email non envoyé" }, 200);
       }
     }
 
     return json({ ok: true, emailSent: Boolean(RESEND_API_KEY), memberId, link });
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    console.error("invite-station-member:", err);
+    return json({ error: "Une erreur est survenue. Réessayez plus tard." }, 500);
   }
 });

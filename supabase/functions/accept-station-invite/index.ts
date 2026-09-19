@@ -86,7 +86,8 @@ Deno.serve(async (req) => {
         if (msg.includes("registered") || msg.includes("already") || msg.includes("exists")) {
           return json({ error: "Un compte existe déjà avec cet email. Contactez la station." }, 409);
         }
-        return json({ error: "Création du compte impossible.", detail: createErr?.message }, 500);
+        console.error("accept-station-invite createUser:", createErr);
+        return json({ error: "Création du compte impossible." }, 500);
       }
       const uid = created.user.id;
 
@@ -95,7 +96,8 @@ Deno.serve(async (req) => {
       });
       if (profErr) {
         await admin.auth.admin.deleteUser(uid).catch(() => {});
-        return json({ error: "Rattachement du profil impossible.", detail: profErr.message }, 500);
+        console.error("accept-station-invite profil:", profErr);
+        return json({ error: "Rattachement du profil impossible." }, 500);
       }
 
       await admin.from("station_members")
@@ -108,6 +110,7 @@ Deno.serve(async (req) => {
 
     return json({ error: "Action inconnue." }, 400);
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    console.error("accept-station-invite:", err);
+    return json({ error: "Une erreur est survenue. Réessayez plus tard." }, 500);
   }
 });
