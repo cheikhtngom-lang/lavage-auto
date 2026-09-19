@@ -44,7 +44,7 @@ export default function MyStations() {
             const profile = getStationOperationalProfile(station.id);
             const open = isStationOpenNow(profile);
             const rating = getStationRatingSummary(station.id);
-            const location = station.quartier ? `${station.quartier}, ${regionLabel(station.region)}` : (station.city || station.address || 'Sénégal');
+            const location = station.quartier ? `${station.quartier}, ${regionLabel(station.region, station.country)}` : (station.city || station.address || 'Sénégal');
             return (
               <motion.div
                 key={station.id}

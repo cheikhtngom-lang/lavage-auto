@@ -436,6 +436,10 @@
                                 <label class="field-label">Adresse de la station</label>
                                 <input id="reg-agence-address" type="text" placeholder="Plateau, Dakar" required class="input-field input-field-green" maxlength="150">
                             </div>
+                            <div>
+                                <label class="field-label">Pays</label>
+                                <select id="reg-agence-country" required class="input-field input-field-green" style="appearance:none;"></select>
+                            </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="field-label">Quartier</label>
@@ -445,20 +449,6 @@
                                     <label class="field-label">Région</label>
                                     <select id="reg-agence-region" required class="input-field input-field-green" style="appearance:none;">
                                         <option value="" style="background:#111">Sélectionner...</option>
-                                        <option value="dakar" style="background:#111">Dakar</option>
-                                        <option value="diourbel" style="background:#111">Diourbel</option>
-                                        <option value="fatick" style="background:#111">Fatick</option>
-                                        <option value="kaffrine" style="background:#111">Kaffrine</option>
-                                        <option value="kaolack" style="background:#111">Kaolack</option>
-                                        <option value="kedougou" style="background:#111">Kédougou</option>
-                                        <option value="kolda" style="background:#111">Kolda</option>
-                                        <option value="louga" style="background:#111">Louga</option>
-                                        <option value="matam" style="background:#111">Matam</option>
-                                        <option value="saint-louis" style="background:#111">Saint-Louis</option>
-                                        <option value="sedhiou" style="background:#111">Sédhiou</option>
-                                        <option value="tambacounda" style="background:#111">Tambacounda</option>
-                                        <option value="thies" style="background:#111">Thiès</option>
-                                        <option value="ziguinchor" style="background:#111">Ziguinchor</option>
                                     </select>
                                 </div>
                             </div>
@@ -535,6 +525,8 @@
             createClientAccount, createStationAccount, signIn, requestPasswordReset, setSession,
         } from '/src/lib/accounts.js';
         import { geocodeQuartierRegion } from '/src/lib/geocoding.js';
+        import { COUNTRIES, regionsOf, isKnownCountry, DEFAULT_COUNTRY } from '/src/lib/countries.js';
+        import { detectCountry } from '/src/lib/userCountry.js';
 
         const ROLE_REDIRECT = { super_admin: '/superadmin', admin: '/admin/queue', staff: '/admin/queue', automobiliste: '/dashboard' };
 
@@ -546,6 +538,29 @@
         let forgotIdentifier = '';
         let stationLat = null;
         let stationLng = null;
+
+        // ============ PAYS ET RÉGIONS DE LA STATION (inscription agence) ============
+        // La station choisit son pays explicitement (elle est où elle est : pas de détection
+        // imposée) ; la détection ne fait que présélectionner. Les régions suivent le pays.
+        // Tous les pays déclarés sont proposés, même pas encore ouverts aux clients : c'est
+        // ce qui permet de recruter des stations pilotes avant l'ouverture d'un pays.
+        function fillAgenceRegions() {
+            const country = document.getElementById('reg-agence-country').value;
+            document.getElementById('reg-agence-region').innerHTML =
+                '<option value="" style="background:#111">Sélectionner...</option>' +
+                regionsOf(country).map((r) => '<option value="' + r.value + '" style="background:#111">' + r.label + '</option>').join('');
+        }
+        (function initAgenceCountry() {
+            const select = document.getElementById('reg-agence-country');
+            select.innerHTML = COUNTRIES.map((c) => '<option value="' + c.code + '" style="background:#111">' + c.name + '</option>').join('');
+            select.value = DEFAULT_COUNTRY;
+            fillAgenceRegions();
+            let touched = false;
+            select.addEventListener('change', () => { touched = true; fillAgenceRegions(); });
+            detectCountry().then((code) => {
+                if (!touched && code && isKnownCountry(code)) { select.value = code; fillAgenceRegions(); }
+            });
+        })();
 
         // ============ GÉOLOCALISATION DE LA STATION (inscription agence) ============
         function captureStationLocation() {
@@ -589,6 +604,7 @@
         async function locateFromQuartier() {
             const quartier = document.getElementById('reg-agence-quartier').value.trim();
             const region = document.getElementById('reg-agence-region').value;
+            const country = document.getElementById('reg-agence-country').value;
             const btn = document.getElementById('reg-agence-geoquartier-btn');
             const status = document.getElementById('reg-agence-geoloc-status');
 
@@ -603,7 +619,7 @@
             status.className = 'text-xs text-blue-400 mt-1.5';
 
             try {
-                const result = await geocodeQuartierRegion(quartier, region);
+                const result = await geocodeQuartierRegion(quartier, region, country);
                 stationLat = result.lat;
                 stationLng = result.lng;
                 status.textContent = result.precision === 'quartier'
@@ -878,6 +894,7 @@
             const address = document.getElementById('reg-agence-address').value.trim();
             const quartier = document.getElementById('reg-agence-quartier').value.trim();
             const region = document.getElementById('reg-agence-region').value;
+            const country = document.getElementById('reg-agence-country').value;
             const ownerFirstName = document.getElementById('reg-agence-owner-firstname').value.trim();
             const ownerLastName = document.getElementById('reg-agence-owner-lastname').value.trim();
             const loginEmail = document.getElementById('reg-agence-email').value.trim();
@@ -898,7 +915,7 @@
             }
 
             try {
-                const station = await createStationAccount({ name, address, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat: stationLat, lng: stationLng });
+                const station = await createStationAccount({ name, address, quartier, region, country, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat: stationLat, lng: stationLng });
                 setSession({ role: 'admin', remember: true, stationId: station.id });
                 window.location.href = '/merci.html';
             } catch (err) {

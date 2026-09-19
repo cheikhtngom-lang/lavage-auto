@@ -5,7 +5,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { getCurrentStationId } from '../../lib/accounts';
 import { supabase } from '../../lib/supabaseClient';
-import { SENEGAL_REGIONS } from '../../lib/regions';
+import { COUNTRIES, regionsOf } from '../../lib/countries';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { Card, CardContent } from '../../components/ui/Card';
 import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, createAdPayment } from '../../lib/ads';
@@ -212,6 +212,7 @@ export default function Settings() {
         address: profile?.address || '',
         quartier: profile?.quartier || '',
         region: profile?.region || '',
+        country: profile?.country || 'SN',
         loyaltyThreshold: Number(loyaltyThreshold) || 5,
         loyaltyTiers: hasAdvancedLoyalty ? loyaltyTiers.filter((t) => t.threshold > 0 && t.reward.trim()) : null,
       });
@@ -341,7 +342,7 @@ export default function Settings() {
     setGeoStatus('loading');
     setGeoMessage('Recherche du quartier...');
     try {
-      const result = await geocodeQuartierRegion(profile.quartier, profile.region);
+      const result = await geocodeQuartierRegion(profile.quartier, profile.region, profile.country);
       updateStation(stationId, { lat: result.lat, lng: result.lng });
       setGeoStatus('success');
       setGeoMessage(result.precision === 'quartier'
@@ -655,10 +656,16 @@ export default function Settings() {
                     <input type="text" value={profile?.quartier || ''} onChange={e => setProfile({...profile, quartier: e.target.value})} placeholder="Ex: Plateau" className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-sm font-medium text-neutral-400">Pays</label>
+                    <select value={profile?.country || 'SN'} onChange={e => setProfile({...profile, country: e.target.value, region: ''})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none">
+                      {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Région</label>
                     <select value={profile?.region || ''} onChange={e => setProfile({...profile, region: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none">
                       <option value="">Sélectionner...</option>
-                      {SENEGAL_REGIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      {regionsOf(profile?.country || 'SN').map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2 md:col-span-2">

@@ -77,7 +77,7 @@ export function getStationOperationalProfile(stationId) {
   const s = stationsCache[stationId];
   if (!s) return null;
   return {
-    name: s.name, phone: s.ownerPhone, address: s.address, quartier: s.quartier, region: s.region,
+    name: s.name, phone: s.ownerPhone, address: s.address, quartier: s.quartier, region: s.region, country: s.country,
     openTime: s.openTime, closeTime: s.closeTime, logo: s.logo, cachet: s.cachet,
   };
 }

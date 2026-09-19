@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Settings as SettingsIcon, Save, RotateCcw, ScrollText, Crown, Shield, Lock, Mail, CheckCircle2, CreditCard, FileDown, Download, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, Save, RotateCcw, ScrollText, Crown, Shield, Lock, Mail, CheckCircle2, CreditCard, FileDown, Download, Loader2, Globe } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { supabase } from '../../lib/supabaseClient';
 import { changePassword } from '../../lib/accounts';
 import { exportStationData, exportAllStationsData } from '../../lib/rgpdExport';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import CountriesPanel from '../../components/superadmin/CountriesPanel';
 
 const PLAN_ACCENTS = {
   Starter: { ring: 'border-blue-500/30', text: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -16,6 +17,7 @@ const defaultAccent = { ring: 'border-white/10', text: 'text-neutral-300', bg: '
 
 const TABS = [
   { id: 'plans', label: 'Plans & Tarifs', icon: CreditCard },
+  { id: 'pays', label: 'Pays', icon: Globe },
   { id: 'compte', label: 'Compte & Sécurité', icon: Shield },
   { id: 'export', label: 'Export RGPD', icon: FileDown },
   { id: 'journal', label: "Journal d'activité", icon: ScrollText },
@@ -204,6 +206,8 @@ export default function SuperAdminSettings() {
               </div>
             </div>
           )}
+
+          {activeTab === 'pays' && <CountriesPanel />}
 
           {activeTab === 'compte' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-8 max-w-xl">

@@ -49,8 +49,10 @@ const NAV_LINKS = [
   { href: '/#faq', label: 'FAQ' },
 ];
 
-// Liens « région » : la page d'accueil lit ?region=<valeur> et lance la
-// recherche de stations correspondante (voir applyRegionFromUrl dans index.html).
+// Liens « région » (Sénégal par défaut) : la page d'accueil lit ?country=<code> et
+// ?region=<valeur> et lance la recherche de stations correspondante (voir
+// applyRegionFromUrl dans index.html). Pour un visiteur d'un autre pays, la liste est
+// réécrite côté navigateur (src/contact-modal.js, localizeFooterRegions).
 const REGION_LINKS = [
   ['dakar', 'Dakar'],
   ['thies', 'Thiès'],
@@ -104,10 +106,10 @@ const SOCIALS = [
 
 const linkCls = 'text-neutral-400 hover:text-white transition-colors';
 
-function column(title, itemsHtml) {
+function column(title, itemsHtml, ulAttrs = '') {
   return `<div>
         <h3 class="text-xs font-bold uppercase tracking-wider text-white mb-4">${title}</h3>
-        <ul class="space-y-2.5">${itemsHtml}</ul>
+        <ul class="space-y-2.5"${ulAttrs}>${itemsHtml}</ul>
       </div>`;
 }
 
@@ -125,9 +127,9 @@ export function renderSiteFooter({ version = '' } = {}) {
     + `<li><button type="button" data-open-contact class="${linkCls} text-left">Contact</button></li>`;
 
   const stations = REGION_LINKS.map(
-    ([value, label]) => `<li><a href="/?region=${value}#stations-section" class="${linkCls}">Lavage auto ${label}</a></li>`
+    ([value, label]) => `<li><a href="/?country=SN&amp;region=${value}#stations-section" class="${linkCls}">Lavage auto ${label}</a></li>`
   ).join('')
-    + `<li><a href="/#stations-section" class="${linkCls}">Toutes les stations</a></li>`;
+    + `<li><a href="/?country=SN#stations-section" class="${linkCls}">Toutes les stations</a></li>`;
 
   const legal = LEGAL_PAGES.map((l) => `<li><a href="${l.href}" class="${linkCls}">${l.label}</a></li>`).join('');
 
@@ -151,7 +153,7 @@ export function renderSiteFooter({ version = '' } = {}) {
       <div class="mt-5 flex items-center gap-3">${socials}</div>
     </div>
     ${column('Navigation', nav)}
-    ${column('Stations', stations)}
+    ${column('Stations', stations, ' data-footer-regions')}
     ${column('Légal', legal)}
     <div>
       <h3 class="text-xs font-bold uppercase tracking-wider text-white mb-4">Contact</h3>

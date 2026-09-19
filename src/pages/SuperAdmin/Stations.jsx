@@ -8,6 +8,7 @@ import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
+import { COUNTRIES, countryName } from '../../lib/countries';
 import { exportStationData } from '../../lib/rgpdExport';
 
 const STATUS_LABELS = {
@@ -75,15 +76,17 @@ export default function Stations() {
   const [rgpdBusy, setRgpdBusy] = useState(null); // null | station.id en cours d'export
   const [rgpdError, setRgpdError] = useState('');
 
+  const [countryFilter, setCountryFilter] = useState('tous');
   const filtered = stations.filter(s => {
+    const matchesCountry = countryFilter === 'tous' || (s.country || 'SN') === countryFilter;
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || (s.city || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'tous' || s.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesCountry;
   });
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  useEffect(() => { setPage(1); }, [search, statusFilter]);
+  useEffect(() => { setPage(1); }, [search, statusFilter, countryFilter]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -133,6 +136,15 @@ export default function Stations() {
               {label}
             </button>
           ))}
+          <select
+            value={countryFilter}
+            onChange={(e) => setCountryFilter(e.target.value)}
+            aria-label="Filtrer par pays"
+            className="px-4 py-2 rounded-full text-sm font-medium border bg-neutral-900 border-white/10 text-neutral-300 focus:outline-none focus:border-purple-500"
+          >
+            <option value="tous">Tous les pays</option>
+            {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+          </select>
         </div>
       </div>
 
@@ -176,7 +188,7 @@ export default function Stations() {
                       </div>
                       <div>
                         <p className="font-bold text-white whitespace-nowrap">{station.name}</p>
-                        <p className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {station.city || station.address || 'Ville non renseignée'}</p>
+                        <p className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {station.city || station.address || 'Ville non renseignée'} · {countryName(station.country || 'SN')}</p>
                       </div>
                     </div>
                   </td>

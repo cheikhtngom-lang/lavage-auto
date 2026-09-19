@@ -7,7 +7,8 @@ import { changePassword, convertClientToStation, setSession } from '../../lib/ac
 import { MAX_FREE_VEHICLES, CLIENT_PLANS, createSuperUserPayment } from '../../lib/superUser';
 import { payPlatformOnline } from '../../lib/paydunya';
 import { exportClientOwnData } from '../../lib/rgpdExport';
-import { SENEGAL_REGIONS } from '../../lib/regions';
+import { COUNTRIES, regionsOf, DEFAULT_COUNTRY } from '../../lib/countries';
+import { useClientCountry } from '../../hooks/useClientCountry';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
@@ -40,7 +41,10 @@ export default function Settings() {
   // convertClientToStation + add_client_to_station_conversion.sql). Pas de
   // nom/email de gérant à ressaisir : le RPC reprend ceux du profil existant.
   const [showStationForm, setShowStationForm] = useState(false);
-  const [stationForm, setStationForm] = useState({ name: '', address: '', quartier: '', region: '', phone: account?.phone || '', plan: 'Starter' });
+  const [stationForm, setStationForm] = useState({ name: '', address: '', quartier: '', region: '', country: '', phone: account?.phone || '', plan: 'Starter' });
+  // Pays de la station : celui du client (détecté ou choisi) tant qu'il n'a pas touché au sélecteur.
+  const clientCountry = useClientCountry();
+  const stationCountry = stationForm.country || clientCountry.code || DEFAULT_COUNTRY;
   const [stationCoords, setStationCoords] = useState({ lat: null, lng: null });
   const [geoStatus, setGeoStatus] = useState(null);
   const [geoMessage, setGeoMessage] = useState('');
@@ -219,7 +223,7 @@ export default function Settings() {
     setGeoStatus('loading');
     setGeoMessage('Recherche du quartier...');
     try {
-      const result = await geocodeQuartierRegion(stationForm.quartier, stationForm.region);
+      const result = await geocodeQuartierRegion(stationForm.quartier, stationForm.region, stationCountry);
       setStationCoords({ lat: result.lat, lng: result.lng });
       setGeoStatus('success');
       setGeoMessage(result.precision === 'quartier' ? 'Quartier localisé ✓' : 'Région localisée (quartier introuvable) ✓');
@@ -253,6 +257,7 @@ export default function Settings() {
         address: stationForm.address.trim(),
         quartier: stationForm.quartier.trim(),
         region: stationForm.region,
+        country: stationCountry,
         phone: stationForm.phone.trim(),
         plan: stationForm.plan,
         lat: stationCoords.lat,
@@ -476,6 +481,13 @@ export default function Settings() {
                 onChange={(e) => setStationForm({ ...stationForm, address: e.target.value })}
                 className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors" />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-400 mb-1.5">Pays</label>
+              <select value={stationCountry} onChange={(e) => setStationForm({ ...stationForm, country: e.target.value, region: '' })}
+                className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 appearance-none">
+                {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium text-neutral-400 mb-1.5">Quartier</label>
@@ -488,7 +500,7 @@ export default function Settings() {
                 <select value={stationForm.region} onChange={(e) => setStationForm({ ...stationForm, region: e.target.value })}
                   className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 appearance-none">
                   <option value="">Sélectionner...</option>
-                  {SENEGAL_REGIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  {regionsOf(stationCountry).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
             </div>

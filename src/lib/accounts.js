@@ -43,7 +43,7 @@ export async function createClientAccount({ firstName, lastName, email, phone, p
   return { id: data.user.id, name: fullName, email, phone: phone || '' };
 }
 
-export async function createStationAccount({ name, address, city, quartier, region, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat, lng }) {
+export async function createStationAccount({ name, address, city, quartier, region, country, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat, lng }) {
   const ownerName = `${ownerFirstName} ${ownerLastName}`.trim();
   const { data, error } = await supabase.auth.signUp({ email: loginEmail, password });
   if (error) throw new Error(error.message === 'User already registered' ? 'Un compte station existe déjà avec cet email.' : error.message);
@@ -53,7 +53,7 @@ export async function createStationAccount({ name, address, city, quartier, regi
   const { data: station, error: stationError } = await supabase.from('stations').insert({
     created_by: data.user.id,
     name, owner_name: ownerName, owner_email: loginEmail, owner_phone: phone || '',
-    address: address || '', city: city || '', quartier: quartier || '', region: region || '',
+    address: address || '', city: city || '', quartier: quartier || '', region: region || '', country: country || 'SN',
     lat: typeof lat === 'number' ? lat : null, lng: typeof lng === 'number' ? lng : null,
     // Visible immédiatement dans l'annuaire public — pas de validation manuelle
     // préalable par le Super Admin (qui est aussi le seul développeur pour
@@ -86,12 +86,13 @@ export async function createStationAccount({ name, address, city, quartier, regi
 // pas : la session Supabase Auth reste la même, seul profiles.role change —
 // à l'appelant de mettre à jour la session locale (setSession) et de
 // rediriger vers /admin/queue.
-export async function convertClientToStation({ name, address, quartier, region, phone, plan, lat, lng }) {
+export async function convertClientToStation({ name, address, quartier, region, country, phone, plan, lat, lng }) {
   const { data, error } = await supabase.rpc('convert_account_to_station', {
     p_name: name,
     p_address: address || '',
     p_quartier: quartier || '',
     p_region: region || '',
+    p_country: country || 'SN',
     p_phone: phone || '',
     p_lat: typeof lat === 'number' ? lat : null,
     p_lng: typeof lng === 'number' ? lng : null,

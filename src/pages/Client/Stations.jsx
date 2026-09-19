@@ -12,7 +12,9 @@ import {
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
 import { deriveAdStatus } from '../../lib/ads';
-import { SENEGAL_REGIONS, regionLabel } from '../../lib/regions';
+import { regionsOf, regionLabel, countryName, DEFAULT_COUNTRY } from '../../lib/countries';
+import { useClientCountry } from '../../hooks/useClientCountry';
+import { CountryPicker, CountryUnavailable } from '../../components/ui/CountryPicker';
 import { StarRatingDisplay } from '../../components/ui/StarRating';
 import { downloadReceiptPdf } from '../../lib/receipt';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
@@ -150,6 +152,8 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
 
 export default function Stations() {
   const { stations: registry, stationAds } = useSuperAdminState();
+  // Pays affiché : détecté automatiquement (voir lib/userCountry.js), modifiable via le lien « Pays : … ».
+  const country = useClientCountry();
   const { account, loading: accountLoading, toggleFavorite, unhideStation, reservations, refreshActivity, superUserStatus, myStationSubscriptions } = useClientAccount();
   const isSuperUser = superUserStatus === 'ACTIVE';
   const navigate = useNavigate();
@@ -170,6 +174,8 @@ export default function Stations() {
   const [appliedSearch, setAppliedSearch] = useState(null); // null = pas de recherche active | { query, region }
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const favoriteIds = account?.favoriteStationIds || [];
+  // Les régions changent d'un pays à l'autre : une recherche en cours n'a plus de sens.
+  useEffect(() => { setRegionInput(''); setAppliedSearch(null); }, [country.code]);
 
   const [selectedStation, setSelectedStation] = useState(null);
   const [modalStep, setModalStep] = useState('detail'); // 'detail' | 'limit' | 'form' | 'payment'
@@ -285,12 +291,14 @@ export default function Stations() {
 
   const allStations = (registry || [])
     .filter(s => s.status !== 'suspendue')
+    // Seules les stations du pays affiché (les anciennes lignes sans pays sont au Sénégal).
+    .filter(s => !!country.code && (s.country || DEFAULT_COUNTRY) === country.code)
     .map(s => {
       const profile = getStationOperationalProfile(s.id);
       const distanceKm = (userPos && typeof s.lat === 'number' && typeof s.lng === 'number')
         ? haversineDistanceKm(userPos.lat, userPos.lng, s.lat, s.lng)
         : null;
-      const location = s.quartier ? `${s.quartier}, ${regionLabel(s.region)}` : (s.city || s.address || 'Sénégal');
+      const location = s.quartier ? `${s.quartier}, ${regionLabel(s.region, s.country)}` : (s.city || s.address || countryName(s.country || DEFAULT_COUNTRY));
       const promo = getStationPromo(s.id);
       const featuredAd = featuredAdByStation.get(String(s.id)) || null;
       // "Station en Vedette" (module Super Admin, voir lib/stationModules.js)
@@ -738,7 +746,14 @@ export default function Stations() {
         <p className="text-neutral-400 text-lg max-w-2xl mx-auto">Trouvez la station la plus proche et réservez votre place en quelques secondes.</p>
       </div>
 
-      {/* Recherche par quartier / région */}
+      {!country.loading && (
+        <div className="flex justify-center mb-8">
+          <CountryPicker code={country.code} detected={country.detected} openCodes={country.openCodes} source={country.source} onChoose={country.chooseCountry} />
+        </div>
+      )}
+
+      {/* Recherche par quartier / région — masquée quand le pays du visiteur n'est pas encore ouvert */}
+      {!country.loading && country.status !== 'unavailable' && (<>
       <div className="glass-card p-4 rounded-2xl mb-4 flex flex-col md:flex-row gap-4 items-center">
         <div className="flex-1 w-full relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
@@ -750,7 +765,7 @@ export default function Stations() {
         <select value={regionInput} onChange={e => setRegionInput(e.target.value)}
           className="w-full md:w-48 bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer">
           <option value="">Toutes les régions</option>
-          {SENEGAL_REGIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          {regionsOf(country.code).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
         <button onClick={handleSearch} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 px-6 rounded-xl transition-colors shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
           <Search className="w-4 h-4" /> Rechercher
@@ -779,7 +794,15 @@ export default function Stations() {
         {geoMessage && <p className={`text-sm ${geoStatus === 'error' ? 'text-red-400' : 'text-emerald-400'}`}>{geoMessage}</p>}
       </div>
 
-      {!showStationsList ? (
+      </>)}
+
+      {country.loading ? (
+        <div className="glass-card rounded-2xl p-16 text-center border-dashed border-2 border-white/10">
+          <p className="text-neutral-400">Chargement des stations de votre pays…</p>
+        </div>
+      ) : country.status === 'unavailable' ? (
+        <CountryUnavailable detected={country.detected} openCodes={country.openCodes} onChoose={country.chooseCountry} />
+      ) : !showStationsList ? (
         <div className="glass-card rounded-2xl p-16 text-center border-dashed border-2 border-white/10">
           <Search className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-white mb-2">Recherchez une station pour commencer</h3>

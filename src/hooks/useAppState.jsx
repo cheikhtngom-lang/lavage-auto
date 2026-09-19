@@ -55,6 +55,7 @@ const defaultStationProfile = {
     address: "",
     quartier: "",
     region: "",
+    country: "SN",
     openTime: "08:00",
     closeTime: "20:00",
     logo: null, // Data URL (image encodée) — voir updateStationProfile
@@ -513,6 +514,7 @@ export function AppStateProvider({ children }) {
         address: row?.address || '',
         quartier: row?.quartier || '',
         region: row?.region || '',
+        country: row?.country || 'SN',
         openTime: row?.open_time || '08:00',
         closeTime: row?.close_time || '20:00',
         logo: row?.logo_url || null,
@@ -947,7 +949,7 @@ export function AppStateProvider({ children }) {
         if (!stationId || stationId === 'default') return;
         supabase.from('stations').update({
             name: newP.name, owner_phone: newP.phone, address: newP.address, quartier: newP.quartier,
-            region: newP.region, open_time: newP.openTime, close_time: newP.closeTime,
+            region: newP.region, country: newP.country || 'SN', open_time: newP.openTime, close_time: newP.closeTime,
             logo_url: newP.logo, cachet_url: newP.cachet, daily_revenue_target: newP.dailyRevenueTarget,
         }).eq('id', stationId).then(() => {});
     };

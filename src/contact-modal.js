@@ -7,6 +7,9 @@
 // (supabase/functions/send-contact-message) — le client Supabase n'est chargé
 // qu'à l'envoi, pour ne pas alourdir les pages légales.
 
+import { getCountry } from './lib/countries.js';
+import { detectCountry, getCountryOverride, getUrlCountry } from './lib/userCountry.js';
+
 const MIN_FILL_MS = 2500; // en dessous : formulaire rempli par un robot (vérifié aussi côté serveur)
 
 const root = document.getElementById('ccg-contact');
@@ -177,6 +180,24 @@ if (root) {
     }
   });
 }
+
+// Colonne « Stations » du footer : liste par défaut = régions du Sénégal (rendue côté
+// serveur). Pour un visiteur d'un autre pays déclaré, on affiche SES régions — sinon un
+// client d'Abidjan verrait des liens « Lavage auto Dakar ». Sans détection possible, la
+// liste par défaut reste (aucun appel base de données ici : le pays peut ne pas être
+// ouvert, le lien mène alors au message « pas encore disponible »).
+async function localizeFooterRegions() {
+  const list = document.querySelector('[data-footer-regions]');
+  if (!list) return;
+  const code = getUrlCountry() || getCountryOverride() || (await detectCountry());
+  const country = code && getCountry(code);
+  if (!country || country.code === 'SN') return;
+  const cls = 'text-neutral-400 hover:text-white transition-colors';
+  const items = country.regions.slice(0, 7).map((r) => '<li><a href="/?country=' + country.code + '&region=' + r.value + '#stations-section" class="' + cls + '">Lavage auto ' + r.label + '</a></li>');
+  items.push('<li><a href="/?country=' + country.code + '#stations-section" class="' + cls + '">Toutes les stations</a></li>');
+  list.innerHTML = items.join('');
+}
+localizeFooterRegions();
 
 // L'année du copyright reste juste même sur une page servie depuis le cache.
 document.querySelectorAll('[data-year]').forEach((el) => {

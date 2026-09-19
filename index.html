@@ -738,8 +738,18 @@
                     </button>
                 </div>
 
+                <!-- Pays : détecté automatiquement, modifiable (voir src/lib/userCountry.js) -->
+                <div id="country-bar" class="reveal-item relative z-20 flex justify-center mb-4 min-h-[2.25rem]"></div>
+
+                <!-- Pays pas (encore) ouvert : message à la place de la recherche -->
+                <div id="country-unavailable" class="hidden text-center py-14 px-4 glass-card rounded-2xl border border-dashed border-white/10 mb-4">
+                    <h3 id="country-unavailable-title" class="text-xl font-bold text-white mb-2"></h3>
+                    <p class="text-neutral-400 max-w-xl mx-auto mb-6">Nous ouvrons le service pays par pays. Vous pouvez consulter les stations d'un pays déjà disponible, ou nous écrire pour être prévenu de l'ouverture dans votre pays.</p>
+                    <div id="country-unavailable-actions" class="flex flex-wrap items-center justify-center gap-3"></div>
+                </div>
+
                 <!-- Barre de recherche : quartier + région + bouton Rechercher -->
-                <div class="reveal-item glass-panel p-4 rounded-2xl border border-white/5 mb-4 flex flex-col md:flex-row gap-4 items-center">
+                <div id="stations-search-bar" class="reveal-item glass-panel p-4 rounded-2xl border border-white/5 mb-4 flex flex-col md:flex-row gap-4 items-center">
                     <div class="flex-1 w-full relative">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input id="search-input" type="text" placeholder="Rechercher un quartier, une station..." class="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors" onkeydown="if(event.key==='Enter')searchStations()">
@@ -748,20 +758,6 @@
                     <div class="w-full md:w-auto relative">
                         <select id="search-region" class="w-full md:w-48 bg-black/50 border border-white/10 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer">
                             <option value="">Toutes les régions</option>
-                            <option value="dakar">Dakar</option>
-                            <option value="diourbel">Diourbel</option>
-                            <option value="fatick">Fatick</option>
-                            <option value="kaffrine">Kaffrine</option>
-                            <option value="kaolack">Kaolack</option>
-                            <option value="kedougou">Kédougou</option>
-                            <option value="kolda">Kolda</option>
-                            <option value="louga">Louga</option>
-                            <option value="matam">Matam</option>
-                            <option value="saint-louis">Saint-Louis</option>
-                            <option value="sedhiou">Sédhiou</option>
-                            <option value="tambacounda">Tambacounda</option>
-                            <option value="thies">Thiès</option>
-                            <option value="ziguinchor">Ziguinchor</option>
                         </select>
                         <span class="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none text-xs">▼</span>
                     </div>
@@ -773,7 +769,7 @@
                 </div>
 
                 <!-- Recherche par géolocalisation : station la plus proche -->
-                <div class="reveal-item flex flex-col items-center gap-1 mb-10">
+                <div id="geoloc-block" class="reveal-item flex flex-col items-center gap-1 mb-10">
                     <button id="geoloc-btn" onclick="useMyPosition()" class="text-blue-400 hover:text-white font-medium text-sm transition-colors flex items-center gap-2">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                         <span id="geoloc-btn-label">Ou trouver la station la plus proche de moi (géolocalisation)</span>
@@ -1145,10 +1141,12 @@
     <script type="module">
         import { supabase } from '/src/lib/supabaseClient.js';
         import { isStationOpenNow } from '/src/lib/stationData.js';
+        import { COUNTRIES, regionsOf, regionLabel, countryName, getCountry } from '/src/lib/countries.js';
+        import { loadCountryState, resolveCountry, setCountryOverride, clearUrlCountry, saveProfileCountry } from '/src/lib/userCountry.js';
 
         async function loadPublicStations() {
             const [{ data: stations }, { data: reviews }] = await Promise.all([
-                supabase.from('stations').select('id, name, quartier, region, city, address, status, open_time, close_time, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
+                supabase.from('stations').select('id, name, quartier, region, country, city, address, status, open_time, close_time, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
                 supabase.from('station_reviews').select('station_id, rating'),
             ]);
             const ratingByStation = {};
@@ -1172,6 +1170,93 @@
             window.dispatchEvent(new Event('ccg:public-stations-ready'));
         }
         loadPublicStations();
+
+        // ============ PAYS (voir src/lib/userCountry.js) ============
+        // Le pays du visiteur est détecté automatiquement ; il peut le corriger via le
+        // lien « Pays : … ». S'il n'est pas (encore) ouvert : message à la place de la
+        // recherche, jamais un repli silencieux sur un autre pays.
+        window.__ccgRegionLabel = regionLabel;
+        window.__ccgCountryName = countryName;
+        let countryState = null;
+
+        function renderCountryBar() {
+            const bar = document.getElementById('country-bar');
+            if (!bar || !countryState) return;
+            const s = countryState;
+            const auto = s.detected && getCountry(s.detected) ? 'Détection automatique (' + countryName(s.detected) + ')' : 'Détection automatique';
+            const items = COUNTRIES.filter((c) => s.openCodes.includes(c.code));
+            const check = '<span class="text-emerald-400">✓</span>';
+            bar.innerHTML =
+                '<div class="relative inline-block text-left">' +
+                '<button type="button" data-country-toggle aria-haspopup="listbox" aria-expanded="false" class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm text-neutral-300 hover:text-white hover:border-white/25 transition-colors">' +
+                'Pays : <strong class="text-white font-semibold">' + (s.code ? countryName(s.code) : 'non disponible') + '</strong> <span class="text-xs">▾</span></button>' +
+                '<ul data-country-menu role="listbox" class="hidden absolute z-30 left-1/2 -translate-x-1/2 mt-2 min-w-[15rem] rounded-xl border border-white/10 bg-neutral-900 shadow-2xl overflow-hidden text-sm">' +
+                '<li><button type="button" role="option" data-country-choice="" class="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-neutral-200 hover:bg-white/5 transition-colors"><span>' + auto + '</span>' + (s.source !== 'manual' ? check : '') + '</button></li>' +
+                items.map((c) => '<li class="border-t border-white/5"><button type="button" role="option" data-country-choice="' + c.code + '" class="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-neutral-200 hover:bg-white/5 transition-colors"><span>' + c.name + '</span>' + (s.source === 'manual' && s.code === c.code ? check : '') + '</button></li>').join('') +
+                '</ul></div>';
+        }
+
+        function populateRegionOptions() {
+            const select = document.getElementById('search-region');
+            if (!select) return;
+            const code = countryState && countryState.code;
+            select.innerHTML = '<option value="">Toutes les régions</option>' +
+                regionsOf(code).map((r) => '<option value="' + r.value + '">' + r.label + '</option>').join('');
+        }
+
+        function renderUnavailablePanel() {
+            const s = countryState;
+            const known = s.detected && getCountry(s.detected);
+            document.getElementById('country-unavailable-title').textContent =
+                "Clean Car Galsen n'est pas encore disponible dans " + (known ? 'le pays détecté (' + countryName(s.detected) + ')' : 'votre pays');
+            document.getElementById('country-unavailable-actions').innerHTML =
+                COUNTRIES.filter((c) => s.openCodes.includes(c.code)).map((c) =>
+                    '<button type="button" data-country-choice="' + c.code + '" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium transition-colors">Voir les stations : ' + c.name + '</button>').join('') +
+                '<button type="button" data-open-contact class="border border-white/15 hover:bg-white/5 text-neutral-200 px-5 py-2.5 rounded-xl font-medium transition-colors">Nous écrire</button>';
+        }
+
+        function applyCountryState() {
+            window.__ccgCountry = countryState;
+            const unavailable = countryState.status === 'unavailable';
+            ['stations-search-bar', 'geoloc-block'].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', unavailable);
+            });
+            const panel = document.getElementById('country-unavailable');
+            if (panel) panel.classList.toggle('hidden', !unavailable);
+            if (unavailable) renderUnavailablePanel();
+            renderCountryBar();
+            populateRegionOptions();
+            window.dispatchEvent(new Event('ccg:country-ready'));
+        }
+
+        function chooseCountry(code) {
+            setCountryOverride(code || null);
+            clearUrlCountry();
+            if (code) saveProfileCountry(supabase, code);
+            countryState = { ...countryState, ...resolveCountry({ override: code || null, detected: countryState.detected, openCodes: countryState.openCodes }) };
+            if (typeof window.resetStationsSearch === 'function') window.resetStationsSearch();
+            applyCountryState();
+        }
+
+        document.addEventListener('click', (e) => {
+            const toggle = e.target.closest('[data-country-toggle]');
+            const menu = document.querySelector('[data-country-menu]');
+            if (toggle && menu) {
+                const willOpen = menu.classList.contains('hidden');
+                menu.classList.toggle('hidden', !willOpen);
+                toggle.setAttribute('aria-expanded', String(willOpen));
+                return;
+            }
+            const choice = e.target.closest('[data-country-choice]');
+            if (choice) { chooseCountry(choice.getAttribute('data-country-choice')); return; }
+            if (menu) menu.classList.add('hidden');
+        });
+
+        loadCountryState(supabase).then((state) => {
+            countryState = state;
+            applyCountryState();
+        });
     </script>
 
     <!-- Script pour gérer l'état de connexion sur la page d'accueil -->
@@ -1195,7 +1280,6 @@
             }
 
             renderPartnerStations();
-            applyRegionFromUrl();
             initScrollReveal();
             initSpotlights();
             initCountUp();
@@ -1236,6 +1320,14 @@
         // l'état vide. Ce ré-affichage arrive dès que la requête Supabase
         // aboutit (généralement <1s) — ré-exécute aussi la recherche en cours
         // si le visiteur avait déjà lancé une recherche.
+        // Le pays (donc la liste des régions) est connu : on applique ?region= une seule fois
+        // (liens du footer), puis on rafraîchit l'affichage.
+        let regionFromUrlApplied = false;
+        window.addEventListener('ccg:country-ready', () => {
+            if (!regionFromUrlApplied) { regionFromUrlApplied = true; applyRegionFromUrl(); }
+            searchActive ? searchStations() : renderPartnerStations();
+        });
+
         window.addEventListener('ccg:public-stations-ready', () => {
             searchActive ? searchStations() : renderPartnerStations();
         });
@@ -1334,12 +1426,6 @@
             false: { label: 'Fermé', class: 'bg-red-500/20 text-red-400 border-red-500/30' },
         };
 
-        const REGION_LABELS = {
-            dakar: 'Dakar', diourbel: 'Diourbel', fatick: 'Fatick', kaffrine: 'Kaffrine', kaolack: 'Kaolack',
-            kedougou: 'Kédougou', kolda: 'Kolda', louga: 'Louga', matam: 'Matam', 'saint-louis': 'Saint-Louis',
-            sedhiou: 'Sédhiou', tambacounda: 'Tambacounda', thies: 'Thiès', ziguinchor: 'Ziguinchor',
-        };
-
         let userPosition = null; // { lat, lng } une fois la géolocalisation acceptée
         let searchActive = false; // true quand on affiche des résultats de recherche plutôt que le défilement
 
@@ -1356,8 +1442,12 @@
 
         // Peuplé par le script module ci-dessus (window.__publicStations) —
         // déjà filtré à status='active' côté Supabase/RLS pour un visiteur anonyme.
+        // Filtré sur le pays affiché : tant que le pays n'est pas résolu (détection en
+        // cours) ou s'il n'est pas ouvert, aucune station — jamais celles d'un autre pays.
         function getActiveStations() {
-            return window.__publicStations || [];
+            const c = window.__ccgCountry;
+            if (!c || !c.code) return [];
+            return (window.__publicStations || []).filter((s) => (s.country || 'SN') === c.code);
         }
 
         // Calcule (si possible) et trie par distance ; laisse l'ordre inchangé sinon.
@@ -1389,8 +1479,8 @@
             const icon = STATION_ICONS[index % STATION_ICONS.length];
             const badge = OPEN_BADGES[station._open];
             const location = station.quartier
-                ? `${station.quartier}${station.region ? ', ' + (REGION_LABELS[station.region] || station.region) : ''}`
-                : (station.city || station.address || 'Sénégal');
+                ? `${station.quartier}${station.region ? ', ' + (window.__ccgRegionLabel ? window.__ccgRegionLabel(station.region, station.country) : station.region) : ''}`
+                : (station.city || station.address || (window.__ccgCountryName ? window.__ccgCountryName(station.country || 'SN') : ''));
             const distanceLabel = station._distanceKm != null
                 ? `<span class="text-blue-400 font-medium">${station._distanceKm < 1 ? Math.round(station._distanceKm * 1000) + ' m' : station._distanceKm.toFixed(1) + ' km'}</span> · `
                 : '';
@@ -1426,6 +1516,12 @@
             const marquee = document.getElementById('stations-marquee');
             const emptyState = document.getElementById('stations-empty');
             if (!track) return;
+            // Pays pas (encore) ouvert : le panneau « pas encore disponible » remplace la liste.
+            if (window.__ccgCountry && window.__ccgCountry.status === 'unavailable') {
+                marquee.classList.add('hidden');
+                emptyState.classList.add('hidden');
+                return;
+            }
 
             const stations = withDistances(getActiveStations());
 
