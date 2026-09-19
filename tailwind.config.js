@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./login.html",
     "./reset-password.html",
+    "./forgot-password.html",
     "./dashboard.html",
     "./404.html",
     "./merci.html",

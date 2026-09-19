@@ -128,20 +128,80 @@ export async function signOutUser() {
   clearSession();
 }
 
-// ─── Mot de passe oublié (vrai flux email — remplace l'ancien reset direct
-// par identifiant, incompatible avec une authentification sécurisée) ─────
+// ─── Mot de passe oublié ─────────────────────────────────────────────────
+// Même principe que GestionImmo : l'e-mail contient un CODE que l'utilisateur
+// saisit avec son nouveau mot de passe (forgot-password.html, deux blocs sur une
+// seule page). Le lien de l'e-mail reste valable en secours (reset-password.html).
+// Les deux passent par le modèle d'e-mail « Reset Password » de Supabase, qui doit
+// contenir {{ .Token }} — voir docs/Mot-de-passe-oublie.md.
+
+// Erreurs Supabase Auth (en anglais) -> messages clairs en français. `seconds`
+// (attente avant de pouvoir redemander un code) est exposé pour le compte à rebours.
+export function friendlyAuthError(error) {
+  const code = String(error?.code || error?.error_code || '');
+  const msg = String(error?.message || error?.msg || '');
+  const wait = /after (\d+) seconds?/i.exec(msg);
+  if (code === 'over_email_send_rate_limit' || wait || /rate limit/i.test(msg)) {
+    return wait
+      ? `Pour votre sécurité, patientez ${wait[1]} secondes avant de redemander un code.`
+      : "Trop de demandes d'e-mail pour le moment. Réessayez dans quelques minutes.";
+  }
+  if (code === 'otp_expired' || /expired or is invalid|invalid.{0,20}token|token.{0,20}invalid/i.test(msg)) {
+    return 'Code invalide ou expiré. Vérifiez-le, ou demandez un nouveau code.';
+  }
+  if (code === 'same_password' || /different from the old/i.test(msg)) {
+    return "Le nouveau mot de passe doit être différent de l'ancien.";
+  }
+  if (code === 'weak_password' || /at least \d+ characters|weak/i.test(msg)) {
+    return 'Mot de passe trop faible : choisissez-en un plus long et plus varié (8 caractères minimum).';
+  }
+  if (code === 'validation_failed' || /invalid format|unable to validate email/i.test(msg)) {
+    return 'Adresse e-mail invalide.';
+  }
+  if (/failed to fetch|network|load failed/i.test(msg)) {
+    return 'Connexion impossible. Vérifiez votre réseau et réessayez.';
+  }
+  return 'Une erreur est survenue. Réessayez dans un instant.';
+}
+
+// Nombre de secondes d'attente annoncé par Supabase (« … after 45 seconds »), sinon 60.
+export function resetCooldownSeconds(error) {
+  const wait = /after (\d+) seconds?/i.exec(String(error?.message || error?.msg || ''));
+  return wait ? Number(wait[1]) : 60;
+}
+
+// Envoie l'e-mail de récupération (code + lien de secours). Supabase répond « ok »
+// même si l'adresse n'a pas de compte : on ne révèle jamais si un compte existe.
 export async function requestPasswordReset(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${window.location.origin}/reset-password.html`,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    const err = new Error(friendlyAuthError(error));
+    err.cooldownSeconds = resetCooldownSeconds(error);
+    throw err;
+  }
 }
 
-// Appelé depuis reset-password.html, une fois la session de récupération
-// établie automatiquement par le lien reçu par email.
+// Vérifie le code reçu par e-mail, change le mot de passe, puis ferme la session
+// temporaire de récupération : l'utilisateur doit se reconnecter avec le nouveau.
+export async function resetPasswordWithCode(email, code, newPassword) {
+  const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: code, type: 'recovery' });
+  if (verifyError) throw new Error(friendlyAuthError(verifyError));
+  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+  if (updateError) {
+    await supabase.auth.signOut();
+    throw new Error(friendlyAuthError(updateError));
+  }
+  await signOutUser();
+}
+
+// Appelé depuis reset-password.html (lien de secours), une fois la session de
+// récupération établie automatiquement par le lien reçu par email.
 export async function confirmPasswordReset(newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(friendlyAuthError(error));
+  await signOutUser();
 }
 
 // Changement de mot de passe depuis un espace déjà connecté (Paramètres) —
