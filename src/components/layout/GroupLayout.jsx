@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Building2, ShoppingCart, CreditCard, LogOut, Menu, X, Briefcase } from 'lucide-react';
+import { Building2, ShoppingCart, CreditCard, LogOut, Menu, X, Briefcase, LayoutDashboard } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabaseClient';
 import { clearSession, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
@@ -13,7 +13,8 @@ const GroupContext = createContext(null);
 export const useGroup = () => useContext(GroupContext);
 
 const NAV = [
-  { name: 'Mes stations', href: '/groupe', icon: Building2, end: true },
+  { name: 'Tableau de bord', href: '/groupe', icon: LayoutDashboard, end: true },
+  { name: 'Mes stations', href: '/groupe/stations', icon: Building2 },
   { name: 'Nouvelle commande', href: '/groupe/commande', icon: ShoppingCart },
   { name: 'Facturation', href: '/groupe/facturation', icon: CreditCard },
 ];

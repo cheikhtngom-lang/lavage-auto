@@ -41,6 +41,7 @@ import Shop from './pages/Admin/Shop';
 import AdminAnnouncements from './pages/Admin/Announcements';
 import SubscriptionEnded from './pages/Admin/SubscriptionEnded';
 // Pages Chef d'entreprise (offre Sur mesure)
+import GroupDashboard from './pages/Group/Dashboard';
 import GroupStations from './pages/Group/Stations';
 import GroupOrder from './pages/Group/Order';
 import GroupBilling from './pages/Group/Billing';
@@ -168,7 +169,8 @@ function App() {
 
               {/* Espace chef d'entreprise (offre Sur mesure) */}
               <Route path="/groupe" element={<GroupLayout />}>
-                <Route index element={<GroupStations />} />
+                <Route index element={<GroupDashboard />} />
+                <Route path="stations" element={<GroupStations />} />
                 <Route path="commande" element={<GroupOrder />} />
                 <Route path="facturation" element={<GroupBilling />} />
               </Route>
