@@ -12,6 +12,7 @@ import { setSessionExpiredHandler } from '../../lib/idleTimeout';
 import StationOnboarding from '../onboarding/StationOnboarding';
 import SessionLockOverlay from '../SessionLockOverlay';
 import TrialBanner from './TrialBanner';
+import StationTransferBanner from './StationTransferBanner';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -239,6 +240,7 @@ export default function AdminLayout() {
           />
         </div>
 
+        <StationTransferBanner />
         <TrialBanner billing={stationBilling} />
 
         <div className="relative z-10 min-h-full">

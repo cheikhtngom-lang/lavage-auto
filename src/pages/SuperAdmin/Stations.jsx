@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, X, MapPin, Phone, Mail, CheckCircle2, Ban, RotateCcw,
-  Trash2, Building2, Eye, CircleCheck, Hourglass, Infinity as InfinityIcon, Download, Loader2
+  Trash2, Building2, Eye, CircleCheck, Hourglass, Infinity as InfinityIcon, Download, Loader2, ArrowRightLeft
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
@@ -10,6 +10,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
 import { COUNTRIES, countryName } from '../../lib/countries';
 import { exportStationData } from '../../lib/rgpdExport';
+import { TransferModal, TransfersPanel } from '../../components/superadmin/StationTransfers';
 
 const STATUS_LABELS = {
   active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -75,6 +76,8 @@ export default function Stations() {
   const [selected, setSelected] = useState(null);
   const [rgpdBusy, setRgpdBusy] = useState(null); // null | station.id en cours d'export
   const [rgpdError, setRgpdError] = useState('');
+  const [transferStation, setTransferStation] = useState(null); // station dont on lance la cession
+  const [transfersRefresh, setTransfersRefresh] = useState(0);
 
   const [countryFilter, setCountryFilter] = useState('tous');
   const filtered = stations.filter(s => {
@@ -264,6 +267,16 @@ export default function Stations() {
         </div>
       )}
 
+      <TransfersPanel refreshKey={transfersRefresh} />
+
+      {transferStation && (
+        <TransferModal
+          station={transferStation}
+          onClose={() => setTransferStation(null)}
+          onCreated={() => setTransfersRefresh((n) => n + 1)}
+        />
+      )}
+
       {/* Modal Ajout Station */}
       <AnimatePresence>
         {showAddModal && (
@@ -427,6 +440,14 @@ export default function Stations() {
                 Exporter ses données (RGPD)
               </button>
               {rgpdError && <p className="text-sm text-red-400 mb-3">{rgpdError}</p>}
+
+              <button
+                onClick={() => { setTransferStation(selected); setSelected(null); }}
+                className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-neutral-300 border border-white/10 font-medium py-3 rounded-xl transition-colors mb-3"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                Céder à un nouveau propriétaire
+              </button>
 
               <button
                 onClick={() => {

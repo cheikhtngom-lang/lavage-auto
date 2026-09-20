@@ -69,6 +69,7 @@ export default defineConfig({
         resetPassword: resolve(__dirname, 'reset-password.html'),
         forgotPassword: resolve(__dirname, 'forgot-password.html'),
         acceptInvitation: resolve(__dirname, 'accept-invitation.html'),
+        acceptTransfer: resolve(__dirname, 'accept-transfer.html'),
         // Pages autonomes : traitées par Vite (Tailwind compilé) au lieu d'être
         // copiées depuis public/ avec le CDN cdn.tailwindcss.com.
         notFound: resolve(__dirname, '404.html'),
