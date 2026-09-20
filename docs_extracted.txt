@@ -1,0 +1,190 @@
+﻿CLEAN CAR GALSEN
+Gestion Saas Lavage Auto
+Document d'architecture technique
+Plateforme SaaS multi-stations de lavage automobile â€” SÃ©nÃ©gal
+GÃ©nÃ©rÃ© le 19 aoÃ»t 2026 â€” mis Ã  jour le 21 aoÃ»t 2026
+1. PrÃ©sentation gÃ©nÃ©rale
+Clean Car Galsen est une application SaaS de gestion de stations de lavage automobile au SÃ©nÃ©gal. Elle met en relation trois profils d'utilisateurs distincts, chacun disposant de son propre espace applicatif :
+Automobiliste (client) : recherche une station, rÃ©serve un lavage, suit sa file d'attente en direct, paie en ligne ou sur place, gÃ¨re son garage de vÃ©hicules, et peut dÃ©sormais souscrire un abonnement fidÃ©litÃ© prÃ©payÃ© auprÃ¨s d'une station.
+Station (admin) : gÃ¨re sa file d'attente, ses laveurs et leur pointage, sa tarification, ses promotions, sa comptabilitÃ©, ses abonnements clients fidÃ©litÃ©, et ses campagnes publicitaires payantes.
+Super Admin (opÃ©rateur de la plateforme) : supervise l'ensemble du rÃ©seau de stations, la facturation SaaS, les abonnements Super User et les publicitÃ©s payantes, les litiges.
+L'interface est entiÃ¨rement en franÃ§ais, les montants en FCFA, les moyens de paiement affichÃ©s sont Wave et Orange Money.
+2. Stack technique
+2.1 Frontend
+Framework : React (SPA), routage via react-router-dom.
+Build : Vite â€” plusieurs points d'entrÃ©e HTML rÃ©els (index.html, login.html, dashboard.html, reset-password.html), pas un unique index.html.
+UI : Tailwind CSS, Framer Motion (animations/transitions), lucide-react (icÃ´nes).
+Ã‰tat global : React Context (pas de Redux/Zustand) â€” trois providers dÃ©diÃ©s, voir section 4.
+Graphiques : Composants SVG faits maison (aucune librairie de charts externe type Recharts/Chart.js).
+Export Excel : xlsx (SheetJS), utilisÃ© pour l'export du planning des laveurs et, depuis peu, l'export de l'historique des transactions.
+2.2 Backend
+Plateforme : Supabase â€” Postgres, Auth, Realtime, Row Level Security. Aucun serveur applicatif sÃ©parÃ© (pas d'API Node/Express) : le frontend interroge Supabase directement via son client JS.
+Authentification : Supabase Auth (comptes rÃ©els, pas de mots de passe en clair) â€” src/lib/accounts.js.
+Fichiers/Images : Aucun bucket Supabase Storage utilisÃ© : logos, cachets, photos de profil et images de publicitÃ© sont stockÃ©s en base64 (Data URL) directement dans les colonnes texte, plafonnÃ©s Ã  1,5 Mo.
+TÃ¢ches planifiÃ©es : Aucune (pas d'Edge Function/cron) â€” les statuts qui "expirent" (abonnement Super User, publicitÃ©, bandeau promo) sont recalculÃ©s Ã  la volÃ©e Ã  chaque lecture plutÃ´t que mis Ã  jour en base par un job.
+2.3 Paiement
+Il n'existe aucune passerelle de paiement rÃ©elle intÃ©grÃ©e (pas d'API Wave/Orange Money). Trois mÃ©canismes coexistent dÃ©sormais :
+Paiement "rÃ©servation" (file d'attente) : simulÃ© cÃ´tÃ© client (dÃ©lai artificiel puis confirmation), Ã  but de dÃ©monstration du parcours â€” ou rÃ©glÃ© via le solde d'un abonnement fidÃ©litÃ© (voir ci-dessous).
+Paiement "abonnement" (Super User automobiliste, PublicitÃ© station) : le client/la station saisit un numÃ©ro et clique payer, ce qui crÃ©e une ligne en base au statut PENDING. Seul le Super Admin peut la faire passer Ã  ACTIVE, une fois l'argent rÃ©ellement reÃ§u par un autre canal (Wave/OM manuel). Aucune activation automatique n'existe. La publicitÃ© station propose dÃ©sormais 3 offres de durÃ©e (3 jours / 1 semaine / 1 mois, prix croissants) au lieu d'une offre unique.
+Paiement "abonnement fidÃ©litÃ© client" (station_client_subscriptions) : une station crÃ©e un abonnement prÃ©payÃ© pour un client rÃ©gulier (nom + tÃ©lÃ©phone). Le solde se dÃ©duit automatiquement lorsqu'un lavage est rÃ©glÃ© avec la mÃ©thode "Abonnement" â€” gÃ©rÃ© entiÃ¨rement cÃ´tÃ© base de donnÃ©es par un trigger Postgres (voir section 7.5), pas par le code applicatif.
+3. Espaces applicatifs et routage
+Trois zones de routes, chacune enveloppÃ©e par son propre Layout React et protÃ©gÃ©e par un contrÃ´le de rÃ´le (redirection vers login.html si non autorisÃ©) :
+Espace
+PrÃ©fixe de route
+Layout
+Provider d'Ã©tat
+Public / vitrine
+/ , /stations
+MainLayout
+â€”
+Automobiliste
+/dashboard/*
+ClientLayout
+ClientAccountProvider
+Station
+/admin/*
+AdminLayout
+AppStateProvider
+Super Admin
+/superadmin/*
+SuperAdminLayout
+SuperAdminStateProvider
+Les trois Providers sont montÃ©s simultanÃ©ment Ã  la racine de l'application (src/App.jsx) â€” un automobiliste connectÃ© a par exemple accÃ¨s en lecture aux donnÃ©es "cross-station" de SuperAdminStateProvider (annuaire des stations, publicitÃ©s actives), mÃªme s'il ne visite jamais /superadmin.
+Cas particulier â€” impersonation : un Super Admin peut se connecter "en tant que" une station donnÃ©e (impersonateStation) : AppStateProvider est alors remontÃ© avec la clÃ© de cette station, sans recharger la page ni changer de session rÃ©elle.
+Pages hors SPA (legacy) : les fichiers HTML Ã  la racine (dashboard-admin.html, dashboard-client.html, station.html, apercu_dashboard.html, payment.html, dashboard-super-admin.html) ainsi que logic.js sont un ancien prototype vanilla JS. Ils ne font pas partie du build Vite et ne sont jamais servis â€” seuls index.html, login.html, dashboard.html et reset-password.html sont de vrais points d'entrÃ©e traitÃ©s par Vite (bundlÃ©s, remplacement des variables d'environnement).
+Pages statiques additionnelles (public/) : 404.html, merci.html et confidentialite.html sont de VRAIES pages servies en production, mais copiÃ©es telles quelles au build (aucun traitement Vite, pas de bundling) â€” comme robots.txt ou sitemap.xml.
+4. Gestion d'Ã©tat (Context Providers)
+4.1 useAppState.jsx â€” donnÃ©es d'UNE station
+Isole entiÃ¨rement les donnÃ©es de la station actuellement connectÃ©e (ou impersonnÃ©e). Contient notamment :
+File d'attente / lavages en cours / terminÃ©s (table reservations)
+Transactions encaissÃ©es (table transactions)
+EmployÃ©s et pointage journalier (employees, attendance_records)
+Planning prÃ©visionnel des laveurs (shift_templates, shift_schedule) â€” indÃ©pendant du pointage rÃ©el
+Tarification et durÃ©es estimÃ©es par catÃ©gorie de vÃ©hicule (wash_pricing)
+Profil de la station, horaires d'ouverture, objectif de revenu journalier
+Configuration des promotions gratuites (promo_config)
+Abonnements clients fidÃ©litÃ© de la station et leurs factures mensuelles (station_client_subscriptions, station_subscription_invoices)
+Historique des campagnes de publicitÃ© payante de la station, avec la durÃ©e choisie par campagne (station_ads.duration_days)
+4.2 useSuperAdminState.jsx â€” donnÃ©es transverses
+ChargÃ© sur TOUTE l'application (pas seulement /superadmin) car des pages automobiliste en ont besoin en lecture. Contient :
+Annuaire complet des stations + facturation SaaS (stations, station_billing)
+Comptes automobilistes (profiles + vÃ©hicules)
+Abonnements Super User (super_user_subscriptions)
+PublicitÃ©s de toutes les stations â€” filtrÃ©es par RLS selon le rÃ´le du lecteur (station_ads), chaque ligne portant dÃ©sormais sa propre durÃ©e (duration_days) fixÃ©e au moment du paiement
+Plans tarifaires SaaS, litiges, journal d'audit (plans, disputes, audit_log)
+4.3 useClientAccount.jsx â€” compte automobiliste connectÃ©
+Profil, vÃ©hicules, rÃ©servations actives, historique de transactions, abonnements fidÃ©litÃ© actifs (par station), statut Super User, favoris/stations masquÃ©es, publicitÃ©s ignorÃ©es (dismissed_ad_ids). Le canal Realtime sur reservations distingue dÃ©sormais l'Ã©vÃ©nement INSERT des autres (UPDATE/DELETE) pour dÃ©clencher une notification navigateur dÃ©diÃ©e quand une rÃ©servation apparaÃ®t pour la premiÃ¨re fois â€” typiquement quand une station vient de reconnaÃ®tre ce client via sa plaque pendant un paiement manuel (voir section 7.6).
+4.4 StratÃ©gie de rafraÃ®chissement
+Aucune de ces donnÃ©es n'est en cache local persistant (pas de localStorage pour les donnÃ©es mÃ©tier) : tout vient de Supabase Ã  chaque session. Trois mÃ©canismes combinÃ©s :
+Sondage (polling) : toutes les 8 secondes (SuperAdminState) ou 45 secondes (AppState/ClientAccount).
+RafraÃ®chissement au focus de la fenÃªtre (window "focus").
+Supabase Realtime (postgres_changes) sur les tables les plus critiques (reservations, transactions, employees) pour un affichage quasi instantanÃ©, le sondage servant de filet de sÃ©curitÃ© en cas de reconnexion manquÃ©e.
+5. ModÃ¨le de donnÃ©es (tables Supabase)
+21 tables, toutes sous le schÃ©ma public, protÃ©gÃ©es par Row Level Security (voir section 6). Vue d'ensemble par domaine :
+Domaine
+Tables
+Stations & facturation SaaS
+stations, station_billing, plans
+Comptes & authentification
+profiles, vehicles
+RÃ©servations & paiements
+reservations, transactions, wash_pricing
+Ã‰quipe station
+employees, attendance_records, shift_templates, shift_schedule
+FidÃ©lisation & avis
+station_reviews
+Abonnements clients fidÃ©litÃ© (station)
+station_client_subscriptions, station_subscription_invoices
+MonÃ©tisation plateforme
+super_user_subscriptions, station_ads
+RÃ©fÃ©rentiels partagÃ©s
+custom_vehicle_types, custom_vehicle_brands
+Support & gouvernance
+disputes, audit_log
+Quelques choix de modÃ©lisation notables :
+reservations est une table unique couvrant file d'attente + lavage en cours + historique, distinguÃ©e par la colonne status (attente / en_cours / termine / annule) â€” plus simple Ã  synchroniser en Realtime que des listes sÃ©parÃ©es.
+super_user_subscriptions et station_ads sont volontairement sÃ©parÃ©es de transactions : ce sont des revenus qui reviennent Ã  la plateforme (Super Admin), pas Ã  une station â€” transactions impose station_id NOT NULL et est RLS-scopÃ©e Ã  une station.
+station_client_subscriptions.balance (solde prÃ©payÃ©) est dÃ©duit par un trigger Postgres BEFORE INSERT sur transactions (method = 'Abonnement') â€” cette Ã©criture rejette dÃ©sormais l'insertion si le solde est insuffisant ou si aucun abonnement actif ne correspond, au lieu de laisser passer un lavage non tracÃ© (comportement corrigÃ© le 21 aoÃ»t 2026, voir section 7.5).
+station_ads.duration_days remplace une constante fixe (7 jours) codÃ©e en dur : chaque campagne garde la durÃ©e de l'offre choisie et payÃ©e au moment de sa crÃ©ation.
+Aucun statut "expirÃ©" n'est Ã©crit par un job : deriveSuperUserStatus() et deriveAdStatus() recalculent ACTIVE vs EXPIRED Ã  la lecture en comparant expires_at Ã  l'heure courante.
+6. SÃ©curitÃ© â€” Row Level Security
+Le contrÃ´le d'accÃ¨s n'est pas seulement fait cÃ´tÃ© JavaScript : chaque table Postgres a des policies RLS qui empÃªchent un client de contourner les rÃ¨gles mÃ©tier via les DevTools ou une requÃªte rÃ©seau modifiÃ©e.
+6.1 Fonctions utilitaires (SECURITY DEFINER)
+app_role() â€” rÃ´le (super_admin / admin / automobiliste) de l'utilisateur connectÃ©.
+current_station_id() â€” station_id du compte admin connectÃ©.
+is_super_user(uid) â€” vrai si abonnement Super User ACTIVE et non expirÃ©.
+recharge_subscription(p_sub_id, p_amount) â€” recharge atomique du solde d'un abonnement fidÃ©litÃ© en une seule requÃªte SQL, pour ne pas entrer en collision avec la dÃ©duction automatique du trigger (l'ancienne version, un select puis un update sÃ©parÃ©s cÃ´tÃ© application, pouvait Ã©craser une dÃ©duction survenue entre les deux).
+find_vehicle_owner(p_plate) â€” retrouve le compte automobiliste propriÃ©taire d'une plaque, rÃ©servÃ© aux rÃ´les admin/super_admin, n'expose que nom/catÃ©gorie/marque (jamais tÃ©lÃ©phone/email) â€” voir section 7.6.
+6.2 Principe gÃ©nÃ©ral des policies
+Chaque table applique le mÃªme schÃ©ma de raisonnement : le propriÃ©taire de la ligne (station via current_station_id(), ou client via auth.uid()) peut la lire/modifier ; le Super Admin voit tout (app_role() = 'super_admin') ; certaines lectures sont volontairement publiques (annuaire des stations actives, grille tarifaire, avis clients, publicitÃ©s actives).
+6.3 Exemple : limite Super User (2 vÃ©hicules gratuits)
+La policy vehicles_insert bloque l'ajout d'un 3áµ‰ vÃ©hicule cÃ´tÃ© serveur, sauf si is_super_user(auth.uid()) renvoie vrai â€” la limite de l'offre gratuite est donc appliquÃ©e par Postgres, pas seulement par l'interface. Cette mÃªme policy restrictive (owner_id = auth.uid()) empÃªche par ailleurs un admin de station de lire directement le vÃ©hicule d'un autre client â€” d'oÃ¹ le besoin de find_vehicle_owner (section 7.6) pour la reconnaissance par plaque.
+6.4 Exemple : publicitÃ©s (station_ads)
+Une station ne voit que ses propres campagnes (tous statuts). N'importe quel automobiliste connectÃ© â€” et mÃªme un visiteur non connectÃ© sur les pages publiques â€” peut lire les campagnes au statut ACTIVE et non expirÃ©es, quelle que soit la station Ã©mettrice (diffusion plateforme). Seul le Super Admin peut faire Ã©voluer le statut d'une campagne (confirmer un paiement, rejeter), et fixe alors la date d'expiration Ã  partir de la durÃ©e choisie par la station (duration_days), plus une constante fixe pour tout le monde.
+6.5 Exemple : abonnements clients fidÃ©litÃ© (station_client_subscriptions)
+Le rapprochement entre une transaction rÃ©glÃ©e "par Abonnement" et l'abonnement du bon client se fait par client_id si connu, sinon par numÃ©ro de tÃ©lÃ©phone normalisÃ© (chiffres uniquement, insensible aux espaces/prÃ©fixes) pour tolÃ©rer les variantes de saisie. Le trigger de dÃ©duction (BEFORE INSERT sur transactions) rejette dÃ©sormais explicitement l'opÃ©ration si aucun abonnement actif ne correspond ou si le solde est insuffisant, plutÃ´t que d'accepter silencieusement un lavage non dÃ©duit.
+7. Flux mÃ©tier clÃ©s
+7.1 Cycle de vie d'une rÃ©servation
+attente â†’ en_cours â†’ termine (ou annule). Le paiement (paid=true/false, payment_method) est figÃ© au moment de la rÃ©servation pour que l'encaissement sur place facture le mÃªme montant mÃªme si la promo change entre-temps. Un client peut avoir plusieurs vÃ©hicules actifs simultanÃ©ment (plafond configurable, voir Super User).
+7.2 Pointage des laveurs
+Machine Ã  Ã©tats sur employees.status, distincte du statut du jour (daily_status) :
+Actif : prise de poste automatique dÃ¨s que le laveur est marquÃ© "PrÃ©sent" du jour.
+TerminÃ© : aprÃ¨s un clic "Descendre" â€” encore rÃ©activable ("Reprendre service"), y compris automatiquement si un nouveau vÃ©hicule lui est confiÃ©.
+Fin de service : clÃ´ture dÃ©finitive de la journÃ©e, plus aucune rÃ©activation possible.
+Coupure automatique : un contrÃ´le tourne chaque minute cÃ´tÃ© application ; si un laveur est encore Actif aprÃ¨s l'heure de fermeture configurÃ©e par la station, il est automatiquement basculÃ© en Fin de service.
+Deux notions de "fermeture" distinctes coexistent volontairement dans lib/stationData.js : isStationOpenNow() (ouvert seulement DANS la plage horaire, utilisÃ© pour le badge Ouvert/FermÃ© cÃ´tÃ© client) et isPastClosingTime() (bloque uniquement APRÃˆS la fermeture, sans jamais bloquer avant l'ouverture, utilisÃ© cÃ´tÃ© admin pour le bouton "Go" et "Reprendre service") â€” les confondre a provoquÃ© une rÃ©gression corrigÃ©e le 21 aoÃ»t 2026.
+7.3 Paiements diffÃ©rÃ©s Ã  confirmation manuelle
+Plusieurs flux suivent le mÃªme schÃ©ma PENDING â†’ ACTIVE, pour la mÃªme raison (absence de vraie passerelle de paiement) :
+Abonnement Super User
+PublicitÃ© station
+Qui paie
+Automobiliste
+Station
+Montant
+5 000 FCFA / mois
+5 000 F / 3j Â· 10 000 F / 7j Â· 30 000 F / 30j (au choix)
+Qui confirme
+Super Admin
+Super Admin
+Effet une fois ACTIVE
+Plus de plafond de 2 vÃ©hicules gratuits
+Diffusion sur le tableau de bord de tous les automobilistes + mise en avant sur /stations
+L'abonnement fidÃ©litÃ© client (station_client_subscriptions) suit un schÃ©ma diffÃ©rent, entiÃ¨rement gÃ©rÃ© par la station elle-mÃªme (pas de confirmation Super Admin) : voir section 7.5.
+7.4 Promotion (gratuite) vs PublicitÃ© (payante) vs "Ã€ la une"
+Trois mÃ©canismes de visibilitÃ© distincts, Ã  ne pas confondre :
+Promotion (stations.promo_config) : gratuite, configurÃ©e par la station elle-mÃªme (Admin > Promotions), visible uniquement sur la fiche de CETTE station et sur le tableau de bord des automobilistes qui ont dÃ©jÃ  une relation avec elle (rÃ©servation payÃ©e ou en cours).
+PublicitÃ© (station_ads) : payante, diffusÃ©e sur le tableau de bord de TOUS les automobilistes de la plateforme aprÃ¨s confirmation du Super Admin, quel que soit leur historique. Chaque client peut l'ignorer individuellement (persistÃ© en base, pas seulement localement).
+"Ã€ la une" (nouveau, 21 aoÃ»t 2026) : une station avec une publicitÃ© ACTIVE est dÃ©sormais aussi mise en avant sur la page publique "Trouver une station" (/stations, accessible sans compte) â€” badge "â­ Ã€ la une", message affichÃ©, et Ã©pinglÃ©e en tÃªte de liste avant le tri par distance. RÃ©utilise entiÃ¨rement les mÃªmes donnÃ©es station_ads, sans nouveau systÃ¨me ni nouvelle table : une seconde surface d'affichage pour la mÃªme campagne.
+7.5 Abonnements clients fidÃ©litÃ© (wallet prÃ©payÃ© par station)
+Nouveau domaine introduit le 20 aoÃ»t 2026, sÃ©curisÃ© le 21 aoÃ»t 2026. Une station crÃ©e un abonnement prÃ©payÃ© pour un client rÃ©gulier (nom, tÃ©lÃ©phone, prix mensuel) â€” Ã©ventuellement liÃ© Ã  un compte automobiliste existant si le tÃ©lÃ©phone correspond. Le solde se dÃ©duit automatiquement lorsqu'un lavage est rÃ©glÃ© avec la mÃ©thode "Abonnement", via un trigger Postgres BEFORE INSERT sur transactions :
+Recherche l'abonnement actif correspondant par client_id ou par tÃ©lÃ©phone normalisÃ© (chiffres uniquement).
+Rejette l'insertion (raise exception) si aucun abonnement actif ne correspond, ou si le solde est insuffisant â€” comportement corrigÃ© : la version d'origine acceptait silencieusement la transaction sans jamais dÃ©duire le solde dans ces deux cas, ouvrant la voie Ã  des lavages gratuits non tracÃ©s.
+Sinon, dÃ©duit le montant et bascule le statut Ã  "suspendu" si le solde atteint zÃ©ro.
+La recharge de solde par la station passe par la fonction atomique recharge_subscription (section 6.1) plutÃ´t qu'un enchaÃ®nement lecture-puis-Ã©criture cÃ´tÃ© application, pour ne pas pouvoir Ã©craser une dÃ©duction survenue entre-temps.
+CÃ´tÃ© application (Client/Stations.jsx), si le paiement par abonnement est rejetÃ© cÃ´tÃ© serveur (solde insuffisant dÃ©tectÃ© aprÃ¨s coup, ou abonnement introuvable), la rÃ©servation dÃ©jÃ  crÃ©Ã©e est automatiquement repassÃ©e Ã  "non payÃ©e" et le client voit un message clair, plutÃ´t qu'un Ã©chec silencieux avec un lavage marquÃ© payÃ© sans transaction correspondante.
+7.6 Reconnaissance d'un client habituÃ© par plaque d'immatriculation
+Nouveau flux (21 aoÃ»t 2026) pour le cas d'un automobiliste qui a dÃ©jÃ  un compte mais se prÃ©sente sans avoir rÃ©servÃ© via l'app (il paie en espÃ¨ces sur place, la station saisit son lavage manuellement â€” "Ajouter un vÃ©hicule", StationDashboard.jsx). Comme la plaque est unique (contrairement au nom, souvent partagÃ©) :
+La station tape la plaque dans un nouveau champ du formulaire ; Ã  la sortie du champ, un appel Ã  find_vehicle_owner (section 6.1) cherche si un vÃ©hicule enregistrÃ© correspond.
+Si trouvÃ© : nom, catÃ©gorie et vÃ©hicule sont prÃ©-remplis automatiquement (modifiables si la station constate une erreur), et reservations.client_id est posÃ© sur le vrai compte du client.
+Si rien n'est trouvÃ© : comportement inchangÃ©, le lavage reste enregistrÃ© avec un nom libre, sans compte liÃ©.
+Une fois client_id posÃ©, le suivi en temps rÃ©el cÃ´tÃ© client fonctionne sans aucun code supplÃ©mentaire : le canal Realtime dÃ©jÃ  filtrÃ© sur client_id (section 4.3) fait apparaÃ®tre la rÃ©servation instantanÃ©ment sur son tableau de bord.
+Le client reÃ§oit en plus une notification navigateur (API Notification, permission dÃ©jÃ  gÃ©rÃ©e par ailleurs sur Client/Dashboard.jsx) au moment prÃ©cis de l'INSERT â€” distincte de la notification existante sur changement de position, qui elle ignore volontairement le tout premier item vu pour Ã©viter un faux positif sur un dÃ©placement interne de rÃ©servation.
+8. Couche marketing / SEO (site statique)
+Les 4 points d'entrÃ©e statiques (index.html, login.html, dashboard.html, reset-password.html) et 3 pages autonomes portent les fondamentaux SEO/marketing d'un site vitrine :
+Meta descriptions, Open Graph / Twitter Card, URL canonique, et donnÃ©es structurÃ©es JSON-LD (LocalBusiness + WebSite) sur index.html.
+Google Analytics (GA4) scaffoldÃ© sur les 4 points d'entrÃ©e â€” identifiant de mesure encore en placeholder (G-XXXXXXXXXX) Ã  remplacer par le vrai avant mise en production.
+3 pages statiques dans public/ (copiÃ©es telles quelles au build, aucun traitement Vite) : 404.html, merci.html, confidentialite.html.
+public/_redirects : un chemin inconnu renvoie une vraie 404.html (statut HTTP 404) au lieu de retomber silencieusement sur l'accueil.
+index.html interroge directement Supabase pour afficher les vraies stations partenaires actives et leurs avis.
+Fil d'Ariane + titre de page dynamique sur la route publique /stations.
+Carte Google Maps intÃ©grÃ©e + lien "itinÃ©raire" sur la fiche dÃ©tail d'une station.
+Depuis le 21 aoÃ»t 2026, /stations met aussi en avant les stations avec une campagne publicitaire ACTIVE (badge "Ã€ la une", Ã©pinglÃ©es en tÃªte) â€” voir section 7.4.
+9. Limites connues / dette technique
+Aucune passerelle de paiement rÃ©elle â€” tout paiement "en ligne" est simulÃ© ou passe par une confirmation manuelle du Super Admin.
+Aucune tÃ¢che planifiÃ©e (cron/Edge Function) : les statuts expirÃ©s sont recalculÃ©s Ã  la lecture, jamais rÃ©Ã©crits en base tant que personne ne consulte la donnÃ©e.
+Pas de Supabase Storage : toutes les images (logos, cachets, photos, visuels de publicitÃ©) sont en base64, plafonnÃ©es Ã  1,5 Mo.
+Le chunk JavaScript principal de l'espace Admin/Dashboard dÃ©passe 1,4 Mo minifiÃ© â€” aucun dÃ©coupage en chunks (code-splitting) n'a encore Ã©tÃ© mis en place.
+Aucune suite de tests automatisÃ©s, et aucun outil de vÃ©rification statique (TypeScript, ESLint) configurÃ© dans le projet : une variable rÃ©fÃ©rencÃ©e sans Ãªtre dÃ©clarÃ©e ne casse pas npm run build, seulement au moment oÃ¹ ce code s'exÃ©cute rÃ©ellement en production. Une rÃ©gression de ce type (stationProfile non rÃ©cupÃ©rÃ© dans StationDashboard.jsx, cassant silencieusement le bouton "Go") a Ã©tÃ© introduite puis corrigÃ©e le 21 aoÃ»t 2026 ; un scan ESLint no-undef ponctuel (sans configuration permanente) a confirmÃ© l'absence d'autres cas similaires Ã  cette date.
+Fichiers HTML legacy Ã  la racine du dÃ©pÃ´t : dead code jamais servi, conservÃ©s uniquement comme rÃ©fÃ©rence de maquettes historiques.
+Google Analytics n'est pas encore actif (identifiant de mesure placeholder).
+Document gÃ©nÃ©rÃ© automatiquement Ã  partir de l'Ã©tat du code au moment de la gÃ©nÃ©ration â€” Ã  mettre Ã  jour manuellement en cas d'Ã©volution majeure de l'architecture.
