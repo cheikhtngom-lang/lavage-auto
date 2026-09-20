@@ -25,11 +25,15 @@
 create index if not exists reservations_station_completed_idx
   on public.reservations(station_id, completed_at) where status = 'termine';
 
-create or replace function public.group_dashboard(
+-- Cœur du calcul : reçoit le groupe en paramètre. Jamais appelable depuis le
+-- navigateur : group_dashboard() (patron connecté) et group_dashboard_for_org()
+-- (rapport hebdomadaire de l'IA, sans session patron) l'enveloppent.
+create or replace function public._group_dashboard_core(
+  p_org uuid,
   p_from timestamptz,
   p_to timestamptz,
-  p_station_ids uuid[] default null,
-  p_bucket text default 'day'
+  p_station_ids uuid[],
+  p_bucket text
 )
 returns jsonb
 language plpgsql
@@ -45,9 +49,9 @@ declare
   v_step interval;
   v_result jsonb;
 begin
-  select id into v_org from public.organizations where owner_id = auth.uid();
+  v_org := p_org;
   if v_org is null then
-    raise exception 'Réservé au chef d''entreprise.' using errcode = '42501';
+    raise exception 'Groupe introuvable.';
   end if;
   if p_from is null or p_to is null or p_to <= p_from then
     raise exception 'Période invalide.';
@@ -235,5 +239,51 @@ begin
   return v_result;
 end;
 $$;
+revoke all on function public._group_dashboard_core(uuid, timestamptz, timestamptz, uuid[], text) from public, anon, authenticated;
+grant execute on function public._group_dashboard_core(uuid, timestamptz, timestamptz, uuid[], text) to service_role;
+
+-- Tableau de bord du patron connecté (son groupe, jamais un autre).
+create or replace function public.group_dashboard(
+  p_from timestamptz,
+  p_to timestamptz,
+  p_station_ids uuid[] default null,
+  p_bucket text default 'day'
+)
+returns jsonb
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+declare
+  v_org uuid;
+begin
+  select id into v_org from public.organizations where owner_id = auth.uid();
+  if v_org is null then
+    raise exception 'Réservé au chef d''entreprise.' using errcode = '42501';
+  end if;
+  return public._group_dashboard_core(v_org, p_from, p_to, p_station_ids, p_bucket);
+end;
+$$;
 revoke all on function public.group_dashboard(timestamptz, timestamptz, uuid[], text) from public, anon;
 grant execute on function public.group_dashboard(timestamptz, timestamptz, uuid[], text) to authenticated;
+
+-- Même calcul pour un groupe donné : réservé au service_role (Edge Function du
+-- rapport hebdomadaire de l'IA).
+create or replace function public.group_dashboard_for_org(
+  p_org uuid,
+  p_from timestamptz,
+  p_to timestamptz,
+  p_station_ids uuid[] default null,
+  p_bucket text default 'day'
+)
+returns jsonb
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select public._group_dashboard_core(p_org, p_from, p_to, p_station_ids, p_bucket);
+$$;
+revoke all on function public.group_dashboard_for_org(uuid, timestamptz, timestamptz, uuid[], text) from public, anon, authenticated;
+grant execute on function public.group_dashboard_for_org(uuid, timestamptz, timestamptz, uuid[], text) to service_role;

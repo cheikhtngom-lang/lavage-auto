@@ -260,4 +260,9 @@ export async function setGroupStatus(orgId, status) {
   if (error) fail(error);
 }
 
+export async function setGroupAiLimit(orgId, limit) {
+  const { error } = await supabase.rpc('superadmin_set_group_ai_limit', { p_org_id: orgId, p_limit: limit });
+  if (error) fail(error);
+}
+
 export const fmtFcfa = (n) => `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;

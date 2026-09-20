@@ -30,3 +30,9 @@ verify_jwt = false
 # limite de débit par IP hashée, validation) sont dans la fonction elle-même.
 [functions.send-contact-message]
 verify_jwt = false
+
+# Rapport hebdomadaire de l'IA (offre Sur mesure) : appelée chaque lundi par
+# pg_cron avec « Authorization: Bearer <CRON_SECRET> » (pas de JWT Supabase),
+# comme send-retention-reminders. Le secret est vérifié dans le gestionnaire.
+[functions.group-ai-weekly]
+verify_jwt = false

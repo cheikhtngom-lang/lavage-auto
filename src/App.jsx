@@ -45,6 +45,7 @@ import GroupDashboard from './pages/Group/Dashboard';
 import GroupStations from './pages/Group/Stations';
 import GroupOrder from './pages/Group/Order';
 import GroupBilling from './pages/Group/Billing';
+import GroupAnalysis from './pages/Group/Analysis';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnnouncements from './pages/SuperAdmin/Announcements';
@@ -171,6 +172,7 @@ function App() {
               <Route path="/groupe" element={<GroupLayout />}>
                 <Route index element={<GroupDashboard />} />
                 <Route path="stations" element={<GroupStations />} />
+                <Route path="analyse" element={<GroupAnalysis />} />
                 <Route path="commande" element={<GroupOrder />} />
                 <Route path="facturation" element={<GroupBilling />} />
               </Route>

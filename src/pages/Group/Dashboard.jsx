@@ -2,13 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Banknote, Droplets, Receipt, Wallet, TrendingUp, TrendingDown, Minus, Star, RefreshCw, Download, Loader2,
-  ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Building2, DoorOpen, ShoppingCart, PieChart,
+  AlertTriangle, CheckCircle2, Building2, DoorOpen, ShoppingCart, PieChart, Sparkles,
 } from 'lucide-react';
 import { useGroup } from '../../components/layout/GroupLayout';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { motion } from 'framer-motion';
 import { AreaChart, BarChart, ColumnChart, Donut, Legend, Bars, VerticalBars, Sparkline, CHART_COLORS } from '../../components/ui/charts';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
+import StationFilter from '../../components/group/StationFilter';
 import { fcfa, fcfaCompact, pct, DOW_FR_SHORT } from '../../lib/bilan';
 import { openStation } from '../../lib/groups';
 import {
@@ -39,36 +40,6 @@ function Section({ title, subtitle, right, children, className = '' }) {
         {right}
       </div>
       {children}
-    </div>
-  );
-}
-
-// Filtre multi-stations : aucune case cochée = toutes les stations.
-function StationFilter({ stations, selected, onChange }) {
-  const [open, setOpen] = useState(false);
-  const all = selected.length === 0 || selected.length === stations.length;
-  const label = all ? `Toutes les stations (${stations.length})` : selected.length === 1 ? stations.find((s) => s.id === selected[0])?.name : `${selected.length} stations`;
-  const toggle = (id) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
-  return (
-    <div className="relative">
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-2 rounded-xl text-sm font-medium">
-        <Building2 className="w-4 h-4 text-neutral-400" /> {label} {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-72 max-h-80 overflow-y-auto z-40 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl p-2">
-            <button onClick={() => onChange([])} className="w-full text-left px-3 py-2 rounded-lg text-sm text-emerald-400 hover:bg-white/5 font-semibold">Toutes les stations</button>
-            {stations.map((s) => (
-              <label key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 cursor-pointer text-sm text-neutral-200">
-                <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} className="w-4 h-4 accent-emerald-500" />
-                <span className="truncate">{s.name}</span>
-                {s.city && <span className="text-xs text-neutral-500 ml-auto">{s.city}</span>}
-              </label>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -209,6 +180,9 @@ export default function Dashboard() {
           <button onClick={load} disabled={loading} className="p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-neutral-300 disabled:opacity-60" title="Actualiser">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           </button>
+          <Link to="/groupe/analyse" className="flex items-center gap-2 bg-white/5 hover:bg-emerald-500/15 border border-white/10 hover:border-emerald-500/30 text-neutral-200 font-semibold px-4 py-2 rounded-xl text-sm transition-colors">
+            <Sparkles className="w-4 h-4 text-emerald-400" /> Analyse IA
+          </Link>
           <button onClick={handlePdf} disabled={!data || noStation || pdfBusy} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm">
             {pdfBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Rapport PDF
           </button>

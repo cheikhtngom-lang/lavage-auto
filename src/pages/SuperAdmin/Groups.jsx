@@ -3,7 +3,7 @@ import { Briefcase, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, Mail
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
-import { fetchAllGroups, confirmOrder, rejectOrder, setGroupStatus, GROUP_STATUS, ORDER_STATUS, fmtFcfa } from '../../lib/groups';
+import { fetchAllGroups, confirmOrder, rejectOrder, setGroupStatus, setGroupAiLimit, GROUP_STATUS, ORDER_STATUS, fmtFcfa } from '../../lib/groups';
 
 const KIND_LABEL = { commande: 'Commande', renouvellement: 'Renouvellement' };
 
@@ -20,6 +20,7 @@ export default function Groups() {
   const [open, setOpen] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [aiLimits, setAiLimits] = useState({}); // limites IA en cours de saisie, par groupe
 
   const load = useCallback(async () => {
     try {
@@ -153,6 +154,16 @@ export default function Groups() {
                         <button onClick={() => run(`s-${g.id}`, () => setGroupStatus(g.id, 'a_jour'), `Remettre « ${g.name} » à jour ? Ses stations seront débloquées.`)} disabled={busy !== null}
                           className="px-4 py-2 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 border border-emerald-500/30 text-sm font-semibold disabled:opacity-50">Remettre à jour</button>
                       )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 bg-black/20 rounded-xl px-4 py-3">
+                      <span className="text-sm text-neutral-300">Analyse IA — demandes par mois</span>
+                      <input type="number" min="0" max="1000" value={aiLimits[g.id] ?? g.ai_monthly_limit ?? 30}
+                        onChange={(e) => setAiLimits({ ...aiLimits, [g.id]: e.target.value })}
+                        className="w-24 bg-neutral-950 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white" />
+                      <button onClick={() => run(`l-${g.id}`, () => setGroupAiLimit(g.id, Number(aiLimits[g.id] ?? g.ai_monthly_limit ?? 30)))} disabled={busy !== null || aiLimits[g.id] === undefined}
+                        className="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-sm font-semibold disabled:opacity-40">Enregistrer</button>
+                      <span className="text-xs text-neutral-500">Les rapports hebdomadaires automatiques ne comptent pas.</span>
                     </div>
 
                     <div>
