@@ -329,6 +329,12 @@ export default function AdminTransactions() {
                     <span className="text-gray-600">Client:</span>
                     <span className="font-medium">{selectedReceipt.client}</span>
                   </div>
+                  {selectedReceipt.vehicle && (
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-600">Véhicule:</span>
+                      <span className="font-medium text-right">{selectedReceipt.vehicle}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between mb-2">
                     <span className="text-gray-600">Paiement:</span>
                     <span className="font-medium">{selectedReceipt.method}</span>

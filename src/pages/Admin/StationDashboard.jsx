@@ -10,7 +10,7 @@ import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBr
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { isPastClosingTime, findVehicleOwnerByPlate } from '../../lib/stationData';
-import { formatPlate } from '../../lib/plateFormat';
+import { formatPlate, formatVehicleLabel } from '../../lib/plateFormat';
 import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
 import Pagination from '../../components/ui/Pagination';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -323,7 +323,7 @@ export default function StationDashboard() {
 
   // Remplissage à la voix (VoiceVehicleButton) : marque/type + plaque, puis la
   // même reconnaissance de client par plaque qu'à la saisie manuelle.
-  const handleVoiceVehicle = ({ category, brand, plate, heard }) => {
+  const handleVoiceVehicle = ({ category, brand, plate, noPlate, heard }) => {
     const knownTypes = [...DEFAULT_VEHICLE_TYPES.map((t) => t.value), ...(customVehicleTypes || [])];
     let vehicle = '';
     if (brand) {
@@ -338,9 +338,11 @@ export default function StationDashboard() {
       ...w,
       ...(vehicle ? { vehicle } : {}),
       ...(pricingCategory ? { category: pricingCategory, service: pricingCategory === 'Moto' ? 'Lavage Complet' : w.service } : {}),
-      ...(plate ? { plate } : {}),
+      // « sans plaque » : on vide le champ, ce qui défait aussi un client reconnu par une plaque précédente.
+      ...(noPlate ? { plate: '', clientId: null } : plate ? { plate } : {}),
     }));
-    if (plate) lookupPlate(plate, { vehicle, category: pricingCategory });
+    if (noPlate) setPlateLookupStatus('idle');
+    else if (plate) lookupPlate(plate, { vehicle, category: pricingCategory });
   };
 
   // Modal sélection laveur
@@ -483,7 +485,9 @@ export default function StationDashboard() {
     e.preventDefault();
     addWash({
         client: newWash.client || "Client de passage",
-        vehicle: newWash.vehicle || "Véhicule",
+        // Plaque (ou « Sans plaque ») dans le libellé : c'est ce texte qui apparaît
+        // dans la file, les transactions et les reçus.
+        vehicle: formatVehicleLabel(newWash.vehicle, newWash.plate),
         category: newWash.category,
         service: newWash.service,
         paid: newWash.paid,
@@ -1136,7 +1140,7 @@ export default function StationDashboard() {
               <form onSubmit={handleAddWash} className="space-y-4">
                 <VoiceVehicleButton onResult={handleVoiceVehicle} hasBrand={!!newWash.vehicle} />
                 <div>
-                  <label className="block text-sm font-medium text-neutral-400 mb-1">Plaque d'immatriculation (Optionnel)</label>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1">Plaque d'immatriculation (Optionnel — « Sans plaque » sera inscrit si vide)</label>
                   <input
                     type="text"
                     placeholder="Ex: DK-1234-AB"

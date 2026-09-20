@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, Car, Trash2, Check } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
-import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
+import { CategoryPicker, BrandDropdown, PlateField, isPlateProvided, categoryIcon } from '../../components/client/VehicleFormFields';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
 import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
 import { vehicleCapFor } from '../../lib/superUser';
-import { formatPlate } from '../../lib/plateFormat';
+import { formatPlate, NO_PLATE_LABEL } from '../../lib/plateFormat';
 import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
-const emptyForm = { category: '', brand: '', plate: '' };
+const emptyForm = { category: '', brand: '', plate: '', noPlate: false };
 
 export default function Garage() {
   useDocumentTitle('Mon garage');
@@ -24,7 +24,7 @@ export default function Garage() {
   const isUnlimited = !Number.isFinite(vehicleCap);
   const atVehicleLimit = vehicles.length >= vehicleCap;
 
-  const setCategory = (category) => setForm({ category, brand: '', plate: form.plate });
+  const setCategory = (category) => setForm({ ...form, category, brand: '' });
 
   const openAddModal = () => {
     if (atVehicleLimit) { setShowUpsellModal(true); return; }
@@ -33,7 +33,7 @@ export default function Garage() {
 
   const handleAdd = (e) => {
     e.preventDefault();
-    if (!form.category || !form.brand || !form.plate.trim()) return;
+    if (!form.category || !form.brand || !isPlateProvided(form)) return;
     if (atVehicleLimit) { setShowAddModal(false); setShowUpsellModal(true); return; }
     addVehicle({ category: form.category, brand: form.brand, plate: formatPlate(form.plate) });
     setForm(emptyForm);
@@ -92,7 +92,7 @@ export default function Garage() {
               </div>
               <h3 className="text-lg font-bold text-white">{v.brand || v.type?.replace(/^\S+\s/, '') || 'Véhicule'}</h3>
               <p className="text-neutral-500 text-sm mt-1">{v.category || 'Type non renseigné'}</p>
-              <p className="text-neutral-500 text-sm">{v.plate || 'Immatriculation non renseignée'}</p>
+              <p className="text-neutral-500 text-sm">{v.plate || NO_PLATE_LABEL}</p>
             </motion.div>
           ))}
         </div>
@@ -143,13 +143,11 @@ export default function Garage() {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1.5">Immatriculation <span className="text-red-400">*</span></label>
-                  <input type="text" placeholder="Ex: DK-1234-AB" value={form.plate}
-                    onChange={(e) => setForm({ ...form, plate: formatPlate(e.target.value) })}
-                    autoCapitalize="characters" autoComplete="off" spellCheck={false}
-                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
+                  <PlateField plate={form.plate} noPlate={form.noPlate} onChange={(p) => setForm({ ...form, ...p })}
+                    inputClassName="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
                 </div>
                 <div className="pt-4 mt-2 border-t border-white/10">
-                  <button type="submit" disabled={!form.category || !form.brand || !form.plate.trim()}
+                  <button type="submit" disabled={!form.category || !form.brand || !isPlateProvided(form)}
                     className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center">
                     <Plus className="w-5 h-5 mr-2" /> Ajouter au parking
                   </button>

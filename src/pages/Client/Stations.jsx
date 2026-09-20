@@ -5,9 +5,9 @@ import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-do
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { getPricingCategory } from '../../lib/vehicleBrands';
-import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
+import { CategoryPicker, BrandDropdown, PlateField, isPlateProvided, categoryIcon } from '../../components/client/VehicleFormFields';
 import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
-import { formatPlate } from '../../lib/plateFormat';
+import { formatPlate, formatVehicleLabel, NO_PLATE_LABEL } from '../../lib/plateFormat';
 import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 import {
   getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, markReservationUnpaid, getStationPricing, getStationOperationalProfile,
@@ -47,7 +47,7 @@ function formatDistance(distanceKm) {
   return distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`;
 }
 
-const emptyNewVehicle = { category: '', brand: '', plate: '' };
+const emptyNewVehicle = { category: '', brand: '', plate: '', noPlate: false };
 
 // Choix du/des véhicule(s) à réserver, à partir du garage de l'automobiliste.
 // Sélection multiple (jusqu'à `maxSelectable`, plafonné par le nombre de
@@ -59,11 +59,11 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
   const [mode, setMode] = useState(vehicles.length > 0 ? 'select' : 'add');
   const [newVehicle, setNewVehicle] = useState(emptyNewVehicle);
 
-  const setCategory = (category) => setNewVehicle({ category, brand: '', plate: newVehicle.plate });
+  const setCategory = (category) => setNewVehicle({ ...newVehicle, category, brand: '' });
 
   const handleAddVehicle = async (e) => {
     e.preventDefault();
-    if (!newVehicle.category || !newVehicle.brand || !newVehicle.plate.trim()) return;
+    if (!newVehicle.category || !newVehicle.brand || !isPlateProvided(newVehicle)) return;
     // Le garage est plafonné selon le palier (Gratuit/Plus/Super User — voir
     // schema.sql, policy vehicles_insert / client_vehicle_cap()) — vérifié ici
     // pour un message clair au lieu d'un échec silencieux de l'insert Postgres.
@@ -108,12 +108,10 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
         )}
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1.5">Immatriculation <span className="text-red-400">*</span></label>
-          <input type="text" placeholder="Ex: DK-1234-AB" value={newVehicle.plate}
-            onChange={(e) => setNewVehicle({ ...newVehicle, plate: formatPlate(e.target.value) })}
-            autoCapitalize="characters" autoComplete="off" spellCheck={false}
-            className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
+          <PlateField plate={newVehicle.plate} noPlate={newVehicle.noPlate} onChange={(p) => setNewVehicle({ ...newVehicle, ...p })}
+            inputClassName="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
         </div>
-        <button type="button" onClick={handleAddVehicle} disabled={!newVehicle.category || !newVehicle.brand || !newVehicle.plate.trim()}
+        <button type="button" onClick={handleAddVehicle} disabled={!newVehicle.category || !newVehicle.brand || !isPlateProvided(newVehicle)}
           className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm">
           <Plus className="w-4 h-4" /> Ajouter et continuer
         </button>
@@ -143,7 +141,7 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
             <span className="text-xl flex-shrink-0">{categoryIcon(v.category)}</span>
             <span className="flex-1 min-w-0">
               <span className="block text-white font-medium truncate">{v.brand || 'Véhicule'}</span>
-              <span className="block text-neutral-500 text-xs truncate">{v.category}{v.plate ? ` · ${v.plate}` : ''}</span>
+              <span className="block text-neutral-500 text-xs truncate">{v.category} · {v.plate || NO_PLATE_LABEL}</span>
             </span>
             {isSelected && <Check className="w-4 h-4 text-blue-400 flex-shrink-0" />}
           </button>
@@ -513,7 +511,7 @@ export default function Stations() {
     const createdEntries = [];
     for (let idx = 0; idx < selectedVehicles.length; idx++) {
       const vehicle = selectedVehicles[idx];
-      const vehicleLabel = `${vehicle.brand}${vehicle.plate ? ` (${vehicle.plate})` : ''}`;
+      const vehicleLabel = formatVehicleLabel(vehicle.brand, vehicle.plate);
       const category = getPricingCategory(vehicle.category);
       // Prix figé à la réservation (réduction + code promo déjà appliqués),
       // pour que l'encaissement sur place facture le même montant que celui
@@ -596,7 +594,7 @@ export default function Stations() {
     try {
       const reservationGroupId = selectedVehicles.length > 1 ? `RG-${Date.now()}` : null;
       const items = selectedVehicles.map((vehicle) => ({
-        vehicleLabel: `${vehicle.brand}${vehicle.plate ? ` (${vehicle.plate})` : ''}`,
+        vehicleLabel: formatVehicleLabel(vehicle.brand, vehicle.plate),
         category: getPricingCategory(vehicle.category),
         service,
         amount: priceForVehicle(vehicle),
@@ -637,7 +635,7 @@ export default function Stations() {
 
   const finalizeVidangeOnSite = async () => {
     if (!vidangeVehicle || !vidangeOilType || !vidangeTime || !account || !selectedStation) return;
-    const vehicleLabel = `${vidangeVehicle.brand}${vidangeVehicle.plate ? ` (${vidangeVehicle.plate})` : ''}`;
+    const vehicleLabel = formatVehicleLabel(vidangeVehicle.brand, vidangeVehicle.plate);
     try {
       await createVidangeBooking(selectedStation.id, {
         clientId: account.id, clientName: account.name, vehicleLabel, category: vidangeCategory,
@@ -664,7 +662,7 @@ export default function Stations() {
   const finalizeVidangePaydunya = async () => {
     if (!vidangeVehicle || !vidangeOilType || !vidangeTime || !account || !selectedStation) return;
     setPaymentProcessing(true);
-    const vehicleLabel = `${vidangeVehicle.brand}${vidangeVehicle.plate ? ` (${vidangeVehicle.plate})` : ''}`;
+    const vehicleLabel = formatVehicleLabel(vidangeVehicle.brand, vidangeVehicle.plate);
     try {
       await payVidangeOnline({
         stationId: selectedStation.id, clientName: account.name, vehicleLabel, category: vidangeCategory,

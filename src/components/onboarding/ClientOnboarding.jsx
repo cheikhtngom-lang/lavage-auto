@@ -6,7 +6,7 @@ import { getLoginCount } from '../../lib/accounts';
 import * as wizard from '../../lib/onboardingWizard';
 import WizardModal from './WizardModal';
 import GuidedTour from './GuidedTour';
-import { CategoryPicker, BrandDropdown } from '../client/VehicleFormFields';
+import { CategoryPicker, BrandDropdown, PlateField, isPlateProvided } from '../client/VehicleFormFields';
 import VoiceVehicleButton from '../ui/VoiceVehicleButton';
 import { formatPlate } from '../../lib/plateFormat';
 import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
@@ -29,7 +29,7 @@ export default function ClientOnboarding() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { account, addVehicle } = useClientAccount();
   const [showTour, setShowTour] = useState(false);
-  const [form, setForm] = useState({ category: '', brand: '', plate: '' });
+  const [form, setForm] = useState({ category: '', brand: '', plate: '', noPlate: false });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const urlStep = searchParams.get('onboarding');
@@ -111,7 +111,7 @@ export default function ClientOnboarding() {
   }
 
   if (urlStep === 'add_vehicule') {
-    const canSubmit = !!form.category && !!form.brand && !!form.plate.trim();
+    const canSubmit = !!form.category && !!form.brand && isPlateProvided(form);
     const submit = async () => {
       if (!canSubmit || saving) return;
       setSaving(true);
@@ -151,7 +151,7 @@ export default function ClientOnboarding() {
           />
           <div>
             <label className="text-xs font-medium text-neutral-400 mb-2 block">Type de véhicule</label>
-            <CategoryPicker value={form.category} onChange={(category) => setForm({ category, brand: '', plate: form.plate })} />
+            <CategoryPicker value={form.category} onChange={(category) => setForm({ ...form, category, brand: '' })} />
           </div>
           {form.category && (
             <div>
@@ -161,11 +161,9 @@ export default function ClientOnboarding() {
           )}
           <div>
             <label className="text-xs font-medium text-neutral-400 mb-2 block">Immatriculation</label>
-            <input
-              type="text" value={form.plate} onChange={(e) => setForm((f) => ({ ...f, plate: formatPlate(e.target.value) }))}
-              autoCapitalize="characters" autoComplete="off" spellCheck={false}
-              placeholder="Ex: DK-1234-AB"
-              className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
+            <PlateField
+              plate={form.plate} noPlate={form.noPlate} onChange={(p) => setForm((f) => ({ ...f, ...p }))}
+              inputClassName="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
             />
             {saveError && <p className="text-sm text-red-400 mt-1">{saveError}</p>}
           </div>

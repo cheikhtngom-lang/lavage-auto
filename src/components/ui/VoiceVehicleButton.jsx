@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff } from 'lucide-react';
 import { VEHICLE_CATEGORIES, getBrandsForCategory } from '../../lib/vehicleBrands';
 import { parseVehicleSpeech } from '../../lib/voiceVehicle';
+import { NO_PLATE_LABEL } from '../../lib/plateFormat';
 
 // Dictée vocale du formulaire "Ajouter un véhicule" (automobiliste et station) :
 // un tap, puis « Toyota, A A 1 8 9 D S » — mains occupées ou mouillées.
@@ -42,15 +43,15 @@ export default function VoiceVehicleButton({ currentCategory = '', hasBrand = fa
     const { currentCategory: category, hasBrand: brandAlreadySet, onResult: notify } = latest.current;
     const brandsByCategory = Object.fromEntries(VEHICLE_CATEGORIES.map((c) => [c.value, getBrandsForCategory(c.value)]));
     const result = parseVehicleSpeech(alternatives, { brandsByCategory, currentCategory: category });
-    if (!result.category && !result.brand && !result.plate) {
+    if (!result.category && !result.brand && !result.plate && !result.noPlate) {
       setFeedback({ tone: 'warn', text: `Je n'ai pas compris « ${result.heard} ». Dites par exemple : « Toyota, A A 1 8 9 D S ».` });
       return;
     }
     notify(result);
-    const captured = [result.category && categoryLabel(result.category), result.brand, result.plate].filter(Boolean).join(' · ');
+    const captured = [result.category && categoryLabel(result.category), result.brand, result.noPlate ? NO_PLATE_LABEL : result.plate].filter(Boolean).join(' · ');
     const missing = [];
     if (!result.brand && !brandAlreadySet) missing.push('marque non reconnue (choisissez-la dans la liste)');
-    if (!result.plate) missing.push("immatriculation non comprise");
+    if (!result.plate && !result.noPlate) missing.push("immatriculation non comprise (dites « sans plaque » s'il n'y en a pas)");
     setFeedback(missing.length
       ? { tone: 'warn', text: `Entendu : ${captured}. ${missing.join(' ; ')}.` }
       : { tone: 'ok', text: `Entendu : ${captured}. Vérifiez puis validez.` });
@@ -105,7 +106,7 @@ export default function VoiceVehicleButton({ currentCategory = '', hasBrand = fa
         aria-live="polite"
         className={`text-xs mt-1.5 ${feedback ? (feedback.tone === 'ok' ? 'text-emerald-400' : 'text-amber-400') : 'text-neutral-500'}`}
       >
-        {feedback ? feedback.text : 'Dites la marque et l\'immatriculation, ex. « Toyota, A A 1 8 9 D S ». Vous pouvez aussi préciser le type : moto, camion, bus…'}
+        {feedback ? feedback.text : 'Dites la marque et l\'immatriculation, ex. « Toyota, A A 1 8 9 D S » — ou « Toyota, sans plaque ». Vous pouvez aussi préciser le type : moto, camion, bus…'}
       </p>
     </div>
   );

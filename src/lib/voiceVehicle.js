@@ -96,6 +96,12 @@ const FILLER = new Set([
   'est', 'sur', 'par', 'que', 'qui', 'ici', 'moi', 'mon', 'ton', 'son', 'ma', 'ta', 'sa',
 ]);
 const PLATE_MARKERS = new Set(['matricule', 'immatriculation', 'immat', 'plaque', 'numero']);
+const NO_PLATE_PHRASES = [
+  'sans plaque', 'sans matricule', 'sans immatriculation', 'sans numero',
+  'pas de plaque', 'pas de matricule', 'pas d immatriculation', 'pas de numero',
+  'pas encore de plaque', 'pas encore de matricule', 'pas encore d immatriculation',
+  'aucune plaque', 'aucun matricule', 'aucune immatriculation',
+].map((phrase) => phrase.split(' '));
 
 const isNumeric = (t) => !!t && (/^\d+$/.test(t.norm) || t.norm in DIGIT_WORDS);
 
@@ -130,16 +136,28 @@ function extractPlate(seq) {
 }
 
 // ── Analyse complète ────────────────────────────────────────────────────
-function findCategory(tokens) {
-  for (const kw of CATEGORY_KEYWORDS) {
-    for (let i = 0; i + kw.words.length <= tokens.length; i++) {
-      if (kw.words.every((w, k) => !tokens[i + k].used && tokens[i + k].norm === w)) {
-        for (let k = 0; k < kw.words.length; k++) tokens[i + k].used = true;
-        return kw.category;
-      }
+// Cherche la suite de mots `words` parmi les mots pas encore consommés ; si
+// elle y est, la marque comme consommée et retourne true.
+function consumeWords(tokens, words) {
+  for (let i = 0; i + words.length <= tokens.length; i++) {
+    if (words.every((w, k) => !tokens[i + k].used && tokens[i + k].norm === w)) {
+      for (let k = 0; k < words.length; k++) tokens[i + k].used = true;
+      return true;
     }
   }
+  return false;
+}
+
+function findCategory(tokens) {
+  for (const kw of CATEGORY_KEYWORDS) {
+    if (consumeWords(tokens, kw.words)) return kw.category;
+  }
   return '';
+}
+
+// « sans plaque », « pas de plaque »… — le véhicule n'a pas (encore) de plaque.
+function findNoPlate(tokens) {
+  return NO_PLATE_PHRASES.some((words) => consumeWords(tokens, words));
 }
 
 // Comparaison lexicographique de deux scores [a, b, c].
@@ -167,16 +185,18 @@ function findBrand(tokens, entries, preferredCategory) {
 
 function parseOne(transcript, { entries, currentCategory }) {
   const tokens = tokenize(transcript);
+  const noPlate = findNoPlate(tokens);
   const spokenCategory = findCategory(tokens);
   const brandEntry = findBrand(tokens, entries, spokenCategory || currentCategory);
-  const { plate, complete } = extractPlate(tokens.filter((t) => !t.used));
+  // « Sans plaque » l'emporte sur d'éventuels chiffres restants (un modèle, une année…).
+  const { plate, complete } = noPlate ? { plate: '', complete: false } : extractPlate(tokens.filter((t) => !t.used));
 
   let category = spokenCategory;
   if (!category && brandEntry && !(currentCategory && brandEntry.cats.has(currentCategory))) {
     category = CATEGORY_PREFERENCE.find((c) => brandEntry.cats.has(c)) || [...brandEntry.cats][0] || '';
   }
-  const score = (brandEntry ? 2 : 0) + (plate ? 1 : 0) + (complete ? 2 : 0) + (spokenCategory ? 1 : 0);
-  return { category, brand: brandEntry ? brandEntry.name : '', plate, heard: transcript, score };
+  const score = (brandEntry ? 2 : 0) + (plate ? 1 : 0) + (complete || noPlate ? 2 : 0) + (spokenCategory ? 1 : 0);
+  return { category, brand: brandEntry ? brandEntry.name : '', plate, noPlate, heard: transcript, score };
 }
 
 // `alternatives` : les hypothèses de la reconnaissance vocale (la meilleure
@@ -194,21 +214,23 @@ export function parseVehicleSpeech(alternatives, { brandsByCategory, currentCate
     const parsed = parseOne(text, { entries, currentCategory });
     if (!best || parsed.score > best.score) best = parsed;
   }
-  if (!best) return { category: '', brand: '', plate: '', heard: '' };
+  if (!best) return { category: '', brand: '', plate: '', noPlate: false, heard: '' };
   const { score, ...result } = best;
   return result;
 }
 
-// Applique un résultat vocal à un état { category, brand, plate } de formulaire :
-// ne remplace que ce qui a été entendu, et vide la marque si le type change
-// (une marque n'est valable que pour son type — voir BrandDropdown).
-export function applyVoiceToVehicleForm(form, { category, brand, plate }) {
+// Applique un résultat vocal à un état { category, brand, plate, noPlate } de
+// formulaire : ne remplace que ce qui a été entendu, et vide la marque si le
+// type change (une marque n'est valable que pour son type — voir BrandDropdown).
+// « sans plaque » coche `noPlate` et vide la plaque ; dicter une plaque le décoche.
+export function applyVoiceToVehicleForm(form, { category, brand, plate, noPlate }) {
   const nextCategory = category || form.category;
   const categoryChanged = nextCategory !== form.category;
   return {
     ...form,
     category: nextCategory,
     brand: brand || (categoryChanged ? '' : form.brand),
-    plate: plate || form.plate,
+    plate: noPlate ? '' : (plate || form.plate),
+    noPlate: noPlate || (plate ? false : !!form.noPlate),
   };
 }

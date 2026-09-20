@@ -2,9 +2,32 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ChevronDown, Search } from 'lucide-react';
 import { VEHICLE_CATEGORIES, getBrandsForCategory, addCustomBrand } from '../../lib/vehicleBrands';
+import { formatPlate, NO_PLATE_LABEL } from '../../lib/plateFormat';
 
 // Champs réutilisés partout où un automobiliste doit décrire un véhicule
 // (Mon Garage, et le flux de réservation quand son garage est vide).
+
+// Une plaque est requise, sauf si l'automobiliste indique que son véhicule n'en
+// a pas (encore) — neuf, en cours d'immatriculation. Il est alors enregistré
+// « sans plaque » et les reçus l'écrivent tel quel (voir vehicleLabel).
+export const isPlateProvided = ({ plate, noPlate }) => !!(plate || '').trim() || !!noPlate;
+
+// `onChange` reçoit { plate, noPlate } à fusionner dans l'état du formulaire.
+export function PlateField({ plate, noPlate, onChange, inputClassName }) {
+  return (
+    <div>
+      <input type="text" placeholder="Ex: DK-1234-AB" value={plate} disabled={!!noPlate}
+        onChange={(e) => onChange({ plate: formatPlate(e.target.value), noPlate: false })}
+        autoCapitalize="characters" autoComplete="off" spellCheck={false}
+        className={`${inputClassName} disabled:opacity-40 disabled:cursor-not-allowed`} />
+      <label className="flex items-center gap-2 mt-2 text-sm text-neutral-400 cursor-pointer select-none">
+        <input type="checkbox" checked={!!noPlate} onChange={(e) => onChange({ plate: '', noPlate: e.target.checked })}
+          className="w-4 h-4 rounded border-white/20 bg-neutral-950 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900" />
+        Ce véhicule n'a pas encore de plaque ({NO_PLATE_LABEL.toLowerCase()} sur les reçus)
+      </label>
+    </div>
+  );
+}
 
 export function categoryIcon(category) {
   return VEHICLE_CATEGORIES.find((c) => c.value === category)?.label.split(' ')[0] || '🚗';
