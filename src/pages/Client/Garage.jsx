@@ -4,7 +4,10 @@ import { Plus, X, Car, Trash2, Check } from 'lucide-react';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
 import SuperUserUpsellModal from '../../components/client/SuperUserUpsellModal';
+import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
 import { vehicleCapFor } from '../../lib/superUser';
+import { formatPlate } from '../../lib/plateFormat';
+import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 const emptyForm = { category: '', brand: '', plate: '' };
@@ -32,7 +35,7 @@ export default function Garage() {
     e.preventDefault();
     if (!form.category || !form.brand || !form.plate.trim()) return;
     if (atVehicleLimit) { setShowAddModal(false); setShowUpsellModal(true); return; }
-    addVehicle({ category: form.category, brand: form.brand, plate: form.plate.trim() });
+    addVehicle({ category: form.category, brand: form.brand, plate: formatPlate(form.plate) });
     setForm(emptyForm);
     setShowAddModal(false);
   };
@@ -103,13 +106,18 @@ export default function Garage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative"
+              className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
               <button onClick={closeModal} className="absolute top-4 right-4 text-neutral-400 hover:text-white">
                 <X className="w-6 h-6" />
               </button>
               <h2 className="text-2xl font-bold text-white mb-6">🚗 Ajouter un véhicule</h2>
               <form onSubmit={handleAdd} className="space-y-4">
+                <VoiceVehicleButton
+                  currentCategory={form.category}
+                  hasBrand={!!form.brand}
+                  onResult={(result) => setForm((f) => applyVoiceToVehicleForm(f, result))}
+                />
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1.5">Type de véhicule <span className="text-red-400">*</span></label>
                   <CategoryPicker value={form.category} onChange={setCategory} />
@@ -136,7 +144,8 @@ export default function Garage() {
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1.5">Immatriculation <span className="text-red-400">*</span></label>
                   <input type="text" placeholder="Ex: DK-1234-AB" value={form.plate}
-                    onChange={(e) => setForm({ ...form, plate: e.target.value })}
+                    onChange={(e) => setForm({ ...form, plate: formatPlate(e.target.value) })}
+                    autoCapitalize="characters" autoComplete="off" spellCheck={false}
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
                 </div>
                 <div className="pt-4 mt-2 border-t border-white/10">

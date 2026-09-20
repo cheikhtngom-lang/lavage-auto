@@ -7,6 +7,9 @@ import * as wizard from '../../lib/onboardingWizard';
 import WizardModal from './WizardModal';
 import GuidedTour from './GuidedTour';
 import { CategoryPicker, BrandDropdown } from '../client/VehicleFormFields';
+import VoiceVehicleButton from '../ui/VoiceVehicleButton';
+import { formatPlate } from '../../lib/plateFormat';
+import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 
 const ROLE = 'automobiliste';
 
@@ -113,7 +116,7 @@ export default function ClientOnboarding() {
       if (!canSubmit || saving) return;
       setSaving(true);
       setSaveError('');
-      const created = await addVehicle({ category: form.category, brand: form.brand, plate: form.plate.trim() });
+      const created = await addVehicle({ category: form.category, brand: form.brand, plate: formatPlate(form.plate) });
       setSaving(false);
       if (!created) { setSaveError('Impossible d\'enregistrer ce véhicule, réessayez.'); return; }
       closeStep(null);
@@ -141,6 +144,11 @@ export default function ClientOnboarding() {
               <Car className="w-6 h-6 text-blue-400" />
             </div>
           </div>
+          <VoiceVehicleButton
+            currentCategory={form.category}
+            hasBrand={!!form.brand}
+            onResult={(result) => setForm((f) => applyVoiceToVehicleForm(f, result))}
+          />
           <div>
             <label className="text-xs font-medium text-neutral-400 mb-2 block">Type de véhicule</label>
             <CategoryPicker value={form.category} onChange={(category) => setForm({ category, brand: '', plate: form.plate })} />
@@ -154,7 +162,8 @@ export default function ClientOnboarding() {
           <div>
             <label className="text-xs font-medium text-neutral-400 mb-2 block">Immatriculation</label>
             <input
-              type="text" value={form.plate} onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value }))}
+              type="text" value={form.plate} onChange={(e) => setForm((f) => ({ ...f, plate: formatPlate(e.target.value) }))}
+              autoCapitalize="characters" autoComplete="off" spellCheck={false}
               placeholder="Ex: DK-1234-AB"
               className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
             />

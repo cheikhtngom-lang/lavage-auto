@@ -10,6 +10,8 @@ import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBr
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { isPastClosingTime, findVehicleOwnerByPlate } from '../../lib/stationData';
+import { formatPlate } from '../../lib/plateFormat';
+import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
 import Pagination from '../../components/ui/Pagination';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
@@ -106,6 +108,29 @@ function guessPricingCategory(vehicleTypeValue) {
   const lower = (vehicleTypeValue || '').toLowerCase();
   if (lower.includes('camion') || lower.includes('+50') || lower.includes('50 place')) return 'Camion';
   return null;
+}
+
+// Dictée vocale (VoiceVehicleButton) : les types du formulaire station n'ont pas
+// exactement les libellés de vehicleBrands.js — on fait la correspondance ici.
+const CATEGORY_TO_STATION_TYPE = {
+  'Moto / Scooter': 'Moto / Scooter',
+  'Tricycle': 'Tricycle',
+  'Berline / Citadine': 'Berline / Citadine',
+  'SUV / 4x4': '4x4 / SUV',
+  'Utilitaire / Minibus': 'Minibus / Clando',
+  'Bus / Car rapide': 'Car rapide / Bus',
+  'Camion léger': 'Camion léger',
+  'Camion lourd / Remorque': 'Camion lourd',
+  'Bus / Car (+50 places)': 'Bus / Car (+50 places)',
+};
+const normalizeSpoken = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+// Type déjà connu de la station cité en toutes lettres dans la phrase
+// ("Toyota Corolla") — le plus long l'emporte.
+function findSpokenType(heard, values) {
+  const text = ` ${normalizeSpoken(heard)} `;
+  return values
+    .filter((v) => normalizeSpoken(v) && text.includes(` ${normalizeSpoken(v)} `))
+    .sort((a, b) => b.length - a.length)[0] || null;
 }
 
 // ---- Composant Dropdown Searchable Véhicule ----
@@ -255,7 +280,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 export default function StationDashboard() {
   useDocumentTitle('File d\'attente');
   const navigate = useNavigate();
-  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions } = useAppState();
+  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
 
   const getDurationMinutes = (item) => {
     const cat = item?.category || 'Particulier';
@@ -268,8 +293,10 @@ export default function StationDashboard() {
   // (voir lib/stationData.js findVehicleOwnerByPlate) — 'idle' | 'checking' | 'found' | 'not_found'.
   const [plateLookupStatus, setPlateLookupStatus] = React.useState('idle');
 
-  const handlePlateBlur = async () => {
-    const plate = newWash.plate.trim();
+  // `spoken` : véhicule/catégorie dictés à voix haute — prioritaires sur ceux du
+  // compte retrouvé (on a dit "Toyota", on ne veut pas qu'un autre véhicule du
+  // garage du client écrase ce choix).
+  const lookupPlate = async (plate, spoken = {}) => {
     if (!plate) { setPlateLookupStatus('idle'); setNewWash((w) => ({ ...w, clientId: null })); return; }
     setPlateLookupStatus('checking');
     const match = await findVehicleOwnerByPlate(plate);
@@ -279,12 +306,41 @@ export default function StationDashboard() {
       // catégorie de tarification (Moto/Particulier/Transport/Camion) avant
       // de l'utiliser ici, sinon pricingConfig[cat] ne trouve rien et
       // l'encaissement facture un montant incorrect (ou 0).
-      setNewWash((w) => ({ ...w, client: match.ownerName, category: match.category ? getPricingCategory(match.category) : w.category, vehicle: match.brand || w.vehicle, clientId: match.ownerId }));
+      setNewWash((w) => ({
+        ...w, client: match.ownerName,
+        category: spoken.category || (match.category ? getPricingCategory(match.category) : w.category),
+        vehicle: spoken.vehicle || match.brand || w.vehicle,
+        clientId: match.ownerId,
+      }));
       setPlateLookupStatus('found');
     } else {
       setNewWash((w) => ({ ...w, clientId: null }));
       setPlateLookupStatus('not_found');
     }
+  };
+
+  const handlePlateBlur = () => lookupPlate(newWash.plate.trim());
+
+  // Remplissage à la voix (VoiceVehicleButton) : marque/type + plaque, puis la
+  // même reconnaissance de client par plaque qu'à la saisie manuelle.
+  const handleVoiceVehicle = ({ category, brand, plate, heard }) => {
+    const knownTypes = [...DEFAULT_VEHICLE_TYPES.map((t) => t.value), ...(customVehicleTypes || [])];
+    let vehicle = '';
+    if (brand) {
+      const spokenType = findSpokenType(heard, knownTypes);
+      vehicle = spokenType && normalizeSpoken(spokenType).includes(normalizeSpoken(brand)) ? spokenType : brand;
+      if (!knownTypes.some((v) => v.toLowerCase() === vehicle.toLowerCase())) addCustomVehicleType(vehicle);
+    } else if (category) {
+      vehicle = CATEGORY_TO_STATION_TYPE[category] || '';
+    }
+    const pricingCategory = category ? getPricingCategory(category) : (vehicle ? guessPricingCategory(vehicle) : null);
+    setNewWash((w) => ({
+      ...w,
+      ...(vehicle ? { vehicle } : {}),
+      ...(pricingCategory ? { category: pricingCategory, service: pricingCategory === 'Moto' ? 'Lavage Complet' : w.service } : {}),
+      ...(plate ? { plate } : {}),
+    }));
+    if (plate) lookupPlate(plate, { vehicle, category: pricingCategory });
   };
 
   // Modal sélection laveur
@@ -1078,6 +1134,7 @@ export default function StationDashboard() {
               <h2 className="text-2xl font-bold text-white mb-6">Ajouter un véhicule</h2>
               
               <form onSubmit={handleAddWash} className="space-y-4">
+                <VoiceVehicleButton onResult={handleVoiceVehicle} hasBrand={!!newWash.vehicle} />
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1">Plaque d'immatriculation (Optionnel)</label>
                   <input
@@ -1085,8 +1142,9 @@ export default function StationDashboard() {
                     placeholder="Ex: DK-1234-AB"
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
                     value={newWash.plate}
-                    onChange={(e) => setNewWash({ ...newWash, plate: e.target.value })}
+                    onChange={(e) => setNewWash({ ...newWash, plate: formatPlate(e.target.value) })}
                     onBlur={handlePlateBlur}
+                    autoCapitalize="characters" autoComplete="off" spellCheck={false}
                   />
                   {plateLookupStatus === 'checking' && (
                     <p className="text-xs text-neutral-500 mt-1">Recherche du client...</p>

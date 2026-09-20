@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import { getLatestSubscription, deriveSuperUserStatus } from '../lib/superUser';
 import { getStationName } from '../lib/stationData';
 import { loadStationAnnouncements } from '../lib/announcements';
+import { formatPlate } from '../lib/plateFormat';
 
 const ClientAccountContext = createContext(null);
 
@@ -32,7 +33,7 @@ export function ClientAccountProvider({ children }) {
             name: profile.full_name,
             email: user.email,
             phone: profile.phone || '',
-            vehicles: (vehicles || []).map((v) => ({ id: v.id, category: v.category, brand: v.brand, plate: v.plate })),
+            vehicles: (vehicles || []).map((v) => ({ id: v.id, category: v.category, brand: v.brand, plate: formatPlate(v.plate) })),
             favoriteStationIds: profile.favorite_station_ids || [],
             hiddenStationIds: profile.hidden_station_ids || [],
             dismissedAdIds: profile.dismissed_ad_ids || [],
@@ -133,10 +134,10 @@ export function ClientAccountProvider({ children }) {
     const addVehicle = async (vehicle) => {
         if (!account) return null;
         const { data, error } = await supabase.from('vehicles').insert({
-            owner_id: account.id, category: vehicle.category, brand: vehicle.brand, plate: vehicle.plate || null,
+            owner_id: account.id, category: vehicle.category, brand: vehicle.brand, plate: formatPlate(vehicle.plate) || null,
         }).select().single();
         if (error) return null;
-        const newVehicle = { id: data.id, category: data.category, brand: data.brand, plate: data.plate };
+        const newVehicle = { id: data.id, category: data.category, brand: data.brand, plate: formatPlate(data.plate) };
         setAccount((a) => ({ ...a, vehicles: [...a.vehicles, newVehicle] }));
         return newVehicle;
     };

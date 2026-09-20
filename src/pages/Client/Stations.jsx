@@ -6,6 +6,9 @@ import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { getPricingCategory } from '../../lib/vehicleBrands';
 import { CategoryPicker, BrandDropdown, categoryIcon } from '../../components/client/VehicleFormFields';
+import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
+import { formatPlate } from '../../lib/plateFormat';
+import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 import {
   getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, markReservationUnpaid, getStationPricing, getStationOperationalProfile,
   getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
@@ -73,7 +76,7 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
     // undefined et le véhicule n'était jamais réellement ajouté à la sélection
     // (silencieusement : il apparaissait bien dans le garage, mais pas dans la
     // réservation soumise juste après).
-    const created = await addVehicle({ category: newVehicle.category, brand: newVehicle.brand, plate: newVehicle.plate.trim() });
+    const created = await addVehicle({ category: newVehicle.category, brand: newVehicle.brand, plate: formatPlate(newVehicle.plate) });
     setNewVehicle(emptyNewVehicle);
     setMode('select');
     if (created) onVehicleCreated(created);
@@ -88,6 +91,11 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
           </button>
         )}
         <p className="text-sm text-neutral-300 flex items-center gap-2"><Car className="w-4 h-4 text-blue-400" /> Ajoutez votre véhicule pour réserver.</p>
+        <VoiceVehicleButton
+          currentCategory={newVehicle.category}
+          hasBrand={!!newVehicle.brand}
+          onResult={(result) => setNewVehicle((v) => applyVoiceToVehicleForm(v, result))}
+        />
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1.5">Type de véhicule <span className="text-red-400">*</span></label>
           <CategoryPicker value={newVehicle.category} onChange={setCategory} />
@@ -101,7 +109,8 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1.5">Immatriculation <span className="text-red-400">*</span></label>
           <input type="text" placeholder="Ex: DK-1234-AB" value={newVehicle.plate}
-            onChange={(e) => setNewVehicle({ ...newVehicle, plate: e.target.value })}
+            onChange={(e) => setNewVehicle({ ...newVehicle, plate: formatPlate(e.target.value) })}
+            autoCapitalize="characters" autoComplete="off" spellCheck={false}
             className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
         </div>
         <button type="button" onClick={handleAddVehicle} disabled={!newVehicle.category || !newVehicle.brand || !newVehicle.plate.trim()}

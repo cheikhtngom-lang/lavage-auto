@@ -4,6 +4,7 @@ import { Search, Users, UserPlus, Car, Heart, X, Mail, Phone, Calendar, MapPin }
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
+import { formatPlate } from '../../lib/plateFormat';
 
 export default function Motorists() {
   useDocumentTitle('Automobilistes');
@@ -173,7 +174,7 @@ export default function Motorists() {
                   <div className="space-y-2">
                     {selected.vehicles.map(v => (
                       <div key={v.id} className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-neutral-200">
-                        {v.brand || v.marque || 'Véhicule'} {v.model || v.modele || ''} {v.plate ? `· ${v.plate}` : ''}
+                        {v.brand || v.marque || 'Véhicule'} {v.model || v.modele || ''} {v.plate ? `· ${formatPlate(v.plate)}` : ''}
                       </div>
                     ))}
                   </div>
