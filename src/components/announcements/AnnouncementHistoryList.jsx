@@ -31,6 +31,7 @@ export default function AnnouncementHistoryList({ announcements, onRetire }) {
               {new Date(a.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               {a.targetStationId && <span className="text-blue-400"> · {a.targetStationName || 'station ciblée'}</span>}
               {a.targetClientIds?.length > 0 && <span className="text-blue-400"> · {a.targetClientIds.length} client{a.targetClientIds.length > 1 ? 's' : ''} ciblé{a.targetClientIds.length > 1 ? 's' : ''}</span>}
+              {a.audience === 'subscribers' && <span className="text-amber-400"> · abonnés uniquement</span>}
             </p>
           </div>
           {a.active && (

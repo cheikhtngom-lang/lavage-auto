@@ -13,6 +13,9 @@ const rowToAnnouncement = (row) => ({
   targetStationId: row.target_station_id || null,
   targetStationName: row.target_station?.name || '',
   targetClientIds: row.target_client_ids || [],
+  // 'all' = clients ayant réservé (abonnés ou non) ; 'subscribers' = abonnés
+  // mensuels actifs seulement — voir add_announcement_audience.sql.
+  audience: row.audience || 'all',
   createdAt: row.created_at,
 });
 
@@ -48,11 +51,16 @@ export async function sendPlatformAnnouncement({ title, message, targetStationId
   if (error) throw new Error(error.message);
 }
 
-export async function sendStationAnnouncement(stationId, { title, message, targetClientIds }) {
+// `audience` : 'all' (défaut) ou 'subscribers' (abonnés mensuels actifs
+// uniquement). Une sélection précise (`targetClientIds`) est un mode à part :
+// audience reste alors 'all' (contrainte announcements_audience_ck).
+export async function sendStationAnnouncement(stationId, { title, message, targetClientIds, audience }) {
   const { data: { user } } = await supabase.auth.getUser();
+  const hasTargets = !!(targetClientIds && targetClientIds.length > 0);
   const { error } = await supabase.from('announcements').insert({
     scope: 'station_to_clients', station_id: stationId, title: title.trim(), message: message.trim(), created_by: user?.id || null,
-    target_client_ids: (targetClientIds && targetClientIds.length > 0) ? targetClientIds : null,
+    target_client_ids: hasTargets ? targetClientIds : null,
+    audience: !hasTargets && audience === 'subscribers' ? 'subscribers' : 'all',
   });
   if (error) throw new Error(error.message);
 }

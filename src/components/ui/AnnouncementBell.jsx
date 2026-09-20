@@ -58,7 +58,12 @@ export default function AnnouncementBell({ announcements, dismissedIds, onDismis
                             {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />}
                             <p className="text-white font-bold text-sm truncate">{a.title}</p>
                           </div>
-                          {a.stationName && <p className="text-blue-400 text-xs font-medium mt-0.5">{a.stationName}</p>}
+                          {a.stationName && (
+                            <p className="text-blue-400 text-xs font-medium mt-0.5">
+                              {a.stationName}
+                              {a.audience === 'subscribers' && <span className="ml-2 text-amber-400 font-semibold">· Réservé aux abonnés</span>}
+                            </p>
+                          )}
                           <p className="text-neutral-400 text-xs mt-1 whitespace-pre-wrap break-words">{a.message}</p>
                           <p className="text-neutral-600 text-[11px] mt-1.5">
                             {new Date(a.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}

@@ -42,6 +42,14 @@ export default function AnnouncementForm({ onSend, submitLabel = 'Envoyer', targ
     !clientSearchLower || (c.name || '').toLowerCase().includes(clientSearchLower) || (c.phone || '').includes(clientSearchLower)
   );
 
+  // Nombre de clients (avec compte) que la station connaît — indicatif : un
+  // client qui n'a qu'un favori, ou un abonné saisi par téléphone sans compte
+  // relié, reçoit l'annonce sans figurer dans ce décompte.
+  const audienceCounts = {
+    all: (knownClients || []).length,
+    subscribers: (knownClients || []).filter((c) => c.isSubscriber && c.subscriptionStatus === 'actif').length,
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!title.trim() || !message.trim()) {
@@ -57,7 +65,10 @@ export default function AnnouncementForm({ onSend, submitLabel = 'Envoyer', targ
     try {
       const payload = { title: title.trim(), message: message.trim() };
       if (targetStations) payload.targetStationId = targetStationId || null;
-      if (loadTargetClients) payload.targetClientIds = clientMode === 'custom' ? selectedClientIds : null;
+      if (loadTargetClients) {
+        payload.targetClientIds = clientMode === 'custom' ? selectedClientIds : null;
+        payload.audience = clientMode === 'subscribers' ? 'subscribers' : 'all';
+      }
       await onSend(payload);
       setTitle('');
       setMessage('');
@@ -78,7 +89,9 @@ export default function AnnouncementForm({ onSend, submitLabel = 'Envoyer', targ
     ? (targetStationId ? `Envoyer à ${selectedStationName || 'la station'}` : submitLabel)
     : (loadTargetClients && clientMode === 'custom')
       ? `Envoyer à ${selectedClientIds.length} client${selectedClientIds.length > 1 ? 's' : ''}`
-      : submitLabel;
+      : (loadTargetClients && clientMode === 'subscribers')
+        ? 'Envoyer à mes abonnés'
+        : submitLabel;
 
   return (
     <form onSubmit={handleSend} noValidate className="space-y-4">
@@ -108,20 +121,21 @@ export default function AnnouncementForm({ onSend, submitLabel = 'Envoyer', targ
 
       {loadTargetClients && (
         <div>
-          <label className="block text-sm font-medium text-neutral-400 mb-1.5">Destinataires</label>
-          <div className="flex gap-2 mb-2">
-            <button
-              type="button" onClick={() => setClientMode('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${clientMode === 'all' ? 'bg-blue-600 text-white' : 'bg-white/5 text-neutral-400 hover:text-white'}`}
-            >
-              Tous mes clients
-            </button>
-            <button
-              type="button" onClick={() => setClientMode('custom')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${clientMode === 'custom' ? 'bg-blue-600 text-white' : 'bg-white/5 text-neutral-400 hover:text-white'}`}
-            >
-              Choisir des clients
-            </button>
+          <label className="block text-sm font-medium text-neutral-400 mb-1.5">Qui verra cette annonce ?</label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+            {[
+              { id: 'all', label: 'Tous mes clients', hint: `Tous ceux qui ont déjà réservé chez vous, abonnés ou non${knownClients ? ` (${audienceCounts.all} avec un compte)` : ''}.` },
+              { id: 'subscribers', label: 'Mes abonnés', hint: `Seulement les clients avec un abonnement mensuel actif${knownClients ? ` (${audienceCounts.subscribers})` : ''}.` },
+              { id: 'custom', label: 'Choisir des clients', hint: 'Une sélection précise, un par un.' },
+            ].map((opt) => (
+              <button
+                key={opt.id} type="button" onClick={() => setClientMode(opt.id)}
+                className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${clientMode === opt.id ? 'bg-blue-600/15 border-blue-500' : 'bg-neutral-950 border-white/10 hover:border-white/25'}`}
+              >
+                <span className={`block text-sm font-semibold ${clientMode === opt.id ? 'text-blue-300' : 'text-white'}`}>{opt.label}</span>
+                <span className="block text-[11px] leading-snug text-neutral-500 mt-0.5">{opt.hint}</span>
+              </button>
+            ))}
           </div>
 
           {clientMode === 'custom' && (

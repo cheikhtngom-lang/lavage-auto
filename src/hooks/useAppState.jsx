@@ -336,6 +336,7 @@ export function AppStateProvider({ children }) {
         setSentAnnouncements((data || []).map((row) => ({
             id: row.id, title: row.title, message: row.message, createdAt: row.created_at,
             active: row.active !== false, targetClientIds: row.target_client_ids || [],
+            audience: row.audience || 'all',
         })));
     }, [stationId]);
     const retireStationAnnouncement = async (id) => {

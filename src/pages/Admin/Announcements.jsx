@@ -15,7 +15,7 @@ export default function Announcements() {
         <h1 className="text-3xl font-bold text-white flex items-center gap-3">
           <Send className="w-8 h-8 text-blue-400" /> Annonces
         </h1>
-        <p className="text-neutral-400 mt-2">Diffusez un message à vos clients — tous, ou une sélection précise.</p>
+        <p className="text-neutral-400 mt-2">Diffusez un message à vos clients — tous ceux qui ont réservé chez vous, vos abonnés seulement, ou une sélection précise.</p>
       </div>
 
       <div className="glass-card rounded-2xl p-6">
