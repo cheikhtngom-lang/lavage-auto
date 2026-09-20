@@ -76,6 +76,22 @@ export function buildMonthBucketsForYear(year) {
   });
 }
 
+// Un mois par ligne, de janvier de `fromYear` jusqu'au mois en cours inclus —
+// la vue « Tous » (toutes périodes) du filtre de recette Super Admin.
+export function buildMonthBucketsFromYear(fromYear) {
+  const now = new Date();
+  const buckets = [];
+  for (let y = fromYear; y <= now.getFullYear(); y++) {
+    const lastMonth = y === now.getFullYear() ? now.getMonth() : 11;
+    for (let m = 0; m <= lastMonth; m++) {
+      const start = new Date(y, m, 1, 0, 0, 0, 0);
+      const label = start.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' });
+      buckets.push({ start, end: new Date(y, m + 1, 1, 0, 0, 0, 0), label });
+    }
+  }
+  return buckets;
+}
+
 // Une ligne par année civile, de `fromYear` à l'année en cours incluse —
 // contrairement à buildBuckets('annee'), qui montre toujours exactement 5 ans
 // glissants (même quand la plateforme n'existait pas encore sur une partie de
