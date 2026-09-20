@@ -6,7 +6,9 @@ import {
 } from 'lucide-react';
 import { useGroup } from '../../components/layout/GroupLayout';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { AreaChart, Donut, Legend, Bars, VerticalBars, CHART_COLORS } from '../../components/ui/charts';
+import { motion } from 'framer-motion';
+import { AreaChart, BarChart, ColumnChart, Donut, Legend, Bars, VerticalBars, Sparkline, CHART_COLORS } from '../../components/ui/charts';
+import AnimatedCounter from '../../components/ui/AnimatedCounter';
 import { fcfa, fcfaCompact, pct, DOW_FR_SHORT } from '../../lib/bilan';
 import { openStation } from '../../lib/groups';
 import {
@@ -159,13 +161,28 @@ export default function Dashboard() {
   const noStation = data && (data.stations || []).length === 0;
   const chips = 'px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors';
 
+  const kpiSpark = {
+    revenue: (data?.trend || []).map((t) => num(t.revenue)),
+    washes: (data?.trend || []).map((t) => num(t.washes)),
+    expenses: (data?.trend || []).map((t) => num(t.expenses)),
+    net: (data?.trend || []).map((t) => num(t.revenue) - num(t.expenses)),
+    ticket: (data?.trend || []).map((t) => (num(t.washes) > 0 ? num(t.revenue) / num(t.washes) : 0)),
+  };
   const kpis = [
-    { label: "Chiffre d'affaires", value: fcfa(cur.revenue), icon: Banknote, tint: 'text-emerald-400', bg: 'bg-emerald-500/10', d: deltas.revenue },
-    { label: 'Lavages', value: String(cur.washes), icon: Droplets, tint: 'text-blue-400', bg: 'bg-blue-500/10', d: deltas.washes },
-    { label: 'Panier moyen', value: fcfa(cur.avgTicket), icon: Receipt, tint: 'text-purple-400', bg: 'bg-purple-500/10', d: deltas.avgTicket },
-    { label: 'Dépenses', value: fcfa(cur.expenses), icon: Wallet, tint: 'text-amber-400', bg: 'bg-amber-500/10', d: deltas.expenses, invert: true },
-    { label: 'Résultat net', value: fcfa(cur.net), sub: cur.margin != null ? `marge ${pct(cur.margin)}` : null, icon: PieChart, tint: cur.net >= 0 ? 'text-teal-400' : 'text-red-400', bg: 'bg-teal-500/10', d: deltas.net },
-    { label: 'Note moyenne', value: cur.rating != null ? `${cur.rating.toFixed(1)} / 5` : '—', sub: cur.reviewCount ? `${cur.reviewCount} avis` : null, icon: Star, tint: 'text-yellow-400', bg: 'bg-yellow-500/10', d: null },
+    { title: "Chiffre d'affaires", value: Math.round(cur.revenue), suffix: ' FCFA', icon: Banknote, color: 'text-emerald-400', bg: 'bg-emerald-500/10', spark: kpiSpark.revenue, sparkColor: '#10b981', d: deltas.revenue,
+      detail: `Somme des encaissements de la période sur les stations sélectionnées. Période précédente : ${fcfa(prev.revenue)}.` },
+    { title: 'Lavages', value: cur.washes, icon: Droplets, color: 'text-blue-400', bg: 'bg-blue-500/10', spark: kpiSpark.washes, sparkColor: '#3b82f6', d: deltas.washes,
+      detail: `Véhicules lavés (lavages terminés) sur la période. Période précédente : ${prev.washes}.` },
+    { title: 'Panier moyen', value: Math.round(cur.avgTicket), suffix: ' FCFA', icon: Receipt, color: 'text-purple-400', bg: 'bg-purple-500/10', spark: kpiSpark.ticket, sparkColor: '#a855f7', d: deltas.avgTicket,
+      detail: `Montant moyen d'une transaction (chiffre d'affaires ÷ nombre de transactions). Période précédente : ${fcfa(prev.avgTicket)}.` },
+    { title: 'Dépenses', value: Math.round(cur.expenses), suffix: ' FCFA', icon: Wallet, color: 'text-amber-400', bg: 'bg-amber-500/10', spark: kpiSpark.expenses, sparkColor: '#f59e0b', d: deltas.expenses, invert: true,
+      detail: `Dépenses enregistrées par les stations (salaires, produits, charges…). Période précédente : ${fcfa(prev.expenses)}.` },
+    { title: 'Résultat net', value: Math.round(cur.net), suffix: ' FCFA', icon: PieChart, color: cur.net >= 0 ? 'text-teal-400' : 'text-red-400', bg: cur.net >= 0 ? 'bg-teal-500/10' : 'bg-red-500/10', spark: kpiSpark.net, sparkColor: cur.net >= 0 ? '#14b8a6' : '#ef4444', d: deltas.net,
+      sub: cur.margin != null ? `marge ${pct(cur.margin)}` : null,
+      detail: `Chiffre d'affaires moins dépenses${cur.margin != null ? ` (marge nette ${pct(cur.margin)})` : ''}. Période précédente : ${fcfa(prev.net)}.` },
+    { title: 'Note moyenne', value: cur.rating != null ? Math.round(cur.rating * 10) / 10 : 0, decimals: 1, suffix: cur.rating != null ? ' / 5' : '', icon: Star, color: 'text-yellow-400', bg: 'bg-yellow-500/10', spark: null, d: null,
+      sub: cur.reviewCount ? `${cur.reviewCount} avis` : 'aucun avis',
+      detail: 'Moyenne des avis laissés par les clients sur les stations sélectionnées, pondérée par le nombre d’avis.' },
   ];
 
   const trend = (data?.trend || []).map((t) => ({ ...t, label: bucketLabel(t.label, bucket), net: num(t.revenue) - num(t.expenses) }));
@@ -226,19 +243,42 @@ export default function Dashboard() {
 
       {data && !noStation && (
         <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-            {kpis.map((k) => (
-              <div key={k.label} className="glass-card rounded-2xl p-5 border border-white/5 bg-white/[0.02]">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${k.bg}`}><k.icon className={`w-4.5 h-4.5 ${k.tint}`} /></div>
-                  <p className="text-sm text-neutral-400">{k.label}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {kpis.map((stat, index) => (
+              <motion.div
+                key={stat.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1, type: 'spring', stiffness: 100 }}
+              >
+                <div className="glass-card rounded-2xl p-6 relative overflow-hidden group hover:bg-white/[0.04] transition-colors">
+                  <div className={`absolute top-0 right-0 w-32 h-32 ${stat.bg} blur-[50px] opacity-0 group-hover:opacity-100 transition-opacity duration-500`}></div>
+
+                  <div className="flex justify-between items-start mb-6">
+                    <div className={`p-3 rounded-xl ${stat.bg}`}>
+                      <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                    </div>
+                    {stat.spark && stat.spark.some((v) => v !== 0) && <Sparkline values={stat.spark} color={stat.sparkColor} />}
+                  </div>
+
+                  <div>
+                    <p className="text-neutral-400 text-sm font-medium mb-1">{stat.title}</p>
+                    <h3 className="text-2xl xl:text-3xl text-white">
+                      <AnimatedCounter value={stat.value} suffix={stat.suffix} decimals={stat.decimals || 0} />
+                    </h3>
+                    <div className="flex items-center gap-2 mt-2 min-h-[20px]">
+                      {stat.d !== null && stat.d !== undefined && <Delta d={stat.d} invert={stat.invert} />}
+                      {stat.sub && <span className="text-xs text-neutral-500">{stat.sub}</span>}
+                    </div>
+                  </div>
+
+                  {/* Détail au survol — même panneau que les cartes de la Vue d'ensemble de l'administrateur. */}
+                  <div className="absolute inset-0 bg-white rounded-2xl p-6 flex flex-col justify-center opacity-0 invisible translate-y-3 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 shadow-2xl shadow-black/40 z-10">
+                    <h4 className="text-neutral-900 font-bold text-sm mb-1.5">{stat.title}</h4>
+                    <p className="text-neutral-600 text-xs leading-relaxed">{stat.detail}</p>
+                  </div>
                 </div>
-                <p className="text-2xl font-bold text-white">{k.value}</p>
-                <div className="flex items-center gap-2 mt-1 min-h-[20px]">
-                  {k.d !== undefined && <Delta d={k.d} invert={k.invert} />}
-                  {k.sub && <span className="text-xs text-neutral-500">{k.sub}</span>}
-                </div>
-              </div>
+              </motion.div>
             ))}
           </div>
 
@@ -271,6 +311,23 @@ export default function Dashboard() {
           >
             <AreaChart data={trend} series={metricSeries} height={260} formatValue={metric === 'washes' ? (v) => `${v} lavage${v > 1 ? 's' : ''}` : fcfa} formatTick={metric === 'washes' ? undefined : fcfaCompact} integer={metric === 'washes'} emptyWhenZero />
           </Section>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Section title="Chiffre d’affaires par station" subtitle="Cette période comparée à la précédente">
+              <BarChart
+                groups={stations.map((st) => ({ label: shortName(st.name), values: { cur: st.revenue, prev: num(st.prev_revenue) } }))}
+                series={[{ key: 'cur', label: 'Cette période', color: '#10b981' }, { key: 'prev', label: 'Période précédente', color: '#525252' }]}
+                height={240} formatValue={fcfa} formatTick={fcfaCompact} minColWidth={72}
+              />
+            </Section>
+            <Section title="Résultat par station" subtitle="Chiffre d’affaires moins dépenses — en rouge, la station perd de l’argent">
+              <BarChart
+                groups={stations.map((st) => ({ label: shortName(st.name), color: st.net < 0 ? '#ef4444' : '#14b8a6', values: { value: st.net } }))}
+                series={[{ key: 'value', label: 'Résultat', color: '#14b8a6' }]}
+                height={240} formatValue={fcfa} formatTick={fcfaCompact} minColWidth={72}
+              />
+            </Section>
+          </div>
 
           <Section title="Classement des stations" subtitle="Cliquez sur un en-tête pour trier — la station la moins rentable se repère en un coup d’œil">
             <div className="overflow-x-auto -mx-2">
@@ -349,7 +406,7 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Section title="Lavages par jour de la semaine" subtitle="Toutes stations confondues">
-              <Bars data={dowData} color="#06b6d4" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
+              <ColumnChart points={dowData} color="#06b6d4" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
             </Section>
             <Section title="Heures d’affluence" subtitle="Démarrages de lavage, par heure">
               <VerticalBars data={hourData} color="#06b6d4" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
@@ -372,3 +429,4 @@ export default function Dashboard() {
 }
 
 function num(v) { return Number.isFinite(+v) ? +v : 0; }
+function shortName(name) { const n = String(name || ''); return n.length > 16 ? `${n.slice(0, 15)}…` : n; }

@@ -93,6 +93,11 @@ function roundedTop(x, y, w, h, r) {
   return `M ${x} ${y + h} L ${x} ${y + rr} Q ${x} ${y} ${x + rr} ${y} L ${x + w - rr} ${y} Q ${x + w} ${y} ${x + w} ${y + rr} L ${x + w} ${y + h} Z`;
 }
 
+function roundedBottom(x, y, w, h, r) {
+  const rr = Math.max(0, Math.min(r, w / 2, h));
+  return `M ${x} ${y} L ${x} ${y + h - rr} Q ${x} ${y + h} ${x + rr} ${y + h} L ${x + w - rr} ${y + h} Q ${x + w} ${y + h} ${x + w} ${y + h - rr} L ${x + w} ${y} Z`;
+}
+
 // ─── Infobulle animée (commune à tous les graphiques cartésiens) ─────
 function ChartTooltip({ x, y = 6, containerWidth, title, rows }) {
   const flip = x > containerWidth * 0.58;
@@ -273,13 +278,15 @@ export function BarChart({
   const totalW = Math.max(containerW, n * minColWidth + pad.l + pad.r);
   const plotW = totalW - pad.l - pad.r;
   const plotH = Math.max(10, height - pad.t - pad.b);
-  const values = list.flatMap((g) => series.map((s) => Math.abs(Number(g.values?.[s.key]) || 0)));
-  const scale = niceScale(0, Math.max(0, ...values), { integer });
+  const values = list.flatMap((g) => series.map((s) => Number(g.values?.[s.key]) || 0));
+  const scale = niceScale(Math.min(0, ...values), Math.max(0, ...values), { integer });
   const groupW = plotW / n;
   const k = series.length;
   const gap = 4;
   const bw = Math.max(3, Math.min(k > 1 ? 26 : 36, (groupW * 0.72 - gap * (k - 1)) / k));
-  const yOf = (v) => pad.t + plotH * (1 - v / (scale.max || 1));
+  const span = (scale.max - scale.min) || 1;
+  const yOf = (v) => pad.t + plotH * (1 - (v - scale.min) / span);
+  const y0 = yOf(0);
 
   const onMove = (e) => {
     const el = innerRef.current;
@@ -321,6 +328,8 @@ export function BarChart({
             );
           })}
 
+          {scale.min < 0 && <line x1={pad.l} x2={totalW - pad.r} y1={y0} y2={y0} stroke="rgba(255,255,255,0.28)" />}
+
           {active != null && (
             <rect x={pad.l + active * groupW + 2} y={pad.t} width={Math.max(0, groupW - 4)} height={plotH} rx="8" fill="rgba(255,255,255,0.045)" />
           )}
@@ -331,18 +340,19 @@ export function BarChart({
             return (
               <g key={`${g.label}-${i}`} opacity={active == null || active === i ? 1 : 0.5} style={{ transition: 'opacity 0.15s' }}>
                 {series.map((s, j) => {
-                  const v = Math.abs(Number(g.values?.[s.key]) || 0);
-                  const h = (v / (scale.max || 1)) * plotH;
+                  const raw = Number(g.values?.[s.key]) || 0;
+                  const h = (Math.abs(raw) / span) * plotH;
                   if (h < 0.5) return null;
                   const useSolid = k === 1 && g.color;
+                  const bx = startX + j * (bw + gap);
                   return (
                     <motion.path
                       key={s.key}
-                      d={roundedTop(startX + j * (bw + gap), pad.t + plotH - h, bw, h, 6)}
+                      d={raw >= 0 ? roundedTop(bx, y0 - h, bw, h, 6) : roundedBottom(bx, y0, bw, h, 6)}
                       fill={useSolid ? g.color : `url(#${uid}-b${j})`}
                       initial={{ scaleY: 0 }} animate={{ scaleY: 1 }}
                       transition={{ duration: 0.6, delay: 0.05 + i * 0.025, ease: 'easeOut' }}
-                      style={{ transformBox: 'fill-box', transformOrigin: 'bottom' }}
+                      style={{ transformBox: 'fill-box', transformOrigin: raw >= 0 ? 'bottom' : 'top' }}
                     />
                   );
                 })}
@@ -359,7 +369,7 @@ export function BarChart({
             x={pad.l + active * groupW + groupW / 2}
             containerWidth={totalW}
             title={list[active].label}
-            rows={series.map((s) => ({ key: s.key, label: s.label, color: (k === 1 && list[active].color) || s.color, value: formatValue(Math.abs(Number(list[active].values?.[s.key]) || 0), s.key) }))}
+            rows={series.map((s) => ({ key: s.key, label: s.label, color: (k === 1 && list[active].color) || s.color, value: formatValue(Number(list[active].values?.[s.key]) || 0, s.key) }))}
           />
         )}
       </div>
