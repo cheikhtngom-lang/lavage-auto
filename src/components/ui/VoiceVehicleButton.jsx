@@ -25,13 +25,15 @@ const ERROR_MESSAGES = {
 
 const categoryLabel = (value) => VEHICLE_CATEGORIES.find((c) => c.value === value)?.label || value;
 
-export default function VoiceVehicleButton({ currentCategory = '', hasBrand = false, onResult }) {
+// `withName` (formulaire station) : la phrase suit l'ordre de la fenêtre —
+// plaque, nom du client, marque — et `onResult` reçoit aussi `name`.
+export default function VoiceVehicleButton({ currentCategory = '', hasBrand = false, withName = false, onResult }) {
   const [listening, setListening] = useState(false);
   const [feedback, setFeedback] = useState(null); // { tone: 'ok' | 'warn', text }
   const recognitionRef = useRef(null);
   // Les callbacks du micro vivent plus longtemps qu'un rendu : on lit toujours les dernières props.
-  const latest = useRef({ currentCategory, hasBrand, onResult });
-  latest.current = { currentCategory, hasBrand, onResult };
+  const latest = useRef({ currentCategory, hasBrand, withName, onResult });
+  latest.current = { currentCategory, hasBrand, withName, onResult };
 
   useEffect(() => () => recognitionRef.current?.abort(), []);
 
@@ -39,16 +41,22 @@ export default function VoiceVehicleButton({ currentCategory = '', hasBrand = fa
     return <p className="text-xs text-neutral-500">Dictée vocale indisponible sur ce navigateur — essayez Chrome ou Safari.</p>;
   }
 
+  const example = withName ? '« A A 1 8 9 D S, Moussa Diop, Toyota »' : '« Toyota, A A 1 8 9 D S »';
+
   const handleTranscripts = (alternatives) => {
-    const { currentCategory: category, hasBrand: brandAlreadySet, onResult: notify } = latest.current;
+    const { currentCategory: category, hasBrand: brandAlreadySet, withName: nameWanted, onResult: notify } = latest.current;
     const brandsByCategory = Object.fromEntries(VEHICLE_CATEGORIES.map((c) => [c.value, getBrandsForCategory(c.value)]));
-    const result = parseVehicleSpeech(alternatives, { brandsByCategory, currentCategory: category });
-    if (!result.category && !result.brand && !result.plate && !result.noPlate) {
-      setFeedback({ tone: 'warn', text: `Je n'ai pas compris « ${result.heard} ». Dites par exemple : « Toyota, A A 1 8 9 D S ».` });
+    const result = parseVehicleSpeech(alternatives, { brandsByCategory, currentCategory: category, withName: nameWanted });
+    if (!result.category && !result.brand && !result.plate && !result.noPlate && !result.name) {
+      setFeedback({ tone: 'warn', text: `Je n'ai pas compris « ${result.heard} ». Dites par exemple : ${example}.` });
       return;
     }
     notify(result);
-    const captured = [result.category && categoryLabel(result.category), result.brand, result.noPlate ? NO_PLATE_LABEL : result.plate].filter(Boolean).join(' · ');
+    const plateText = result.noPlate ? NO_PLATE_LABEL : result.plate;
+    const captured = (nameWanted
+      ? [plateText, result.name, result.brand, result.category && categoryLabel(result.category)]
+      : [result.category && categoryLabel(result.category), result.brand, plateText]
+    ).filter(Boolean).join(' · ');
     const missing = [];
     if (!result.brand && !brandAlreadySet) missing.push('marque non reconnue (choisissez-la dans la liste)');
     if (!result.plate && !result.noPlate) missing.push("immatriculation non comprise (dites « sans plaque » s'il n'y en a pas)");
@@ -106,7 +114,9 @@ export default function VoiceVehicleButton({ currentCategory = '', hasBrand = fa
         aria-live="polite"
         className={`text-xs mt-1.5 ${feedback ? (feedback.tone === 'ok' ? 'text-emerald-400' : 'text-amber-400') : 'text-neutral-500'}`}
       >
-        {feedback ? feedback.text : 'Dites la marque et l\'immatriculation, ex. « Toyota, A A 1 8 9 D S » — ou « Toyota, sans plaque ». Vous pouvez aussi préciser le type : moto, camion, bus…'}
+        {feedback ? feedback.text : (withName
+          ? 'Dites dans l\'ordre de la fenêtre : la plaque, le nom du client, puis la marque — ex. « A A 1 8 9 D S, Moussa Diop, Toyota » (ou « sans plaque »). Vous pouvez aussi préciser le type : moto, camion, bus…'
+          : 'Dites la marque et l\'immatriculation, ex. « Toyota, A A 1 8 9 D S » — ou « Toyota, sans plaque ». Vous pouvez aussi préciser le type : moto, camion, bus…')}
       </p>
     </div>
   );

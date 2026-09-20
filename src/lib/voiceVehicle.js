@@ -105,34 +105,71 @@ const NO_PLATE_PHRASES = [
 
 const isNumeric = (t) => !!t && (/^\d+$/.test(t.norm) || t.norm in DIGIT_WORDS);
 
-function plateCharsFrom(seq) {
-  let out = '';
-  seq.forEach((t, i) => {
-    if (/^\d+$/.test(t.norm)) { out += t.norm; return; }
-    if (t.norm in DIGIT_WORDS) { out += DIGIT_WORDS[t.norm]; return; }
-    if (t.orig in ACCENT_LETTERS) { out += ACCENT_LETTERS[t.orig]; return; }
-    if (t.norm in LETTER_ALIASES) { out += LETTER_ALIASES[t.norm]; return; }
-    if (FILLER.has(t.norm)) { if (isNumeric(seq[i - 1])) out += t.norm; return; }
-    if (/^[a-z]{1,3}$/.test(t.norm)) { out += t.norm; return; }          // A, AA, DK, DS…
-    if (/^[a-z0-9]+$/.test(t.norm) && /\d/.test(t.norm)) out += t.norm; // aa189ds, 189ds…
-    // Le reste (« matricule », « tiret », un nom de modèle…) est du bruit.
+// Caractères de plaque apportés par chaque mot ('' pour un mot qui n'en est pas).
+function plateCharsPerToken(seq) {
+  return seq.map((t, i) => {
+    if (/^\d+$/.test(t.norm)) return t.norm;
+    if (t.norm in DIGIT_WORDS) return DIGIT_WORDS[t.norm];
+    if (t.orig in ACCENT_LETTERS) return ACCENT_LETTERS[t.orig];
+    if (t.norm in LETTER_ALIASES) return LETTER_ALIASES[t.norm];
+    if (FILLER.has(t.norm)) return isNumeric(seq[i - 1]) ? t.norm.toUpperCase() : '';
+    if (/^[a-z]{1,3}$/.test(t.norm)) return t.norm.toUpperCase();          // A, AA, DK, DS…
+    if (/^[a-z0-9]+$/.test(t.norm) && /\d/.test(t.norm)) return t.norm.toUpperCase(); // aa189ds, 189ds…
+    return ''; // « matricule », « tiret », un nom de modèle… : du bruit.
   });
-  return out.toUpperCase();
 }
 
 // Extrait la plaque du bruit restant. Format sénégalais standard d'abord
 // (2 lettres, 3-4 chiffres, 2 lettres : AA-900-DK), puis un format plus large,
 // pour ignorer un modèle collé devant (« Peugeot 208 » -> "208AA189DS").
+// Marque `used`/`plate` les mots qui forment la plaque : ce qui reste après est
+// disponible pour le nom du client (voir extractName).
 function extractPlate(seq) {
   const afterMarker = seq.slice(seq.findIndex((t) => PLATE_MARKERS.has(t.norm)) + 1);
   const hasMarker = afterMarker.length < seq.length;
   for (const candidate of hasMarker ? [afterMarker, seq] : [seq]) {
-    const chars = plateCharsFrom(candidate);
+    const parts = plateCharsPerToken(candidate);
+    const chars = parts.join('');
     if (!/\d/.test(chars)) continue;
     const strict = chars.match(/[A-Z]{2}\d{3,4}[A-Z]{2}/) || chars.match(/[A-Z]{1,3}\d{1,5}[A-Z]{1,3}/);
-    return { plate: formatPlate(strict ? strict[0] : chars), complete: !!strict };
+    const from = strict ? strict.index : 0;
+    const to = strict ? strict.index + strict[0].length : chars.length;
+    let offset = 0;
+    candidate.forEach((t, i) => {
+      if (parts[i] && offset < to && offset + parts[i].length > from) { t.used = true; t.plate = true; }
+      offset += parts[i].length;
+    });
+    return { plate: formatPlate(chars.slice(from, to)), complete: !!strict };
   }
   return { plate: '', complete: false };
+}
+
+// ── Nom du client (formulaire station) ──────────────────────────────────
+// Ordre de la fenêtre « Ajouter un véhicule » : plaque, nom, marque. Le nom est
+// donc ce qui reste entre la plaque et la marque ; à défaut (phrase dans un
+// autre ordre), ce qui précède la plaque. Les mots APRÈS la marque (« Toyota
+// Yaris ») sont un modèle, pas un nom.
+const NAME_STOPWORDS = new Set([
+  ...PLATE_MARKERS, 'marque', 'nom', 'client', 'cliente', 'tiret', 'monsieur', 'madame', 'mademoiselle',
+  'mr', 'mme', 'avec', 'pour', 'voiture', 'vehicule', 'type', 'appelle', 'appele',
+  'bonjour', 'salut', 'alors', 'voici', 'voila', 'donc', 'euh', 'oui', 'merci', 'svp',
+]);
+const MAX_NAME_WORDS = 4;
+
+const titleCase = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+
+function extractName(tokens, brandStart) {
+  const plateIdx = tokens.flatMap((t, i) => (t.plate ? [i] : []));
+  const plateStart = plateIdx.length ? plateIdx[0] : -1;
+  const plateEnd = plateIdx.length ? plateIdx[plateIdx.length - 1] : -1;
+  const isNameWord = (t, i) => !t.used && /^\p{L}{2,}$/u.test(t.orig)
+    && !NAME_STOPWORDS.has(t.norm) && !FILLER.has(t.norm) && !(t.norm in DIGIT_WORDS)
+    && (brandStart < 0 || i < brandStart);
+  const words = tokens.filter(isNameWord);
+  const at = (t) => tokens.indexOf(t);
+  const betweenPlateAndBrand = words.filter((t) => at(t) > plateEnd);
+  const chosen = betweenPlateAndBrand.length ? betweenPlateAndBrand : words.filter((t) => at(t) < plateStart);
+  return chosen.slice(0, MAX_NAME_WORDS).map((t) => titleCase(t.orig)).join(' ');
 }
 
 // ── Analyse complète ────────────────────────────────────────────────────
@@ -180,14 +217,15 @@ function findBrand(tokens, entries, preferredCategory) {
   }
   if (!best) return null;
   for (let k = 0; k < best.n; k++) tokens[best.start + k].used = true;
-  return best.entry;
+  return { entry: best.entry, start: best.start };
 }
 
-function parseOne(transcript, { entries, currentCategory }) {
+function parseOne(transcript, { entries, currentCategory, withName }) {
   const tokens = tokenize(transcript);
   const noPlate = findNoPlate(tokens);
   const spokenCategory = findCategory(tokens);
-  const brandEntry = findBrand(tokens, entries, spokenCategory || currentCategory);
+  const brandMatch = findBrand(tokens, entries, spokenCategory || currentCategory);
+  const brandEntry = brandMatch ? brandMatch.entry : null;
   // « Sans plaque » l'emporte sur d'éventuels chiffres restants (un modèle, une année…).
   const { plate, complete } = noPlate ? { plate: '', complete: false } : extractPlate(tokens.filter((t) => !t.used));
 
@@ -196,7 +234,9 @@ function parseOne(transcript, { entries, currentCategory }) {
     category = CATEGORY_PREFERENCE.find((c) => brandEntry.cats.has(c)) || [...brandEntry.cats][0] || '';
   }
   const score = (brandEntry ? 2 : 0) + (plate ? 1 : 0) + (complete || noPlate ? 2 : 0) + (spokenCategory ? 1 : 0);
-  return { category, brand: brandEntry ? brandEntry.name : '', plate, noPlate, heard: transcript, score };
+  const result = { category, brand: brandEntry ? brandEntry.name : '', plate, noPlate, heard: transcript, score };
+  if (withName) result.name = extractName(tokens, brandMatch ? brandMatch.start : -1);
+  return result;
 }
 
 // `alternatives` : les hypothèses de la reconnaissance vocale (la meilleure
@@ -204,17 +244,19 @@ function parseOne(transcript, { entries, currentCategory }) {
 // marque mal entendue étant fréquente.
 // `brandsByCategory` : { [valeur de catégorie]: string[] }.
 // `currentCategory` : type déjà choisi dans le formulaire ('' si aucun).
-// Retourne { category, brand, plate, heard } — `category` n'est renseigné que
-// s'il faut CHANGER le type courant ; une valeur vide = ne rien modifier.
-export function parseVehicleSpeech(alternatives, { brandsByCategory, currentCategory = '' }) {
+// `withName` : formulaire station — extrait aussi le nom du client, dit entre la
+// plaque et la marque (« AA 189 DS, Moussa Diop, Toyota »).
+// Retourne { category, brand, plate, noPlate, heard[, name] } — `category` n'est
+// renseigné que s'il faut CHANGER le type courant ; une valeur vide = ne rien modifier.
+export function parseVehicleSpeech(alternatives, { brandsByCategory, currentCategory = '', withName = false }) {
   const entries = buildBrandEntries(brandsByCategory);
   const list = (Array.isArray(alternatives) ? alternatives : [alternatives]).filter(Boolean);
   let best = null;
   for (const text of list) {
-    const parsed = parseOne(text, { entries, currentCategory });
+    const parsed = parseOne(text, { entries, currentCategory, withName });
     if (!best || parsed.score > best.score) best = parsed;
   }
-  if (!best) return { category: '', brand: '', plate: '', noPlate: false, heard: '' };
+  if (!best) return { category: '', brand: '', plate: '', noPlate: false, heard: '', ...(withName ? { name: '' } : {}) };
   const { score, ...result } = best;
   return result;
 }

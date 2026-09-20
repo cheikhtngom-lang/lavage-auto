@@ -293,9 +293,10 @@ export default function StationDashboard() {
   // (voir lib/stationData.js findVehicleOwnerByPlate) — 'idle' | 'checking' | 'found' | 'not_found'.
   const [plateLookupStatus, setPlateLookupStatus] = React.useState('idle');
 
-  // `spoken` : véhicule/catégorie dictés à voix haute — prioritaires sur ceux du
-  // compte retrouvé (on a dit "Toyota", on ne veut pas qu'un autre véhicule du
-  // garage du client écrase ce choix).
+  // `spoken` : nom/véhicule/catégorie dictés à voix haute — prioritaires sur ceux
+  // du compte retrouvé (on a dit "Toyota", on ne veut pas qu'un autre véhicule du
+  // garage du client écrase ce choix ; à la saisie manuelle aussi, le nom tapé
+  // après la plaque l'emporte). La réservation reste liée au compte (clientId).
   const lookupPlate = async (plate, spoken = {}) => {
     if (!plate) { setPlateLookupStatus('idle'); setNewWash((w) => ({ ...w, clientId: null })); return; }
     setPlateLookupStatus('checking');
@@ -307,7 +308,7 @@ export default function StationDashboard() {
       // de l'utiliser ici, sinon pricingConfig[cat] ne trouve rien et
       // l'encaissement facture un montant incorrect (ou 0).
       setNewWash((w) => ({
-        ...w, client: match.ownerName,
+        ...w, client: spoken.client || match.ownerName,
         category: spoken.category || (match.category ? getPricingCategory(match.category) : w.category),
         vehicle: spoken.vehicle || match.brand || w.vehicle,
         clientId: match.ownerId,
@@ -323,7 +324,7 @@ export default function StationDashboard() {
 
   // Remplissage à la voix (VoiceVehicleButton) : marque/type + plaque, puis la
   // même reconnaissance de client par plaque qu'à la saisie manuelle.
-  const handleVoiceVehicle = ({ category, brand, plate, noPlate, heard }) => {
+  const handleVoiceVehicle = ({ category, brand, plate, noPlate, name, heard }) => {
     const knownTypes = [...DEFAULT_VEHICLE_TYPES.map((t) => t.value), ...(customVehicleTypes || [])];
     let vehicle = '';
     if (brand) {
@@ -336,13 +337,14 @@ export default function StationDashboard() {
     const pricingCategory = category ? getPricingCategory(category) : (vehicle ? guessPricingCategory(vehicle) : null);
     setNewWash((w) => ({
       ...w,
+      ...(name ? { client: name } : {}),
       ...(vehicle ? { vehicle } : {}),
       ...(pricingCategory ? { category: pricingCategory, service: pricingCategory === 'Moto' ? 'Lavage Complet' : w.service } : {}),
       // « sans plaque » : on vide le champ, ce qui défait aussi un client reconnu par une plaque précédente.
       ...(noPlate ? { plate: '', clientId: null } : plate ? { plate } : {}),
     }));
     if (noPlate) setPlateLookupStatus('idle');
-    else if (plate) lookupPlate(plate, { vehicle, category: pricingCategory });
+    else if (plate) lookupPlate(plate, { client: name, vehicle, category: pricingCategory });
   };
 
   // Modal sélection laveur
@@ -1138,7 +1140,7 @@ export default function StationDashboard() {
               <h2 className="text-2xl font-bold text-white mb-6">Ajouter un véhicule</h2>
               
               <form onSubmit={handleAddWash} className="space-y-4">
-                <VoiceVehicleButton onResult={handleVoiceVehicle} hasBrand={!!newWash.vehicle} />
+                <VoiceVehicleButton withName onResult={handleVoiceVehicle} hasBrand={!!newWash.vehicle} />
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1">Plaque d'immatriculation (Optionnel — « Sans plaque » sera inscrit si vide)</label>
                   <input
