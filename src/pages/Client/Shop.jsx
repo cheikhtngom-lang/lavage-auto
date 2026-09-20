@@ -179,7 +179,7 @@ export default function Shop() {
                       const outOfStock = p.stock === 0;
                       return (
                         <div key={p.id} className={`glass-card rounded-2xl overflow-hidden border border-white/5 flex flex-col ${outOfStock ? 'opacity-60' : ''}`}>
-                          <div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden relative">
+                          <div className="aspect-square bg-neutral-900 flex items-center justify-center overflow-hidden relative">
                             {p.image_url
                               ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                               : <Store className="w-10 h-10 text-neutral-700" />}

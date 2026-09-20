@@ -47,9 +47,61 @@ Realtime à `shop_products` : stock et promos se mettent à jour en direct.
   `client_knows_station(sid)` dans la policy SELECT. Seuls les produits
   `active = true` d'une station qui a une boutique sont visibles.
 
+## Historique des produits (onglet « Historique »)
+
+Journal, par station, de la vie de chaque produit : **mis en ligne**, **retiré de
+la vente**, **fin de stock**, **réapprovisionné**, **supprimé** — plus l'état des
+lieux (en ligne / en rupture / masqués) et la liste des produits actuellement
+en rupture avec la date d'épuisement.
+
+- Table `shop_product_events` (`add_shop_history.sql`), alimentée par un
+  **trigger Postgres** sur `shop_products` — pas par le navigateur : un achat en
+  ligne réduit le stock depuis l'Edge Function (`service_role`), la rupture qui
+  en résulte doit apparaître aussi. Le nom du produit est copié dans l'événement
+  (le produit peut être supprimé, l'historique reste lisible).
+- Lecture seule pour la station (RLS `current_station_id()`) et le Super Admin ;
+  aucune policy d'écriture, l'historique n'est pas modifiable.
+- Au premier lancement, le point de départ des produits existants est
+  reconstitué (`backfilled = true`, dates approximatives : création / dernière
+  modification). Les événements suivants sont exacts.
+
+## Photo studio (caméra + détourage)
+
+Dans le formulaire produit : **Prendre une photo** (caméra intégrée, cadre de
+visée carré) ou **Choisir une image**, puis passage automatique par le studio :
+le produit est détouré et posé sur un fond propre (Blanc studio, Gris doux, Noir
+premium, Bleu Clean Car) avec ombre de contact et léger reflet ; lumière,
+couleurs et netteté sont retouchées. Le studio est aussi proposé sur une photo
+déjà enregistrée (« Passer en style studio »). On peut toujours garder la photo
+d'origine (compressée). Format final : JPEG carré 1000×1000.
+
+- **Aperçu avant publication** : l'écran studio montre le résultat (avec « maintenir :
+  voir l'original ») avant de l'utiliser, puis le formulaire produit affiche une
+  carte « Aperçu — tel que vos clients le verront » (photo, nom, prix, promo,
+  stock), mise à jour en direct, identique à la carte de la boutique client.
+- **Tout se passe dans le navigateur** : aucun service payant, aucune clé d'API,
+  la photo ne quitte pas l'appareil. Réseau IS-Net (DIS, Apache-2.0), export
+  ONNX quantifié « poids seulement » de 42 Mo (`xrds/isnet-general-onnx-int8`,
+  MIT, révision figée dans `src/lib/studioWorker.js`) exécuté par
+  `onnxruntime-web` (MIT) dans un Web Worker.
+- Le modèle est téléchargé **une seule fois** (Cache Storage du navigateur) depuis
+  Hugging Face. Pour ne plus dépendre d'un tiers : l'héberger chez soi et
+  changer `MODEL_URL`. Le moteur WASM (14 Mo) est servi par l'app elle-même et
+  chargé uniquement à l'ouverture du studio.
+- **Vitesse** : 1 seul thread (le multi-thread exige l'isolation cross-origin
+  COOP/COEP, incompatible avec Google Analytics/cartes) — de l'ordre de 5 à
+  15 s sur un ordinateur, davantage sur un téléphone d'entrée de gamme. Pistes :
+  WebGPU (Chrome récent, non livré car non testable ici) ou une API de détourage
+  serveur (PhotoRoom / remove.bg : payantes, à brancher via une Edge Function).
+- `vercel.json` : `Permissions-Policy: camera=(self)` (la caméra était bloquée).
+- Fichiers : `lib/studioPhoto.js` (détourage, retouche, mise en scène),
+  `lib/studioWorker.js`, `components/ui/CameraCapture.jsx`,
+  `components/ui/StudioPhotoModal.jsx`, `components/ui/ShopHistory.jsx`.
+
 ## Mise en place
 
-1. Exécuter `add_station_shop.sql` dans l'éditeur SQL Supabase.
+1. Exécuter `add_station_shop.sql` dans l'éditeur SQL Supabase, puis
+   `add_shop_history.sql` (historique — idempotent).
 2. (Optionnel) Pour ouvrir la boutique à une station non-Business : Super
    Admin → Modules → activer « Boutique » pour cette station.
 3. Rien à déployer côté serveur (pas d'Edge Function). Le front suffit.

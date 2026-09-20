@@ -17,9 +17,6 @@ export const SHOP_CATEGORIES = [
   'Autre',
 ];
 
-// Même limite que le logo station / l'image de pub (voir lib/ads.js).
-export const MAX_SHOP_IMAGE_SIZE = 1.5 * 1024 * 1024; // 1,5 Mo
-
 // La station a-t-elle droit à une boutique ? (plan Pro ou Business, ou module
 // mod_boutique) — le vrai contrôle est côté Postgres (station_has_shop +
 // policies RLS) ; ceci sert à l'affichage.
@@ -87,6 +84,28 @@ export async function adjustStock(id, delta) {
 export async function deleteProduct(id) {
   const { error } = await supabase.from('shop_products').delete().eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+// ─── Historique (add_shop_history.sql) ──────────────────────────────────
+// Événements de vie des produits, écrits par un trigger Postgres (donc aussi
+// pour les ruptures causées par un achat en ligne) : lecture seule ici.
+export const HISTORY_EVENTS = {
+  mis_en_ligne: { label: 'Mis en ligne', tone: 'emerald' },
+  retire: { label: 'Retiré de la vente', tone: 'amber' },
+  fin_de_stock: { label: 'Fin de stock', tone: 'red' },
+  reapprovisionne: { label: 'Réapprovisionné', tone: 'blue' },
+  supprime: { label: 'Supprimé', tone: 'neutral' },
+};
+
+export async function loadShopHistory(stationId, limit = 1000) {
+  const { data, error } = await supabase
+    .from('shop_product_events')
+    .select('id, product_id, product_name, category, event_type, stock_after, price, backfilled, created_at')
+    .eq('station_id', stationId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return data || [];
 }
 
 // ─── Côté client (automobiliste) ────────────────────────────────────--

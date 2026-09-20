@@ -57,6 +57,9 @@ export default defineConfig({
   define: { __BUILD_VERSION__: JSON.stringify(BUILD_VERSION) },
   base: '/',           // URLs absolues pour le déploiement web
   publicDir: 'public', // Dossier des fichiers statiques (sitemap.xml, robots.txt)
+  // Détourage des photos produit (src/lib/studioWorker.js) : worker en module ES,
+  // requis pour qu'il importe onnxruntime-web (code splitting).
+  worker: { format: 'es' },
   build: {
     rollupOptions: {
       input: {

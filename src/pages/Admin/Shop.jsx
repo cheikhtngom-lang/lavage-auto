@@ -1,15 +1,22 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search, Minus, Tag, ClipboardList, CheckCircle2, XCircle, Truck, MapPin } from 'lucide-react';
+import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search, Minus, Tag, ClipboardList, CheckCircle2, XCircle, Truck, MapPin, History, Camera, Sparkles } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import ShopHistory from '../../components/ui/ShopHistory';
+import CameraCapture from '../../components/ui/CameraCapture';
+import StudioPhotoModal from '../../components/ui/StudioPhotoModal';
 import { useAppState } from '../../hooks/useAppState';
 import { getCurrentStationId } from '../../lib/accounts';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import {
-  SHOP_CATEGORIES, MAX_SHOP_IMAGE_SIZE, stationHasShop, productPricing, promoStatus,
+  SHOP_CATEGORIES, stationHasShop, productPricing, promoStatus,
   loadStationProducts, saveProduct, setProductActive, deleteProduct, adjustStock,
 } from '../../lib/shop';
+
+// Photo brute acceptée en entrée : elle est redimensionnée/compressée avant
+// enregistrement (voir lib/studioPhoto.js), donc pas de limite de 1,5 Mo ici.
+const MAX_SOURCE_PHOTO_SIZE = 25 * 1024 * 1024;
 
 const emptyForm = {
   id: null, name: '', description: '', category: 'Pneus', price: '', stock: '',
@@ -41,7 +48,7 @@ export default function Shop() {
   const stationId = getCurrentStationId();
   const canShop = stationHasShop(stationBilling);
 
-  const [view, setView] = useState('produits'); // 'produits' | 'commandes'
+  const [view, setView] = useState('produits'); // 'produits' | 'commandes' | 'historique'
   const [orderUpdating, setOrderUpdating] = useState({});
   const handleOrderStatus = async (id, status) => {
     setOrderUpdating((prev) => ({ ...prev, [id]: true }));
@@ -55,6 +62,8 @@ export default function Shop() {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [imageError, setImageError] = useState('');
+  const [showCamera, setShowCamera] = useState(false);
+  const [studioSource, setStudioSource] = useState(null); // photo (Blob/data URL) à passer au studio
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -100,11 +109,12 @@ export default function Shop() {
     if (!file) return;
     setImageError('');
     if (!file.type.startsWith('image/')) { setImageError('Choisissez un fichier image (PNG, JPG…).'); return; }
-    if (file.size > MAX_SHOP_IMAGE_SIZE) { setImageError('Image trop lourde (max 1,5 Mo).'); return; }
-    const reader = new FileReader();
-    reader.onload = () => setForm((f) => ({ ...f, imageUrl: reader.result }));
-    reader.readAsDataURL(file);
+    if (file.size > MAX_SOURCE_PHOTO_SIZE) { setImageError('Photo trop lourde (max 25 Mo).'); return; }
+    setStudioSource(file);
   };
+
+  // Photo prise avec la caméra intégrée -> studio.
+  const handleCaptured = (blob) => { setShowCamera(false); setImageError(''); setStudioSource(blob); };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -195,6 +205,7 @@ export default function Shop() {
         {[
           { id: 'produits', label: 'Produits', icon: Store },
           { id: 'commandes', label: `Commandes${shopOrders.filter((o) => o.status === 'confirmee').length > 0 ? ` (${shopOrders.filter((o) => o.status === 'confirmee').length})` : ''}`, icon: ClipboardList },
+          { id: 'historique', label: 'Historique', icon: History },
         ].map((tab) => (
           <button key={tab.id} onClick={() => setView(tab.id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-colors ${view === tab.id ? 'border-blue-500 text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}>
@@ -205,7 +216,9 @@ export default function Shop() {
 
       {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
-      {view === 'commandes' ? (
+      {view === 'historique' ? (
+        <ShopHistory stationId={stationId} products={products} />
+      ) : view === 'commandes' ? (
         shopOrders.length === 0 ? (
           <Card className="border-white/5 bg-white/[0.02] border-dashed">
             <CardContent className="p-12 text-center">
@@ -284,7 +297,7 @@ export default function Shop() {
             const ps = promoStatus(p);
             return (
             <Card key={p.id} className={`border-white/5 bg-white/[0.02] overflow-hidden ${!p.active ? 'opacity-60' : ''}`}>
-              <div className="aspect-video bg-neutral-900 flex items-center justify-center overflow-hidden relative">
+              <div className="aspect-square bg-neutral-900 flex items-center justify-center overflow-hidden relative">
                 {p.image_url
                   ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                   : <Store className="w-10 h-10 text-neutral-700" />}
@@ -490,19 +503,83 @@ export default function Shop() {
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1">Photo</label>
                   {form.imageUrl ? (
-                    <div className="flex items-center gap-3">
-                      <img src={form.imageUrl} alt="" className="max-h-28 rounded-xl border border-white/10" />
-                      <button type="button" onClick={() => setForm({ ...form, imageUrl: null })}
-                        className="text-xs text-red-400 hover:text-red-300">Retirer</button>
+                    <div className="flex items-center gap-4">
+                      <img src={form.imageUrl} alt="" className="w-28 h-28 object-cover rounded-xl border border-white/10" />
+                      <div className="flex flex-col items-start gap-2">
+                        <button type="button" onClick={() => setStudioSource(form.imageUrl)}
+                          className="flex items-center gap-1.5 text-xs font-bold text-amber-300 hover:text-amber-200"><Sparkles className="w-4 h-4" /> Passer en style studio</button>
+                        <button type="button" onClick={() => setShowCamera(true)}
+                          className="flex items-center gap-1.5 text-xs text-neutral-300 hover:text-white"><Camera className="w-4 h-4" /> Reprendre la photo</button>
+                        <button type="button" onClick={() => setForm({ ...form, imageUrl: null })}
+                          className="text-xs text-red-400 hover:text-red-300">Retirer</button>
+                      </div>
                     </div>
                   ) : (
-                    <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-white/15 text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer transition-colors w-fit">
-                      <ImagePlus className="w-4 h-4" /> Choisir une image
-                      <input type="file" accept="image/*" onChange={handleImage} className="hidden" />
-                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => setShowCamera(true)}
+                        className="flex items-center gap-2 px-4 py-3 rounded-xl bg-blue-600/15 border border-blue-500/40 text-blue-300 hover:bg-blue-600/25 font-medium transition-colors">
+                        <Camera className="w-4 h-4" /> Prendre une photo
+                      </button>
+                      <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-white/15 text-neutral-400 hover:text-white hover:border-white/30 cursor-pointer transition-colors">
+                        <ImagePlus className="w-4 h-4" /> Choisir une image
+                        <input type="file" accept="image/*" onChange={handleImage} className="hidden" />
+                      </label>
+                    </div>
                   )}
+                  <p className="text-neutral-600 text-xs mt-1.5 flex items-center gap-1"><Sparkles className="w-3 h-3 text-amber-400" /> Chaque photo peut être transformée en photo de studio (fond propre, ombre).</p>
                   {imageError && <p className="text-red-400 text-xs mt-1">{imageError}</p>}
                 </div>
+
+                {(form.imageUrl || form.name.trim()) && (() => {
+                  // Carte identique à celle que voient les clients (Client/Shop.jsx),
+                  // alimentée en direct par le formulaire : on juge la photo studio,
+                  // le prix et la promo AVANT de publier.
+                  const preview = {
+                    name: form.name.trim() || 'Nom du produit', category: form.category, description: form.description.trim(),
+                    price: parseInt(form.price, 10) || 0, currency: 'FCFA', image_url: form.imageUrl,
+                    stock: form.stock === '' ? null : parseInt(form.stock, 10),
+                    promo_type: form.promoType || null,
+                    promo_percent: form.promoType === 'percent' ? parseInt(form.promoPercent, 10) || null : null,
+                    promo_buy_qty: form.promoType === 'bogo' ? parseInt(form.promoBuyQty, 10) || null : null,
+                    promo_free_qty: form.promoType === 'bogo' ? parseInt(form.promoFreeQty, 10) || null : null,
+                    promo_starts_at: form.promoType ? combineLocal(form.promoStartDate, form.promoStartTime, '00:00') || null : null,
+                    promo_ends_at: form.promoType ? combineLocal(form.promoEndDate, form.promoEndTime, '23:59') || null : null,
+                  };
+                  const pr = productPricing(preview);
+                  const soldOut = preview.stock === 0;
+                  return (
+                    <div>
+                      <p className="text-sm font-medium text-neutral-400 mb-2 flex items-center gap-1.5"><Eye className="w-4 h-4" /> Aperçu — tel que vos clients le verront</p>
+                      <div className={`glass-card rounded-2xl overflow-hidden border border-white/10 w-full max-w-[260px] mx-auto ${soldOut ? 'opacity-60' : ''}`}>
+                        <div className="aspect-square bg-neutral-900 flex items-center justify-center overflow-hidden relative">
+                          {preview.image_url
+                            ? <img src={preview.image_url} alt="" className="w-full h-full object-cover" />
+                            : <Store className="w-10 h-10 text-neutral-700" />}
+                          {pr.onSale && (
+                            <span className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-md">
+                              {pr.kind === 'percent' ? `-${pr.percent}%` : pr.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-bold text-white leading-tight">{preview.name}</p>
+                            <span className="text-right whitespace-nowrap">
+                              {pr.kind === 'percent' && <span className="block text-neutral-500 text-xs line-through">{pr.original.toLocaleString('fr-FR')}</span>}
+                              <span className={`font-bold ${pr.kind === 'percent' ? 'text-red-400' : 'text-emerald-400'}`}>{pr.effective.toLocaleString('fr-FR')} FCFA</span>
+                            </span>
+                          </div>
+                          <p className="text-neutral-500 text-xs mt-1">
+                            {preview.category}
+                            {preview.stock != null && (soldOut ? ' · Rupture de stock' : ` · ${preview.stock} en stock`)}
+                          </p>
+                          {pr.kind === 'bogo' && <p className="text-red-400 text-xs font-bold mt-1">🎁 Offre : {pr.label}</p>}
+                          {preview.description && <p className="text-neutral-400 text-xs mt-2 line-clamp-3">{preview.description}</p>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <label className="flex items-center gap-2 text-sm text-neutral-300">
                   <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })}
@@ -524,6 +601,15 @@ export default function Shop() {
           </div>
         )}
       </AnimatePresence>
+
+      {showCamera && <CameraCapture onCapture={handleCaptured} onClose={() => setShowCamera(false)} />}
+      {studioSource && (
+        <StudioPhotoModal
+          source={studioSource}
+          onClose={() => setStudioSource(null)}
+          onUse={(dataUrl) => { setForm((f) => ({ ...f, imageUrl: dataUrl })); setStudioSource(null); }}
+        />
+      )}
     </div>
   );
 }
