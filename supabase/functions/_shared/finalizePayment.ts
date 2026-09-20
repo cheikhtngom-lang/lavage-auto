@@ -542,6 +542,20 @@ export async function finalizePlatform(admin: any, token: string, kind: string, 
     return;
   }
 
+  if (kind === "group") {
+    // Offre Sur mesure : tout se joue dans la fonction SQL (atomique et
+    // idempotente : elle ne fait rien si la commande n'est plus PENDING) —
+    // création / rattachement des stations, échéance commune, journal d'audit.
+    // Si elle échoue, la commande reste PENDING : le Super Admin peut la
+    // confirmer à la main (Groupes) une fois le problème réglé.
+    const { error } = await admin.rpc("apply_group_order", { p_order_id: rowId, p_token: token });
+    if (error) {
+      console.error("finalizePlatform group:", error);
+      await log(admin, `PayDunya: paiement reçu mais commande de groupe ${rowId} non appliquée — ${error.message}`);
+    }
+    return;
+  }
+
   // kind === "saas"
   const { data: pay } = await admin.from("station_renewal_payments")
     .select("id, status, station_id").eq("id", rowId).single();
@@ -570,7 +584,7 @@ export async function routeConfirmedInvoice(admin: any, token: string, invoice: 
   if (kind === "lavage") return await finalizeLavage(admin, token, custom);
   if (kind === "vidange") return await finalizeVidange(admin, token, custom);
   if (kind === "boutique") return await finalizeShopOrder(admin, token, custom);
-  if (kind === "saas" || kind === "superuser" || kind === "ad") {
+  if (kind === "saas" || kind === "superuser" || kind === "ad" || kind === "group") {
     await finalizePlatform(admin, token, kind, custom);
     return { kind, alreadyProcessed: false };
   }

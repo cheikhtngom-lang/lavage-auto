@@ -6,6 +6,7 @@ import MainLayout from './components/layout/MainLayout';
 import AdminLayout from './components/layout/AdminLayout';
 import SuperAdminLayout from './components/layout/SuperAdminLayout';
 import ClientLayout from './components/layout/ClientLayout';
+import GroupLayout from './components/layout/GroupLayout';
 
 // State Providers
 import { AppStateProvider, useAppState } from './hooks/useAppState';
@@ -39,11 +40,16 @@ import Bilan from './pages/Admin/Bilan';
 import Shop from './pages/Admin/Shop';
 import AdminAnnouncements from './pages/Admin/Announcements';
 import SubscriptionEnded from './pages/Admin/SubscriptionEnded';
+// Pages Chef d'entreprise (offre Sur mesure)
+import GroupStations from './pages/Group/Stations';
+import GroupOrder from './pages/Group/Order';
+import GroupBilling from './pages/Group/Billing';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnnouncements from './pages/SuperAdmin/Announcements';
 import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
 import SuperAdminStations from './pages/SuperAdmin/Stations';
+import SuperAdminGroups from './pages/SuperAdmin/Groups';
 import SuperAdminModules from './pages/SuperAdmin/Modules';
 import SuperAdminMotorists from './pages/SuperAdmin/Motorists';
 import SuperAdminSuperUsers from './pages/SuperAdmin/SuperUsers';
@@ -160,12 +166,20 @@ function App() {
                 <Route path="annonces" element={<RequirePerm perm="announcements.manage"><AdminAnnouncements /></RequirePerm>} />
               </Route>
 
+              {/* Espace chef d'entreprise (offre Sur mesure) */}
+              <Route path="/groupe" element={<GroupLayout />}>
+                <Route index element={<GroupStations />} />
+                <Route path="commande" element={<GroupOrder />} />
+                <Route path="facturation" element={<GroupBilling />} />
+              </Route>
+
               {/* Routes Super Admin */}
               <Route path="/superadmin" element={<SuperAdminLayout />}>
                 <Route index element={<SuperAdminDashboard />} />
                 <Route path="annonces" element={<SuperAdminAnnouncements />} />
                 <Route path="analytics" element={<SuperAdminAnalytics />} />
                 <Route path="stations" element={<SuperAdminStations />} />
+                <Route path="groupes" element={<SuperAdminGroups />} />
                 <Route path="modules" element={<SuperAdminModules />} />
                 <Route path="automobilistes" element={<SuperAdminMotorists />} />
                 <Route path="super-users" element={<SuperAdminSuperUsers />} />

@@ -9,5 +9,6 @@ Allow: /
 # Les pages /login, /dashboard et /reset-password portent déjà une balise noindex.
 Disallow: /admin/
 Disallow: /superadmin/
+Disallow: /groupe/
 
 Sitemap: https://galsenautocleaner.com/sitemap.xml

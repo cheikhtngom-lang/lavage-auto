@@ -9,6 +9,14 @@
     <priority>1.0</priority>
   </url>
 
+  <!-- Offre Sur mesure (réseaux de stations) -->
+  <url>
+    <loc>https://galsenautocleaner.com/sur-mesure.html</loc>
+    <lastmod>2026-09-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
   <!-- Conditions générales -->
   <url>
     <loc>https://galsenautocleaner.com/conditions-generales.html</loc>

@@ -101,6 +101,9 @@
                 Vous pouvez fermer cette page ou revenir à votre tableau de bord.
             </p>
             <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                <button id="btn-group" onclick="window.location.href='/groupe'" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-8 py-4 font-semibold shadow-lg shadow-emerald-500/30 transition-transform active:scale-95">
+                    Mon groupe
+                </button>
                 <button onclick="window.location.href='/dashboard'" class="bg-blue-600 hover:bg-blue-700 text-white rounded-full px-8 py-4 font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95">
                     Espace automobiliste
                 </button>
@@ -212,6 +215,8 @@
                         downloadReceiptPdf(receiptArgs).catch(() => {});
                     });
                 } else {
+                    // Offre Sur mesure : le retour naturel est l'espace du groupe.
+                    if (data.kind === 'group') document.getElementById('btn-group').classList.remove('hidden');
                     show('view-generic');
                 }
             } catch (err) {

@@ -7,7 +7,15 @@
 //
 // Autorisation : le compte appelant doit être le propriétaire de la station
 // (profiles.role = 'admin') OU un membre 'staff' possédant la permission
-// 'team.manage' (vérifié via la fonction SQL has_station_perm).
+// 'team.manage' (vérifié via la fonction SQL has_station_perm) OU le chef
+// d'entreprise d'un groupe Sur mesure, qui peut viser n'importe quelle station
+// de son groupe avec `stationId` sans l'ouvrir (voir add_sur_mesure_groups.sql).
+//
+// Le rôle 'super_admin_station' (un seul par station) ne peut être attribué
+// que par le propriétaire / le patron, jamais par un collaborateur : sans ça
+// un Super Admin pourrait en nommer d'autres et le patron perdrait le contrôle.
+// Le rôle peut être donné par `roleId` ou par `roleKey` (ex. 'super_admin_station'),
+// ce dernier évitant au patron de lire le catalogue de rôles d'une autre station.
 //
 // Secrets requis (Supabase > Edge Functions > Manage secrets) — déjà en place
 // pour send-welcome-email :
@@ -74,11 +82,11 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { email: rawEmail, fullName: rawName, roleId } = await req.json();
+    const { email: rawEmail, fullName: rawName, roleId, roleKey, stationId: reqStationId } = await req.json();
     const email = String(rawEmail || "").trim().toLowerCase();
     const fullName = String(rawName || "").trim();
     if (!email || !email.includes("@")) return json({ error: "Email invalide." }, 400);
-    if (!roleId) return json({ error: "Rôle manquant." }, 400);
+    if (!roleId && !roleKey) return json({ error: "Rôle manquant." }, 400);
 
     // ── Autorisation de l'appelant ───────────────────────────────────
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -91,19 +99,49 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await admin
       .from("profiles").select("role, station_id").eq("id", callerId).single();
-    if (!callerProfile?.station_id) return json({ error: "Aucune station rattachée à ce compte." }, 403);
-    const stationId = callerProfile.station_id;
+    let stationId: string | null = callerProfile?.station_id ?? null;
+    // Propriétaire / patron : peut attribuer le rôle Super Admin de station.
+    let isOwnerLevel = callerProfile?.role === "admin";
 
-    if (callerProfile.role !== "admin") {
-      const { data: canManage } = await caller.rpc("has_station_perm", { perm: "team.manage" });
-      if (!canManage) return json({ error: "Vous n'avez pas le droit de gérer l'équipe." }, 403);
+    if (reqStationId && reqStationId !== stationId) {
+      // Chef d'entreprise qui vise une station de SON groupe sans l'ouvrir.
+      const { data: org } = await admin
+        .from("organizations").select("id").eq("owner_id", callerId).maybeSingle();
+      if (!org) return json({ error: "Non autorisé." }, 403);
+      const { data: target } = await admin
+        .from("stations").select("id, organization_id, group_archived_at").eq("id", reqStationId).maybeSingle();
+      if (!target || target.organization_id !== org.id || target.group_archived_at) {
+        return json({ error: "Cette station ne fait pas partie de votre groupe." }, 403);
+      }
+      stationId = target.id;
+      isOwnerLevel = true;
+    } else {
+      if (!stationId) return json({ error: "Aucune station rattachée à ce compte." }, 403);
+      if (callerProfile?.role !== "admin") {
+        const { data: canManage } = await caller.rpc("has_station_perm", { perm: "team.manage" });
+        if (!canManage) return json({ error: "Vous n'avez pas le droit de gérer l'équipe." }, 403);
+      }
     }
 
     // ── Le rôle demandé appartient bien à cette station ──────────────
-    const { data: role } = await admin
-      .from("station_roles").select("id, key, name, permissions")
-      .eq("id", roleId).eq("station_id", stationId).single();
+    const roleQuery = admin
+      .from("station_roles").select("id, key, name, permissions").eq("station_id", stationId);
+    const { data: role } = await (roleId ? roleQuery.eq("id", roleId) : roleQuery.eq("key", String(roleKey))).maybeSingle();
     if (!role) return json({ error: "Rôle introuvable pour cette station." }, 400);
+
+    // ── Super Admin de station : un seul, nommé uniquement par le propriétaire/patron ──
+    if (role.key === "super_admin_station") {
+      if (!isOwnerLevel) {
+        return json({ error: "Seul le propriétaire ou le chef d'entreprise peut nommer le Super Admin de la station." }, 403);
+      }
+      const { data: current } = await admin
+        .from("station_members").select("email")
+        .eq("station_id", stationId).eq("role_id", role.id).in("status", ["invited", "active"]);
+      const other = (current || []).find((m: { email: string }) => m.email !== email);
+      if (other) {
+        return json({ error: `Cette station a déjà un Super Admin (${other.email}). Retirez-le avant d'en nommer un autre.` }, 409);
+      }
+    }
 
     const { data: station } = await admin
       .from("stations").select("name").eq("id", stationId).single();

@@ -25,6 +25,12 @@
 -- Les fonctions marquées "service_role" ne sont appelables que par les Edge
 -- Functions (station-transfer, accept-station-transfer) : jamais depuis le
 -- navigateur.
+--
+-- ⚠ ORDRE : create_station_transfer, cancel_station_transfer,
+-- complete_station_transfer et la policy station_transfer_owner_select sont
+-- REDÉFINIES par add_sur_mesure_groups.sql (compatibilité avec les groupes).
+-- Ne relancez donc PAS ce fichier après celui-là : il rétablirait les
+-- anciennes versions.
 -- ══════════════════════════════════════════════════════════════════════
 
 create table if not exists public.station_transfer_requests (

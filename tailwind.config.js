@@ -6,6 +6,7 @@ export default {
     "./reset-password.html",
     "./forgot-password.html",
     "./dashboard.html",
+    "./sur-mesure.html",
     "./404.html",
     "./merci.html",
     "./confidentialite.html",

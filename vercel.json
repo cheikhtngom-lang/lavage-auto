@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/admin/:path*", "destination": "/dashboard.html" },
+    { "source": "/groupe/:path*", "destination": "/dashboard.html" },
+    { "source": "/groupe", "destination": "/dashboard.html" },
     { "source": "/superadmin/:path*", "destination": "/dashboard.html" },
     { "source": "/dashboard/:path*", "destination": "/dashboard.html" },
     { "source": "/dashboard", "destination": "/dashboard.html" },

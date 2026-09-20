@@ -13,6 +13,8 @@
 # index.html (code 200), donc aucune URL cassée n'était jamais détectable.
 
 /admin/*        /dashboard.html   200
+/groupe/*       /dashboard.html   200
+/groupe         /dashboard.html   200
 /superadmin/*   /dashboard.html   200
 /dashboard/*    /dashboard.html   200
 /stations       /dashboard.html   200

@@ -102,6 +102,29 @@ export async function convertClientToStation({ name, address, quartier, region, 
   return { id: data.id, name: data.name };
 }
 
+// Offre « Sur mesure » : un automobiliste devient chef d'entreprise (groupe de
+// stations) — voir add_sur_mesure_groups.sql. Même principe que
+// convertClientToStation : un RPC atomique plutôt que des écritures côté client
+// (profiles.role / is_group_owner sont verrouillés contre l'API).
+export async function convertClientToGroup(name) {
+  const { data, error } = await supabase.rpc('convert_account_to_group', { p_name: name });
+  if (error) throw new Error(error.message);
+  return { id: data.id, name: data.name };
+}
+
+// Inscription complète d'un chef d'entreprise : compte automobiliste puis
+// conversion en groupe. Si la conversion échoue, le compte existe déjà en tant
+// qu'automobiliste (on le dit à l'utilisateur pour qu'il se connecte et réessaye).
+export async function createGroupOwnerAccount({ firstName, lastName, email, phone, password, orgName }) {
+  const client = await createClientAccount({ firstName, lastName, email, phone, password });
+  try {
+    await convertClientToGroup(orgName);
+  } catch (err) {
+    throw new Error("Votre compte est créé, mais le groupe n'a pas pu être ouvert (" + err.message + "). Connectez-vous puis contactez le support.");
+  }
+  return client;
+}
+
 // ─── Connexion ──────────────────────────────────────────────────────────
 // Le rôle vient de la base (profiles.role), pas de l'onglet cliqué dans
 // l'UI de login.html — ça évite de devoir dupliquer la logique de rôle
@@ -237,12 +260,14 @@ function incrementLoginCount(role, id) {
 // ─── Session (cache léger du rôle/ids courants pour un accès synchrone
 // dans le reste de l'app — la vraie session d'auth est gérée par Supabase
 // lui-même dans son propre stockage, indépendamment de ces clés) ─────────
-export function setSession({ role, remember, clientId, stationId }) {
+export function setSession({ role, remember, clientId, stationId, groupOwner }) {
   const storage = remember ? localStorage : sessionStorage;
   const other = remember ? sessionStorage : localStorage;
-  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId'].forEach((k) => other.removeItem(k));
+  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId', 'isGroupOwner'].forEach((k) => other.removeItem(k));
   storage.setItem('isLoggedIn', 'true');
   storage.setItem('userRole', role);
+  // Chef d'entreprise (offre Sur mesure) : role 'admin' + drapeau, voir add_sur_mesure_groups.sql.
+  if (groupOwner) storage.setItem('isGroupOwner', 'true'); else storage.removeItem('isGroupOwner');
   if (clientId != null) storage.setItem('currentClientId', String(clientId));
   if (stationId != null) storage.setItem('currentStationId', String(stationId));
   incrementLoginCount(role, role === 'automobiliste' ? clientId : role === 'admin' ? stationId : null);
@@ -255,7 +280,7 @@ export function setSession({ role, remember, clientId, stationId }) {
 }
 
 export function clearSession() {
-  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId',
+  ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId', 'isGroupOwner',
    'ccg_last_activity', 'ccg_session_expired'].forEach((k) => {
     localStorage.removeItem(k);
     sessionStorage.removeItem(k);
@@ -264,6 +289,19 @@ export function clearSession() {
 
 export function getCurrentRole() {
   return sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || null;
+}
+
+// Vrai pour le chef d'entreprise d'un groupe Sur mesure (il navigue entre /groupe et /admin).
+export function getIsGroupOwner() {
+  return (sessionStorage.getItem('isGroupOwner') || localStorage.getItem('isGroupOwner')) === 'true';
+}
+
+// Le patron « entre » dans une station (ou en sort) : on aligne le cache local
+// avec profiles.station_id, que les RPC open/close_group_station viennent de changer.
+export function setActiveStationId(stationId) {
+  const storage = localStorage.getItem('isLoggedIn') ? localStorage : sessionStorage;
+  if (stationId) storage.setItem('currentStationId', String(stationId));
+  else { localStorage.removeItem('currentStationId'); sessionStorage.removeItem('currentStationId'); }
 }
 
 export function getCurrentStationId() {

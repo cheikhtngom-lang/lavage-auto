@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart, Store, Wrench, Send } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
-import { clearSession, getCurrentRole } from '../../lib/accounts';
+import { clearSession, getCurrentRole, getCurrentStationId, getIsGroupOwner } from '../../lib/accounts';
 import { hasPerm } from '../../lib/permissions';
 import AnnouncementBell from '../ui/AnnouncementBell';
 import { isSubscriptionEnded } from '../../lib/stationRenewal';
@@ -13,6 +13,7 @@ import StationOnboarding from '../onboarding/StationOnboarding';
 import SessionLockOverlay from '../SessionLockOverlay';
 import TrialBanner from './TrialBanner';
 import StationTransferBanner from './StationTransferBanner';
+import GroupStationBanners from './GroupStationBanners';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -42,6 +43,11 @@ export default function AdminLayout() {
     const role = getCurrentRole();
     if (role !== 'admin' && role !== 'staff') {
       window.location.href = '/login.html';
+      return;
+    }
+    // Chef d'entreprise (Sur mesure) sans station ouverte : son espace est /groupe.
+    if (getIsGroupOwner() && (!getCurrentStationId() || getCurrentStationId() === 'default')) {
+      window.location.href = '/groupe';
     }
   }, []);
 
@@ -241,6 +247,7 @@ export default function AdminLayout() {
         </div>
 
         <StationTransferBanner />
+        <GroupStationBanners stationName={stationProfile?.name} />
         <TrialBanner billing={stationBilling} />
 
         <div className="relative z-10 min-h-full">

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Offre Sur mesure — Gérez plusieurs stations de lavage | Clean Car Galsen</title>
+    <meta name="description" content="Vous gérez plusieurs stations de lavage ? Composez votre offre station par station, payez en une seule fois et pilotez tout depuis un seul compte.">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="stylesheet" href="app.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        .input-field {
+            width: 100%;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: white;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-field::placeholder { color: rgba(255,255,255,0.3); }
+        .input-field:focus { border-color: #10b981; }
+        .glass-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(20px);
+        }
+        .btn-primary-green {
+            width: 100%;
+            background: #10b981;
+            color: white;
+            font-weight: 700;
+            padding: 13px 16px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 20px rgba(16,185,129,0.35);
+        }
+        .btn-primary-green:hover { background: #059669; }
+        .btn-primary-green:disabled { opacity: 0.6; cursor: not-allowed; }
+        .field-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+    </style>
+</head>
+<body class="min-h-screen relative overflow-y-auto flex flex-col items-center pt-8 sm:pt-12 pb-12" style="background:#0a0a0a;">
+    <div class="fixed top-1/3 left-1/4 w-96 h-96 bg-emerald-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-15 pointer-events-none"></div>
+    <div class="fixed top-1/2 right-1/4 w-96 h-96 bg-blue-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-15 pointer-events-none"></div>
+
+    <a href="index.html" class="absolute top-6 left-6 text-neutral-500 hover:text-white transition-colors flex items-center gap-2 z-20 text-sm">
+        <span>←</span> Accueil
+    </a>
+
+    <main class="w-full max-w-4xl px-4 relative z-10 mt-10 sm:mt-6">
+        <div class="text-center mb-10">
+            <img src="/icons/icon-192.png" alt="Clean Car Galsen" class="w-14 h-14 rounded-2xl object-cover mx-auto mb-3">
+            <p class="text-emerald-400 text-sm font-semibold tracking-wider uppercase mb-2">Offre Sur mesure</p>
+            <h1 class="text-3xl sm:text-4xl font-bold text-white tracking-tight">Vous gérez plusieurs stations&nbsp;?<br>Un seul compte pour toutes.</h1>
+            <p class="text-neutral-400 mt-4 max-w-2xl mx-auto">Composez votre offre station par station, payez en une seule fois et pilotez l’ensemble de votre réseau depuis un espace dédié.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6 items-start">
+            <div class="space-y-4">
+                <div class="glass-card rounded-2xl p-5">
+                    <p class="text-white font-semibold mb-1">🧩 Sur mesure</p>
+                    <p class="text-sm text-neutral-400">Ajoutez autant de stations que vous voulez et choisissez l’abonnement de chacune : le total est calculé pour vous.</p>
+                </div>
+                <div class="glass-card rounded-2xl p-5">
+                    <p class="text-white font-semibold mb-1">💳 Un seul paiement</p>
+                    <p class="text-sm text-neutral-400">Une seule échéance mensuelle pour tout le groupe, par carte, Wave ou Orange Money.</p>
+                </div>
+                <div class="glass-card rounded-2xl p-5">
+                    <p class="text-white font-semibold mb-1">🏢 Votre espace chef d’entreprise</p>
+                    <p class="text-sm text-neutral-400">Ouvrez n’importe laquelle de vos stations, nommez un Super Admin par station, retirez celles qui ne sont pas rentables. Vos stations existantes peuvent aussi vous rejoindre, avec l’accord de leur propriétaire.</p>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-3xl p-7 shadow-2xl">
+                <h2 class="text-xl font-bold text-white mb-1">Créer mon compte Sur mesure</h2>
+                <p class="text-sm text-neutral-500 mb-5">Gratuit : vous ne payez qu’une fois votre commande validée.</p>
+
+                <form id="reg-form" autocomplete="on">
+                    <div class="space-y-4 mb-5">
+                        <div>
+                            <label class="field-label">Nom de votre entreprise</label>
+                            <input id="org-name" type="text" placeholder="Ex : Groupe Auto Clean" required maxlength="100" class="input-field">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label">Prénom</label>
+                                <input id="first-name" type="text" required maxlength="60" class="input-field" autocomplete="given-name">
+                            </div>
+                            <div>
+                                <label class="field-label">Nom</label>
+                                <input id="last-name" type="text" required maxlength="60" class="input-field" autocomplete="family-name">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="field-label">Email</label>
+                            <input id="email" type="email" required maxlength="150" class="input-field" autocomplete="email">
+                        </div>
+                        <div>
+                            <label class="field-label">Téléphone</label>
+                            <input id="phone" type="tel" placeholder="+221 77 000 00 00" required maxlength="30" class="input-field" autocomplete="tel">
+                        </div>
+                        <div>
+                            <label class="field-label">Mot de passe</label>
+                            <input id="password" type="password" placeholder="Min. 8 caractères" required minlength="8" maxlength="100" class="input-field" autocomplete="new-password">
+                        </div>
+                        <div>
+                            <label class="field-label">Confirmer le mot de passe</label>
+                            <input id="password-confirm" type="password" required minlength="8" maxlength="100" class="input-field" autocomplete="new-password">
+                        </div>
+                        <!-- Anti-spam : champ invisible, jamais rempli par un humain. -->
+                        <div class="hp" aria-hidden="true"><input id="website" type="text" tabindex="-1" autocomplete="off"></div>
+                    </div>
+                    <p id="reg-error" class="text-sm text-red-400 mb-4 hidden"></p>
+                    <button type="submit" id="reg-btn" class="btn-primary-green">Créer mon compte</button>
+                </form>
+
+                <p class="text-center text-sm text-neutral-500 mt-5">
+                    Déjà un compte ? <a href="/login.html" class="text-emerald-400 font-semibold hover:underline">Se connecter</a>
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        import { createGroupOwnerAccount, setSession } from '/src/lib/accounts.js';
+
+        const form = document.getElementById('reg-form');
+        const errorEl = document.getElementById('reg-error');
+        const btn = document.getElementById('reg-btn');
+        const val = (id) => document.getElementById(id).value.trim();
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorEl.classList.add('hidden');
+            // Robot : on fait comme si tout allait bien, sans rien créer.
+            if (val('website')) { errorEl.textContent = 'Merci !'; errorEl.classList.remove('hidden'); return; }
+            const password = document.getElementById('password').value;
+            if (password !== document.getElementById('password-confirm').value) {
+                errorEl.textContent = 'Les mots de passe ne correspondent pas.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = 'Création en cours…';
+            try {
+                await createGroupOwnerAccount({
+                    orgName: val('org-name'),
+                    firstName: val('first-name'),
+                    lastName: val('last-name'),
+                    email: val('email'),
+                    phone: val('phone'),
+                    password,
+                });
+                // Chef d'entreprise : role 'admin' + drapeau, aucune station encore.
+                setSession({ role: 'admin', remember: true, groupOwner: true });
+                window.location.href = '/groupe/commande';
+            } catch (err) {
+                errorEl.textContent = err.message || 'Création impossible. Réessayez.';
+                errorEl.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Créer mon compte';
+            }
+        });
+    </script>
+</body>
+</html>

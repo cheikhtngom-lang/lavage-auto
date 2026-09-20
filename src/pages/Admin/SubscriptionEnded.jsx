@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, Smartphone, Clock3, LogOut, Loader2, RefreshCw } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { clearSession, getCurrentRole, getCurrentStationId } from '../../lib/accounts';
+import { clearSession, getCurrentRole, getCurrentStationId, getIsGroupOwner } from '../../lib/accounts';
+import { getMyStationGroup, leaveGroup } from '../../lib/groups';
 import { createRenewalPayment, isSubscriptionEnded } from '../../lib/stationRenewal';
 import { payPlatformOnline } from '../../lib/paydunya';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -25,6 +26,9 @@ export default function SubscriptionEnded() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [justSubmitted, setJustSubmitted] = useState(false);
+  // Station d'un groupe Sur mesure : son abonnement est réglé par le groupe, pas ici.
+  const [group, setGroup] = useState(undefined); // undefined = chargement, null = station indépendante
+  const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     const role = getCurrentRole();
@@ -37,7 +41,48 @@ export default function SubscriptionEnded() {
     if (stationBilling && !isSubscriptionEnded(stationBilling)) navigate('/admin/queue', { replace: true });
   }, [stationBilling, navigate]);
 
-  if (!stationBilling) return null;
+  useEffect(() => {
+    let cancelled = false;
+    getMyStationGroup(stationId).then((g) => { if (!cancelled) setGroup(g); });
+    return () => { cancelled = true; };
+  }, [stationId]);
+
+  if (!stationBilling || group === undefined) return null;
+
+  if (group) {
+    const role = getCurrentRole();
+    const isPatron = getIsGroupOwner();
+    const canLeave = role === 'admin' && !isPatron && group.origin === 'joined';
+    const leave = async () => {
+      if (!window.confirm('Quitter le groupe ? La station redevient indépendante et devra renouveler son propre abonnement.')) return;
+      setLeaving(true);
+      try { await leaveGroup(); window.location.reload(); } catch (err) { setError(err.message); setLeaving(false); }
+    };
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-4">
+        <div className="w-full max-w-md glass-card rounded-3xl p-8 border border-white/10 text-center">
+          <Lock className="w-12 h-12 text-orange-400 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Abonnement du groupe à régler</h1>
+          <p className="text-neutral-400 mb-6">
+            L’abonnement de <strong className="text-white">{stationProfile?.name || 'cette station'}</strong> est géré par le groupe <strong className="text-white">{group.name}</strong>.
+            {isPatron ? ' Renouvelez depuis la facturation du groupe pour réactiver toutes vos stations.' : ' Contactez le responsable du groupe pour qu’il renouvelle.'}
+          </p>
+          {isPatron && (
+            <button onClick={() => { window.location.href = '/groupe/facturation'; }} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl mb-3">
+              Aller à la facturation du groupe
+            </button>
+          )}
+          {canLeave && (
+            <button onClick={leave} disabled={leaving} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-200 font-medium py-3 rounded-xl mb-3 disabled:opacity-60">
+              {leaving ? 'Un instant…' : 'Quitter le groupe'}
+            </button>
+          )}
+          {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
+          <button onClick={handleLogout} className="text-sm text-neutral-500 hover:text-white">Se déconnecter</button>
+        </div>
+      </div>
+    );
+  }
 
   const planDef = PLANS[stationBilling.plan] || { label: stationBilling.plan, price: 0 };
   const latestPayment = stationRenewalPayments

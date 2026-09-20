@@ -5,9 +5,12 @@
 //   kind = 'saas'      -> station_renewal_payments (renouvellement d'abonnement)
 //   kind = 'superuser' -> super_user_subscriptions (offre automobiliste)
 //   kind = 'ad'        -> station_ads (publicité station)
+//   kind = 'group'     -> organization_orders (offre Sur mesure : commande ou
+//                         renouvellement d'un groupe de stations, montant
+//                         calculé côté serveur par create_group_order)
 //
 // La ligne PENDING est déjà créée par le front (lib/stationRenewal.js,
-// lib/superUser.js, lib/ads.js). Ici on lit son montant côté serveur et on
+// lib/superUser.js, lib/ads.js, lib/groups.js). Ici on lit son montant côté serveur et on
 // renvoie l'URL de paiement. paydunya-callback fera passer la ligne à
 // ACTIVE / CONFIRMED — exactement ce que le Super Admin faisait à la main,
 // qui reste possible en secours si le paiement en ligne échoue.
@@ -23,6 +26,7 @@ const TABLES: Record<string, string> = {
   saas: "station_renewal_payments",
   superuser: "super_user_subscriptions",
   ad: "station_ads",
+  group: "organization_orders",
 };
 
 Deno.serve(async (req) => {
@@ -32,7 +36,7 @@ Deno.serve(async (req) => {
     const { kind, rowId } = await req.json();
     const table = TABLES[kind];
     if (!table || !rowId) {
-      return json({ error: "kind (saas|superuser|ad) et rowId requis." }, 400);
+      return json({ error: "kind (saas|superuser|ad|group) et rowId requis." }, 400);
     }
 
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -56,8 +60,13 @@ Deno.serve(async (req) => {
     const alreadyDone =
       (kind === "superuser" && row.status === "ACTIVE") ||
       (kind === "ad" && row.status === "ACTIVE") ||
-      (kind === "saas" && row.status === "CONFIRMED");
+      (kind === "saas" && row.status === "CONFIRMED") ||
+      (kind === "group" && row.status === "CONFIRMED");
     if (alreadyDone) return json({ error: "Ce paiement est déjà validé." }, 409);
+    // Une commande de groupe annulée / rejetée ne se paie plus.
+    if (kind === "group" && row.status !== "PENDING") {
+      return json({ error: "Cette commande n'est plus en attente de paiement." }, 409);
+    }
 
     const amount = Number(row.amount);
     if (!amount || amount <= 0) return json({ error: "Montant invalide." }, 400);
@@ -66,6 +75,9 @@ Deno.serve(async (req) => {
       saas: `Abonnement Clean Car Galsen — ${row.plan ?? ""}`.trim(),
       superuser: `Abonnement automobiliste — ${row.plan ?? "Super User"}`,
       ad: "Publicité Clean Car Galsen",
+      group: row.kind === "renouvellement"
+        ? "Renouvellement Sur mesure — Clean Car Galsen"
+        : "Commande Sur mesure — Clean Car Galsen",
     };
 
     const invoice = await createInvoice({

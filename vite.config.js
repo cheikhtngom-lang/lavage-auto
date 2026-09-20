@@ -6,7 +6,7 @@ import { resolve } from 'path'
 // En dev, Vite ne lit pas _redirects : ce plugin reproduit la même règle
 // pour qu'un accès direct/rafraîchissement sur /admin/queue, /superadmin, etc.
 // serve bien dashboard.html au lieu de retomber sur index.html (page vitrine statique).
-const REACT_APP_PATHS = [/^\/admin(\/|$)/, /^\/superadmin(\/|$)/, /^\/stations(\/|$)/, /^\/dashboard(\/|$)/];
+const REACT_APP_PATHS = [/^\/admin(\/|$)/, /^\/superadmin(\/|$)/, /^\/stations(\/|$)/, /^\/dashboard(\/|$)/, /^\/groupe(\/|$)/];
 
 function reactAppDevFallback() {
   return {
@@ -70,6 +70,7 @@ export default defineConfig({
         forgotPassword: resolve(__dirname, 'forgot-password.html'),
         acceptInvitation: resolve(__dirname, 'accept-invitation.html'),
         acceptTransfer: resolve(__dirname, 'accept-transfer.html'),
+        surMesure: resolve(__dirname, 'sur-mesure.html'),
         // Pages autonomes : traitées par Vite (Tailwind compilé) au lieu d'être
         // copiées depuis public/ avec le CDN cdn.tailwindcss.com.
         notFound: resolve(__dirname, '404.html'),

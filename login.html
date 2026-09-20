@@ -760,9 +760,11 @@
                     role: profile.role,
                     remember: rememberMe,
                     clientId: profile.role === 'automobiliste' ? profile.id : undefined,
-                    stationId: (profile.role === 'admin' || profile.role === 'staff') ? profile.station_id : undefined,
+                    // Chef d'entreprise (Sur mesure) : aucune station ouverte à la connexion, il arrive sur /groupe.
+                    stationId: (profile.role === 'admin' || profile.role === 'staff') && !profile.is_group_owner ? profile.station_id : undefined,
+                    groupOwner: !!profile.is_group_owner,
                 });
-                const dest = profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role];
+                const dest = profile.is_group_owner ? '/groupe' : (profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role]);
                 window.location.href = dest || '/dashboard';
             } catch (err) {
                 console.error('signIn failed:', err);
