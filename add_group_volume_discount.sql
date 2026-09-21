@@ -19,6 +19,8 @@
 --  avant : ce fichier redéfinit _group_price_lines et create_group_renewal.
 --  Relancer add_sur_mesure_groups.sql ensuite ANNULERAIT la remise (elle
 --  remet les fonctions d'origine) — dans ce cas, relancer ce fichier après.
+--  Ce fichier redéfinit _group_price_lines SANS quartier/position : s'il est
+--  relancé, relancer ENSUITE add_group_station_location.sql.
 --  Idempotent.
 -- ═══════════════════════════════════════════════════════════════════════
 

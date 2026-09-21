@@ -3,9 +3,10 @@ import { Plus, Trash2, Loader2, ShoppingCart, Info, BadgePercent } from 'lucide-
 import { useGroup } from '../../components/layout/GroupLayout';
 import OrderPaymentPanel from '../../components/group/OrderPaymentPanel';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { fetchGroupStations, fetchJoinRequests, fetchOrders, quoteOrder, createOrder, fmtFcfa } from '../../lib/groups';
+import { fetchGroupStations, fetchJoinRequests, fetchOrders, quoteOrder, createOrder, fetchMyCountry, locateNewLines, placeLabel, fmtFcfa } from '../../lib/groups';
+import { DEFAULT_COUNTRY, regionsOf } from '../../lib/countries';
 
-const emptyLine = (plan) => ({ key: Math.random().toString(36).slice(2), name: '', city: '', plan });
+const emptyLine = (plan) => ({ key: Math.random().toString(36).slice(2), name: '', quartier: '', city: '', region: '', plan });
 
 // Commande « Sur mesure » : le patron compose son offre station par station
 // (nom, ville, plan), le total est calculé en direct PAR LE SERVEUR (prorata
@@ -24,6 +25,10 @@ export default function Order() {
   const [order, setOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [country, setCountry] = useState(DEFAULT_COUNTRY); // détermine la liste des régions
+
+  useEffect(() => { fetchMyCountry().then(setCountry); }, []);
 
   // Première ligne vide dès que les plans sont chargés.
   useEffect(() => {
@@ -47,7 +52,7 @@ export default function Order() {
   useEffect(() => { loadExtras(); }, [loadExtras]);
 
   const payloadLines = useMemo(() => [
-    ...lines.filter((l) => l.name.trim()).map((l) => ({ type: 'new', name: l.name.trim(), city: l.city.trim(), plan: l.plan })),
+    ...lines.filter((l) => l.name.trim()).map((l) => ({ type: 'new', name: l.name.trim(), city: l.city.trim(), quartier: l.quartier.trim(), region: l.region, plan: l.plan })),
     ...extras.filter((e) => e.checked).map((e) => ({ type: 'existing', station_id: e.station_id, plan: e.plan })),
   ], [lines, extras]);
 
@@ -76,10 +81,15 @@ export default function Order() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      setOrder(await createOrder(payloadLines));
+      // Position géographique de chaque nouvelle station (quartier + région) : jamais bloquant.
+      setLocating(payloadLines.some((l) => l.type === 'new'));
+      const located = await locateNewLines(payloadLines, country);
+      setLocating(false);
+      setOrder(await createOrder(located));
     } catch (err) {
       setSubmitError(err.message);
     } finally {
+      setLocating(false);
       setSubmitting(false);
     }
   };
@@ -101,7 +111,7 @@ export default function Order() {
           <div className="space-y-2 mb-4">
             {(order.lines || []).map((l, i) => (
               <div key={i} className="flex justify-between text-sm">
-                <span className="text-neutral-300">{l.name} <span className="text-neutral-500">· {planLabel(l.plan)}{l.type === 'existing' ? ' · station existante' : ''}</span></span>
+                <span className="text-neutral-300">{l.name} <span className="text-neutral-500">{placeLabel(l) ? `· ${placeLabel(l)} ` : ''}· {planLabel(l.plan)}{l.type === 'existing' ? ' · station existante' : ''}</span></span>
                 <span className="text-white font-medium">{l.list_amount > l.amount && <span className="text-neutral-500 line-through mr-2 font-normal">{fmtFcfa(l.list_amount)}</span>}{fmtFcfa(l.amount)}</span>
               </div>
             ))}
@@ -137,18 +147,28 @@ export default function Order() {
         <h2 className="text-lg font-bold mb-4">Nouvelles stations</h2>
         <div className="space-y-3">
           {lines.map((l) => (
-            <div key={l.key} className="grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_auto] gap-2 items-center">
-              <input className={inputCls} placeholder="Nom de la station" maxLength={100} value={l.name} onChange={(e) => updateLine(l.key, { name: e.target.value })} />
-              <input className={inputCls} placeholder="Ville" maxLength={80} value={l.city} onChange={(e) => updateLine(l.key, { city: e.target.value })} />
-              <select className={inputCls} value={l.plan} onChange={(e) => updateLine(l.key, { plan: e.target.value })}>
-                {plans.map((p) => <option key={p.key} value={p.key}>{p.label} — {fmtFcfa(p.price)}/mois</option>)}
-              </select>
-              <button onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} className="p-3 text-neutral-500 hover:text-red-400 rounded-xl hover:bg-red-500/10 transition-colors" title="Retirer cette ligne">
-                <Trash2 className="w-5 h-5" />
-              </button>
+            <div key={l.key} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-[1.6fr_1fr_auto] gap-2 items-center">
+                <input className={inputCls} placeholder="Nom de la station" maxLength={100} value={l.name} onChange={(e) => updateLine(l.key, { name: e.target.value })} />
+                <select className={inputCls} value={l.plan} onChange={(e) => updateLine(l.key, { plan: e.target.value })}>
+                  {plans.map((p) => <option key={p.key} value={p.key}>{p.label} — {fmtFcfa(p.price)}/mois</option>)}
+                </select>
+                <button onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))} className="p-3 text-neutral-500 hover:text-red-400 rounded-xl hover:bg-red-500/10 transition-colors justify-self-end" title="Retirer cette station">
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input className={inputCls} placeholder="Quartier (ex : Plateau)" maxLength={100} value={l.quartier} onChange={(e) => updateLine(l.key, { quartier: e.target.value })} />
+                <input className={inputCls} placeholder="Ville" maxLength={80} value={l.city} onChange={(e) => updateLine(l.key, { city: e.target.value })} />
+                <select className={inputCls} value={l.region} onChange={(e) => updateLine(l.key, { region: e.target.value })} aria-label="Région">
+                  <option value="">Région…</option>
+                  {regionsOf(country).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
             </div>
           ))}
         </div>
+        <p className="text-xs text-neutral-500 mt-3">Le quartier et la région permettent aux automobilistes de trouver chaque station et de voir sa distance : ils sont demandés pour chaque nouvelle station.</p>
         <button onClick={() => setLines((ls) => [...ls, emptyLine(defaultPlan)])} disabled={lines.length >= 50}
           className="mt-4 flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-semibold">
           <Plus className="w-4 h-4" /> Ajouter une station
@@ -200,7 +220,7 @@ export default function Order() {
             <div className="space-y-2 mb-4">
               {quote.lines.map((l, i) => (
                 <div key={i} className="flex justify-between text-sm">
-                  <span className="text-neutral-300">{l.name}{l.city ? `, ${l.city}` : ''} <span className="text-neutral-500">· {planLabel(l.plan)}</span></span>
+                  <span className="text-neutral-300">{l.name}{placeLabel(l) ? ` · ${placeLabel(l)}` : ''} <span className="text-neutral-500">· {planLabel(l.plan)}</span></span>
                   <span className="text-white font-medium">{l.list_amount > l.amount && <span className="text-neutral-500 line-through mr-2 font-normal">{fmtFcfa(l.list_amount)}</span>}{fmtFcfa(l.amount)}</span>
                 </div>
               ))}
@@ -237,7 +257,7 @@ export default function Order() {
             <button onClick={validate} disabled={submitting}
               className="mt-5 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
               {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShoppingCart className="w-5 h-5" />}
-              Valider et passer au paiement
+              {locating ? 'Localisation des stations…' : 'Valider et passer au paiement'}
             </button>
           </>
         ) : null}

@@ -6,7 +6,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { groupMonthly } from '../../lib/groupPricing';
 import {
   fetchGroupStations, fetchJoinRequests, openStation, removeStation, nominateStationAdmin, removeStationAdmin,
-  searchJoinableStations, requestJoin, cancelJoin, JOIN_STATUS, fmtFcfa,
+  searchJoinableStations, requestJoin, cancelJoin, JOIN_STATUS, placeLabel, fmtFcfa,
 } from '../../lib/groups';
 
 const SUB_LABEL = {
@@ -330,7 +330,7 @@ export default function Stations() {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
                     <p className="font-bold text-lg truncate">{s.name}</p>
-                    <p className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {s.city || 'Ville non renseignée'}</p>
+                    <p className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" /> {placeLabel(s) || 'Lieu non renseigné'}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-neutral-300">{s.origin === 'joined' ? 'Rattachée' : 'Créée par vous'}</span>

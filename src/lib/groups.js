@@ -1,6 +1,8 @@
 // Offre « Sur mesure » : accès aux données et actions du chef d'entreprise
 // (voir add_sur_mesure_groups.sql pour le modèle, les règles et les fonctions).
 // Toute écriture passe par une fonction SQL ; le navigateur ne fait que lire.
+import { geocodeQuartierRegion } from './geocoding';
+import { DEFAULT_COUNTRY } from './countries';
 import { supabase } from './supabaseClient';
 import { setActiveStationId } from './accounts';
 
@@ -61,13 +63,49 @@ export async function fetchDiscountTiers() {
   return data || [];
 }
 
+// « Quartier, Ville » (ou ce qui est renseigné) pour l'affichage d'une station.
+export const placeLabel = (s) => [s?.quartier, s?.city].filter(Boolean).join(', ');
+
+// Pays du compte connecté (détermine la liste des régions proposées) ; 'SN' à défaut.
+export async function fetchMyCountry() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return DEFAULT_COUNTRY;
+    const { data } = await supabase.from('profiles').select('country').eq('id', user.id).maybeSingle();
+    return data?.country || DEFAULT_COUNTRY;
+  } catch {
+    return DEFAULT_COUNTRY;
+  }
+}
+
+// Position d'une NOUVELLE station : quartier + région → lat/lng (Nominatim, repli sur
+// le centre de la région — lib/geocoding.js). Jamais bloquant : sans réponse dans le
+// budget de temps, la station est créée sans coordonnées et se localise plus tard
+// depuis ses paramètres (« Localiser depuis le quartier »).
+export async function locateNewLines(lines, country, budgetMs = 12000) {
+  const started = Date.now();
+  const out = [];
+  let calls = 0;
+  for (const l of lines) {
+    if (l.type !== 'new' || Date.now() - started > budgetMs) { out.push(l); continue; }
+    if (calls++ > 0) await new Promise((r) => setTimeout(r, 1100)); // Nominatim : 1 requête par seconde
+    try {
+      const g = await geocodeQuartierRegion(l.quartier, l.region, country);
+      out.push({ ...l, lat: g.lat, lng: g.lng });
+    } catch {
+      out.push(l);
+    }
+  }
+  return out;
+}
+
 // Stations du groupe + facturation + Super Admin (membre au rôle super_admin_station).
 export async function fetchGroupStations(organizationId) {
   // Filtre explicite : les stations actives sont publiques, sans lui on
   // remonterait aussi celles des autres groupes.
   const { data: stations, error } = await supabase
     .from('stations')
-    .select('id, name, city, status, group_origin, group_archived_at, station_billing(plan, subscription_status, next_billing_date)')
+    .select('id, name, city, quartier, region, status, group_origin, group_archived_at, station_billing(plan, subscription_status, next_billing_date)')
     .eq('organization_id', organizationId)
     .order('name', { ascending: true });
   if (error) fail(error);
@@ -87,6 +125,8 @@ export async function fetchGroupStations(organizationId) {
     id: s.id,
     name: s.name,
     city: s.city || '',
+    quartier: s.quartier || '',
+    region: s.region || '',
     status: s.status,
     origin: s.group_origin,
     archived: !!s.group_archived_at,
@@ -128,7 +168,7 @@ export async function searchJoinableStations(term) {
 }
 
 // ─── Commandes ──────────────────────────────────────────────────────────
-// lines : [{type:'new', name, city, plan} | {type:'existing', station_id, plan}]
+// lines : [{type:'new', name, city, quartier, region, plan, lat?, lng?} | {type:'existing', station_id, plan}]
 export async function quoteOrder(lines) {
   const { data, error } = await supabase.rpc('group_quote', { p_lines: lines });
   if (error) fail(error);

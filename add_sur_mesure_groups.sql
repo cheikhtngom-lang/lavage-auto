@@ -1,8 +1,9 @@
 -- ══════════════════════════════════════════════════════════════════════
 -- OFFRE « SUR MESURE » — chef d'entreprise multi-stations (phase 1).
 -- À exécuter une fois dans l'éditeur SQL Supabase. Idempotent.
--- ⚠ Ce fichier redéfinit _group_price_lines et create_group_renewal SANS remise de
--- volume : si add_group_volume_discount.sql a déjà été appliqué, le relancer APRÈS.
+-- ⚠ Ce fichier redéfinit _group_price_lines, create_group_renewal et _apply_group_order
+-- SANS remise de volume ni quartier/position : s'il est relancé, relancer ENSUITE
+-- add_group_volume_discount.sql puis add_group_station_location.sql (dans cet ordre).
 --
 -- Modèle :
 --   • Un GROUPE (organizations) appartient à un compte « patron ». Le patron
