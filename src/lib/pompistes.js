@@ -7,12 +7,11 @@
 
 export const POMPISTE_ROLE = 'Pompiste';
 
-// La station a-t-elle droit à Pompistes ? Forfait Business, ou groupe Sur mesure de
-// plus de 3 stations — décidé côté base par station_has_pompistes (add_pompistes_access.sql)
-// et lu une fois au chargement dans useAppState (billing.hasPompistes ; null = pas encore
-// connu). Le filtre est l'interface (droit + permission), comme la boutique et le bilan.
+// La station a-t-elle droit à Pompistes ? Forfaits Pro et Business — c'est le forfait de la
+// station qui décide, y compris pour une station d'un groupe Sur mesure (elle a son propre
+// forfait). Le filtre est l'interface (forfait + permission), comme la comptabilité.
 export function stationHasPompistes(billing) {
-  return billing?.hasPompistes === true;
+  return billing?.plan === 'Pro' || billing?.plan === 'Business';
 }
 
 // Bornes des colonnes SQL (numeric(10,2) et integer) : mieux vaut refuser une

@@ -547,7 +547,6 @@ export function AppStateProvider({ children }) {
         trialEndsAt: row?.trial_ends_at || null,
         nextBillingDate: row?.next_billing_date || null,
         paydunyaAlias: row?.paydunya_account_alias || null,
-        hasPompistes: null, // droit Pompistes, lu juste après (station_has_pompistes) — null = pas encore connu
     });
     useEffect(() => {
         setStationProfileLoaded(false);
@@ -560,14 +559,6 @@ export function AppStateProvider({ children }) {
             setStationBilling(rowToBilling(data?.station_billing));
             if (Array.isArray(data?.hidden_menu)) rememberHiddenMenu(data.hidden_menu);
             setStationProfileLoaded(true);
-            // Pompistes : forfait Business, ou groupe Sur mesure de plus de 3 stations (add_pompistes_access.sql).
-            // La facturation s'affiche tout de suite ; ce droit la complète dès que la base a répondu.
-            // Si la fonction n'existe pas encore, on retombe sur la règle du seul forfait Business.
-            supabase.rpc('station_has_pompistes', { sid: stationId }).then(({ data: allowed, error }) => {
-                if (cancelled) return;
-                const fallback = (data?.station_billing?.plan || 'Starter') === 'Business';
-                setStationBilling((prev) => prev && { ...prev, hasPompistes: error ? fallback : !!allowed });
-            });
         });
         return () => { cancelled = true; };
     }, [stationId]);
