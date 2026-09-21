@@ -13,14 +13,16 @@ import {
   FileBarChart, Store, Wrench, Send, Fuel,
 } from 'lucide-react';
 import { hasPerm } from './permissions';
+import { stationHasPompistes } from './pompistes';
 
 // `locked` : jamais masquable (sans « Vue d'ensemble » il n'y aurait plus de
 // page d'accueil, sans « Paramètres » on ne pourrait plus rien réactiver).
 export const ADMIN_NAV = [
   { key: 'queue', name: "Vue d'ensemble", href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null, locked: true },
   { key: 'washers', name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage' },
-  // Pompistes : stations d'essence qui font aussi du lavage — forfait Business.
-  { key: 'pompistes', name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', plans: ['Business'], hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.' },
+  // Pompistes : stations d'essence qui font aussi du lavage — forfait Business, ou groupe Sur
+  // mesure de plus de 3 stations (voir stationHasPompistes, lib/pompistes.js).
+  { key: 'pompistes', name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', available: stationHasPompistes, hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.' },
   // Vidange : forfait Business, ou module "mod_vidange" — voir RequireVidangeAccess (App.jsx).
   { key: 'vidange', name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: ['Business'], module: 'mod_vidange' },
   { key: 'transactions', name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
@@ -47,6 +49,7 @@ export const DEFAULT_HIDDEN_MENU = ['pompistes'];
 export function navAvailableTo({ permissions, billing }) {
   return ADMIN_NAV.filter((item) => {
     if (item.perm && !hasPerm(permissions || [], item.perm)) return false;
+    if (item.available && !item.available(billing)) return false;
     if (item.plans && !item.plans.includes(billing?.plan) && !(item.module && (billing?.activeModules || []).includes(item.module))) return false;
     return true;
   });

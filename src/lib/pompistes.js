@@ -7,10 +7,12 @@
 
 export const POMPISTE_ROLE = 'Pompiste';
 
-// Même garde que RequireBusinessPlan/RequireVidangeAccess (App.jsx) : le vrai
-// filtre est l'interface (forfait + permission), ceci sert à l'affichage.
+// La station a-t-elle droit à Pompistes ? Forfait Business, ou groupe Sur mesure de
+// plus de 3 stations — décidé côté base par station_has_pompistes (add_pompistes_access.sql)
+// et lu une fois au chargement dans useAppState (billing.hasPompistes ; null = pas encore
+// connu). Le filtre est l'interface (droit + permission), comme la boutique et le bilan.
 export function stationHasPompistes(billing) {
-  return billing?.plan === 'Business';
+  return billing?.hasPompistes === true;
 }
 
 // Bornes des colonnes SQL (numeric(10,2) et integer) : mieux vaut refuser une

@@ -121,11 +121,12 @@ function RequireVidangeAccess({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Pompistes (stations d'essence qui font aussi du lavage) : forfait Business.
-// Le menu peut aussi la masquer (Paramètres > Menu), sans jamais changer ce droit.
+// Pompistes (stations d'essence qui font aussi du lavage) : forfait Business, ou groupe Sur
+// mesure de plus de 3 stations. Le menu peut aussi la masquer (Paramètres > Menu), sans jamais
+// changer ce droit. hasPompistes est lu après la facturation : null = pas encore connu.
 function RequirePompistesAccess({ children }) {
   const { stationBilling, myPermissions } = useAppState();
-  if (stationBilling == null || myPermissions == null) return null;
+  if (stationBilling == null || stationBilling.hasPompistes == null || myPermissions == null) return null;
   if (stationHasPompistes(stationBilling) && hasPerm(myPermissions, 'pompistes.manage')) return children;
   return <Navigate to="/admin/queue" replace />;
 }
