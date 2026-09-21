@@ -119,6 +119,17 @@ export function AppStateProvider({ children }) {
         setEmployees((data || []).map(rowToEmployee));
     }, [stationId]);
 
+    // Pompes à essence de la station (Paramètres > Pompistes & pompes, voir
+    // add_station_pumps.sql) : proposées dans la page Pompistes pour poster un
+    // pompiste chaque jour. L'affectation elle-même reste un LIBELLÉ figé
+    // (pump_label) — retirer ou renommer une pompe ne réécrit pas l'historique.
+    const [pumps, setPumps] = useState([]);
+    const loadPumps = useCallback(async () => {
+        if (!stationId || stationId === 'default') { setPumps([]); return; }
+        const { data } = await supabase.from('station_pumps').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
+        setPumps((data || []).map((r) => ({ id: r.id, name: r.name, active: r.active !== false })));
+    }, [stationId]);
+
     // Types de véhicule ajoutés à la volée par l'admin (dropdown "Ajouter un
     // lavage manuel" — voir VehicleDropdown dans StationDashboard.jsx), propres
     // à SA station.
@@ -456,6 +467,7 @@ export function AppStateProvider({ children }) {
         loadExpenses();
         loadReviews();
         loadEmployees();
+        loadPumps();
         loadCustomVehicleTypes();
         loadShiftTemplates();
         loadStationAds();
@@ -465,7 +477,7 @@ export function AppStateProvider({ children }) {
         loadShopOrders();
         loadReceivedAnnouncements();
         loadSentAnnouncements();
-        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); loadReceivedAnnouncements(); loadSentAnnouncements(); };
+        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadPumps(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); loadReceivedAnnouncements(); loadSentAnnouncements(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
         // sont dans la publication supabase_realtime (voir schema.sql) : un
@@ -491,7 +503,7 @@ export function AppStateProvider({ children }) {
             : null;
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
-    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, loadShopOrders, loadReceivedAnnouncements, loadSentAnnouncements, stationId]);
+    }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadPumps, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, loadShopOrders, loadReceivedAnnouncements, loadSentAnnouncements, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
     // que le registre Super Admin (table `stations`) — plus de copie locale
@@ -936,6 +948,74 @@ export function AppStateProvider({ children }) {
             station_id: stationId, employee_id: employeeId, work_date: todayKey,
             name: emp?.name, role: emp?.role, ...patchToRow(patch),
         }, { onConflict: 'employee_id,work_date' }).then(() => {});
+    };
+
+    // Poste un pompiste sur une pompe pour un jour donné (aujourd'hui, ou un jour passé à
+    // corriger). L'upsert ne touche QUE pump_label : le pointage et le relevé (litres,
+    // montant) de la même ligne restent intacts.
+    const assignPump = async (employeeId, dateKey, pumpLabel) => {
+        if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
+        const emp = employees.find(e => e.id === employeeId);
+        const known = attendanceHistory[dateKey]?.[employeeId];
+        const label = (pumpLabel || '').trim() || null;
+        const { error } = await supabase.from('attendance_records').upsert({
+            station_id: stationId, employee_id: employeeId, work_date: dateKey,
+            name: emp?.name ?? known?.name, role: emp?.role ?? known?.role, pump_label: label,
+        }, { onConflict: 'employee_id,work_date' });
+        if (!error) {
+            setAttendanceHistory((prev) => {
+                const dayEntries = prev[dateKey] || {};
+                const existing = dayEntries[employeeId] || { id: employeeId, name: emp?.name, role: emp?.role };
+                return { ...prev, [dateKey]: { ...dayEntries, [employeeId]: { ...existing, pumpLabel: label } } };
+            });
+        }
+        return { success: !error, error };
+    };
+
+    const samePumpName = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+    const addPump = async (rawName) => {
+        const name = (rawName || '').trim();
+        if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
+        if (!name) return { success: false, error: 'empty' };
+        if (name.length > 40) return { success: false, error: 'too_long' };
+        if (pumps.some((p) => samePumpName(p.name, name))) return { success: false, error: 'duplicate' };
+        const { error } = await supabase.from('station_pumps').insert({ station_id: stationId, name });
+        if (!error) await loadPumps();
+        return { success: !error, error: error ? (error.code === '23505' ? 'duplicate' : 'failed') : null };
+    };
+    // Renommer : la pompe habituelle des pompistes et les affectations d'AUJOURD'HUI qui
+    // portaient l'ancien nom suivent ; l'historique des jours passés reste figé.
+    const renamePump = async (id, rawName) => {
+        const name = (rawName || '').trim();
+        const old = pumps.find((p) => p.id === id);
+        if (!old) return { success: false, error: 'unknown' };
+        if (!name) return { success: false, error: 'empty' };
+        if (name.length > 40) return { success: false, error: 'too_long' };
+        if (name === old.name) return { success: true, error: null };
+        if (pumps.some((p) => p.id !== id && samePumpName(p.name, name))) return { success: false, error: 'duplicate' };
+        const { error } = await supabase.from('station_pumps').update({ name }).eq('id', id);
+        if (error) return { success: false, error: error.code === '23505' ? 'duplicate' : 'failed' };
+        const now = new Date();
+        const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+        await Promise.all([
+            supabase.from('employees').update({ pump_label: name }).eq('station_id', stationId).eq('pump_label', old.name),
+            supabase.from('attendance_records').update({ pump_label: name }).eq('station_id', stationId).eq('work_date', today).eq('pump_label', old.name),
+        ]);
+        setAttendanceHistory((prev) => {
+            const day = prev[today];
+            if (!day) return prev;
+            const next = {};
+            Object.entries(day).forEach(([k, v]) => { next[k] = v.pumpLabel === old.name ? { ...v, pumpLabel: name } : v; });
+            return { ...prev, [today]: next };
+        });
+        await Promise.all([loadPumps(), loadEmployees()]);
+        return { success: true, error: null };
+    };
+    // « Retirer » = désactiver (jamais supprimer) : les relevés passés gardent leur libellé.
+    const setPumpActive = async (id, active) => {
+        const { error } = await supabase.from('station_pumps').update({ active }).eq('id', id);
+        if (!error) await loadPumps();
+        return { success: !error, error };
     };
 
     // Relevé de fin de journée d'un pompiste : pompe tenue, litres vendus, montant
@@ -1393,6 +1473,7 @@ export function AppStateProvider({ children }) {
             supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
             supabase.from('expenses').delete().eq('station_id', stationId).then(() => loadExpenses());
             supabase.from('employees').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('station_pumps').delete().eq('station_id', stationId).then(() => setPumps([]));
             supabase.from('attendance_records').delete().eq('station_id', stationId).then(() => {});
         }
         window.location.reload();
@@ -1402,7 +1483,8 @@ export function AppStateProvider({ children }) {
         <AppStateContext.Provider value={{
             queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes,
             myPermissions, myRoleName,
-            attendanceHistory, recordDailyAttendance, savePumpReading, loadAttendanceForDate, loadAttendanceForMonth,
+            attendanceHistory, recordDailyAttendance, savePumpReading, assignPump, loadAttendanceForDate, loadAttendanceForMonth,
+            pumps, addPump, renamePump, setPumpActive,
             hiddenMenu, updateHiddenMenu,
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,

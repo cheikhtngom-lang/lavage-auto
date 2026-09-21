@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus, Wrench, LayoutList } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus, Wrench, LayoutList, Fuel } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { getCurrentStationId } from '../../lib/accounts';
@@ -14,6 +14,8 @@ import { listStationClients, exportStationData, exportStationClientData } from '
 import { hasModule } from '../../lib/stationModules';
 import { navAvailableTo, DEFAULT_HIDDEN_MENU } from '../../lib/adminNav';
 import { OIL_TYPES, VIDANGE_CATEGORY_GRID, stationHasVidange } from '../../lib/vidange';
+import { stationHasPompistes } from '../../lib/pompistes';
+import PompistesSetup from '../../components/pompistes/PompistesSetup';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 // Une grille tarifaire = une catégorie de pricingConfig + ses prestations.
@@ -56,8 +58,10 @@ export default function Settings() {
   const hasLocation = registryEntry?.lat != null && registryEntry?.lng != null;
   const hasAdvancedLoyalty = hasModule(stationBilling?.activeModules, 'mod_fidelite_plus');
   const canVidange = stationHasVidange(stationBilling);
+  const canPompistes = stationHasPompistes(stationBilling);
+  const location = useLocation();
 
-  const [activeTab, setActiveTab] = useState('profil');
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'profil');
 
   // Menu & rubriques : coche/décoche des entrées du menu latéral (voir lib/adminNav.js).
   // Seules les rubriques auxquelles le compte a droit sont listées ; un changement
@@ -565,6 +569,8 @@ export default function Settings() {
             { id: 'menu', label: 'Menu & rubriques', icon: LayoutList },
             { id: 'nomprofil', label: 'Changer nom de profil', icon: Store },
             { id: 'employes', label: 'Gestion Employés', icon: Users },
+            // Pompistes & pompes : forfaits Pro et Business — voir RequirePompistesAccess (App.jsx).
+            ...(canPompistes ? [{ id: 'pompistes', label: 'Pompistes & pompes', icon: Fuel }] : []),
             { id: 'temps', label: 'Temps Estimés', icon: Clock },
             { id: 'tarifs', label: 'Grille Tarifaire', icon: CreditCard },
             // Vidange réservée au forfait Business (ou module mod_vidange) —
@@ -932,6 +938,8 @@ export default function Settings() {
               </CardContent>
             </Card>
           )}
+
+          {activeTab === 'pompistes' && canPompistes && <PompistesSetup />}
 
           {activeTab === 'temps' && (
             <Card className="border-white/5 bg-white/[0.02]">

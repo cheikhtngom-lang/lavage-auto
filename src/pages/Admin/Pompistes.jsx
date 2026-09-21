@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import WorkedTimeCell from '../../components/ui/WorkedTimeCell';
 import {
-  CheckCircle2, Clock, XCircle, Fuel, Calendar, Loader2, FileSpreadsheet, UserPlus, Trash2, Save, Gauge,
+  CheckCircle2, Clock, XCircle, Fuel, Calendar, Loader2, FileSpreadsheet, Save, Settings2, Pencil, X, ClipboardEdit,
 } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { isPastClosingTime } from '../../lib/stationData';
@@ -39,47 +40,124 @@ const DAILY_COLOR = {
 };
 const STATUS_LABEL = { present: 'Présent', repos: 'Repos', conge: 'Congé', maladie: 'Maladie', absent: 'Absent' };
 
+// ─── Fenêtre « relevé » : litres vendus + argent encaissé ───────────────────
+// S'ouvre dès qu'on clique sur « Descente » (et sur « Saisir / Modifier le relevé »).
+// « Plus tard » la ferme sans rien enregistrer : la ligne reste marquée « À saisir ».
+function ReadingModal({ row, dateLabel, pumpOptions, initial, onSave, onClose }) {
+  const [pump, setPump] = useState(initial.pump);
+  const [liters, setLiters] = useState(initial.liters);
+  const [amount, setAmount] = useState(initial.amount);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const parsedLiters = parseLiters(liters);
+  const parsedAmount = parseAmount(amount);
+  const price = pricePerLiter(parsedLiters, parsedAmount);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (parsedLiters === undefined) { setError('Litres invalides (ex : 1250 ou 1250,5).'); return; }
+    if (parsedAmount === undefined) { setError('Montant invalide (chiffres uniquement).'); return; }
+    if (parsedLiters == null && parsedAmount == null) { setError('Saisissez au moins les litres vendus ou le montant encaissé.'); return; }
+    setBusy(true);
+    setError('');
+    const ok = await onSave({ pumpLabel: pump, liters: parsedLiters, amountCollected: parsedAmount });
+    setBusy(false);
+    if (ok) onClose();
+    else setError('Enregistrement impossible. Réessayez.');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <form
+        onSubmit={submit} onClick={(e) => e.stopPropagation()}
+        className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
+      >
+        <button type="button" onClick={onClose} className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+        <h2 className="text-xl font-bold text-white pr-8 flex items-center gap-2"><Fuel className="w-5 h-5 text-blue-400" /> Relevé de {row.name}</h2>
+        <p className="text-sm text-neutral-400 mt-1 mb-5">
+          <span className="capitalize">{dateLabel}</span>
+          {row.live.totalTime ? ` — ${row.live.totalTime} de service` : ''}
+        </p>
+
+        <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">Pompe</label>
+        <select value={pump} onChange={(e) => setPump(e.target.value)} className={`${inputCls} w-full mb-4 appearance-none`}>
+          <option value="">— Aucune —</option>
+          {pumpOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+
+        <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">Litres vendus</label>
+        <input
+          autoFocus type="text" inputMode="decimal" value={liters} onChange={(e) => setLiters(e.target.value)}
+          placeholder="Ex : 1250,5" className={`${inputCls} w-full mb-4 !text-lg !py-3`}
+        />
+
+        <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1">Argent encaissé (FCFA)</label>
+        <input
+          type="text" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)}
+          placeholder="Ex : 1 100 000" className={`${inputCls} w-full mb-2 !text-lg !py-3`}
+        />
+        <p className="text-xs text-neutral-500 mb-4 h-4">{price != null ? `Soit environ ${price.toLocaleString('fr-FR')} FCFA le litre` : ''}</p>
+
+        {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
+        <div className="flex gap-2">
+          <button
+            type="submit" disabled={busy}
+            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-colors"
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Enregistrer le relevé
+          </button>
+          <button type="button" onClick={onClose} className="px-4 py-3 rounded-xl border border-white/10 text-neutral-300 hover:text-white hover:bg-white/5 text-sm font-medium transition-colors">
+            Plus tard
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export default function Pompistes() {
   useDocumentTitle('Pompistes');
   const {
-    employees, addEmployee, updateEmployee, resumeEmployee, finishService, attendanceHistory, recordDailyAttendance,
-    savePumpReading, loadAttendanceForDate, loadAttendanceForMonth, stationProfile,
+    employees, updateEmployee, resumeEmployee, finishService, attendanceHistory, recordDailyAttendance,
+    savePumpReading, assignPump, pumps, loadAttendanceForDate, loadAttendanceForMonth, stationProfile,
   } = useAppState();
 
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const isToday = selectedDate === todayKey();
-  // Saisies en cours, par pompiste, pour la date affichée : { [id]: { pump?, liters?, amount? } }.
-  const [drafts, setDrafts] = useState({});
-  const [savingId, setSavingId] = useState(null);
-  const [rowErrors, setRowErrors] = useState({});
-  const [newName, setNewName] = useState('');
-  const [newPump, setNewPump] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState('');
+  const [readingRowId, setReadingRowId] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportMonth, setExportMonth] = useState(() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  // Les relevés du jour se lisent dans attendance_records (comme l'historique
+  // Les pompes et relevés du jour se lisent dans attendance_records (comme l'historique
   // des laveurs) : on charge la date affichée, aujourd'hui compris.
   useEffect(() => {
     loadAttendanceForDate(selectedDate);
-    setDrafts({});
-    setRowErrors({});
+    setReadingRowId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
   // Pompistes retirés de la liste (status 'Archivé') : leur historique est conservé.
   const roster = (employees || []).filter((e) => e.role === POMPISTE_ROLE && e.status !== 'Archivé');
   const employeeById = (id) => (employees || []).find((e) => e.id === id);
+  const activePumps = (pumps || []).filter((p) => p.active);
 
-  // Pompes déjà utilisées — proposées en suggestion pour éviter « Pompe B » / « pompe b ».
-  const pumpSuggestions = [...new Set([
-    ...roster.map((e) => e.pumpLabel),
-    ...Object.values(attendanceHistory || {}).flatMap((day) => Object.values(day || {}).map((r) => r.pumpLabel)),
-  ].map((p) => (p || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
+  // Pompes proposées pour poster un pompiste : les pompes actives + la valeur courante
+  // si elle n'en fait plus partie (pompe retirée depuis, ou saisie d'avant).
+  const pumpOptionsFor = (current) => {
+    const names = activePumps.map((p) => p.name);
+    if (current && !names.some((n) => n.toLowerCase() === current.toLowerCase())) names.push(current);
+    return names;
+  };
 
   // ─── Pointage (même mécanique que les laveurs) ────────────────────────────
   const changeDailyStatus = (id, newStatus) => {
@@ -88,7 +166,8 @@ export default function Pompistes() {
   };
 
   // Dès qu'un pompiste est marqué « Présent » aujourd'hui, la prise de poste est
-  // enregistrée automatiquement (une seule fois par jour, voir Washers.jsx).
+  // enregistrée automatiquement (une seule fois par jour, voir Washers.jsx), et sa
+  // pompe habituelle est figée sur la journée — on peut ensuite le poster ailleurs.
   useEffect(() => {
     const toClockIn = roster.filter((p) => p.dailyStatus === 'present' && !p.clockInAt);
     if (toClockIn.length === 0) return;
@@ -97,11 +176,12 @@ export default function Pompistes() {
     const patch = { status: 'Actif', clockIn: display, clockInAt: now.toISOString(), clockOut: null, clockOutAt: null, totalTime: null };
     toClockIn.forEach((p) => {
       updateEmployee(p.id, patch);
-      recordDailyAttendance(p.id, { ...patch, dailyStatus: 'present' });
+      recordDailyAttendance(p.id, { ...patch, dailyStatus: 'present', ...(p.pumpLabel ? { pumpLabel: p.pumpLabel } : {}) });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roster.map((p) => `${p.id}:${p.dailyStatus}:${p.clockInAt || ''}`).join(',')]);
 
+  // « Descente » : la sortie est enregistrée, puis la fenêtre du relevé s'ouvre.
   const handleClockOut = (id) => {
     const now = new Date();
     const display = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -109,23 +189,7 @@ export default function Pompistes() {
     const patch = { status: 'Terminé', clockOut: display, clockOutAt: now.toISOString(), totalTime: formatWorkedTime(pompiste?.clockInAt, now) };
     updateEmployee(id, patch);
     recordDailyAttendance(id, patch);
-  };
-
-  const removePompiste = (p) => {
-    if (!window.confirm(`Retirer ${p.name} de la liste des pompistes ? Son historique de pointage et de relevés est conservé.`)) return;
-    updateEmployee(p.id, { status: 'Archivé', dailyStatus: 'repos' });
-  };
-
-  const submitNewPompiste = async (e) => {
-    e.preventDefault();
-    const name = newName.trim();
-    if (!name) return;
-    setAdding(true);
-    setAddError('');
-    const { success } = await addEmployee({ name, role: POMPISTE_ROLE, access: 'Aucun', pumpLabel: newPump.trim() });
-    setAdding(false);
-    if (success) { setNewName(''); setNewPump(''); }
-    else setAddError("Ajout impossible. Vérifiez votre connexion puis réessayez.");
+    setReadingRowId(id);
   };
 
   // ─── Lignes du jour affiché ───────────────────────────────────────────────
@@ -140,37 +204,20 @@ export default function Pompistes() {
         .map((r) => ({ id: r.id, name: r.name || employeeById(r.id)?.name || 'Pompiste', live: r, status: r.status || 'Absent', saved: r }))
   );
 
-  const savedPumpOf = (row) => (row.saved?.pumpLabel || employeeById(row.id)?.pumpLabel || '').trim();
-  const valuesOf = (row) => {
-    const d = drafts[row.id] || {};
-    return {
-      pump: d.pump ?? savedPumpOf(row),
-      liters: d.liters ?? toInputValue(row.saved?.liters),
-      amount: d.amount ?? toInputValue(row.saved?.amountCollected),
-    };
-  };
-  const setDraft = (id, patch) => setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  // Pompe du jour : celle choisie pour ce jour, à défaut la pompe habituelle.
+  const pumpOf = (row) => (row.saved?.pumpLabel || employeeById(row.id)?.pumpLabel || '').trim();
+  const hasReading = (row) => row.saved?.liters != null || row.saved?.amountCollected != null;
+  const readingRow = rows.find((r) => r.id === readingRowId) || null;
 
-  const saveRow = async (row) => {
-    const v = valuesOf(row);
-    const liters = parseLiters(v.liters);
-    const amount = parseAmount(v.amount);
-    if (liters === undefined) { setRowErrors((p) => ({ ...p, [row.id]: 'Litres invalides (ex : 1250 ou 1250,5).' })); return; }
-    if (amount === undefined) { setRowErrors((p) => ({ ...p, [row.id]: 'Montant invalide (chiffres uniquement).' })); return; }
-    setRowErrors((p) => ({ ...p, [row.id]: '' }));
-    setSavingId(row.id);
-    const { success } = await savePumpReading(row.id, selectedDate, { pumpLabel: v.pump, liters, amountCollected: amount });
-    setSavingId(null);
-    if (success) {
-      setDrafts((prev) => { const next = { ...prev }; delete next[row.id]; return next; });
-    } else {
-      setRowErrors((p) => ({ ...p, [row.id]: "Enregistrement impossible. Réessayez." }));
-    }
+  const saveReading = async (row, { pumpLabel, liters, amountCollected }) => {
+    const { success } = await savePumpReading(row.id, selectedDate, { pumpLabel, liters, amountCollected });
+    return success;
   };
 
-  // Totaux du jour : uniquement ce qui est ENREGISTRÉ (pas les saisies en cours).
-  const summary = summarizeReadings(rows.map((r) => ({ pump: savedPumpOf(r), liters: r.saved?.liters, amount: r.saved?.amountCollected })));
+  // Totaux du jour : uniquement ce qui est ENREGISTRÉ.
+  const summary = summarizeReadings(rows.map((r) => ({ pump: pumpOf(r), liters: r.saved?.liters, amount: r.saved?.amountCollected })));
   const avgPrice = pricePerLiter(summary.liters, summary.amount);
+  const pendingCount = rows.filter((r) => !hasReading(r) && (r.status === 'Terminé' || r.status === 'Fin de service' || !isToday)).length;
   const presentCount = roster.filter((p) => p.dailyStatus === 'present').length;
   const selectedDateLabel = new Date(`${selectedDate}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -239,8 +286,8 @@ export default function Pompistes() {
       for (let i = 1; i <= daysInMonth; i++) {
         const rec = recFor(p, i);
         if (!rec) continue;
-        const hasReading = rec.liters != null || rec.amountCollected != null;
-        if (rec.dailyStatus !== 'present' && !hasReading) continue;
+        const withReading = rec.liters != null || rec.amountCollected != null;
+        if (rec.dailyStatus !== 'present' && !withReading) continue;
         const min = minutesFor(rec, i);
         if (rec.dailyStatus === 'present') { tMin += min; days += 1; }
         liters += Number(rec.liters) || 0;
@@ -280,12 +327,18 @@ export default function Pompistes() {
     XLSX.writeFile(wb, `Pompistes_${exportMonth}_${safeStation}.xlsx`);
   };
 
+  const manageLink = (
+    <Link to="/admin/settings" state={{ tab: 'pompistes' }} className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-bold text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 transition-colors">
+      <Settings2 className="w-3.5 h-3.5" /> Pompistes &amp; pompes
+    </Link>
+  );
+
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">Gestion des <span className="text-blue-400">Pompistes</span></h1>
-          <p className="text-neutral-400 text-lg">Pointez vos pompistes, affectez-les à une pompe et relevez les litres vendus et le montant encaissé.</p>
+          <p className="text-neutral-400 text-lg">Postez vos pompistes sur une pompe chaque jour, pointez-les, puis relevez les litres vendus et l'argent encaissé à la descente.</p>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl px-5 py-3 flex items-center gap-3">
@@ -312,65 +365,36 @@ export default function Pompistes() {
         </div>
       </div>
 
-      {/* Suggestions de pompes partagées par tous les champs « Pompe ». */}
-      <datalist id="pump-suggestions">
-        {pumpSuggestions.map((p) => <option key={p} value={p} />)}
-      </datalist>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* ═══ Équipe de pompistes ═══ */}
+        {/* ═══ Équipe de pompistes : présence du jour ═══ */}
         <Card className="h-fit">
           <CardContent className="p-6">
-            <h2 className="text-xl font-bold text-white mb-1">Base de Pompistes</h2>
-            <p className="text-sm text-neutral-400 mb-5">Cochez ceux de garde aujourd'hui et indiquez leur pompe habituelle.</p>
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+              <h2 className="text-xl font-bold text-white">Base de Pompistes</h2>
+              {manageLink}
+            </div>
+            <p className="text-sm text-neutral-400 mb-5">Cochez les pompistes de garde pour la journée d'aujourd'hui.</p>
 
-            <form onSubmit={submitNewPompiste} className="space-y-2 mb-5 pb-5 border-b border-white/10">
-              <input
-                type="text" required maxLength={100} value={newName} onChange={(e) => setNewName(e.target.value)}
-                placeholder="Nom du pompiste" className={`${inputCls} w-full`}
-              />
-              <div className="flex gap-2">
-                <input
-                  type="text" list="pump-suggestions" maxLength={40} value={newPump} onChange={(e) => setNewPump(e.target.value)}
-                  placeholder="Pompe (ex : Pompe B)" className={`${inputCls} flex-1 min-w-0`}
-                />
-                <button
-                  type="submit" disabled={adding || !newName.trim()}
-                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white text-sm font-bold px-4 rounded-lg transition-colors"
-                >
-                  {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />} Ajouter
-                </button>
+            {roster.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-neutral-500 mb-3">Aucun pompiste pour l'instant.</p>
+                <p className="text-xs text-neutral-500">Ajoutez vos pompistes et les pompes de la station dans Paramètres.</p>
               </div>
-              {addError && <p className="text-xs text-red-400">{addError}</p>}
-            </form>
-
-            <div className="space-y-3">
-              {roster.length === 0 && <p className="text-sm text-neutral-500 text-center py-4">Aucun pompiste pour l'instant.</p>}
-              {roster.map((p) => (
-                <div key={p.id} className="p-3 rounded-xl bg-neutral-900 border border-white/5 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
+            ) : (
+              <div className="space-y-3">
+                {roster.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-neutral-900 border border-white/5">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0">
-                        {p.avatar}
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0">{p.avatar}</div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{p.name}</p>
+                        {p.pumpLabel && <p className="text-[11px] text-neutral-500 truncate">Habituelle : {p.pumpLabel}</p>}
                       </div>
-                      <span className="text-sm font-medium text-white truncate">{p.name}</span>
                     </div>
-                    <button onClick={() => removePompiste(p)} title="Retirer de la liste" className="p-1.5 bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-neutral-500 rounded-lg transition-colors flex-shrink-0">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      key={`${p.id}:${p.pumpLabel}`}
-                      type="text" list="pump-suggestions" maxLength={40} defaultValue={p.pumpLabel}
-                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (p.pumpLabel || '')) updateEmployee(p.id, { pumpLabel: v || null }); }}
-                      placeholder="Pompe habituelle" title="Pompe habituelle"
-                      className={`${inputCls} flex-1 min-w-0 !py-1.5 text-xs`}
-                    />
                     <select
                       value={p.dailyStatus}
                       onChange={(e) => changeDailyStatus(p.id, e.target.value)}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors ${DAILY_COLOR[p.dailyStatus] || DAILY_COLOR.absent}`}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors flex-shrink-0 ${DAILY_COLOR[p.dailyStatus] || DAILY_COLOR.absent}`}
                     >
                       <option value="present" className="bg-neutral-900 text-white">Présent</option>
                       <option value="repos" className="bg-neutral-900 text-white">Repos</option>
@@ -379,16 +403,16 @@ export default function Pompistes() {
                       <option value="absent" className="bg-neutral-900 text-white">Absent (Injustifié)</option>
                     </select>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* ═══ Pointage ═══ */}
+        {/* ═══ Récapitulatif du jour ═══ */}
         <Card className="lg:col-span-2">
           <CardContent className="p-6">
-            <h2 className="text-xl font-bold text-white mb-2">Pointage {isToday ? 'Journalier' : '— Historique'}</h2>
+            <h2 className="text-xl font-bold text-white mb-2">Récapitulatif {isToday ? 'du jour' : '— Historique'}</h2>
             <div className="flex flex-wrap items-center gap-3 mb-6">
               <div className="flex items-center gap-2 bg-neutral-900 border border-white/10 rounded-lg px-3 py-2">
                 <Calendar className="w-4 h-4 text-neutral-500 flex-shrink-0" />
@@ -406,32 +430,109 @@ export default function Pompistes() {
               <span className="text-sm text-neutral-500 capitalize">{selectedDateLabel}</span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="p-4 font-semibold text-neutral-400">Pompiste</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-center">Prise de poste</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-center">Descente</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-center">Temps de travail</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-right">Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.length === 0 ? (
-                    <tr><td colSpan="5" className="p-8 text-center text-neutral-500">
-                      {isToday ? "Aucun pompiste sélectionné pour aujourd'hui." : 'Aucune donnée de pointage pour cette date.'}
-                    </td></tr>
-                  ) : rows.map((row) => (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                ['Litres vendus', fmtLiters(summary.liters), 'text-blue-400'],
+                ['Argent encaissé', fmtFcfa(summary.amount), 'text-emerald-400'],
+                ['Prix moyen / litre', avgPrice != null ? fmtFcfa(avgPrice) : '—', 'text-neutral-200'],
+              ].map(([label, value, cls]) => (
+                <div key={label} className="rounded-xl bg-neutral-900 border border-white/5 px-5 py-4">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">{label}</p>
+                  <p className={`text-2xl font-bold mt-1 ${cls}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {summary.byPump.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-5">
+                {summary.byPump.map((pp) => (
+                  <div key={pp.label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs">
+                    <Fuel className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="font-bold text-white">{pp.label}</span>
+                    <span className="text-neutral-400">{fmtLiters(pp.liters)} · {fmtFcfa(pp.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {pendingCount > 0 && (
+              <p className="mt-5 text-sm text-amber-400 flex items-center gap-2"><Clock className="w-4 h-4" /> {pendingCount} relevé{pendingCount > 1 ? 's' : ''} à saisir.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ═══ Pointage, pompe du jour et relevé ═══ */}
+      <Card className="mt-8">
+        <CardContent className="p-6">
+          <h2 className="text-xl font-bold text-white mb-4">Pointage {isToday ? 'Journalier' : '— Historique'}</h2>
+
+          {activePumps.length === 0 && (
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-sm bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-xl px-4 py-3">
+              <span>Aucune pompe déclarée : ajoutez les pompes à essence de la station pour pouvoir y poster vos pompistes.</span>
+              {manageLink}
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[860px]">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="p-4 font-semibold text-neutral-400">Pompiste</th>
+                  <th className="p-4 font-semibold text-neutral-400">Pompe du jour</th>
+                  <th className="p-4 font-semibold text-neutral-400 text-center">Prise de poste</th>
+                  <th className="p-4 font-semibold text-neutral-400 text-center">Descente</th>
+                  <th className="p-4 font-semibold text-neutral-400 text-center">Temps de travail</th>
+                  <th className="p-4 font-semibold text-neutral-400">Relevé</th>
+                  <th className="p-4 font-semibold text-neutral-400 text-right">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr><td colSpan="7" className="p-8 text-center text-neutral-500">
+                    {isToday ? "Aucun pompiste sélectionné pour aujourd'hui." : 'Aucune donnée de pointage pour cette date.'}
+                  </td></tr>
+                ) : rows.map((row) => {
+                  const current = pumpOf(row);
+                  const finished = row.status === 'Terminé' || row.status === 'Fin de service';
+                  return (
                     <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                      <td className="p-4 font-bold text-white">{row.name}</td>
                       <td className="p-4">
-                        <div className="font-bold text-white">{row.name}</div>
-                        <div className="text-xs text-neutral-500">{savedPumpOf(row) || 'Pompe non précisée'}</div>
+                        <select
+                          value={current}
+                          onChange={(e) => assignPump(row.id, selectedDate, e.target.value)}
+                          disabled={activePumps.length === 0 && !current}
+                          className={`${inputCls} w-40 appearance-none cursor-pointer`}
+                          title="Pompe où travaille ce pompiste ce jour-là"
+                        >
+                          <option value="">{activePumps.length === 0 && !current ? 'Aucune pompe' : '— Choisir —'}</option>
+                          {pumpOptionsFor(current).map((n) => <option key={n} value={n}>{n}</option>)}
+                        </select>
                       </td>
                       <td className="p-4 text-center font-bold text-emerald-400">{row.live.clockIn || '-'}</td>
                       <td className="p-4 text-center font-bold text-red-400">{row.live.clockOut || '-'}</td>
                       <td className="p-4 text-center font-bold text-blue-400">
                         <WorkedTimeCell member={row.live} status={row.status} live={isToday} />
+                      </td>
+                      <td className="p-4">
+                        {hasReading(row) ? (
+                          <div className="flex items-center gap-3">
+                            <div className="text-sm">
+                              <p className="font-bold text-white">{fmtLiters(row.saved.liters)}</p>
+                              <p className="text-xs text-emerald-400">{fmtFcfa(row.saved.amountCollected)}</p>
+                            </div>
+                            <button onClick={() => setReadingRowId(row.id)} title="Modifier le relevé" className="p-1.5 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 text-neutral-400 rounded-lg transition-colors">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : finished || !isToday ? (
+                          <button onClick={() => setReadingRowId(row.id)} className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300 hover:text-amber-200 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 transition-colors">
+                            <ClipboardEdit className="w-3.5 h-3.5" /> Saisir le relevé
+                          </button>
+                        ) : (
+                          <span className="text-xs text-neutral-500">Après la descente</span>
+                        )}
                       </td>
                       <td className="p-4 text-right">
                         {isToday ? (
@@ -462,128 +563,28 @@ export default function Pompistes() {
                         )}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ═══ Relevé de fin de journée ═══ */}
-      <Card className="mt-8">
-        <CardContent className="p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-xl font-bold text-white flex items-center gap-2"><Gauge className="w-5 h-5 text-blue-400" /> Relevé de fin de journée</h2>
-              <p className="text-sm text-neutral-400 mt-1"><span className="capitalize">{selectedDateLabel}</span> — litres vendus et montant encaissé par chaque pompiste.</p>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            {[
-              ['Litres vendus', fmtLiters(summary.liters), 'text-blue-400'],
-              ['Montant encaissé', fmtFcfa(summary.amount), 'text-emerald-400'],
-              ['Prix moyen / litre', avgPrice != null ? fmtFcfa(avgPrice) : '—', 'text-neutral-200'],
-            ].map(([label, value, cls]) => (
-              <div key={label} className="rounded-xl bg-neutral-900 border border-white/5 px-5 py-4">
-                <p className="text-xs uppercase tracking-wide text-neutral-500">{label}</p>
-                <p className={`text-2xl font-bold mt-1 ${cls}`}>{value}</p>
-              </div>
-            ))}
-          </div>
-
-          {summary.byPump.length > 1 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              {summary.byPump.map((pp) => (
-                <div key={pp.label} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs">
-                  <Fuel className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="font-bold text-white">{pp.label}</span>
-                  <span className="text-neutral-400">{fmtLiters(pp.liters)} · {fmtFcfa(pp.amount)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {rows.length === 0 ? (
-            <p className="text-center text-neutral-500 py-6">
-              {isToday ? "Marquez un pompiste « Présent » pour saisir son relevé." : 'Aucun pompiste à relever pour cette date.'}
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[680px]">
-                <thead>
-                  <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-neutral-500">
-                    <th className="py-3 pr-4 font-semibold">Pompiste</th>
-                    <th className="py-3 pr-4 font-semibold">Pompe</th>
-                    <th className="py-3 pr-4 font-semibold">Litres vendus</th>
-                    <th className="py-3 pr-4 font-semibold">Montant encaissé (FCFA)</th>
-                    <th className="py-3 pr-4 font-semibold">Prix / litre</th>
-                    <th className="py-3 font-semibold text-right">Relevé</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const v = valuesOf(row);
-                    const dirty = !!drafts[row.id];
-                    const hasSaved = row.saved?.liters != null || row.saved?.amountCollected != null;
-                    const finished = row.status === 'Terminé' || row.status === 'Fin de service';
-                    const price = pricePerLiter(parseLiters(v.liters), parseAmount(v.amount));
-                    return (
-                      <tr key={row.id} className="border-b border-white/5 align-top">
-                        <td className="py-4 pr-4">
-                          <p className="font-semibold text-white text-sm">{row.name}</p>
-                          {hasSaved && !dirty ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 mt-1"><CheckCircle2 className="w-3 h-3" /> Enregistré</span>
-                          ) : finished || !isToday ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-amber-400 mt-1"><Clock className="w-3 h-3" /> À saisir</span>
-                          ) : (
-                            <span className="text-[11px] text-neutral-500 mt-1 block">En service</span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <input
-                            type="text" list="pump-suggestions" maxLength={40} value={v.pump}
-                            onChange={(e) => setDraft(row.id, { pump: e.target.value })}
-                            placeholder="Pompe B" className={`${inputCls} w-36`}
-                          />
-                        </td>
-                        <td className="py-3 pr-4">
-                          <input
-                            type="text" inputMode="decimal" value={v.liters}
-                            onChange={(e) => setDraft(row.id, { liters: e.target.value })}
-                            placeholder="0" className={`${inputCls} w-32`}
-                          />
-                        </td>
-                        <td className="py-3 pr-4">
-                          <input
-                            type="text" inputMode="numeric" value={v.amount}
-                            onChange={(e) => setDraft(row.id, { amount: e.target.value })}
-                            placeholder="0" className={`${inputCls} w-40`}
-                          />
-                        </td>
-                        <td className="py-4 pr-4 text-sm text-neutral-400 whitespace-nowrap">{price != null ? `${price.toLocaleString('fr-FR')} /L` : '—'}</td>
-                        <td className="py-3 text-right">
-                          <button
-                            onClick={() => saveRow(row)} disabled={!dirty || savingId === row.id}
-                            className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
-                          >
-                            {savingId === row.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Enregistrer
-                          </button>
-                          {rowErrors[row.id] && <p className="text-xs text-red-400 mt-1.5 text-right">{rowErrors[row.id]}</p>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
           <p className="text-xs text-neutral-600 mt-5">
             Ces montants sont suivis à part : ils n'entrent ni dans les transactions de lavage, ni dans le Bilan ou l'Analytique.
           </p>
         </CardContent>
       </Card>
+
+      {readingRow && (
+        <ReadingModal
+          key={readingRow.id}
+          row={readingRow}
+          dateLabel={selectedDateLabel}
+          pumpOptions={pumpOptionsFor(pumpOf(readingRow))}
+          initial={{ pump: pumpOf(readingRow), liters: toInputValue(readingRow.saved?.liters), amount: toInputValue(readingRow.saved?.amountCollected) }}
+          onSave={(values) => saveReading(readingRow, values)}
+          onClose={() => setReadingRowId(null)}
+        />
+      )}
     </div>
   );
 }
