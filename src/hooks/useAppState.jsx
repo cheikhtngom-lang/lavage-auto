@@ -3,6 +3,7 @@ import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
+import { nozzleLabel, nozzleKey, sortNozzles, normalizeLines } from '../lib/pompistes';
 import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi, loadStationKnownClients as loadStationKnownClientsApi, retireAnnouncement } from '../lib/announcements';
 
 // Chaque station a ses propres données, séparées des autres (file d'attente,
@@ -40,7 +41,7 @@ function rowToEmployee(row) {
 // Champs de pointage partagés entre `employees` (état courant) et
 // `attendance_records` (instantané par jour) — mêmes noms de colonnes dans
 // les deux tables, donc un seul mapping camelCase -> snake_case pour les deux.
-const ATTENDANCE_FIELD_MAP = { dailyStatus: 'daily_status', clockIn: 'clock_in', clockOut: 'clock_out', clockInAt: 'clock_in_at', clockOutAt: 'clock_out_at', totalTime: 'total_time', pumpLabel: 'pump_label' };
+const ATTENDANCE_FIELD_MAP = { dailyStatus: 'daily_status', clockIn: 'clock_in', clockOut: 'clock_out', clockInAt: 'clock_in_at', clockOutAt: 'clock_out_at', totalTime: 'total_time', pumpLabel: 'pump_label', pumpNozzles: 'pump_nozzles' };
 function patchToRow(patch) {
     const row = {};
     Object.entries(patch).forEach(([k, v]) => { row[ATTENDANCE_FIELD_MAP[k] || k] = v; });
@@ -126,8 +127,16 @@ export function AppStateProvider({ children }) {
     const [pumps, setPumps] = useState([]);
     const loadPumps = useCallback(async () => {
         if (!stationId || stationId === 'default') { setPumps([]); return; }
-        const { data } = await supabase.from('station_pumps').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
-        setPumps((data || []).map((r) => ({ id: r.id, name: r.name, active: r.active !== false })));
+        // Les pistolets (add_pump_nozzles.sql) sont lus à part : si la table n'existe pas encore,
+        // les pompes restent utilisables comme avant, sans pistolets.
+        const [{ data }, { data: nozzleRows }] = await Promise.all([
+            supabase.from('station_pumps').select('*').eq('station_id', stationId).order('created_at', { ascending: true }),
+            supabase.from('pump_nozzles').select('*').eq('station_id', stationId),
+        ]);
+        const nozzlesOf = (pumpId) => sortNozzles((nozzleRows || []).filter((n) => n.pump_id === pumpId).map((n) => ({
+            id: n.id, pumpId: n.pump_id, fuel: n.fuel, number: n.number, label: nozzleLabel(n.fuel, n.number),
+        })));
+        setPumps((data || []).map((r) => ({ id: r.id, name: r.name, active: r.active !== false, nozzles: nozzlesOf(r.id) })));
     }, [stationId]);
 
     // Types de véhicule ajoutés à la volée par l'admin (dropdown "Ajouter un
@@ -834,6 +843,7 @@ export function AppStateProvider({ children }) {
                 clockInAt: row.clock_in_at, clockOutAt: row.clock_out_at,
                 totalTime: row.total_time,
                 pumpLabel: row.pump_label, liters: row.liters, amountCollected: row.amount_collected,
+                pumpNozzles: row.pump_nozzles || [], pumpLines: normalizeLines(row.pump_lines),
             };
         });
         // Fusion (et non remplacement) : pour aujourd'hui, une action de pointage
@@ -870,6 +880,7 @@ export function AppStateProvider({ children }) {
                 name: row.name, role: row.role,
                 // relevé de pompe (pompistes) — voir Pompistes.jsx
                 pumpLabel: row.pump_label, liters: row.liters, amountCollected: row.amount_collected,
+                pumpNozzles: row.pump_nozzles || [], pumpLines: normalizeLines(row.pump_lines),
             };
         });
         return byEmployeeDay;
@@ -951,37 +962,87 @@ export function AppStateProvider({ children }) {
     };
 
     // Poste un pompiste sur une pompe pour un jour donné (aujourd'hui, ou un jour passé à
-    // corriger). L'upsert ne touche QUE pump_label : le pointage et le relevé (litres,
-    // montant) de la même ligne restent intacts.
-    const assignPump = async (employeeId, dateKey, pumpLabel) => {
+    // corriger), avec les pistolets qu'il tient (`pumpNozzles` = libellés « Essence 1 »…,
+    // `undefined` = ne pas y toucher). L'upsert ne touche QUE pump_label et pump_nozzles :
+    // le pointage et le relevé (litres, montant) de la même ligne restent intacts.
+    const assignPump = async (employeeId, dateKey, pumpLabel, pumpNozzles) => {
         if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
         const emp = employees.find(e => e.id === employeeId);
         const known = attendanceHistory[dateKey]?.[employeeId];
         const label = (pumpLabel || '').trim() || null;
-        const { error } = await supabase.from('attendance_records').upsert({
+        const row = {
             station_id: stationId, employee_id: employeeId, work_date: dateKey,
             name: emp?.name ?? known?.name, role: emp?.role ?? known?.role, pump_label: label,
-        }, { onConflict: 'employee_id,work_date' });
+        };
+        if (pumpNozzles !== undefined) row.pump_nozzles = pumpNozzles.length ? pumpNozzles : null;
+        const { error } = await supabase.from('attendance_records').upsert(row, { onConflict: 'employee_id,work_date' });
         if (!error) {
             setAttendanceHistory((prev) => {
                 const dayEntries = prev[dateKey] || {};
                 const existing = dayEntries[employeeId] || { id: employeeId, name: emp?.name, role: emp?.role };
-                return { ...prev, [dateKey]: { ...dayEntries, [employeeId]: { ...existing, pumpLabel: label } } };
+                return { ...prev, [dateKey]: { ...dayEntries, [employeeId]: { ...existing, pumpLabel: label, ...(pumpNozzles !== undefined ? { pumpNozzles } : {}) } } };
             });
         }
         return { success: !error, error };
     };
 
     const samePumpName = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
-    const addPump = async (rawName) => {
+    // `nozzles` = pistolets cochés à la création : [{ fuel: 'essence'|'gasoil', number }].
+    const addPump = async (rawName, nozzles = []) => {
         const name = (rawName || '').trim();
         if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
         if (!name) return { success: false, error: 'empty' };
         if (name.length > 40) return { success: false, error: 'too_long' };
         if (pumps.some((p) => samePumpName(p.name, name))) return { success: false, error: 'duplicate' };
-        const { error } = await supabase.from('station_pumps').insert({ station_id: stationId, name });
-        if (!error) await loadPumps();
-        return { success: !error, error: error ? (error.code === '23505' ? 'duplicate' : 'failed') : null };
+        const taken = nozzlesTakenElsewhere(null, nozzles);
+        if (taken) return { success: false, error: 'taken', holder: taken };
+        const { data: created, error } = await supabase.from('station_pumps').insert({ station_id: stationId, name }).select('id').single();
+        if (error) return { success: false, error: error.code === '23505' ? 'duplicate' : 'failed' };
+        // La pompe existe déjà : si ses pistolets échouent, on le dit sans annuler la pompe
+        // (le gérant les recoche via « Modifier les pistolets »).
+        let nozzleError = null;
+        if (nozzles.length > 0) {
+            const { error: nErr } = await supabase.from('pump_nozzles').insert(
+                nozzles.map((n) => ({ station_id: stationId, pump_id: created.id, fuel: n.fuel, number: n.number })),
+            );
+            if (nErr) nozzleError = 'nozzles_failed';
+        }
+        await loadPumps();
+        return { success: true, error: nozzleError };
+    };
+    // Un pistolet appartient à UNE pompe : un pistolet déjà porté par une AUTRE pompe active ne peut
+    // pas être coché ailleurs (celui d'une pompe retirée est libre : il change simplement de pompe).
+    const nozzlesTakenElsewhere = (pumpId, picks) => {
+        for (const pick of picks) {
+            const holder = pumps.find((p) => p.id !== pumpId && p.active && p.nozzles.some((n) => n.fuel === pick.fuel && n.number === pick.number));
+            if (holder) return holder.name;
+        }
+        return null;
+    };
+    // Remplace les pistolets d'une pompe par ceux cochés. Les relevés passés gardent leurs libellés.
+    const setPumpNozzles = async (pumpId, picks) => {
+        if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
+        const pump = pumps.find((p) => p.id === pumpId);
+        if (!pump) return { success: false, error: 'unknown' };
+        const holder = nozzlesTakenElsewhere(pumpId, picks);
+        if (holder) return { success: false, error: 'taken', holder };
+        const wanted = new Set(picks.map((n) => nozzleKey(n.fuel, n.number)));
+        const toRemove = pump.nozzles.filter((n) => !wanted.has(nozzleKey(n.fuel, n.number)));
+        const toAdd = picks.filter((n) => !pump.nozzles.some((x) => x.fuel === n.fuel && x.number === n.number));
+        if (toAdd.length > 0) {
+            // Upsert : un pistolet resté sur une pompe retirée est repris par celle-ci.
+            const { error } = await supabase.from('pump_nozzles').upsert(
+                toAdd.map((n) => ({ station_id: stationId, pump_id: pumpId, fuel: n.fuel, number: n.number })),
+                { onConflict: 'station_id,fuel,number' },
+            );
+            if (error) { await loadPumps(); return { success: false, error: 'failed' }; }
+        }
+        if (toRemove.length > 0) {
+            const { error } = await supabase.from('pump_nozzles').delete().in('id', toRemove.map((n) => n.id));
+            if (error) { await loadPumps(); return { success: false, error: 'failed' }; }
+        }
+        await loadPumps();
+        return { success: true, error: null };
     };
     // Renommer : la pompe habituelle des pompistes et les affectations d'AUJOURD'HUI qui
     // portaient l'ancien nom suivent ; l'historique des jours passés reste figé.
@@ -1025,21 +1086,39 @@ export function AppStateProvider({ children }) {
     // réponse de la base avant de mettre le cache à jour : un montant affiché
     // "enregistré" alors qu'il ne l'est pas serait pire qu'un léger délai.
     // `dateKey` peut être un jour passé (correction d'un oubli).
-    const savePumpReading = async (employeeId, dateKey, { pumpLabel, liters, amountCollected }) => {
+    // Station avec pistolets : `lines` = [{ label, fuel, liters, amount }] (une par pistolet
+    // renseigné) et `pumpNozzles` = pistolets tenus ce jour-là ; liters/amountCollected sont alors
+    // la somme des lignes (la base la recalcule, voir le trigger de add_pump_nozzles.sql).
+    // `undefined` = ne pas y toucher (station sans pistolets : rien de plus que l'ancien relevé).
+    const savePumpReading = async (employeeId, dateKey, { pumpLabel, liters, amountCollected, lines, pumpNozzles }) => {
         if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
         const emp = employees.find(e => e.id === employeeId);
         const known = attendanceHistory[dateKey]?.[employeeId];
         const label = (pumpLabel || '').trim() || null;
-        const { error } = await supabase.from('attendance_records').upsert({
+        const detail = lines && lines.length > 0 ? lines : null;
+        const row = {
             station_id: stationId, employee_id: employeeId, work_date: dateKey,
             name: emp?.name ?? known?.name, role: emp?.role ?? known?.role,
             pump_label: label, liters, amount_collected: amountCollected,
-        }, { onConflict: 'employee_id,work_date' });
+        };
+        if (lines !== undefined) row.pump_lines = detail;
+        if (pumpNozzles !== undefined) row.pump_nozzles = pumpNozzles.length ? pumpNozzles : null;
+        const { error } = await supabase.from('attendance_records').upsert(row, { onConflict: 'employee_id,work_date' });
         if (!error) {
             setAttendanceHistory((prev) => {
                 const dayEntries = prev[dateKey] || {};
                 const existing = dayEntries[employeeId] || { id: employeeId, name: emp?.name, role: emp?.role };
-                return { ...prev, [dateKey]: { ...dayEntries, [employeeId]: { ...existing, pumpLabel: label, liters, amountCollected } } };
+                return {
+                    ...prev,
+                    [dateKey]: {
+                        ...dayEntries,
+                        [employeeId]: {
+                            ...existing, pumpLabel: label, liters, amountCollected,
+                            ...(lines !== undefined ? { pumpLines: detail } : {}),
+                            ...(pumpNozzles !== undefined ? { pumpNozzles } : {}),
+                        },
+                    },
+                };
             });
         }
         return { success: !error, error };
@@ -1484,7 +1563,7 @@ export function AppStateProvider({ children }) {
             queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes,
             myPermissions, myRoleName,
             attendanceHistory, recordDailyAttendance, savePumpReading, assignPump, loadAttendanceForDate, loadAttendanceForMonth,
-            pumps, addPump, renamePump, setPumpActive,
+            pumps, addPump, renamePump, setPumpActive, setPumpNozzles,
             hiddenMenu, updateHiddenMenu,
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
