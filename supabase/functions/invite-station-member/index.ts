@@ -180,12 +180,14 @@ Deno.serve(async (req) => {
 
     if (memberId) {
       await admin.from("station_members")
-        .update({ role_id: roleId, full_name: fullName, invited_by: callerId, status: "invited" })
+        .update({ role_id: role.id, full_name: fullName, invited_by: callerId, status: "invited" })
         .eq("id", memberId);
     } else {
       const { data: created, error: insErr } = await admin
         .from("station_members")
-        .insert({ station_id: stationId, role_id: roleId, email, full_name: fullName, status: "invited", invited_by: callerId })
+        // role.id (résolu plus haut), pas roleId : un appel par roleKey (nomination du Super Admin
+        // de station par le patron) n'envoie aucun roleId, et role_id est NOT NULL.
+        .insert({ station_id: stationId, role_id: role.id, email, full_name: fullName, status: "invited", invited_by: callerId })
         .select("id").single();
       if (insErr || !created) { console.error("invite-station-member membre:", insErr); return json({ error: "Création du membre impossible." }, 500); }
       memberId = created.id;
