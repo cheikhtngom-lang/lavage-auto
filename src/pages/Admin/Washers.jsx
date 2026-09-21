@@ -7,33 +7,8 @@ import { CheckCircle2, Clock, XCircle, Search, Droplets, Calendar, Loader2, Chev
 import { useAppState } from '../../hooks/useAppState';
 import { isPastClosingTime } from '../../lib/stationData';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-
-// Formate une durée en minutes en "Xh YYm" (ex: 8h 02m) pour le pointage.
-function formatMinutesToHM(totalMinutes) {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
-}
-// Formate un écart entre deux dates en "Xh YYm".
-function formatWorkedTime(startIso, end) {
-  if (!startIso) return '0h 00m';
-  const totalMinutes = Math.max(0, Math.round((end.getTime() - new Date(startIso).getTime()) / 60000));
-  return formatMinutesToHM(totalMinutes);
-}
-// Chemin inverse : relit une durée déjà formatée ("8h 02m", telle que stockée
-// dans attendance_records.total_time) pour pouvoir la resommer sur un mois.
-function parseDurationToMinutes(str) {
-  const m = /(\d+)\s*h\s*(\d+)\s*m/.exec(str || '');
-  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 0;
-}
-
-// Clé du jour au format YYYY-MM-DD (fuseau local), utilisée pour indexer
-// l'historique de pointage et comparer à la date sélectionnée dans le calendrier.
-function dateKey(d) {
-  const tzOffsetMs = d.getTimezoneOffset() * 60000;
-  return new Date(d.getTime() - tzOffsetMs).toISOString().slice(0, 10);
-}
-function todayKey() { return dateKey(new Date()); }
+import { formatMinutesToHM, formatWorkedTime, parseDurationToMinutes, dateKey, todayKey, resolvePointageStatus } from '../../lib/attendance';
+import WorkedTimeCell from '../../components/ui/WorkedTimeCell';
 
 // ─── Planning de poste (prévisionnel, indépendant du pointage ci-dessus) ──
 const SHIFT_COLOR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ef4444', '#06b6d4'];
@@ -57,35 +32,6 @@ function getPeriodDates(anchor, view) {
   const month = anchor.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   return Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1));
-}
-
-// Statut de pointage effectif : un laveur créé (ou dont le statut de compte est
-// "Actif" par défaut) mais qui n'a encore jamais pointé n'est pas réellement en
-// train de travailler — on l'affiche "Absent" tant qu'il n'a pas cliqué sur
-// "Prise de poste", sinon le bouton n'apparaîtrait jamais pour lui.
-function resolvePointageStatus(member) {
-  if (member.status === 'Actif' && !member.clockInAt) return 'Absent';
-  return member.status || 'Absent';
-}
-
-// Cellule "Temps de travail" — statique une fois la journée terminée, mise à
-// jour en direct (toutes les 30s) tant que le laveur est activement au poste
-// ET que c'est la journée en cours (`live`) — on ne recalcule jamais un écart
-// par rapport à "maintenant" pour un jour passé consulté dans l'historique.
-function WorkedTimeCell({ member, status, live }) {
-  const [, tick] = useState(0);
-  const canTickLive = live && status === 'Actif' && !!member.clockInAt;
-  React.useEffect(() => {
-    if (!canTickLive) return;
-    const id = setInterval(() => tick(t => t + 1), 30000);
-    return () => clearInterval(id);
-  }, [canTickLive]);
-
-  if (member.totalTime) return <span>{member.totalTime}</span>;
-  if (canTickLive) {
-    return <span className="text-emerald-400">{formatWorkedTime(member.clockInAt, new Date())}</span>;
-  }
-  return <span className="text-neutral-600 font-normal">-</span>;
 }
 
 const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
@@ -286,8 +232,10 @@ export default function Washers() {
     Object.keys(monthData).forEach((id) => {
       if (staff.some((s) => s.id === id)) return;
       const e = known.get(id);
+      if (e?.role === 'Pompiste') return; // pointage des pompistes : page Pompistes
       if (e) { staff.push({ id, name: e.name, role: e.role, live: e }); return; }
       const frozen = Object.values(monthData[id]).find((r) => r.name) || {};
+      if (frozen.role === 'Pompiste') return;
       staff.push({ id, name: frozen.name || 'Employé supprimé', role: frozen.role || '—', live: null });
     });
     staff.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr'));
@@ -420,7 +368,7 @@ export default function Washers() {
   // (voir recordDailyAttendance) plutôt que l'état live des employés, qui a depuis évolué.
   const historyEntriesForDate = Object.values(attendanceHistory?.[selectedDate] || {});
   const historyPresentWashers = historyEntriesForDate
-    .filter(rec => rec.dailyStatus === 'present' && rec?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
+    .filter(rec => rec.role !== 'Pompiste' && rec.dailyStatus === 'present' && rec?.name?.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const rowsToShow = isToday ? presentWashers : historyPresentWashers;
 

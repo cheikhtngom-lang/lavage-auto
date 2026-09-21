@@ -1,0 +1,59 @@
+// Catalogue du menu latéral station (AdminLayout) — une seule source de
+// vérité, partagée avec Paramètres > Menu (cocher / décocher les rubriques).
+//
+// Trois filtres indépendants s'appliquent, dans cet ordre :
+//  1. la permission du compte connecté (lib/permissions.js) ;
+//  2. le forfait de la station, ou le module qui le débloque (Super Admin >
+//     Modules, lib/stationModules.js) ;
+//  3. les rubriques que la station a elle-même masquées (stations.hidden_menu,
+//     voir add_station_menu_prefs.sql) — pur désencombrement, pas un contrôle
+//     d'accès : la route reste joignable.
+import {
+  LayoutDashboard, Users, Settings, Droplets, Activity, Calculator, LineChart, Sparkles,
+  FileBarChart, Store, Wrench, Send, Fuel,
+} from 'lucide-react';
+import { hasPerm } from './permissions';
+
+// `locked` : jamais masquable (sans « Vue d'ensemble » il n'y aurait plus de
+// page d'accueil, sans « Paramètres » on ne pourrait plus rien réactiver).
+export const ADMIN_NAV = [
+  { key: 'queue', name: "Vue d'ensemble", href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null, locked: true },
+  { key: 'washers', name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage' },
+  // Pompistes : stations d'essence qui font aussi du lavage — forfait Business.
+  { key: 'pompistes', name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', plans: ['Business'], hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.' },
+  // Vidange : forfait Business, ou module "mod_vidange" — voir RequireVidangeAccess (App.jsx).
+  { key: 'vidange', name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: ['Business'], module: 'mod_vidange' },
+  { key: 'transactions', name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
+  // Comptabilité : forfaits Pro et Business — voir RequireAccountingAccess (App.jsx).
+  { key: 'accounting', name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ['Pro', 'Business'] },
+  { key: 'subscriptions', name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
+  { key: 'analytics', name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
+  // Bilan : forfait Business, ou module "mod_bilan" — voir RequireBusinessPlan (App.jsx).
+  { key: 'bilan', name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plans: ['Business'], module: 'mod_bilan' },
+  // Boutique : forfaits Pro et Business, ou module "mod_boutique" — voir RequireShopAccess (App.jsx).
+  { key: 'shop', name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: ['Pro', 'Business'], module: 'mod_boutique' },
+  { key: 'team', name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
+  { key: 'annonces', name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage' },
+  { key: 'settings', name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage', locked: true },
+];
+
+// Rubriques masquées tant que la station n'a rien choisi : Pompistes n'a de
+// sens que pour une station qui vend aussi du carburant.
+export const DEFAULT_HIDDEN_MENU = ['pompistes'];
+
+// Rubriques auxquelles le compte connecté a droit (permission + forfait),
+// masquées ou non. Tant que les permissions ne sont pas chargées (staff), seules
+// les entrées libres apparaissent — le propriétaire a ['*'] dès le premier rendu.
+export function navAvailableTo({ permissions, billing }) {
+  return ADMIN_NAV.filter((item) => {
+    if (item.perm && !hasPerm(permissions || [], item.perm)) return false;
+    if (item.plans && !item.plans.includes(billing?.plan) && !(item.module && (billing?.activeModules || []).includes(item.module))) return false;
+    return true;
+  });
+}
+
+// Ce qui s'affiche réellement dans le menu.
+export function visibleNav({ permissions, billing, hiddenMenu }) {
+  const hidden = hiddenMenu || DEFAULT_HIDDEN_MENU;
+  return navAvailableTo({ permissions, billing }).filter((item) => item.locked || !hidden.includes(item.key));
+}

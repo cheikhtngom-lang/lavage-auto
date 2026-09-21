@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, MapPin, DoorOpen, UserCog, LogOut as LeaveIcon, Plus, X, Loader2, Search, AlertTriangle, ShoppingCart, Send } from 'lucide-react';
+import { Building2, MapPin, DoorOpen, UserCog, LogOut as LeaveIcon, Plus, X, Loader2, Search, AlertTriangle, ShoppingCart, Send, ArrowRightLeft } from 'lucide-react';
 import { useGroup } from '../../components/layout/GroupLayout';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { groupMonthly } from '../../lib/groupPricing';
 import {
-  fetchGroupStations, fetchJoinRequests, openStation, removeStation, nominateStationAdmin, removeStationAdmin,
+  fetchGroupStations, fetchJoinRequests, openStation, removeStation, nominateStationAdmin, removeStationAdmin, moveStationAdmin,
   searchJoinableStations, requestJoin, cancelJoin, JOIN_STATUS, placeLabel, fmtFcfa,
 } from '../../lib/groups';
 
@@ -96,7 +96,73 @@ function RemoveModal({ station, onClose, onDone }) {
 }
 
 // ─── Super Admin de la station (un seul) ────────────────────────────────
-function AdminModal({ station, onClose, onDone }) {
+// Déplacer le Super Admin d'une station vers une autre (ou reprendre celui d'une
+// autre station). Même compte, même mot de passe : seule sa station change.
+// Une station ne peut avoir qu'un Super Admin : on ne remplace jamais quelqu'un
+// en silence, une station déjà pourvue n'est donc pas proposée.
+function MoveAdminSection({ station, stations, onDone }) {
+  const sa = station.superAdmin;
+  const others = stations.filter((s) => !s.archived && s.id !== station.id);
+  // Sens « envoyer » : le Super Admin d'ici part vers une station SANS Super Admin.
+  // Sens « reprendre » : ici n'en a pas, on reprend celui d'une station qui en a un (déjà actif).
+  const candidates = sa
+    ? others.filter((s) => !s.superAdmin)
+    : others.filter((s) => s.superAdmin && s.superAdmin.status !== 'invited');
+  const [otherId, setOtherId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const picked = candidates.find((s) => s.id === otherId);
+
+  if (sa && sa.status === 'invited') {
+    return <p className="text-xs text-neutral-500 mt-4">Ce Super Admin n’a pas encore activé son compte : il pourra être déplacé dès qu’il l’aura fait.</p>;
+  }
+  if (others.length === 0) return null;
+
+  const move = async () => {
+    const from = sa ? station : picked;
+    const to = sa ? picked : station;
+    const who = (from.superAdmin.name || from.superAdmin.email);
+    if (!window.confirm(`Déplacer ${who} de « ${from.name} » vers « ${to.name} » ?
+
+Il perdra l’accès à « ${from.name} » et gèrera désormais « ${to.name} ». Son compte reste le même (même email, même mot de passe).`)) return;
+    setBusy(true);
+    setError('');
+    try {
+      await moveStationAdmin(from.id, to.id);
+      onDone();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-5 pt-5 border-t border-white/10">
+      <p className="text-sm font-semibold text-white flex items-center gap-2 mb-1"><ArrowRightLeft className="w-4 h-4 text-emerald-400" /> {sa ? 'Déplacer vers une autre station' : 'Reprendre le Super Admin d’une autre station'}</p>
+      <p className="text-xs text-neutral-500 mb-3">
+        {sa ? 'Il quitte cette station pour l’autre, sans nouvelle invitation. La station de départ se retrouve sans Super Admin.' : 'Il quitte sa station actuelle pour celle-ci, sans nouvelle invitation.'}
+      </p>
+      {candidates.length === 0 ? (
+        <p className="text-xs text-orange-300/80">
+          {sa ? 'Toutes vos autres stations ont déjà un Super Admin : retirez-en un d’abord.' : 'Aucune de vos autres stations n’a de Super Admin actif à reprendre.'}
+        </p>
+      ) : (
+        <>
+          <select className={inputCls} value={otherId} onChange={(e) => setOtherId(e.target.value)}>
+            <option value="">{sa ? 'Choisir la station d’arrivée…' : 'Choisir la station d’origine…'}</option>
+            {candidates.map((s) => <option key={s.id} value={s.id}>{s.name}{!sa ? ` — ${s.superAdmin.name || s.superAdmin.email}` : ''}</option>)}
+          </select>
+          <button onClick={move} disabled={!picked || busy} className="mt-3 w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-xl transition-colors">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />} {sa ? 'Déplacer' : 'Affecter ici'}
+          </button>
+        </>
+      )}
+      {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+    </div>
+  );
+}
+
+function AdminModal({ station, stations, onClose, onDone }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
@@ -155,6 +221,7 @@ function AdminModal({ station, onClose, onDone }) {
           </button>
         </form>
       )}
+      <MoveAdminSection station={station} stations={stations} onDone={onDone} />
       {info && <p className="text-xs text-orange-300 mt-3 break-all">{info}</p>}
       {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
     </Modal>
@@ -398,7 +465,7 @@ export default function Stations() {
       )}
 
       {removing && <RemoveModal station={removing} onClose={() => setRemoving(null)} onDone={refreshAll} />}
-      {adminFor && <AdminModal station={adminFor} onClose={() => setAdminFor(null)} onDone={refreshAll} />}
+      {adminFor && <AdminModal station={adminFor} stations={stations} onClose={() => setAdminFor(null)} onDone={refreshAll} />}
       {showJoin && <JoinModal plans={plans} onClose={() => setShowJoin(false)} onDone={refreshAll} />}
     </div>
   );

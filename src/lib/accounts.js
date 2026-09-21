@@ -308,6 +308,29 @@ export function getCurrentStationId() {
   return sessionStorage.getItem('currentStationId') || localStorage.getItem('currentStationId') || 'default';
 }
 
+// Recale le cache local sur profiles.station_id. Le chef d'entreprise peut
+// déplacer un Super Admin d'une station à l'autre (RPC group_move_station_admin)
+// pendant que celui-ci est connecté : la base l'a déjà rattaché à sa nouvelle
+// station (c'est elle qui commande l'accès aux données, current_station_id()),
+// mais le navigateur continuerait d'interroger l'ancienne. Renvoie true si le
+// cache a changé — l'appelant recharge alors l'interface. Ne fait rien si la
+// lecture échoue ou si le compte n'a plus de station.
+export async function refreshStationFromProfile() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { data } = await supabase.from('profiles').select('station_id').eq('id', user.id).maybeSingle();
+    const dbStationId = data?.station_id ? String(data.station_id) : null;
+    if (!dbStationId || dbStationId === getCurrentStationId()) return false;
+    setActiveStationId(dbStationId);
+    // Garde-fou anti-boucle de rechargement : si l'écriture n'a pas pris (stockage
+    // bloqué…), on ne prétend pas avoir changé.
+    return getCurrentStationId() === dbStationId;
+  } catch {
+    return false;
+  }
+}
+
 // UUID Supabase — ne plus le forcer en Number() (voir anciens usages).
 export function getCurrentClientId() {
   return sessionStorage.getItem('currentClientId') || localStorage.getItem('currentClientId') || null;

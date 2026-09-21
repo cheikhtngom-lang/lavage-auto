@@ -32,6 +32,7 @@ function rowToEmployee(row) {
         clockInAt: row.clock_in_at,
         clockOutAt: row.clock_out_at,
         totalTime: row.total_time,
+        pumpLabel: row.pump_label || '', // pompe habituelle (rôle 'Pompiste', voir add_pompistes.sql)
         lastLogin: 'Jamais', // jamais persisté nulle part, valeur statique comme avant la migration
     };
 }
@@ -39,7 +40,7 @@ function rowToEmployee(row) {
 // Champs de pointage partagés entre `employees` (état courant) et
 // `attendance_records` (instantané par jour) — mêmes noms de colonnes dans
 // les deux tables, donc un seul mapping camelCase -> snake_case pour les deux.
-const ATTENDANCE_FIELD_MAP = { dailyStatus: 'daily_status', clockIn: 'clock_in', clockOut: 'clock_out', clockInAt: 'clock_in_at', clockOutAt: 'clock_out_at', totalTime: 'total_time' };
+const ATTENDANCE_FIELD_MAP = { dailyStatus: 'daily_status', clockIn: 'clock_in', clockOut: 'clock_out', clockInAt: 'clock_in_at', clockOutAt: 'clock_out_at', totalTime: 'total_time', pumpLabel: 'pump_label' };
 function patchToRow(patch) {
     const row = {};
     Object.entries(patch).forEach(([k, v]) => { row[ATTENDANCE_FIELD_MAP[k] || k] = v; });
@@ -509,6 +510,18 @@ export function AppStateProvider({ children }) {
     // requête Supabase réponde, même pour une station déjà configurée —
     // un vrai bug rapporté par l'utilisateur, pas juste un flash inoffensif.
     const [stationProfileLoaded, setStationProfileLoaded] = useState(false);
+    // Rubriques masquées du menu latéral (Paramètres > Menu, voir lib/adminNav.js
+    // et add_station_menu_prefs.sql). null = pas encore chargé -> valeur par
+    // défaut. Recopié dans localStorage pour que le menu s'affiche du premier
+    // coup sans que des rubriques n'apparaissent puis ne disparaissent.
+    const hiddenMenuCacheKey = `ccg_hidden_menu_${stationId}`;
+    const [hiddenMenu, setHiddenMenu] = useState(() => {
+        try { const raw = localStorage.getItem(hiddenMenuCacheKey); return raw ? JSON.parse(raw) : null; } catch { return null; }
+    });
+    const rememberHiddenMenu = (list) => {
+        setHiddenMenu(list);
+        try { localStorage.setItem(hiddenMenuCacheKey, JSON.stringify(list)); } catch { /* stockage indisponible : sans effet */ }
+    };
     const rowToProfile = (row) => ({
         name: row?.name || '',
         phone: row?.owner_phone || '',
@@ -544,6 +557,7 @@ export function AppStateProvider({ children }) {
             setStationProfile(rowToProfile(data));
             setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
             setStationBilling(rowToBilling(data?.station_billing));
+            if (Array.isArray(data?.hidden_menu)) rememberHiddenMenu(data.hidden_menu);
             setStationProfileLoaded(true);
         });
         return () => { cancelled = true; };
@@ -807,9 +821,18 @@ export function AppStateProvider({ children }) {
                 clockIn: row.clock_in, clockOut: row.clock_out,
                 clockInAt: row.clock_in_at, clockOutAt: row.clock_out_at,
                 totalTime: row.total_time,
+                pumpLabel: row.pump_label, liters: row.liters, amountCollected: row.amount_collected,
             };
         });
-        setAttendanceHistory((prev) => ({ ...prev, [dateKey]: dayEntries }));
+        // Fusion (et non remplacement) : pour aujourd'hui, une action de pointage
+        // toute fraîche (recordDailyAttendance) n'est peut-être pas encore relue
+        // par la base — l'entrée locale, plus récente, l'emporte champ par champ.
+        setAttendanceHistory((prev) => {
+            const local = prev[dateKey] || {};
+            const merged = { ...local };
+            Object.entries(dayEntries).forEach(([id, entry]) => { merged[id] = { ...entry, ...(local[id] || {}) }; });
+            return { ...prev, [dateKey]: merged };
+        });
     }, [stationId]);
 
     // Charge tout un mois de pointage en un seul appel — utilisé par l'export
@@ -833,6 +856,8 @@ export function AppStateProvider({ children }) {
                 // dans l'export mensuel un employé supprimé depuis (voir
                 // exportAttendanceToExcel dans Washers.jsx).
                 name: row.name, role: row.role,
+                // relevé de pompe (pompistes) — voir Pompistes.jsx
+                pumpLabel: row.pump_label, liters: row.liters, amountCollected: row.amount_collected,
             };
         });
         return byEmployeeDay;
@@ -844,14 +869,14 @@ export function AppStateProvider({ children }) {
     // apparaissait donc encore dans le Pointage Journalier le lendemain, alors
     // qu'il n'a pas encore repris son poste. On détecte le décalage directement
     // depuis `clockInAt` (déjà horodaté), sans champ supplémentaire à maintenir.
-    // Ne concerne que le rôle "Laveur" — `status` a un tout autre sens pour les
+    // Ne concerne que les rôles "Laveur" et "Pompiste" — `status` a un tout autre sens pour les
     // autres rôles (statut du compte dans la page Équipe, pas pointage du jour).
     useEffect(() => {
         const now = new Date();
         const localDateKey = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
         const todayKey = localDateKey(now);
         const stale = employees.filter((e) =>
-            e?.role === 'Laveur' && e?.dailyStatus === 'present' && e?.clockInAt
+            (e?.role === 'Laveur' || e?.role === 'Pompiste') && e?.dailyStatus === 'present' && e?.clockInAt
             && localDateKey(new Date(e.clockInAt)) !== todayKey);
         if (stale.length === 0 || !stationId || stationId === 'default') return;
 
@@ -912,6 +937,33 @@ export function AppStateProvider({ children }) {
             name: emp?.name, role: emp?.role, ...patchToRow(patch),
         }, { onConflict: 'employee_id,work_date' }).then(() => {});
     };
+
+    // Relevé de fin de journée d'un pompiste : pompe tenue, litres vendus, montant
+    // encaissé (voir add_pompistes.sql). Vit sur la même ligne attendance_records
+    // que son pointage — l'upsert ne touche QUE ces colonnes-là, donc ne peut pas
+    // écraser le pointage. Contrairement à recordDailyAttendance, on attend la
+    // réponse de la base avant de mettre le cache à jour : un montant affiché
+    // "enregistré" alors qu'il ne l'est pas serait pire qu'un léger délai.
+    // `dateKey` peut être un jour passé (correction d'un oubli).
+    const savePumpReading = async (employeeId, dateKey, { pumpLabel, liters, amountCollected }) => {
+        if (!stationId || stationId === 'default') return { success: false, error: 'no_station' };
+        const emp = employees.find(e => e.id === employeeId);
+        const known = attendanceHistory[dateKey]?.[employeeId];
+        const label = (pumpLabel || '').trim() || null;
+        const { error } = await supabase.from('attendance_records').upsert({
+            station_id: stationId, employee_id: employeeId, work_date: dateKey,
+            name: emp?.name ?? known?.name, role: emp?.role ?? known?.role,
+            pump_label: label, liters, amount_collected: amountCollected,
+        }, { onConflict: 'employee_id,work_date' });
+        if (!error) {
+            setAttendanceHistory((prev) => {
+                const dayEntries = prev[dateKey] || {};
+                const existing = dayEntries[employeeId] || { id: employeeId, name: emp?.name, role: emp?.role };
+                return { ...prev, [dateKey]: { ...dayEntries, [employeeId]: { ...existing, pumpLabel: label, liters, amountCollected } } };
+            });
+        }
+        return { success: !error, error };
+    };
     // Une ligne par (catégorie, service) touché — fusionne toujours prix ET
     // durée dans le même upsert (les deux colonnes sont NOT NULL), en prenant
     // la valeur de l'autre config depuis l'état courant quand un seul des deux
@@ -954,6 +1006,14 @@ export function AppStateProvider({ children }) {
             logo_url: newP.logo, cachet_url: newP.cachet, daily_revenue_target: newP.dailyRevenueTarget,
         }).eq('id', stationId).then(() => {});
     };
+    // Coche/décoche des rubriques du menu : appliqué tout de suite, sauvegardé en
+    // tâche de fond (un échec ne bloque pas l'interface, le menu se recale sur la
+    // base au prochain chargement).
+    const updateHiddenMenu = (list) => {
+        rememberHiddenMenu(list);
+        if (!stationId || stationId === 'default') return;
+        supabase.from('stations').update({ hidden_menu: list }).eq('id', stationId).then(() => {});
+    };
     // Async et renvoie { success, error } — l'assistant d'onboarding (StationOnboarding.jsx)
     // a besoin de savoir si l'ajout a réellement abouti avant d'avancer à l'étape
     // suivante, contrairement à Team.jsx qui reste en fire-and-forget.
@@ -969,6 +1029,7 @@ export function AppStateProvider({ children }) {
         const { error } = await supabase.from('employees').insert({
             station_id: stationId, name: employeeData.name, role: employeeData.role, access: employeeData.access,
             status: 'Actif', daily_status: 'repos', avatar: initials,
+            pump_label: employeeData.pumpLabel || null,
         });
         if (!error) await loadEmployees();
         return { success: !error, error };
@@ -1341,7 +1402,8 @@ export function AppStateProvider({ children }) {
         <AppStateContext.Provider value={{
             queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes,
             myPermissions, myRoleName,
-            attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
+            attendanceHistory, recordDailyAttendance, savePumpReading, loadAttendanceForDate, loadAttendanceForMonth,
+            hiddenMenu, updateHiddenMenu,
             customVehicleTypes, addCustomVehicleType,
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
             scheduleByDate, loadScheduleRange, setShiftForDay,

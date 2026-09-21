@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus, Wrench } from 'lucide-react';
+import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus, Wrench, LayoutList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -12,6 +12,7 @@ import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, create
 import { payPlatformOnline } from '../../lib/paydunya';
 import { listStationClients, exportStationData, exportStationClientData } from '../../lib/rgpdExport';
 import { hasModule } from '../../lib/stationModules';
+import { navAvailableTo, DEFAULT_HIDDEN_MENU } from '../../lib/adminNav';
 import { OIL_TYPES, VIDANGE_CATEGORY_GRID, stationHasVidange } from '../../lib/vidange';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
@@ -46,7 +47,7 @@ const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Complet']
 
 export default function Settings() {
   useDocumentTitle('Paramètres station');
-  const { stationProfile, stationBilling, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds, vidangePricingConfig, updateVidangePricing, updateVidangeSettings } = useAppState();
+  const { stationProfile, stationBilling, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds, vidangePricingConfig, updateVidangePricing, updateVidangeSettings, myPermissions, hiddenMenu, updateHiddenMenu } = useAppState();
   const { stations, updateStation } = useSuperAdminState();
   const navigate = useNavigate();
   const isNewStation = !stationProfile?.name || stationProfile.name.trim() === '';
@@ -57,6 +58,13 @@ export default function Settings() {
   const canVidange = stationHasVidange(stationBilling);
 
   const [activeTab, setActiveTab] = useState('profil');
+
+  // Menu & rubriques : coche/décoche des entrées du menu latéral (voir lib/adminNav.js).
+  // Seules les rubriques auxquelles le compte a droit sont listées ; un changement
+  // s'applique et se sauvegarde tout de suite (pas besoin de « Enregistrer »).
+  const menuItems = navAvailableTo({ permissions: myPermissions, billing: stationBilling });
+  const hiddenKeys = hiddenMenu || DEFAULT_HIDDEN_MENU;
+  const toggleMenuItem = (key) => updateHiddenMenu(hiddenKeys.includes(key) ? hiddenKeys.filter((k) => k !== key) : [...hiddenKeys, key]);
   const [geoStatus, setGeoStatus] = useState(null); // null | 'loading' | 'success' | 'error'
   const [geoMessage, setGeoMessage] = useState('');
 
@@ -554,6 +562,7 @@ export default function Settings() {
         <div className="w-full lg:w-64 flex flex-col gap-2">
           {[
             { id: 'profil', label: 'Profil Station', icon: Store },
+            { id: 'menu', label: 'Menu & rubriques', icon: LayoutList },
             { id: 'nomprofil', label: 'Changer nom de profil', icon: Store },
             { id: 'employes', label: 'Gestion Employés', icon: Users },
             { id: 'temps', label: 'Temps Estimés', icon: Clock },
@@ -774,6 +783,41 @@ export default function Settings() {
                     {paydunyaSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : paydunyaSaved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                     {paydunyaSaved ? 'Enregistré' : 'Enregistrer'}
                   </button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === 'menu' && (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="p-8">
+                <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><LayoutList className="w-5 h-5 text-blue-400" /> Menu &amp; rubriques</h2>
+                <p className="text-neutral-400 mb-8">
+                  Cochez les rubriques à afficher dans le menu, décochez celles dont vous n'avez pas besoin pour ne pas l'encombrer.
+                  Rien n'est supprimé : une rubrique décochée se réactive ici à tout moment. Le changement est appliqué immédiatement.
+                </p>
+                <div className="space-y-2">
+                  {menuItems.map((item) => {
+                    const checked = item.locked || !hiddenKeys.includes(item.key);
+                    return (
+                      <label
+                        key={item.key}
+                        className={`flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors ${item.locked ? 'bg-white/[0.02] border-white/5 cursor-default' : 'bg-neutral-900/60 border-white/10 hover:border-white/20 cursor-pointer'}`}
+                      >
+                        <input
+                          type="checkbox" checked={checked} disabled={item.locked}
+                          onChange={() => toggleMenuItem(item.key)}
+                          className="w-4 h-4 rounded accent-blue-600 flex-shrink-0"
+                        />
+                        <item.icon className={`w-5 h-5 flex-shrink-0 ${checked ? 'text-emerald-400' : 'text-neutral-600'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium ${checked ? 'text-white' : 'text-neutral-500'}`}>{item.name}</p>
+                          {item.hint && <p className="text-xs text-neutral-500 mt-0.5">{item.hint}</p>}
+                        </div>
+                        {item.locked && <span className="text-xs text-neutral-500 flex-shrink-0">Toujours affichée</span>}
+                      </label>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

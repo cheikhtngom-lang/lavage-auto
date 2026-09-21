@@ -50,7 +50,8 @@ export default function StationOnboarding() {
     }, { replace: true });
   };
 
-  const hasEmployee = (employees?.length || 0) > 0;
+  // Un pompiste seul ne suffit pas à démarrer un lavage : on attend un vrai membre de l'équipe lavage.
+  const hasEmployee = (employees || []).some((e) => e.role !== 'Pompiste');
 
   // Déclenchement automatique, même règle que ClientOnboarding : plafonné à
   // 3 connexions, reprend une session interrompue là où elle s'était arrêtée.

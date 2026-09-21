@@ -16,6 +16,7 @@ import { startIdleWatch } from './lib/idleTimeout';
 import { hasPerm } from './lib/permissions';
 import { stationHasShop } from './lib/shop';
 import { stationHasVidange } from './lib/vidange';
+import { stationHasPompistes } from './lib/pompistes';
 
 // Pages Client
 import ClientOverview from './pages/Client/Dashboard';
@@ -33,6 +34,7 @@ import Accounting from './pages/Admin/Accounting';
 import Analytics from './pages/Admin/Analytics';
 import Team from './pages/Admin/Team';
 import Washers from './pages/Admin/Washers';
+import Pompistes from './pages/Admin/Pompistes';
 import Vidange from './pages/Admin/Vidange';
 import Settings from './pages/Admin/Settings';
 import Subscriptions from './pages/Admin/Subscriptions';
@@ -119,6 +121,15 @@ function RequireVidangeAccess({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
+// Pompistes (stations d'essence qui font aussi du lavage) : forfait Business.
+// Le menu peut aussi la masquer (Paramètres > Menu), sans jamais changer ce droit.
+function RequirePompistesAccess({ children }) {
+  const { stationBilling, myPermissions } = useAppState();
+  if (stationBilling == null || myPermissions == null) return null;
+  if (stationHasPompistes(stationBilling) && hasPerm(myPermissions, 'pompistes.manage')) return children;
+  return <Navigate to="/admin/queue" replace />;
+}
+
 function App() {
   // Expiration de session : déconnexion après 1 h sans interaction
   // (voir lib/idleTimeout.js). Ne touche pas aux visiteurs anonymes de /stations.
@@ -162,6 +173,7 @@ function App() {
                 <Route path="shop" element={<RequireShopAccess><Shop /></RequireShopAccess>} />
                 <Route path="team" element={<RequirePerm perm="team.manage"><Team /></RequirePerm>} />
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
+                <Route path="pompistes" element={<RequirePompistesAccess><Pompistes /></RequirePompistesAccess>} />
                 <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />

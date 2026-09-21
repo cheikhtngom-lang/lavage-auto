@@ -381,7 +381,8 @@ export default function StationDashboard() {
   }, [completedWashes.length, analyticsTipId]);
   const dismissAnalyticsTip = () => { markTipSeen(analyticsTipId); setShowAnalyticsTip(false); };
 
-  const presentEmployees = (employees || []).filter(e => e?.present || e?.dailyStatus === 'present');
+  // Les pompistes se pointent comme les laveurs mais ne lavent pas : jamais proposés pour un lavage.
+  const presentEmployees = (employees || []).filter(e => e?.role !== 'Pompiste' && (e?.present || e?.dailyStatus === 'present'));
   // Un laveur déjà en train de laver un véhicule (voir startWash — stocké par
   // nom sur activeWashes.assignedTo) ne doit pas pouvoir être réassigné à un
   // second véhicule tant qu'il n'a pas terminé le premier. Un laveur en "Fin
@@ -541,7 +542,7 @@ export default function StationDashboard() {
           que de laisser le nouvel admin découvrir le blocage seul via une alerte.
           Plafonnée à 3 connexions (voir [[design_onboarding_backlog]]) : au-delà,
           plus de relance même si le blocage persiste — pas de visite guidée perpétuelle. */}
-      {employees.length === 0 && getLoginCount('admin', getCurrentStationId()) <= 3 && (
+      {employees.filter(e => e.role !== 'Pompiste').length === 0 && getLoginCount('admin', getCurrentStationId()) <= 3 && (
         <button
           onClick={() => navigate('/admin/team')}
           className="w-full mb-8 flex items-center gap-4 bg-blue-950/40 border border-blue-500/20 rounded-2xl px-5 py-4 hover:bg-blue-950/60 transition-colors text-left"

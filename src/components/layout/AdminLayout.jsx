@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Users, Settings, LogOut, Droplets, ListOrdered, Activity, Calculator, LineChart, Menu, X, Sparkles, FileBarChart, Store, Wrench, Send } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppState } from '../../hooks/useAppState';
-import { clearSession, getCurrentRole, getCurrentStationId, getIsGroupOwner } from '../../lib/accounts';
-import { hasPerm } from '../../lib/permissions';
+import { clearSession, getCurrentRole, getCurrentStationId, getIsGroupOwner, refreshStationFromProfile } from '../../lib/accounts';
+import { visibleNav } from '../../lib/adminNav';
 import AnnouncementBell from '../ui/AnnouncementBell';
 import { isSubscriptionEnded } from '../../lib/stationRenewal';
 import { setSessionExpiredHandler } from '../../lib/idleTimeout';
@@ -21,7 +21,7 @@ export default function AdminLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [sessionLocked, setSessionLocked] = useState(false);
   const {
-    stationProfile, stationProfileLoaded, stationBilling, myPermissions,
+    stationProfile, stationProfileLoaded, stationBilling, myPermissions, hiddenMenu,
     receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement,
   } = useAppState();
 
@@ -51,6 +51,14 @@ export default function AdminLayout() {
     }
   }, []);
 
+  // Un collaborateur (ex. Super Admin de station) peut avoir été déplacé vers une
+  // autre station par le chef d'entreprise pendant qu'il est connecté : la base
+  // le sait déjà, pas le cache local — on le recale et on recharge l'interface.
+  useEffect(() => {
+    if (getCurrentRole() !== 'staff') return;
+    refreshStationFromProfile().then((changed) => { if (changed) window.location.reload(); });
+  }, []);
+
   // Abonnement terminé (impayé, ou essai gratuit écoulé) : plus aucun accès
   // au tableau de bord tant qu'elle n'a pas renouvelé (voir SubscriptionEnded.jsx
   // et isSubscriptionEnded, lib/stationRenewal.js). `stationBilling` démarre à
@@ -70,36 +78,12 @@ export default function AdminLayout() {
     return () => window.removeEventListener('ccg:open-mobile-nav', open);
   }, []);
 
-  const allNavigation = [
-    { name: 'Vue d\'ensemble', href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null },
-    { name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage' },
-    // Vidange : réservée au forfait Business, ou débloquée par le module
-    // "mod_vidange" — voir RequireVidangeAccess dans App.jsx.
-    { name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: ['Business'], module: 'mod_vidange' },
-    { name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
-    // Comptabilité : réservée aux forfaits Pro et Business — voir
-    // RequireAccountingAccess dans App.jsx.
-    { name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ['Pro', 'Business'] },
-    { name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
-    { name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
-    // Bilan : réservé au forfait Business (35 000), ou débloqué par le
-    // module "mod_bilan" — voir RequireBusinessPlan dans App.jsx.
-    { name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plans: ['Business'], module: 'mod_bilan' },
-    // Boutique : forfaits Pro et Business, ou module "mod_boutique" — voir
-    // RequireShopAccess dans App.jsx.
-    { name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: ['Pro', 'Business'], module: 'mod_boutique' },
-    { name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
-    { name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage' },
-    { name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage' },
-  ];
-  // Contrôle d'accès "interface" (voir lib/permissions.js). Tant que les
-  // permissions ne sont pas chargées (staff), on n'affiche que les entrées
-  // libres — le propriétaire a ['*'] dès le premier rendu, donc aucun flash.
-  const navigation = allNavigation.filter((item) => {
-    if (item.perm && !hasPerm(myPermissions || [], item.perm)) return false;
-    if (item.plans && !item.plans.includes(stationBilling?.plan) && !(item.module && (stationBilling?.activeModules || []).includes(item.module))) return false;
-    return true;
-  });
+  // Menu = catalogue partagé (lib/adminNav.js) filtré par permission du compte,
+  // forfait/module de la station, puis rubriques que la station a masquées
+  // (Paramètres > Menu). Tant que les permissions ne sont pas chargées (staff),
+  // on n'affiche que les entrées libres — le propriétaire a ['*'] dès le premier
+  // rendu, donc aucun flash.
+  const navigation = visibleNav({ permissions: myPermissions, billing: stationBilling, hiddenMenu });
 
   const handleLogout = () => {
     clearSession();

@@ -238,6 +238,14 @@ export async function removeStationAdmin(stationId) {
   if (error) fail(error);
 }
 
+// Reprend le Super Admin de la station A pour l'affecter à la station B : c'est
+// le MÊME compte (même email, même mot de passe) qui change de station, sans
+// nouvelle invitation. B ne doit pas déjà avoir de Super Admin (add_group_move_admin.sql).
+export async function moveStationAdmin(fromStationId, toStationId) {
+  const { error } = await supabase.rpc('group_move_station_admin', { p_from_station_id: fromStationId, p_to_station_id: toStationId });
+  if (error) fail(error);
+}
+
 // ─── Propriétaire d'une station sollicitée ──────────────────────────────
 // La demande de rattachement en attente de SA réponse (RLS : sa station, compte 'admin').
 export async function getPendingJoinForMyStation() {
