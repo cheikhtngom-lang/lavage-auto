@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search, Wallet } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
-import { validatedMRR, validatedStations, modulesMRR } from '../../lib/platformRevenue';
+import { validatedMRR, validatedStations, modulesMRR, stationPrice } from '../../lib/platformRevenue';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
 
@@ -68,7 +68,7 @@ export default function Billing() {
   const overdueCount = stations.filter(s => s.subscriptionStatus === 'en_retard').length;
   const overdueAmount = stations
     .filter(s => s.subscriptionStatus === 'en_retard')
-    .reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
+    .reduce((sum, s) => sum + stationPrice(PLANS, s), 0);
 
   const handleRemind = (id) => {
     sendBillingReminder(id);
@@ -236,7 +236,7 @@ export default function Billing() {
                   <td className="p-5 text-neutral-300">
                     {s.subscriptionStatus === 'illimite'
                       ? <span className="text-purple-400 font-medium">Gratuit</span>
-                      : `${(PLANS[s.plan]?.price || 0).toLocaleString('fr-FR')} FCFA`}
+                      : `${stationPrice(PLANS, s).toLocaleString('fr-FR')} FCFA`}
                   </td>
                   <td className="p-5">
                     <span className={`text-xs font-medium px-3 py-1 rounded-full border ${SUB_STATUS[s.subscriptionStatus]?.className}`}>

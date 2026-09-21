@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Building2, MapPin, DoorOpen, UserCog, LogOut as LeaveIcon, Plus, X, Loader2, Search, AlertTriangle, ShoppingCart, Send } from 'lucide-react';
 import { useGroup } from '../../components/layout/GroupLayout';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { groupMonthly } from '../../lib/groupPricing';
 import {
   fetchGroupStations, fetchJoinRequests, openStation, removeStation, nominateStationAdmin, removeStationAdmin,
   searchJoinableStations, requestJoin, cancelJoin, JOIN_STATUS, fmtFcfa,
@@ -230,7 +231,7 @@ function JoinModal({ plans, onClose, onDone }) {
 // ─── Page ───────────────────────────────────────────────────────────────
 export default function Stations() {
   useDocumentTitle('Mes stations');
-  const { org, plans, loaded, reload } = useGroup();
+  const { org, plans, tiers, loaded, reload } = useGroup();
   const [stations, setStations] = useState(null);
   const [requests, setRequests] = useState([]);
   const [error, setError] = useState('');
@@ -270,7 +271,8 @@ export default function Stations() {
 
   const active = stations.filter((s) => !s.archived);
   const planPrice = (key) => plans.find((p) => p.key === key)?.price || 0;
-  const monthly = active.reduce((sum, s) => sum + planPrice(s.plan), 0);
+  // Coût du prochain renouvellement : stations actives, remise de volume comprise (lib/groupPricing.js).
+  const monthly = groupMonthly(active.filter((s) => s.status === 'active').map((s) => planPrice(s.plan)), tiers);
   const nextDate = org?.next_billing_date ? new Date(org.next_billing_date).toLocaleDateString('fr-FR') : '—';
   const openRequests = requests.filter((r) => r.status === 'pending' || r.status === 'accepted');
 
@@ -299,10 +301,11 @@ export default function Stations() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        {[['Stations actives', active.length], ['Coût mensuel', fmtFcfa(monthly)], ['Prochaine échéance', nextDate]].map(([label, value]) => (
+        {[['Stations actives', active.length, null], ['Coût mensuel', fmtFcfa(monthly.total), monthly.pct > 0 ? `Remise de ${monthly.pct} % incluse` : (monthly.next ? `−${monthly.next.pct} % dès ${monthly.next.min_stations} stations` : null)], ['Prochaine échéance', nextDate, null]].map(([label, value, hint]) => (
           <div key={label} className="glass-card rounded-2xl p-5 border border-white/10">
             <p className="text-sm text-neutral-400">{label}</p>
             <p className="text-2xl font-bold mt-1">{value}</p>
+            {hint && <p className="text-xs text-emerald-400/80 mt-1">{hint}</p>}
           </div>
         ))}
       </div>

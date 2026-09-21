@@ -4,7 +4,7 @@ import { Building2, ShoppingCart, CreditCard, LogOut, Menu, X, Briefcase, Layout
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabaseClient';
 import { clearSession, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
-import { closeStation, fetchMyGroup, fetchPlans, GROUP_STATUS } from '../../lib/groups';
+import { closeStation, fetchMyGroup, fetchPlans, fetchDiscountTiers, GROUP_STATUS } from '../../lib/groups';
 
 // Espace du chef d'entreprise (offre Sur mesure) — /groupe. Il ne dépend
 // d'aucune station : le patron n'« entre » dans une station (bouton Ouvrir)
@@ -24,6 +24,7 @@ export default function GroupLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [org, setOrg] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [tiers, setTiers] = useState([]); // paliers du tarif dégressif
   const [loaded, setLoaded] = useState(false);
 
   // Accès réservé au chef d'entreprise.
@@ -33,9 +34,10 @@ export default function GroupLayout() {
   }, [allowed]);
 
   const reload = useCallback(async () => {
-    const [o, p] = await Promise.all([fetchMyGroup().catch(() => null), fetchPlans().catch(() => [])]);
+    const [o, p, t] = await Promise.all([fetchMyGroup().catch(() => null), fetchPlans().catch(() => []), fetchDiscountTiers().catch(() => [])]);
     setOrg(o);
     setPlans(p);
+    setTiers(t);
     setLoaded(true);
   }, []);
 
@@ -56,7 +58,7 @@ export default function GroupLayout() {
   const status = org ? GROUP_STATUS[org.status] : null;
 
   return (
-    <GroupContext.Provider value={{ org, plans, reload, loaded }}>
+    <GroupContext.Provider value={{ org, plans, tiers, reload, loaded }}>
       <div className="flex h-screen bg-neutral-950 text-white overflow-hidden font-sans">
         {/* Header mobile */}
         <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 z-30 flex items-center px-4">

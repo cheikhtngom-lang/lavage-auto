@@ -52,6 +52,15 @@ export async function fetchPlans() {
   return data || [];
 }
 
+// Paliers du tarif dégressif [{ min_stations, pct }], du plus bas au plus haut.
+// Source : table group_discount_tiers (lecture seule) ; le serveur applique la
+// même règle au devis et au renouvellement. Voir lib/groupPricing.js.
+export async function fetchDiscountTiers() {
+  const { data, error } = await supabase.from('group_discount_tiers').select('min_stations, pct').order('min_stations', { ascending: true });
+  if (error) fail(error);
+  return data || [];
+}
+
 // Stations du groupe + facturation + Super Admin (membre au rôle super_admin_station).
 export async function fetchGroupStations(organizationId) {
   // Filtre explicite : les stations actives sont publiques, sans lui on
@@ -123,7 +132,10 @@ export async function searchJoinableStations(term) {
 export async function quoteOrder(lines) {
   const { data, error } = await supabase.rpc('group_quote', { p_lines: lines });
   if (error) fail(error);
-  return data; // { lines, total, days_left, first_cycle }
+  // { lines, total, days_left, first_cycle, stations_count, discount_pct, subtotal,
+  //   discount_amount, next_tier, tiers } — chaque ligne : price (catalogue),
+  //   unit_price (remisé), discount_pct, list_amount (avant remise), amount.
+  return data;
 }
 
 export async function createOrder(lines) {

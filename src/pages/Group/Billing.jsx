@@ -5,6 +5,7 @@ import { useGroup } from '../../components/layout/GroupLayout';
 import OrderPaymentPanel from '../../components/group/OrderPaymentPanel';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { fetchOrders, fetchGroupStations, createRenewal, ORDER_STATUS, GROUP_STATUS, fmtFcfa } from '../../lib/groups';
+import { groupMonthly } from '../../lib/groupPricing';
 
 const KIND_LABEL = { commande: 'Commande', renouvellement: 'Renouvellement mensuel' };
 
@@ -13,9 +14,9 @@ const KIND_LABEL = { commande: 'Commande', renouvellement: 'Renouvellement mensu
 // qui attendent encore un paiement peuvent être réglés d'ici.
 export default function Billing() {
   useDocumentTitle('Facturation');
-  const { org, plans, loaded, reload } = useGroup();
+  const { org, plans, tiers, loaded, reload } = useGroup();
   const [orders, setOrders] = useState(null);
-  const [monthly, setMonthly] = useState(0);
+  const [monthly, setMonthly] = useState({ total: 0, subtotal: 0, discount: 0, pct: 0, next: null });
   const [activeCount, setActiveCount] = useState(0);
   const [expanded, setExpanded] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -28,12 +29,13 @@ export default function Billing() {
       setOrders(o);
       const active = s.filter((x) => !x.archived && x.status === 'active');
       setActiveCount(active.length);
-      setMonthly(active.reduce((sum, x) => sum + (plans.find((p) => p.key === x.plan)?.price || 0), 0));
+      // Même règle que le renouvellement (serveur) : remise selon le nombre de stations actives.
+      setMonthly(groupMonthly(active.map((x) => plans.find((p) => p.key === x.plan)?.price || 0), tiers));
     } catch (err) {
       setError(err.message);
       setOrders([]);
     }
-  }, [org, plans]);
+  }, [org, plans, tiers]);
   useEffect(() => { load(); }, [load]);
 
   const renew = async () => {
@@ -72,8 +74,8 @@ export default function Billing() {
         </div>
         <div className="glass-card rounded-2xl p-5 border border-white/10">
           <p className="text-sm text-neutral-400">Renouvellement mensuel</p>
-          <p className="text-xl font-bold mt-1">{fmtFcfa(monthly)}</p>
-          <p className="text-xs text-neutral-500">{activeCount} station{activeCount > 1 ? 's' : ''} active{activeCount > 1 ? 's' : ''}</p>
+          <p className="text-xl font-bold mt-1">{fmtFcfa(monthly.total)}</p>
+          <p className="text-xs text-neutral-500">{activeCount} station{activeCount > 1 ? 's' : ''} active{activeCount > 1 ? 's' : ''}{monthly.pct > 0 && ` · remise de ${monthly.pct} % incluse (−${fmtFcfa(monthly.discount)})`}</p>
         </div>
       </div>
 
@@ -84,8 +86,8 @@ export default function Billing() {
               ? 'Votre échéance est dépassée : renouvelez pour réactiver vos stations.'
               : 'Vous pouvez renouveler dès maintenant : 30 jours sont ajoutés à votre échéance actuelle.'}
           </p>
-          <button onClick={renew} disabled={busy || monthly <= 0} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl transition-colors">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Renouveler ({fmtFcfa(monthly)})
+          <button onClick={renew} disabled={busy || monthly.total <= 0} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl transition-colors">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Renouveler ({fmtFcfa(monthly.total)})
           </button>
         </div>
       ) : (

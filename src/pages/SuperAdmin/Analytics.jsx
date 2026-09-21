@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
-import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
+import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown, stationPrice } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
 import { Donut } from '../../components/ui/charts';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -65,7 +65,7 @@ export default function SuperAdminAnalytics() {
   // comme telle dans l'UI, pas un montant encaissé garanti.
   const cumulativeRevenue = paidStations
     .reduce((sum, s) => {
-      const price = PLANS[s.plan]?.price || 0;
+      const price = stationPrice(PLANS, s);
       const months = Math.max(1, Math.floor((now - new Date(s.joinedAt)) / (30 * 24 * 3600 * 1000)) + 1);
       return sum + price * months;
     }, 0);
@@ -74,7 +74,7 @@ export default function SuperAdminAnalytics() {
 
   const planDistribution = Object.keys(PLANS).map((key, i) => {
     const count = stations.filter(s => s.plan === key).length;
-    const revenue = paidStations.filter(s => s.plan === key).reduce((sum) => sum + (PLANS[key]?.price || 0), 0);
+    const revenue = paidStations.filter(s => s.plan === key).reduce((sum, s) => sum + stationPrice(PLANS, s), 0);
     return { key, label: PLANS[key].label, count, revenue, color: PLAN_COLORS[i % PLAN_COLORS.length] };
   });
   const totalPlanCount = Math.max(1, planDistribution.reduce((s, p) => s + p.count, 0));
@@ -92,7 +92,7 @@ export default function SuperAdminAnalytics() {
     const end = addMonths(d, 1);
     const value = paidStations
       .filter(s => new Date(s.joinedAt) < end)
-      .reduce((sum, s) => sum + (PLANS[s.plan]?.price || 0), 0);
+      .reduce((sum, s) => sum + stationPrice(PLANS, s), 0);
     return { label: d.toLocaleDateString('fr-FR', { month: 'short', ...(mrrMonthsCount > 12 ? { year: '2-digit' } : {}) }), value };
   }), [mrrMonthsCount, stations, PLANS]); // eslint-disable-line react-hooks/exhaustive-deps
 

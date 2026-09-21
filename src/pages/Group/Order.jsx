@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Loader2, ShoppingCart, Info } from 'lucide-react';
+import { Plus, Trash2, Loader2, ShoppingCart, Info, BadgePercent } from 'lucide-react';
 import { useGroup } from '../../components/layout/GroupLayout';
 import OrderPaymentPanel from '../../components/group/OrderPaymentPanel';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -13,7 +13,7 @@ const emptyLine = (plan) => ({ key: Math.random().toString(36).slice(2), name: '
 // qu'après confirmation du paiement.
 export default function Order() {
   useDocumentTitle('Nouvelle commande');
-  const { org, plans, loaded } = useGroup();
+  const { org, plans, tiers, loaded } = useGroup();
   const defaultPlan = plans[0]?.key || 'Starter';
 
   const [lines, setLines] = useState([]);
@@ -85,6 +85,8 @@ export default function Order() {
   };
 
   const planLabel = (key) => plans.find((p) => p.key === key)?.label || key;
+  const orderDiscount = order ? (order.lines || []).reduce((sum, l) => sum + Math.max(0, (l.list_amount || l.amount) - l.amount), 0) : 0;
+  const ladder = (tiers || []).filter((t) => Number(t.pct) > 0);
   const inputCls = 'w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500';
 
   if (!loaded) return <div className="p-8 text-neutral-500">Chargement…</div>;
@@ -100,10 +102,13 @@ export default function Order() {
             {(order.lines || []).map((l, i) => (
               <div key={i} className="flex justify-between text-sm">
                 <span className="text-neutral-300">{l.name} <span className="text-neutral-500">· {planLabel(l.plan)}{l.type === 'existing' ? ' · station existante' : ''}</span></span>
-                <span className="text-white font-medium">{fmtFcfa(l.amount)}</span>
+                <span className="text-white font-medium">{l.list_amount > l.amount && <span className="text-neutral-500 line-through mr-2 font-normal">{fmtFcfa(l.list_amount)}</span>}{fmtFcfa(l.amount)}</span>
               </div>
             ))}
           </div>
+          {orderDiscount > 0 && (
+            <p className="flex items-center gap-2 text-sm text-emerald-400 mb-4"><BadgePercent className="w-4 h-4" /> Remise de volume ({order.lines[0].discount_pct} %) : −{fmtFcfa(orderDiscount)}</p>
+          )}
           <div className="flex justify-between items-center pt-4 border-t border-white/10">
             <span className="text-neutral-400">Total à payer</span>
             <span className="text-2xl font-bold text-emerald-400">{fmtFcfa(order.amount)}</span>
@@ -172,6 +177,14 @@ export default function Order() {
         </div>
       )}
 
+      {ladder.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] px-5 py-3 mb-6 text-sm">
+          <span className="flex items-center gap-2 font-semibold text-emerald-400"><BadgePercent className="w-4 h-4" /> Tarif dégressif</span>
+          <span className="text-neutral-300">Plus vous avez de stations, moins chacune coûte :</span>
+          {ladder.map((t) => <span key={t.min_stations} className="text-white font-medium">−{t.pct} % dès {t.min_stations} stations</span>)}
+        </div>
+      )}
+
       <div className="glass-card rounded-2xl p-6 border border-emerald-500/20 bg-emerald-500/[0.03]">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold">Récapitulatif</h2>
@@ -188,14 +201,32 @@ export default function Order() {
               {quote.lines.map((l, i) => (
                 <div key={i} className="flex justify-between text-sm">
                   <span className="text-neutral-300">{l.name}{l.city ? `, ${l.city}` : ''} <span className="text-neutral-500">· {planLabel(l.plan)}</span></span>
-                  <span className="text-white font-medium">{fmtFcfa(l.amount)}</span>
+                  <span className="text-white font-medium">{l.list_amount > l.amount && <span className="text-neutral-500 line-through mr-2 font-normal">{fmtFcfa(l.list_amount)}</span>}{fmtFcfa(l.amount)}</span>
                 </div>
               ))}
             </div>
+            {quote.discount_amount > 0 && (
+              <div className="space-y-1 mb-4 text-sm">
+                <div className="flex justify-between text-neutral-400"><span>Sous-total</span><span>{fmtFcfa(quote.subtotal)}</span></div>
+                <div className="flex justify-between text-emerald-400 font-medium"><span>Remise de volume ({quote.discount_pct} % · {quote.stations_count} stations)</span><span>−{fmtFcfa(quote.discount_amount)}</span></div>
+              </div>
+            )}
             <div className="flex justify-between items-center pt-4 border-t border-white/10">
               <span className="text-neutral-400">Total</span>
               <span className="text-3xl font-bold text-emerald-400">{fmtFcfa(quote.total)}</span>
             </div>
+            {quote.next_tier && (
+              <p className="flex items-start gap-2 text-sm text-emerald-400 mt-3">
+                <BadgePercent className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                Encore {quote.next_tier.missing} station{quote.next_tier.missing > 1 ? 's' : ''} et toutes vos stations passent à −{quote.next_tier.pct} %.
+              </p>
+            )}
+            {quote.discount_pct > 0 && (
+              <p className="flex items-start gap-2 text-xs text-neutral-500 mt-3">
+                <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                La remise s’applique à toutes vos stations actives à chaque renouvellement mensuel.
+              </p>
+            )}
             <p className="flex items-start gap-2 text-xs text-neutral-500 mt-3">
               <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
               {quote.first_cycle

@@ -3,7 +3,8 @@ import { Briefcase, CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, Mail
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
-import { fetchAllGroups, confirmOrder, rejectOrder, setGroupStatus, setGroupAiLimit, GROUP_STATUS, ORDER_STATUS, fmtFcfa } from '../../lib/groups';
+import { groupMonthly } from '../../lib/groupPricing';
+import { fetchAllGroups, fetchDiscountTiers, confirmOrder, rejectOrder, setGroupStatus, setGroupAiLimit, GROUP_STATUS, ORDER_STATUS, fmtFcfa } from '../../lib/groups';
 
 const KIND_LABEL = { commande: 'Commande', renouvellement: 'Renouvellement' };
 
@@ -15,6 +16,7 @@ export default function Groups() {
   useDocumentTitle('Groupes');
   const { PLANS } = useSuperAdminState();
   const [groups, setGroups] = useState(null);
+  const [tiers, setTiers] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(null);
   const [open, setOpen] = useState(null);
@@ -25,6 +27,7 @@ export default function Groups() {
   const load = useCallback(async () => {
     try {
       setGroups(await fetchAllGroups());
+      setTiers(await fetchDiscountTiers().catch(() => []));
     } catch (err) {
       setError(err.message);
       setGroups([]);
@@ -50,7 +53,8 @@ export default function Groups() {
 
   const price = (plan) => PLANS[plan]?.price || 0;
   const activeStations = (g) => g.stations.filter((s) => !s.group_archived_at && s.status === 'active');
-  const monthly = (g) => activeStations(g).reduce((sum, s) => sum + price(s.station_billing?.plan), 0);
+  // Coût mensuel du groupe, remise de volume comprise (même règle que le renouvellement).
+  const monthly = (g) => groupMonthly(activeStations(g).map((s) => price(s.station_billing?.plan)), tiers);
   const pending = groups.flatMap((g) => g.orders.filter((o) => o.status === 'PENDING').map((o) => ({ ...o, groupName: g.name })));
 
   const totalPages = Math.max(1, Math.ceil(groups.length / pageSize));
@@ -132,7 +136,7 @@ export default function Groups() {
                   </div>
                   <div className="text-sm">
                     <p className="text-neutral-400">{activeStations(g).length} station{activeStations(g).length > 1 ? 's' : ''} active{activeStations(g).length > 1 ? 's' : ''}</p>
-                    <p className="text-white font-semibold">{fmtFcfa(monthly(g))}/mois</p>
+                    <p className="text-white font-semibold">{fmtFcfa(monthly(g).total)}/mois{monthly(g).pct > 0 && <span className="text-emerald-400 text-xs font-normal"> · −{monthly(g).pct} %</span>}</p>
                   </div>
                   <div className="text-sm">
                     <p className="text-neutral-400">Échéance</p>

@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentRole } from '../lib/accounts';
 import { setStationsCache, setWashPricingCache, setVidangePricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
+import { applyGroupDiscount } from '../lib/groupPricing';
 import { loadPlatformAnnouncements, sendPlatformAnnouncement as sendPlatformAnnouncementApi, retireAnnouncement } from '../lib/announcements';
 
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
@@ -57,6 +58,9 @@ const rowToStation = (row) => ({
     vidangeFiltreHuilePrice: row.vidange_filtre_huile_price ?? null,
     vidangeFiltreAirPrice: row.vidange_filtre_air_price ?? null,
     joinedAt: row.created_at,
+    // Offre Sur mesure : groupe de rattachement (sert au tarif dégressif du MRR, lib/groupPricing.js).
+    organizationId: row.organization_id || null,
+    groupArchivedAt: row.group_archived_at || null,
     plan: row.station_billing?.plan || 'Starter',
     activeModules: row.station_billing?.active_modules || [],
     subscriptionStatus: row.station_billing?.subscription_status || 'essai',
@@ -212,6 +216,7 @@ export function SuperAdminStateProvider({ children }) {
     const [disputes, setDisputes] = useState([]);
     const [auditLog, setAuditLog] = useState([]);
     const [plans, setPlans] = useState(DEFAULT_PLANS);
+    const [discountTiers, setDiscountTiers] = useState([]); // paliers du tarif dégressif « Sur mesure »
     const [clientAccounts, setClientAccounts] = useState([]);
     const [superUserSubscriptions, setSuperUserSubscriptions] = useState([]);
     const [stationAds, setStationAds] = useState([]);
@@ -240,7 +245,13 @@ export function SuperAdminStateProvider({ children }) {
         const obj = {};
         (data || []).forEach((row) => { obj[row.key] = { label: row.label, price: row.price }; });
         setPlans(Object.keys(obj).length > 0 ? obj : DEFAULT_PLANS);
+        const { data: tiers } = await supabase.from('group_discount_tiers').select('min_stations, pct');
+        setDiscountTiers(tiers || []);
     }, []);
+
+    // Les stations d'un groupe portent leur remise de volume (groupDiscountPct) : le MRR
+    // (lib/platformRevenue.js) compte ce que les groupes paient, pas le prix catalogue.
+    const pricedStations = useMemo(() => applyGroupDiscount(stations, discountTiers), [stations, discountTiers]);
 
     const loadStations = useCallback(async () => {
         const { data } = await supabase.from('stations').select('*, station_billing(*)').order('created_at', { ascending: false });
@@ -701,7 +712,7 @@ export function SuperAdminStateProvider({ children }) {
 
     return (
         <SuperAdminStateContext.Provider value={{
-            stations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
+            stations: pricedStations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
             addStation, updateStation, setStationStatus, deleteStation, setStationPlan, toggleStationModule,
             markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
             addDispute, resolveDispute, refundDispute, logAction,

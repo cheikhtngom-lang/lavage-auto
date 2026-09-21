@@ -11,6 +11,7 @@
 // Voir add_unlimited_access.sql (valeurs possibles du statut) et
 // useSuperAdminState.jsx (markSubscriptionPaid / confirmRenewalPayment).
 import { STATION_MODULES } from './stationModules';
+import { discountedPrice } from './groupPricing';
 
 export const PAID_SUBSCRIPTION_STATUS = 'a_jour';
 
@@ -25,6 +26,10 @@ export const SUBSCRIPTION_STATUS_META = {
 };
 
 const planPrice = (PLANS, key) => (PLANS && PLANS[key] && Number(PLANS[key].price)) || 0;
+
+// Prix mensuel réellement payé par une station : prix du plan, remisé si elle fait
+// partie d'un groupe « Sur mesure » (groupDiscountPct posé par applyGroupDiscount).
+export const stationPrice = (PLANS, s) => discountedPrice(planPrice(PLANS, s.plan), s.groupDiscountPct || 0);
 
 // Prix mensuel d'un module add-on : "8 000 FCFA/mois" -> 8000.
 export function moduleMonthlyPrice(mod) {
@@ -44,7 +49,7 @@ export function validatedStations(stations) {
 
 // MRR réel = somme des prix de plan des seuls abonnements validés.
 export function validatedMRR(stations, PLANS) {
-  return validatedStations(stations).reduce((sum, s) => sum + planPrice(PLANS, s.plan), 0);
+  return validatedStations(stations).reduce((sum, s) => sum + stationPrice(PLANS, s), 0);
 }
 
 // Revenu récurrent des modules & add-ons activés. Par défaut, uniquement pour
@@ -68,7 +73,7 @@ export function subscriptionBreakdown(stations, PLANS) {
     return {
       ...meta,
       count: list.length,
-      mrr: meta.key === 'illimite' ? 0 : list.reduce((sum, s) => sum + planPrice(PLANS, s.plan), 0),
+      mrr: meta.key === 'illimite' ? 0 : list.reduce((sum, s) => sum + stationPrice(PLANS, s), 0),
     };
   });
 }
