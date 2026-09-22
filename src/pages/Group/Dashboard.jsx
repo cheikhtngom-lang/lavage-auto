@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Banknote, Droplets, Receipt, Wallet, TrendingUp, TrendingDown, Minus, Star, RefreshCw, Download, Loader2,
+  Banknote, Droplets, Receipt, Wallet, Star, RefreshCw, Download, Loader2,
   AlertTriangle, CheckCircle2, Building2, DoorOpen, ShoppingCart, PieChart, Sparkles,
 } from 'lucide-react';
 import { useGroup } from '../../components/layout/GroupLayout';
@@ -10,39 +10,15 @@ import { motion } from 'framer-motion';
 import { AreaChart, BarChart, ColumnChart, Donut, Legend, Bars, VerticalBars, Sparkline, CHART_COLORS } from '../../components/ui/charts';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
 import StationFilter from '../../components/group/StationFilter';
+import { Delta, Section, ActivityTabs, PeriodBar } from '../../components/group/shared';
+import FuelPanel, { FuelStationsTable } from '../../components/group/FuelPanel';
+import GlobalPanel, { FuelNote } from '../../components/group/GlobalPanel';
+import { fetchGroupFuel, enrichFuelStations, computeFuelTotals } from '../../lib/fuelDashboard';
 import { fcfa, fcfaCompact, pct, DOW_FR_SHORT } from '../../lib/bilan';
 import { openStation } from '../../lib/groups';
 import {
   PERIOD_PRESETS, presetRange, bucketFor, bucketLabel, fetchGroupDashboard, enrichStations, computeTotals, buildInsights,
 } from '../../lib/groupDashboard';
-
-function Delta({ d, invert = false }) {
-  if (d == null) return <span className="text-xs text-neutral-500">—</span>;
-  const flat = Math.abs(d) < 0.005;
-  const good = invert ? d < 0 : d > 0;
-  const color = flat ? 'text-neutral-400' : good ? 'text-emerald-400' : 'text-red-400';
-  const Icon = flat ? Minus : d > 0 ? TrendingUp : TrendingDown;
-  return (
-    <span className={`inline-flex items-center gap-1 text-xs font-bold ${color}`}>
-      <Icon className="w-3.5 h-3.5" />{d >= 0 ? '+' : ''}{(d * 100).toFixed(0)} %
-    </span>
-  );
-}
-
-function Section({ title, subtitle, right, children, className = '' }) {
-  return (
-    <div className={`glass-card rounded-2xl border border-white/5 bg-white/[0.02] p-6 ${className}`}>
-      <div className="mb-5 flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-lg font-bold text-white">{title}</h2>
-          {subtitle && <p className="text-xs text-neutral-500 mt-0.5">{subtitle}</p>}
-        </div>
-        {right}
-      </div>
-      {children}
-    </div>
-  );
-}
 
 const COLUMNS = [
   { key: 'name', label: 'Station', align: 'left' },
@@ -64,6 +40,8 @@ export default function Dashboard() {
   const [custom, setCustom] = useState({ start: '', end: '' });
   const [stationIds, setStationIds] = useState([]);
   const [data, setData] = useState(null);
+  const [fuel, setFuel] = useState(null); // carburant (pompistes) : null = pas de carburant ou fonction absente
+  const [tab, setTab] = useState('global');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [metric, setMetric] = useState('revenue');
@@ -79,7 +57,12 @@ export default function Dashboard() {
     setLoading(true);
     setError('');
     try {
-      setData(await fetchGroupDashboard({ from: range.from, to: range.to, stationIds }));
+      const [lavage, fuelData] = await Promise.all([
+        fetchGroupDashboard({ from: range.from, to: range.to, stationIds }),
+        fetchGroupFuel({ from: range.from, to: range.to, stationIds }),
+      ]);
+      setData(lavage);
+      setFuel(fuelData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -89,6 +72,11 @@ export default function Dashboard() {
   useEffect(() => { load(); }, [load]);
 
   const bucket = range ? bucketFor(range.from, range.to) : 'day';
+  // Les onglets n'existent que si au moins une station du groupe fait du carburant.
+  const hasFuel = !!fuel?.has_fuel;
+  const activeTab = hasFuel ? tab : 'lavage';
+  const fuelStations = useMemo(() => enrichFuelStations(fuel?.per_station), [fuel]);
+  const fuelTotals = useMemo(() => computeFuelTotals(fuel?.per_station), [fuel]);
   const stations = useMemo(() => enrichStations(data?.per_station), [data]);
   const { cur, prev, deltas } = useMemo(() => computeTotals(data?.per_station), [data]);
   const insights = useMemo(() => buildInsights(stations), [stations]);
@@ -130,7 +118,6 @@ export default function Dashboard() {
   if (!loaded) return <div className="p-8 text-neutral-500">Chargement…</div>;
 
   const noStation = data && (data.stations || []).length === 0;
-  const chips = 'px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors';
 
   const kpiSpark = {
     revenue: (data?.trend || []).map((t) => num(t.revenue)),
@@ -183,24 +170,13 @@ export default function Dashboard() {
           <Link to="/groupe/analyse" className="flex items-center gap-2 bg-white/5 hover:bg-emerald-500/15 border border-white/10 hover:border-emerald-500/30 text-neutral-200 font-semibold px-4 py-2 rounded-xl text-sm transition-colors">
             <Sparkles className="w-4 h-4 text-emerald-400" /> Analyse IA
           </Link>
-          <button onClick={handlePdf} disabled={!data || noStation || pdfBusy} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm">
+          {activeTab === 'lavage' && <button onClick={handlePdf} disabled={!data || noStation || pdfBusy} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-xl text-sm">
             {pdfBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Rapport PDF
-          </button>
+          </button>}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-8">
-        {PERIOD_PRESETS.map((p) => (
-          <button key={p.key} onClick={() => setPreset(p.key)} className={`${chips} ${preset === p.key ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-neutral-900 border-white/10 text-neutral-400 hover:text-white'}`}>{p.label}</button>
-        ))}
-        {preset === 'custom' && (
-          <div className="flex items-center gap-2 ml-1">
-            <input type="date" value={custom.start} onChange={(e) => setCustom({ ...custom, start: e.target.value })} className="bg-neutral-900 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white" />
-            <span className="text-neutral-500 text-sm">au</span>
-            <input type="date" value={custom.end} onChange={(e) => setCustom({ ...custom, end: e.target.value })} className="bg-neutral-900 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white" />
-          </div>
-        )}
-      </div>
+      <PeriodBar preset={preset} onPreset={setPreset} custom={custom} onCustom={setCustom} />
 
       {error && <div className="mb-6 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5">{error}</div>}
 
@@ -215,7 +191,26 @@ export default function Dashboard() {
         </div>
       )}
 
-      {data && !noStation && (
+      {data && !noStation && hasFuel && <ActivityTabs value={activeTab} onChange={setTab} />}
+
+      {data && !noStation && activeTab === 'global' && (
+        <div className={`transition-opacity ${loading ? 'opacity-60' : ''}`}>
+          <GlobalPanel data={data} fuel={fuel} bucket={bucket} />
+          <div className="mt-6"><FuelNote /></div>
+        </div>
+      )}
+
+      {data && !noStation && activeTab === 'carburant' && (
+        <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+          <FuelPanel fuel={fuel} bucket={bucket} />
+          <Section title="Classement des stations" subtitle="Carburant : cliquez sur un en-tête pour trier">
+            <FuelStationsTable stations={fuelStations} totalAmount={fuelTotals.cur.amount} />
+          </Section>
+          <FuelNote />
+        </div>
+      )}
+
+      {data && !noStation && activeTab === 'lavage' && (
         <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {kpis.map((stat, index) => (

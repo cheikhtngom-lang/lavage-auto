@@ -249,12 +249,13 @@ export function AppStateProvider({ children }) {
     const loadExpenses = useCallback(async () => {
         if (!stationId || stationId === 'default') { setExpenses([]); return; }
         const { data } = await supabase.from('expenses').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
-        setExpenses((data || []).map((row) => ({ id: row.id, label: row.label, amount: row.amount, category: row.category, createdAt: row.created_at })));
+        setExpenses((data || []).map((row) => ({ id: row.id, label: row.label, amount: row.amount, category: row.category, activity: row.activity === 'carburant' ? 'carburant' : 'lavage', createdAt: row.created_at })));
     }, [stationId]);
 
-    const addExpense = async ({ label, amount, category }) => {
+    // `activity` : 'lavage' (défaut) ou 'carburant' (voir add_fuel_activity.sql) — la colonne n'est envoyée que pour le carburant.
+    const addExpense = async ({ label, amount, category, activity }) => {
         if (!stationId || stationId === 'default') return;
-        await supabase.from('expenses').insert({ station_id: stationId, label, amount: parseInt(amount) || 0, category: category || 'Autre' });
+        await supabase.from('expenses').insert({ station_id: stationId, label, amount: parseInt(amount) || 0, category: category || 'Autre', ...(activity === 'carburant' ? { activity } : {}) });
         await loadExpenses();
     };
 

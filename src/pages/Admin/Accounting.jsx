@@ -5,8 +5,12 @@ import { Badge } from '../../components/ui/Badge';
 import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone, Clock, CheckCircle2 } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { stationHasPompistes } from '../../lib/pompistes';
 
 const EXPENSE_CATEGORIES = ['Savon', 'Eau', 'Électricité', 'Matériel', 'Autre'];
+// Dépenses de l'activité carburant (stations avec Pompistes) : suivies à part du lavage.
+const FUEL_EXPENSE_CATEGORIES = ['Achat carburant', 'Électricité', 'Entretien des pompes', 'Autre'];
+const isFuelExpense = (e) => e.activity === 'carburant';
 
 // Statuts de reversement d'un lavage payé en ligne (table paiements_lavage,
 // voir add_paydunya_per.sql + add_manual_disbursement.sql). Même vocabulaire
@@ -91,17 +95,20 @@ function TrendBadge({ pct, invert = false }) {
 
 export default function Accounting() {
   useDocumentTitle('Comptabilité');
-  const { transactions, expenses, addExpense, stationProfile, clientSubscriptionInvoices, lavagePayments } = useAppState();
+  const { transactions, expenses: allExpenses, addExpense, stationProfile, stationBilling, clientSubscriptionInvoices, lavagePayments } = useAppState();
+  // Les dépenses de carburant sont suivies à part : elles ne s'ajoutent pas aux dépenses de lavage (ni au Bilan).
+  const expenses = (allExpenses || []).filter((e) => !isFuelExpense(e));
+  const hasFuel = stationHasPompistes(stationBilling);
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [newExpense, setNewExpense] = useState({ label: '', amount: '', category: 'Savon' });
+  const [newExpense, setNewExpense] = useState({ label: '', amount: '', category: 'Savon', activity: 'lavage' });
 
   const handleAddExpense = (e) => {
     e.preventDefault();
     if (!newExpense.label || !newExpense.amount) return;
     addExpense(newExpense);
     setShowExpenseModal(false);
-    setNewExpense({ label: '', amount: '', category: 'Savon' });
+    setNewExpense({ label: '', amount: '', category: 'Savon', activity: 'lavage' });
   };
 
   const now = new Date();
@@ -130,7 +137,8 @@ export default function Accounting() {
   const todayExpenses = sumInRange(expenses, todayStart, addDays(todayStart, 1));
   const yesterdayExpenses = sumInRange(expenses, yesterdayStart, todayStart);
   const expensesChangePct = percentChange(todayExpenses, yesterdayExpenses);
-  const recentExpenses = (expenses || []).slice(0, 5);
+  const recentExpenses = (allExpenses || []).slice(0, 5);
+  const fuelExpensesToday = sumInRange((allExpenses || []).filter(isFuelExpense), todayStart, addDays(todayStart, 1));
 
   const totalSubRevenue = (clientSubscriptionInvoices || []).filter(inv => inv.status === 'paye').reduce((acc, curr) => acc + (parseInt(curr.amount) || 0), 0);
   // Configurable par l'admin dans Paramètres > Objectif de revenus (voir
@@ -221,6 +229,7 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Dépenses du jour</p>
             <h3 className="text-3xl font-bold text-white">{todayExpenses.toLocaleString('fr-FR')} FCFA</h3>
+            {hasFuel && fuelExpensesToday > 0 && <p className="text-neutral-500 text-xs mt-2">+ {fuelExpensesToday.toLocaleString('fr-FR')} FCFA de carburant, suivis à part</p>}
           </CardContent>
         </Card>
       </div>
@@ -500,7 +509,7 @@ export default function Accounting() {
                     </div>
                     <div>
                       <p className="text-white text-sm font-medium">{exp.label}</p>
-                      <p className="text-neutral-500 text-xs">{exp.category} · {new Date(exp.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="text-neutral-500 text-xs">{isFuelExpense(exp) && <span className="text-amber-400 font-bold">Carburant · </span>}{exp.category} · {new Date(exp.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                   </div>
                   <span className="text-red-400 font-bold text-sm">-{(parseInt(exp.amount) || 0).toLocaleString('fr-FR')} FCFA</span>
@@ -554,6 +563,22 @@ export default function Accounting() {
                     onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })}
                   />
                 </div>
+                {hasFuel && (
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-400 mb-1">Activité</label>
+                    <div role="radiogroup" aria-label="Activité de la dépense" className="grid grid-cols-2 gap-2">
+                      {[['lavage', 'Lavage'], ['carburant', 'Carburant']].map(([key, label]) => (
+                        <button
+                          key={key} type="button" role="radio" aria-checked={newExpense.activity === key}
+                          onClick={() => setNewExpense({ ...newExpense, activity: key, category: key === 'carburant' ? FUEL_EXPENSE_CATEGORIES[0] : EXPENSE_CATEGORIES[0] })}
+                          className={`py-2.5 rounded-xl border text-sm font-bold transition-colors ${newExpense.activity === key ? 'bg-blue-600 border-blue-500 text-white' : 'bg-neutral-950 border-white/10 text-neutral-400 hover:text-white'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1">Catégorie</label>
                   <select
@@ -561,7 +586,7 @@ export default function Accounting() {
                     value={newExpense.category}
                     onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}
                   >
-                    {EXPENSE_CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                    {(newExpense.activity === 'carburant' ? FUEL_EXPENSE_CATEGORIES : EXPENSE_CATEGORIES).map((cat) => <option key={cat} value={cat}>{cat}</option>)}
                   </select>
                 </div>
 

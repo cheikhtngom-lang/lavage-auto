@@ -48,6 +48,7 @@ import GroupStations from './pages/Group/Stations';
 import GroupOrder from './pages/Group/Order';
 import GroupBilling from './pages/Group/Billing';
 import GroupAnalysis from './pages/Group/Analysis';
+import GroupAccounting from './pages/Group/Accounting';
 // Pages Super Admin
 import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
 import SuperAdminAnnouncements from './pages/SuperAdmin/Announcements';
@@ -60,6 +61,7 @@ import SuperAdminSuperUsers from './pages/SuperAdmin/SuperUsers';
 import SuperAdminAds from './pages/SuperAdmin/Ads';
 import SuperAdminBilling from './pages/SuperAdmin/Billing';
 import SuperAdminBilan from './pages/SuperAdmin/Bilan';
+import SuperAdminFuel from './pages/SuperAdmin/Fuel';
 import SuperAdminSupport from './pages/SuperAdmin/Support';
 import SuperAdminSettings from './pages/SuperAdmin/Settings';
 
@@ -184,6 +186,7 @@ function App() {
               <Route path="/groupe" element={<GroupLayout />}>
                 <Route index element={<GroupDashboard />} />
                 <Route path="stations" element={<GroupStations />} />
+                <Route path="comptabilite" element={<GroupAccounting />} />
                 <Route path="analyse" element={<GroupAnalysis />} />
                 <Route path="commande" element={<GroupOrder />} />
                 <Route path="facturation" element={<GroupBilling />} />
@@ -201,6 +204,7 @@ function App() {
                 <Route path="super-users" element={<SuperAdminSuperUsers />} />
                 <Route path="ads" element={<SuperAdminAds />} />
                 <Route path="billing" element={<SuperAdminBilling />} />
+                <Route path="carburant" element={<SuperAdminFuel />} />
                 <Route path="bilan" element={<SuperAdminBilan />} />
                 <Route path="support" element={<SuperAdminSupport />} />
                 <Route path="settings" element={<SuperAdminSettings />} />

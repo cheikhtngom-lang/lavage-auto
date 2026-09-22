@@ -44,8 +44,9 @@ export default function Bilan() {
   useDocumentTitle('Bilan');
   const { transactions, expenses, completedWashes, reviews, stationProfile } = useAppState();
 
+  // Le Bilan reste celui du LAVAGE : les dépenses classées « Carburant » (stations avec Pompistes) n'y entrent pas.
   const data = useMemo(
-    () => ({ transactions, expenses, completedWashes, reviews }),
+    () => ({ transactions, expenses: (expenses || []).filter((e) => e.activity !== 'carburant'), completedWashes, reviews }),
     [transactions, expenses, completedWashes, reviews],
   );
 
