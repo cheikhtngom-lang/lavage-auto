@@ -113,6 +113,9 @@ function rowToItem(row) {
 // connexion mobile qui décroche. AbortController plutôt qu'AbortSignal.timeout,
 // absent des navigateurs mobiles un peu anciens.
 const WRITE_TIMEOUT_MS = 20000;
+// Lavages terminés chargés par défaut (voir loadReservations) : 3 jours
+// couvrent « aujourd'hui » et « hier » quel que soit le fuseau.
+const RECENT_COMPLETED_DAYS = 3;
 function timeoutSignal(ms = WRITE_TIMEOUT_MS) {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), ms);
@@ -248,19 +251,40 @@ export function AppStateProvider({ children }) {
     // réponse ANCIENNE arrivée en dernier écrasait la file avec un état périmé
     // (véhicule qui disparaît/réapparaît). Seule la plus récente s'applique.
     const reservationsSeqRef = useRef(0);
+    // Historique des lavages terminés : la file n'a besoin que des derniers
+    // jours. Avant, CHAQUE rafraîchissement (Realtime à chaque mouvement de la
+    // file, focus, après chaque action) relisait toutes les réservations
+    // depuis l'ouverture de la station, annulées comprises — de plus en plus
+    // lent avec le temps, surtout sur mobile. L'historique complet n'est chargé
+    // qu'à la demande (Analytics, Bilan, date ancienne dans la file) via
+    // requestFullReservationHistory, puis gardé pour la session.
+    // Ref et non état : basculer ne doit pas recréer loadReservations (ce qui
+    // relancerait toutes les lectures et l'abonnement Realtime de la station).
+    const fullReservationHistoryRef = useRef(false);
     const loadReservations = useCallback(async () => {
         if (!stationId || stationId === 'default') { setQueue([]); setActiveWashes([]); setCompletedWashes([]); return; }
         const seq = ++reservationsSeqRef.current;
-        const { data, error } = await supabase.from('reservations').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
+        let doneQuery = supabase.from('reservations').select('*').eq('station_id', stationId).eq('status', 'termine');
+        if (!fullReservationHistoryRef.current) doneQuery = doneQuery.gte('completed_at', new Date(Date.now() - RECENT_COMPLETED_DAYS * 86400000).toISOString());
+        const [live, done] = await Promise.all([
+            supabase.from('reservations').select('*').eq('station_id', stationId).in('status', ['attente', 'en_cours']).order('created_at', { ascending: true }),
+            doneQuery.order('completed_at', { ascending: false }),
+        ]);
         if (seq !== reservationsSeqRef.current) return;
         // Lecture en échec (coupure réseau) : on garde ce qui est affiché plutôt
         // que de vider la file comme si la station n'avait plus aucun véhicule.
+        const error = live.error || done.error;
         if (error) { console.error('loadReservations:', error); return; }
-        const items = (data || []).map(rowToItem);
+        const items = [...(live.data || []), ...(done.data || [])].map(rowToItem);
         setQueue(items.filter((i) => i.status === 'attente'));
         setActiveWashes(items.filter((i) => i.status === 'en_cours'));
         setCompletedWashes(items.filter((i) => i.status === 'termine').sort((a, b) => new Date(b.completedAtISO || 0) - new Date(a.completedAtISO || 0)));
     }, [stationId]);
+    const requestFullReservationHistory = useCallback(() => {
+        if (fullReservationHistoryRef.current) return;
+        fullReservationHistoryRef.current = true;
+        loadReservations();
+    }, [loadReservations]);
 
     const loadTransactions = useCallback(async () => {
         if (!stationId || stationId === 'default') { setTransactions([]); return; }
@@ -1629,7 +1653,7 @@ export function AppStateProvider({ children }) {
 
     return (
         <AppStateContext.Provider value={{
-            queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes,
+            queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes, requestFullReservationHistory,
             myPermissions, myRoleName,
             attendanceHistory, recordDailyAttendance, savePumpReading, assignPump, loadAttendanceForDate, loadAttendanceForMonth,
             pumps, addPump, renamePump, setPumpActive, setPumpNozzles,

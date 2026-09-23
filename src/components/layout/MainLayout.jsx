@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
+import PageSuspense from '../ui/PageSuspense';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { renderSiteFooter } from '../../lib/siteFooter';
@@ -74,7 +75,7 @@ export default function MainLayout() {
 
       {/* Main content */}
       <main className="flex-1 relative z-10 w-full flex flex-col">
-        <Outlet />
+        <PageSuspense><Outlet /></PageSuspense>
       </main>
 
       {/* Footer : même HTML que la page d'accueil (src/lib/siteFooter.js, contenu statique).

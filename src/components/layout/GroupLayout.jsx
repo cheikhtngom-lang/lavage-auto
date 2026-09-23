@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
+import PageSuspense from '../ui/PageSuspense';
 import { Building2, ShoppingCart, CreditCard, LogOut, Menu, X, Briefcase, LayoutDashboard, Sparkles, Calculator } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabaseClient';
@@ -118,7 +119,7 @@ export default function GroupLayout() {
           <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none" />
           <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
           <div className="relative z-10 min-h-full">
-            <Outlet />
+            <PageSuspense><Outlet /></PageSuspense>
           </div>
         </main>
       </div>

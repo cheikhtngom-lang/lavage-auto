@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
@@ -17,53 +17,67 @@ import { hasPerm } from './lib/permissions';
 import { stationHasShop } from './lib/shop';
 import { stationHasVidange } from './lib/vidange';
 import { stationHasPompistes } from './lib/pompistes';
+import PageSuspense from './components/ui/PageSuspense';
 
+// Pages chargées à la demande (une par rubrique) — voir components/ui/PageSuspense.jsx.
+// Après un déploiement, un onglet resté ouvert réclame d'anciens fichiers qui
+// n'existent plus sur le serveur : on recharge la page une fois (garde en
+// sessionStorage contre une boucle) pour récupérer la nouvelle version.
+const lazyPage = (load) => lazy(() => load().then((mod) => {
+  try { sessionStorage.removeItem('ccg_chunk_reload'); } catch { /* stockage indisponible */ }
+  return mod;
+}).catch((err) => {
+  let reloaded = false;
+  try { reloaded = sessionStorage.getItem('ccg_chunk_reload') === '1'; sessionStorage.setItem('ccg_chunk_reload', '1'); } catch { /* idem */ }
+  if (!reloaded) { window.location.reload(); return new Promise(() => {}); }
+  throw err;
+}));
 // Pages Client
-import ClientOverview from './pages/Client/Dashboard';
-import ClientLoyalty from './pages/Client/Loyalty';
-import ClientGarage from './pages/Client/Garage';
-import ClientSettings from './pages/Client/Settings';
-import Stations from './pages/Client/Stations';
-import MyStations from './pages/Client/MyStations';
-import ClientShop from './pages/Client/Shop';
+const ClientOverview = lazyPage(() => import('./pages/Client/Dashboard'));
+const ClientLoyalty = lazyPage(() => import('./pages/Client/Loyalty'));
+const ClientGarage = lazyPage(() => import('./pages/Client/Garage'));
+const ClientSettings = lazyPage(() => import('./pages/Client/Settings'));
+const Stations = lazyPage(() => import('./pages/Client/Stations'));
+const MyStations = lazyPage(() => import('./pages/Client/MyStations'));
+const ClientShop = lazyPage(() => import('./pages/Client/Shop'));
 
 // Pages Admin (Station)
-import StationDashboard from './pages/Admin/StationDashboard';
-import AdminTransactions from './pages/Admin/Transactions';
-import Accounting from './pages/Admin/Accounting';
-import Analytics from './pages/Admin/Analytics';
-import Team from './pages/Admin/Team';
-import Washers from './pages/Admin/Washers';
-import Pompistes from './pages/Admin/Pompistes';
-import Vidange from './pages/Admin/Vidange';
-import Settings from './pages/Admin/Settings';
-import Subscriptions from './pages/Admin/Subscriptions';
-import Bilan from './pages/Admin/Bilan';
-import Shop from './pages/Admin/Shop';
-import AdminAnnouncements from './pages/Admin/Announcements';
-import SubscriptionEnded from './pages/Admin/SubscriptionEnded';
+const StationDashboard = lazyPage(() => import('./pages/Admin/StationDashboard'));
+const AdminTransactions = lazyPage(() => import('./pages/Admin/Transactions'));
+const Accounting = lazyPage(() => import('./pages/Admin/Accounting'));
+const Analytics = lazyPage(() => import('./pages/Admin/Analytics'));
+const Team = lazyPage(() => import('./pages/Admin/Team'));
+const Washers = lazyPage(() => import('./pages/Admin/Washers'));
+const Pompistes = lazyPage(() => import('./pages/Admin/Pompistes'));
+const Vidange = lazyPage(() => import('./pages/Admin/Vidange'));
+const Settings = lazyPage(() => import('./pages/Admin/Settings'));
+const Subscriptions = lazyPage(() => import('./pages/Admin/Subscriptions'));
+const Bilan = lazyPage(() => import('./pages/Admin/Bilan'));
+const Shop = lazyPage(() => import('./pages/Admin/Shop'));
+const AdminAnnouncements = lazyPage(() => import('./pages/Admin/Announcements'));
+const SubscriptionEnded = lazyPage(() => import('./pages/Admin/SubscriptionEnded'));
 // Pages Chef d'entreprise (offre Sur mesure)
-import GroupDashboard from './pages/Group/Dashboard';
-import GroupStations from './pages/Group/Stations';
-import GroupOrder from './pages/Group/Order';
-import GroupBilling from './pages/Group/Billing';
-import GroupAnalysis from './pages/Group/Analysis';
-import GroupAccounting from './pages/Group/Accounting';
+const GroupDashboard = lazyPage(() => import('./pages/Group/Dashboard'));
+const GroupStations = lazyPage(() => import('./pages/Group/Stations'));
+const GroupOrder = lazyPage(() => import('./pages/Group/Order'));
+const GroupBilling = lazyPage(() => import('./pages/Group/Billing'));
+const GroupAnalysis = lazyPage(() => import('./pages/Group/Analysis'));
+const GroupAccounting = lazyPage(() => import('./pages/Group/Accounting'));
 // Pages Super Admin
-import SuperAdminDashboard from './pages/SuperAdmin/Dashboard';
-import SuperAdminAnnouncements from './pages/SuperAdmin/Announcements';
-import SuperAdminAnalytics from './pages/SuperAdmin/Analytics';
-import SuperAdminStations from './pages/SuperAdmin/Stations';
-import SuperAdminGroups from './pages/SuperAdmin/Groups';
-import SuperAdminModules from './pages/SuperAdmin/Modules';
-import SuperAdminMotorists from './pages/SuperAdmin/Motorists';
-import SuperAdminSuperUsers from './pages/SuperAdmin/SuperUsers';
-import SuperAdminAds from './pages/SuperAdmin/Ads';
-import SuperAdminBilling from './pages/SuperAdmin/Billing';
-import SuperAdminBilan from './pages/SuperAdmin/Bilan';
-import SuperAdminFuel from './pages/SuperAdmin/Fuel';
-import SuperAdminSupport from './pages/SuperAdmin/Support';
-import SuperAdminSettings from './pages/SuperAdmin/Settings';
+const SuperAdminDashboard = lazyPage(() => import('./pages/SuperAdmin/Dashboard'));
+const SuperAdminAnnouncements = lazyPage(() => import('./pages/SuperAdmin/Announcements'));
+const SuperAdminAnalytics = lazyPage(() => import('./pages/SuperAdmin/Analytics'));
+const SuperAdminStations = lazyPage(() => import('./pages/SuperAdmin/Stations'));
+const SuperAdminGroups = lazyPage(() => import('./pages/SuperAdmin/Groups'));
+const SuperAdminModules = lazyPage(() => import('./pages/SuperAdmin/Modules'));
+const SuperAdminMotorists = lazyPage(() => import('./pages/SuperAdmin/Motorists'));
+const SuperAdminSuperUsers = lazyPage(() => import('./pages/SuperAdmin/SuperUsers'));
+const SuperAdminAds = lazyPage(() => import('./pages/SuperAdmin/Ads'));
+const SuperAdminBilling = lazyPage(() => import('./pages/SuperAdmin/Billing'));
+const SuperAdminBilan = lazyPage(() => import('./pages/SuperAdmin/Bilan'));
+const SuperAdminFuel = lazyPage(() => import('./pages/SuperAdmin/Fuel'));
+const SuperAdminSupport = lazyPage(() => import('./pages/SuperAdmin/Support'));
+const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'));
 
 // Mock Home/Login Pages
 const Home = () => (
@@ -163,7 +177,7 @@ function App() {
               {/* Routes Admin Station */}
               {/* Hors AdminLayout : aucun menu, seule action possible = renouveler
                   (voir SubscriptionEnded.jsx et le redirect dans AdminLayout.jsx) */}
-              <Route path="/admin/renouveler" element={<SubscriptionEnded />} />
+              <Route path="/admin/renouveler" element={<PageSuspense><SubscriptionEnded /></PageSuspense>} />
 
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Navigate to="/admin/queue" replace />} />

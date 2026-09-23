@@ -42,7 +42,9 @@ function Section({ title, subtitle, children, className = '' }) {
 
 export default function Bilan() {
   useDocumentTitle('Bilan');
-  const { transactions, expenses, completedWashes, reviews, stationProfile } = useAppState();
+  const { transactions, expenses, completedWashes, reviews, stationProfile, requestFullReservationHistory } = useAppState();
+  // Tout l'historique des lavages (la file n'en charge que les derniers jours, voir loadReservations).
+  useEffect(() => { requestFullReservationHistory(); }, [requestFullReservationHistory]);
 
   // Le Bilan reste celui du LAVAGE : les dépenses classées « Carburant » (stations avec Pompistes) n'y entrent pas.
   const data = useMemo(

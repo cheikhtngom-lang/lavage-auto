@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import PageSuspense from '../ui/PageSuspense';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, LogOut, Droplets, Menu, X, Crown, Gift, ShoppingBag } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -192,7 +193,7 @@ export default function ClientLayout() {
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
         <div className="relative z-10 min-h-full">
-          <Outlet />
+          <PageSuspense><Outlet /></PageSuspense>
         </div>
       </main>
     </div>

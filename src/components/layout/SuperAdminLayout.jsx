@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import PageSuspense from '../ui/PageSuspense';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Building2, CreditCard, LifeBuoy, LogOut, Menu, X, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes, Briefcase, Fuel } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -157,7 +158,7 @@ export default function SuperAdminLayout() {
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
         <div className="relative z-10 min-h-full">
-          <Outlet />
+          <PageSuspense><Outlet /></PageSuspense>
         </div>
       </main>
     </div>

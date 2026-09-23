@@ -280,7 +280,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 export default function StationDashboard() {
   useDocumentTitle('File d\'attente');
   const navigate = useNavigate();
-  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
+  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, requestFullReservationHistory, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
 
   const getDurationMinutes = (item) => {
     const cat = item?.category || 'Particulier';
@@ -368,6 +368,11 @@ export default function StationDashboard() {
   // le pointage journalier des laveurs)
   const [completedDate, setCompletedDate] = React.useState(todayKey());
   const isCompletedToday = completedDate === todayKey();
+  // Seuls les 3 derniers jours de lavages terminés sont chargés d'office (voir
+  // loadReservations) : une date plus ancienne demande tout l'historique.
+  React.useEffect(() => {
+    if (Date.now() - new Date(`${completedDate}T00:00:00`).getTime() > 2 * 86400000) requestFullReservationHistory();
+  }, [completedDate, requestFullReservationHistory]);
   const [completedPage, setCompletedPage] = React.useState(1);
   const [completedPageSize, setCompletedPageSize] = React.useState(20);
 

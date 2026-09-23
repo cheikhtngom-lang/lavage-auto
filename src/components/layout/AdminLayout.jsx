@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import PageSuspense from '../ui/PageSuspense';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Menu, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -280,7 +281,7 @@ export default function AdminLayout() {
         <TrialBanner billing={stationBilling} />
 
         <div className="relative z-10 min-h-full">
-          <Outlet />
+          <PageSuspense><Outlet /></PageSuspense>
         </div>
       </main>
     </div>

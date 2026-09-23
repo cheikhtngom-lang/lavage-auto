@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Clock, Users, Car, Target, TrendingUp, Banknote, Receipt, Calendar } from 'lucide-react';
@@ -82,7 +82,9 @@ function formatCompact(n) {
 
 export default function Analytics() {
   useDocumentTitle('Analytique');
-  const { transactions, completedWashes, activeWashes, reviews, stationProfile } = useAppState();
+  const { transactions, completedWashes, activeWashes, reviews, stationProfile, requestFullReservationHistory } = useAppState();
+  // Tout l'historique des lavages (la file n'en charge que les derniers jours, voir loadReservations).
+  useEffect(() => { requestFullReservationHistory(); }, [requestFullReservationHistory]);
 
   const [timeSegment, setTimeSegment] = useState('Tous');
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
