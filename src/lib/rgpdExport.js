@@ -1,6 +1,5 @@
-// Export / portabilité RGPD (règlement UE 2016/679, art. 20 ; loi
-// sénégalaise n° 2008-12 sur la protection des données à caractère
-// personnel) — même principe que le module équivalent du projet GestionImmo
+// Export des données — droit d'accès prévu par la loi sénégalaise
+// n° 2008-12 sur la protection des données à caractère personnel (CDP) — même principe que le module équivalent du projet GestionImmo
 // de l'utilisateur (rgpd-export.js) : lecture directe des tables Supabase
 // avec la session en cours (RLS applique le périmètre — une station n'obtient
 // que SES lignes ; un compte super_admin obtient tout via les policies
@@ -154,8 +153,8 @@ function readme({ title, subject, tables, errors }) {
   L.push(subject);
   L.push('');
   L.push(`Fourni au titre du droit d'accès / de portabilité des données`);
-  L.push(`(RGPD art. 15 & 20 ; loi sénégalaise n° 2008-12 sur la protection`);
-  L.push(`des données à caractère personnel).`);
+  L.push(`(loi sénégalaise n° 2008-12 sur la protection des données à caractère`);
+  L.push(`personnel, sous le contrôle de la CDP).`);
   L.push('');
   L.push('STRUCTURE');
   L.push('  manifest.json .......... résumé technique (comptages, erreurs)');
@@ -191,8 +190,8 @@ function writeDatasetIntoZip(zip, { extraRows = {}, ds, prefix = '' }) {
   });
 
   const manifest = {
-    format: 'lavage-auto-export-rgpd', version: 1,
-    base_legale: "RGPD (UE 2016/679) art. 20 ; loi SN n° 2008-12",
+    format: 'lavage-auto-export-donnees', version: 1,
+    base_legale: "Loi sénégalaise n° 2008-12 sur la protection des données à caractère personnel (CDP)",
     genere_le: ds.generatedAt,
     comptages: ds.counts || {},
     erreurs: ds.errors || [],
@@ -221,8 +220,8 @@ async function buildZip({ title, subject, extraRows = {}, ds, onProgress }) {
 
 function readmeAll(index) {
   const L = [];
-  L.push('EXPORT RGPD — TOUTES LES STATIONS — Lavage Auto');
-  L.push('================================================');
+  L.push('EXPORT DES DONNÉES — TOUTES LES STATIONS — Lavage Auto');
+  L.push('=======================================================');
   L.push('');
   L.push(`Généré le : ${index.genere_le}`);
   L.push(`Stations  : ${index.stations.length}`);
@@ -253,12 +252,12 @@ export function triggerDownload(blob, filename) {
 export async function exportStationData(stationId, stationName, { includeDisputes = false, onProgress } = {}) {
   const ds = await collectStation(stationId, { includeDisputes, onProgress });
   const blob = await buildZip({
-    title: 'EXPORT RGPD DE VOS DONNÉES — Lavage Auto',
+    title: 'EXPORT DE VOS DONNÉES — Lavage Auto',
     subject: `Ce dossier contient l'intégralité des données rattachées à la station « ${stationName || stationId} », dans un format ouvert et réutilisable.`,
     extraRows: { station: ds.station, station_billing: ds.billing },
     ds, onProgress,
   });
-  triggerDownload(blob, `export-rgpd-${slugify(stationName || stationId)}-${tsCompact()}.zip`);
+  triggerDownload(blob, `export-donnees-${slugify(stationName || stationId)}-${tsCompact()}.zip`);
 }
 
 export async function exportStationClientData(stationId, stationName, clientId, clientName, { onProgress } = {}) {
@@ -272,11 +271,11 @@ export async function exportStationClientData(stationId, stationName, clientId, 
 }
 
 // Toutes les stations en un seul ZIP (un dossier par station) — pour le
-// Super Admin, voir Super Admin > Paramètres > Export RGPD.
+// Super Admin, voir Super Admin > Paramètres > Export des données.
 export async function exportAllStationsData(stations, { onProgress } = {}) {
   const notify = onProgress || (() => {});
   const zip = new JSZip();
-  const index = { format: 'lavage-auto-export-rgpd-multi', genere_le: new Date().toISOString(), stations: [] };
+  const index = { format: 'lavage-auto-export-donnees-multi', genere_le: new Date().toISOString(), stations: [] };
 
   const list = stations || [];
   for (let i = 0; i < list.length; i++) {
@@ -295,7 +294,7 @@ export async function exportAllStationsData(stations, { onProgress } = {}) {
   zip.file('index.json', JSON.stringify(index, null, 2));
   zip.file('LISEZ-MOI.txt', readmeAll(index));
   const blob = await finalizeZip(zip, onProgress, 90);
-  triggerDownload(blob, `export-rgpd-TOUTES-STATIONS-${tsCompact()}.zip`);
+  triggerDownload(blob, `export-donnees-TOUTES-STATIONS-${tsCompact()}.zip`);
 }
 
 // Chef d'entreprise (offre Sur mesure) : son profil, son entreprise (commandes,
@@ -318,7 +317,7 @@ export async function exportGroupData({ org, profile, stations }, { onProgress }
   }
   const groupManifest = writeDatasetIntoZip(zip, { extraRows: { profil: profile, entreprise: org }, ds: groupDs, prefix: 'entreprise/' });
 
-  const index = { format: 'lavage-auto-export-rgpd-groupe', genere_le: generatedAt, entreprise: org.name, comptages_entreprise: groupManifest.comptages, stations: [] };
+  const index = { format: 'lavage-auto-export-donnees-groupe', genere_le: generatedAt, entreprise: org.name, comptages_entreprise: groupManifest.comptages, stations: [] };
   const list = stations || [];
   for (let i = 0; i < list.length; i++) {
     const s = list[i];
@@ -347,8 +346,8 @@ export async function exportGroupData({ org, profile, stations }, { onProgress }
     `EXPORT DES DONNÉES DE L'ENTREPRISE « ${org.name} » — Lavage Auto`,
     '',
     `Généré le : ${generatedAt}`,
-    "Fourni au titre du droit d'accès / de portabilité des données (RGPD art. 15 & 20 ;",
-    'loi sénégalaise n° 2008-12).',
+    "Fourni au titre du droit d'accès aux données (loi sénégalaise n° 2008-12,",
+    'sous le contrôle de la CDP).',
     '',
     'entreprise/ ............ votre profil, l\'entreprise, commandes, demandes de',
     '                         rattachement et analyses IA',

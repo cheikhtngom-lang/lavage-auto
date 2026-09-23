@@ -232,7 +232,7 @@ export default function Stations() {
                           }
                         }}
                         disabled={rgpdBusy !== null}
-                        className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-60 text-neutral-400 rounded-lg transition-colors" title="Exporter ses données (RGPD)"
+                        className="p-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-60 text-neutral-400 rounded-lg transition-colors" title="Exporter ses données"
                       >
                         {rgpdBusy === station.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                       </button>
@@ -437,7 +437,7 @@ export default function Stations() {
                 className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-blue-500/20 hover:text-blue-400 disabled:opacity-60 text-neutral-300 border border-white/10 font-medium py-3 rounded-xl transition-colors mb-3"
               >
                 {rgpdBusy === selected.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Exporter ses données (RGPD)
+                Exporter ses données
               </button>
               {rgpdError && <p className="text-sm text-red-400 mb-3">{rgpdError}</p>}
 

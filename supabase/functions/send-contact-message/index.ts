@@ -32,10 +32,12 @@ const SUBJECTS = [
   "Support technique",
   "Abonnement et facturation",
   "Devenir station partenaire",
-  "Protection des données (CDP · RGPD)",
+  "Protection des données (CDP)",
   "Signaler un problème",
   "Autre",
 ];
+// Ancien libellé (avant le 23/09/2026) : une page restée ouverte peut encore l'envoyer.
+const LEGACY_SUBJECTS: Record<string, string> = { "Protection des données (CDP · RGPD)": "Protection des données (CDP)" };
 
 const MAX_PER_HOUR = 5;
 const MIN_FILL_MS = 2500;
@@ -78,7 +80,8 @@ Deno.serve(async (req) => {
 
     const name = String(body.name ?? "").trim();
     const email = String(body.email ?? "").trim();
-    const subject = String(body.subject ?? "").trim();
+    const rawSubject = String(body.subject ?? "").trim();
+    const subject = LEGACY_SUBJECTS[rawSubject] ?? rawSubject;
     const message = String(body.message ?? "").trim();
 
     if (name.length < 2 || name.length > 100) return json({ error: "Merci de renseigner votre nom." }, 400);

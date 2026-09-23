@@ -19,7 +19,7 @@ const TABS = [
   { id: 'plans', label: 'Plans & Tarifs', icon: CreditCard },
   { id: 'pays', label: 'Pays', icon: Globe },
   { id: 'compte', label: 'Compte & Sécurité', icon: Shield },
-  { id: 'export', label: 'Export RGPD', icon: FileDown },
+  { id: 'export', label: 'Export des données', icon: FileDown },
   { id: 'journal', label: "Journal d'activité", icon: ScrollText },
 ];
 
@@ -65,7 +65,7 @@ export default function SuperAdminSettings() {
     supabase.auth.getUser().then(({ data }) => setAccountEmail(data?.user?.email || ''));
   }, []);
 
-  // Export / Portabilité RGPD (voir lib/rgpdExport.js) — une station au
+  // Export des données, loi n° 2008-12 (voir lib/rgpdExport.js) — une station au
   // choix, ou toutes les stations en un seul ZIP (un dossier par station).
   const sortedStationsForExport = [...stations].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   const [exportStationId, setExportStationId] = useState('');
@@ -251,9 +251,9 @@ export default function SuperAdminSettings() {
 
           {activeTab === 'export' && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-8 max-w-2xl">
-              <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><FileDown className="w-5 h-5 text-purple-400" /> Export / Portabilité RGPD</h2>
+              <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><FileDown className="w-5 h-5 text-purple-400" /> Export des données (CDP)</h2>
               <p className="text-neutral-400 mb-6 pb-4 border-b border-white/10">
-                Génère un ZIP contenant l'intégralité des données — d'une station au choix, ou de toutes les stations (un dossier par station). À fournir en cas de résiliation ou de fermeture d'une station (droit à la portabilité — RGPD art. 20 ; loi sénégalaise n° 2008-12). Lecture seule, aucune donnée n'est modifiée.
+                Génère un ZIP contenant l'intégralité des données — d'une station au choix, ou de toutes les stations (un dossier par station). À fournir en cas de résiliation ou de fermeture d'une station (droit d'accès — loi sénégalaise n° 2008-12, sous le contrôle de la CDP). Lecture seule, aucune donnée n'est modifiée.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">

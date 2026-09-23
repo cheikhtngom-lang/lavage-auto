@@ -174,7 +174,7 @@ export default function Settings() {
 
   const formatDate = (iso) => iso ? new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
-  // Portabilité RGPD (voir lib/rgpdExport.js) — export self-service de
+  // Droit d'accès / portabilité, loi n° 2008-12 (voir lib/rgpdExport.js) — export self-service de
   // l'historique complet du compte, toutes stations confondues.
   const handleExportMyData = async () => {
     if (!account?.id) return;
@@ -441,7 +441,7 @@ export default function Settings() {
         <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
           <FileDown className="w-5 h-5 text-blue-400" /> Mes données
         </h2>
-        <p className="text-neutral-400 text-sm mb-5">Droit à la portabilité de vos données (RGPD art. 20 ; loi sénégalaise n° 2008-12) — téléchargez à tout moment une copie complète de votre profil, véhicules, réservations, transactions et avis, toutes stations confondues.</p>
+        <p className="text-neutral-400 text-sm mb-5">Droit d'accès à vos données (loi sénégalaise n° 2008-12, sous le contrôle de la CDP) — téléchargez à tout moment une copie complète de votre profil, véhicules, réservations, transactions et avis, toutes stations confondues.</p>
         <button
           onClick={handleExportMyData}
           disabled={rgpdBusy}

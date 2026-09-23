@@ -386,7 +386,7 @@ end $$;
 -- ─── 8. Portabilité : données d'une station du groupe, pour le patron ──
 -- Le patron ne lit pas les tables des stations en direct (RLS = station
 -- ouverte) : cette fonction renvoie tout le jeu de données d'UNE station de
--- son groupe, au même format que l'export RGPD d'une station (lib/rgpdExport.js).
+-- son groupe, au même format que l'export des données d'une station (lib/rgpdExport.js).
 create or replace function public.group_export_station(p_station_id uuid)
 returns jsonb
 language plpgsql stable security definer set search_path = public as $$

@@ -106,7 +106,7 @@ export default function Settings() {
   // État pour le rapport de nettoyage
   const [cleanReport, setCleanReport] = useState(null); // null | [] | ['msg1', 'msg2']
 
-  // Export RGPD (portabilité, voir lib/rgpdExport.js) — liste des clients
+  // Export des données (loi n° 2008-12, voir lib/rgpdExport.js) — liste des clients
   // chargée à l'ouverture de l'onglet Sécurité, pas avant (évite une requête
   // inutile sur les autres onglets).
   const [rgpdClients, setRgpdClients] = useState([]);
@@ -257,7 +257,7 @@ export default function Settings() {
   };
 
   // Charge la liste des clients de la station à l'ouverture de l'onglet
-  // Sécurité (une fois) — sert au sélecteur d'export RGPD "un seul client".
+  // Sécurité (une fois) — sert au sélecteur d'export des données "un seul client".
   useEffect(() => {
     if (activeTab !== 'securite' || !stationId || stationId === 'default') return;
     setRgpdClientsLoading(true);
@@ -1522,9 +1522,9 @@ export default function Settings() {
                   </div>
                 </form>
 
-                {/* Portabilité RGPD — voir lib/rgpdExport.js */}
-                <h3 className="text-lg font-bold text-white mb-2 border-t border-white/10 pt-6 flex items-center gap-2"><FileDown className="w-4 h-4 text-blue-400" /> Exporter vos données (RGPD)</h3>
-                <p className="text-neutral-400 text-sm mb-4">Droit à la portabilité des données (RGPD art. 20 ; loi sénégalaise n° 2008-12) — téléchargez une copie complète, au format JSON + CSV, à tout moment.</p>
+                {/* Export des données (loi n° 2008-12, CDP) — voir lib/rgpdExport.js */}
+                <h3 className="text-lg font-bold text-white mb-2 border-t border-white/10 pt-6 flex items-center gap-2"><FileDown className="w-4 h-4 text-blue-400" /> Exporter vos données (CDP)</h3>
+                <p className="text-neutral-400 text-sm mb-4">Droit d'accès aux données (loi sénégalaise n° 2008-12, sous le contrôle de la CDP) — téléchargez une copie complète, au format JSON + CSV, à tout moment.</p>
                 <div className="space-y-3 mb-10 max-w-xl">
                   <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center justify-between gap-4">
                     <div>

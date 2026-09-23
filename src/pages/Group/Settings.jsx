@@ -359,7 +359,7 @@ export default function GroupSettings() {
       <div className={cardCls}>
         <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><FileDown className="w-5 h-5 text-emerald-400" /> Mes données</h2>
         <p className="text-neutral-400 text-sm mb-5">
-          Droit à la portabilité (RGPD art. 20 ; loi sénégalaise n° 2008-12) : téléchargez à tout moment une copie complète, en JSON et CSV —
+          Droit d'accès à vos données (loi sénégalaise n° 2008-12, sous le contrôle de la CDP) : téléchargez à tout moment une copie complète, en JSON et CSV —
           votre profil, votre entreprise (commandes, analyses IA) et, pour chaque station du groupe, sa file, ses transactions, dépenses, équipe, pointage, abonnements clients, vidanges et boutique.
         </p>
         <button onClick={handleExport} disabled={!!exportProgress} className="flex items-center gap-2 bg-white/5 hover:bg-emerald-500/15 hover:text-emerald-300 disabled:opacity-60 text-neutral-300 border border-white/10 px-5 py-3 rounded-xl font-medium text-sm transition-colors">

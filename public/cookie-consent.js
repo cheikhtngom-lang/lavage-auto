@@ -1,5 +1,5 @@
 // Bannière de consentement cookies (mesure d'audience Google Analytics) —
-// RGPD. La mesure d'audience démarre en "denied" par défaut (voir le
+// CDP (loi n° 2008-12). La mesure d'audience démarre en "denied" par défaut (voir le
 // gtag('consent','default',...) posé AVANT le chargement de gtag.js dans
 // chaque page, Google Consent Mode v2) : ce script ne fait que basculer ce
 // consentement sur "granted" si le visiteur accepte, et mémorise son choix

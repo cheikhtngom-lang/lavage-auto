@@ -28,7 +28,7 @@ export const SUBJECTS = [
   'Support technique',
   'Abonnement et facturation',
   'Devenir station partenaire',
-  'Protection des données (CDP · RGPD)',
+  'Protection des données (CDP)',
   'Signaler un problème',
   'Autre',
 ];
@@ -148,7 +148,7 @@ export function renderSiteFooter({ version = '' } = {}) {
       <a href="/login.html?mode=register&amp;role=agence" class="inline-flex items-center gap-2 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm px-5 py-2.5 transition-colors">Créer mon espace ${icon('arrow')}</a>
       <a href="/confidentialite.html" class="mt-4 flex w-fit items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 px-3.5 py-2.5 transition-colors">
         <span class="text-emerald-400">${icon('shield', 'w-5 h-5')}</span>
-        <span class="leading-tight"><span class="block text-xs font-bold text-white">RGPD · CDP</span><span class="block text-[11px] text-emerald-400">Données protégées</span></span>
+        <span class="leading-tight"><span class="block text-xs font-bold text-white">CDP · Loi n° 2008-12</span><span class="block text-[11px] text-emerald-400">Données protégées</span></span>
       </a>
       <div class="mt-5 flex items-center gap-3">${socials}</div>
     </div>
