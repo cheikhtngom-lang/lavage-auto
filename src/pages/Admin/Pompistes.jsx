@@ -267,6 +267,30 @@ export default function Pompistes() {
     return key ? (activePumps.find((p) => p.name.trim().toLowerCase() === key)?.nozzles || []) : [];
   };
 
+  // ─── Un pistolet = un seul pompiste EN SERVICE à la fois ─────────────────
+  // Tant que celui qui tient « Essence 1 » n'a pas fait sa descente, personne d'autre ne
+  // peut le prendre ; dès sa descente, il est libre pour le relais. Le pompiste descendu
+  // le garde sur SA ligne du jour (son relevé). Même règle en base : add_nozzle_exclusive.sql.
+  const todayEntries = attendanceHistory?.[todayKey()] || {};
+  // Pistolets tenus en ce moment par un pompiste en service (sauf `exceptId`) : libellé -> nom.
+  const busyNozzles = (exceptId) => {
+    const busy = new Map();
+    roster.forEach((p) => {
+      if (p.id === exceptId || p.dailyStatus !== 'present' || !p.clockInAt || p.clockOutAt) return;
+      (todayEntries[p.id]?.pumpNozzles || []).forEach((l) => busy.set(l, p.name));
+    });
+    return busy;
+  };
+  // « Essence 1 et Gasoil 1 : tenus par Awa jusqu'à sa descente. »
+  const describeTaken = (labels, busy) => {
+    const byHolder = new Map();
+    labels.forEach((l) => byHolder.set(busy.get(l), [...(byHolder.get(busy.get(l)) || []), l]));
+    return [...byHolder].map(([name, ls]) => `${ls.join(', ')} : tenu${ls.length > 1 ? 's' : ''} par ${name} jusqu'à sa descente`).join(' ; ') + '.';
+  };
+  // Message sous la ligne d'un pompiste (enregistrement refusé par la base…).
+  const [notices, setNotices] = useState({});
+  const notify = (rowId, msg) => setNotices((n) => ({ ...n, [rowId]: msg || '' }));
+
   // ─── Pointage (même mécanique que les laveurs) ────────────────────────────
   const changeDailyStatus = (id, newStatus) => {
     updateEmployee(id, { dailyStatus: newStatus });
@@ -282,10 +306,15 @@ export default function Pompistes() {
     const now = new Date();
     const display = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const patch = { status: 'Actif', clockIn: display, clockInAt: now.toISOString(), clockOut: null, clockOutAt: null, totalTime: null };
+    const busy = busyNozzles(null);
     toClockIn.forEach((p) => {
       updateEmployee(p.id, patch);
-      // Pompe habituelle : tous ses pistolets sont cochés d'office (à décocher si besoin).
-      const nozzles = nozzlesOfPump(p.pumpLabel).map((n) => n.label);
+      // Pompe habituelle : tous ses pistolets sont cochés d'office (à décocher si besoin),
+      // sauf ceux qu'un autre pompiste en service tient encore.
+      const all = nozzlesOfPump(p.pumpLabel).map((n) => n.label);
+      // (les pistolets écartés restent affichés verrouillés sur sa ligne, avec leur détenteur)
+      const nozzles = all.filter((l) => !busy.has(l));
+      nozzles.forEach((l) => busy.set(l, p.name)); // deux pompistes marqués présents ensemble : le premier est servi
       recordDailyAttendance(p.id, {
         ...patch, dailyStatus: 'present',
         ...(p.pumpLabel ? { pumpLabel: p.pumpLabel } : {}),
@@ -332,20 +361,52 @@ export default function Pompistes() {
   // Choisir une pompe coche d'office tous ses pistolets (un pompiste tient en général toute la
   // pompe) ; on décoche ceux qu'il ne tient pas — ex : Pompe A avec Essence 1 et Gasoil 4.
   const assignedOf = (row) => row.saved?.pumpNozzles || [];
+  // En service = arrivée pointée, pas encore descendu (seul cas où la règle s'applique :
+  // corriger la ligne d'un pompiste descendu ou d'un jour passé reste libre).
+  const onDuty = (row) => isToday && !!row.live?.clockInAt && !row.live?.clockOutAt;
+  const busyFor = (row) => (onDuty(row) ? busyNozzles(row.id) : new Map());
+  const saveNozzles = async (row, pump, labels) => {
+    const { error } = await assignPump(row.id, selectedDate, pump, labels);
+    if (error) notify(row.id, error.message || 'Enregistrement impossible. Réessayez.');
+    return !error;
+  };
   const choosePump = (row, name) => {
     const labels = nozzlesOfPump(name).map((n) => n.label);
-    assignPump(row.id, selectedDate, name, labels.length > 0 ? labels : (assignedOf(row).length > 0 ? [] : undefined));
+    const busy = busyFor(row);
+    const free = labels.filter((l) => !busy.has(l)); // les autres s'affichent verrouillés (🔒)
+    notify(row.id, '');
+    saveNozzles(row, name, labels.length > 0 ? free : (assignedOf(row).length > 0 ? [] : undefined));
   };
   const toggleNozzle = (row, label) => {
     const cur = assignedOf(row);
-    const next = cur.includes(label) ? cur.filter((l) => l !== label) : [...cur, label];
-    assignPump(row.id, selectedDate, pumpOf(row), sortRows(next.map((l) => ({ label: l }))).map((l) => l.label));
+    const adding = !cur.includes(label);
+    const busy = busyFor(row);
+    if (adding && busy.has(label)) { notify(row.id, describeTaken([label], busy)); return; }
+    notify(row.id, '');
+    const next = adding ? [...cur, label] : cur.filter((l) => l !== label);
+    saveNozzles(row, pumpOf(row), sortRows(next.map((l) => ({ label: l }))).map((l) => l.label));
   };
-  // Un même pistolet tenu par deux pompistes le même jour : on prévient (leurs relevés se doubleraient).
-  const holders = new Map();
-  rows.forEach((r) => assignedOf(r).forEach((l) => holders.set(l, [...(holders.get(l) || []), r.name])));
-  const clashesOf = (row) => assignedOf(row).filter((l) => (holders.get(l) || []).length > 1)
-    .map((l) => `${l} aussi tenu par ${holders.get(l).filter((n) => n !== row.name).join(', ') || 'un autre pompiste'}`);
+  // « Reprendre service » : si un autre pompiste a pris le relais sur certains de ses pistolets,
+  // il reprend sans eux (après confirmation) — sinon la reprise serait refusée.
+  const handleResume = async (row) => {
+    const busy = busyNozzles(row.id);
+    const taken = assignedOf(row).filter((l) => busy.has(l));
+    if (taken.length > 0) {
+      const which = taken.length > 1 ? 'ces pistolets' : 'ce pistolet';
+      if (!window.confirm(`${describeTaken(taken, busy)}\n\nReprendre le service de ${row.name} sans ${which} ?`)) return;
+      const ok = await saveNozzles(row, pumpOf(row), assignedOf(row).filter((l) => !busy.has(l)));
+      if (!ok) return;
+    }
+    notify(row.id, '');
+    resumeEmployee(row.id);
+  };
+  // Même pistolet sur deux lignes du jour : relais normal (l'un est descendu avant que l'autre
+  // le prenne), ou conflit si les deux sont en service en même temps (données d'avant la règle).
+  const sharedOf = (row) => assignedOf(row).map((l) => {
+    const others = rows.filter((r) => r.id !== row.id && assignedOf(r).includes(l));
+    if (others.length === 0) return null;
+    return { label: l, clash: onDuty(row) && others.some(onDuty), names: others.map((r) => r.name).join(', ') };
+  }).filter(Boolean);
 
   // Totaux du jour : uniquement ce qui est ENREGISTRÉ.
   const summary = summarizeReadings(rows.map((r) => ({ pump: pumpOf(r), liters: r.saved?.liters, amount: r.saved?.amountCollected })));
@@ -698,16 +759,33 @@ export default function Pompistes() {
                           const held = assignedOf(row);
                           // Pistolets figés sur ce jour mais qui ne sont plus ceux de la pompe (décochés depuis).
                           const stale = held.filter((l) => !options.some((n) => n.label === l));
-                          if (options.length === 0 && stale.length === 0) return null;
-                          const clashes = clashesOf(row);
+                          const notice = notices[row.id];
+                          if (options.length === 0 && stale.length === 0) return notice ? <p className="text-[11px] text-amber-400 mt-2 max-w-[280px]">{notice}</p> : null;
+                          const busy = busyFor(row);
+                          // Pistolets de la pompe pris par un autre pompiste en service : verrouillés.
+                          const locked = options.filter((n) => !held.includes(n.label) && busy.has(n.label)).map((n) => n.label);
+                          const shared = sharedOf(row);
                           return (
                             <div className="mt-2 max-w-[280px]">
                               <div className="flex flex-wrap gap-1" role="group" aria-label={`Pistolets tenus par ${row.name}`}>
-                                {options.map((n) => <NozzleChip key={n.label} label={n.label} fuel={n.fuel} active={held.includes(n.label)} onClick={() => toggleNozzle(row, n.label)} />)}
+                                {options.map((n) => {
+                                  const lockedBy = locked.includes(n.label) ? busy.get(n.label) : null;
+                                  return (
+                                    <NozzleChip
+                                      key={n.label} label={n.label} fuel={n.fuel} active={held.includes(n.label)}
+                                      disabled={!!lockedBy} onClick={() => toggleNozzle(row, n.label)}
+                                      title={lockedBy ? `Tenu par ${lockedBy} jusqu'à sa descente` : undefined}
+                                    />
+                                  );
+                                })}
                                 {stale.map((l) => <NozzleChip key={l} label={l} fuel={parseNozzleLabel(l)?.fuel || 'essence'} active onClick={() => toggleNozzle(row, l)} title="Ce pistolet n'est plus sur cette pompe" />)}
                               </div>
-                              {options.length > 0 && held.length === 0 && <p className="text-[11px] text-amber-400/80 mt-1">Aucun pistolet coché.</p>}
-                              {clashes.map((c) => <p key={c} className="text-[11px] text-amber-400 mt-1">⚠ {c}</p>)}
+                              {options.length > 0 && held.length === 0 && locked.length < options.length && <p className="text-[11px] text-amber-400/80 mt-1">Aucun pistolet coché.</p>}
+                              {locked.length > 0 && <p className="text-[11px] text-neutral-400 mt-1">🔒 {describeTaken(locked, busy)}</p>}
+                              {shared.map((s) => (s.clash
+                                ? <p key={s.label} className="text-[11px] text-amber-400 mt-1">⚠ {s.label} aussi tenu par {s.names}, en service</p>
+                                : <p key={s.label} className="text-[11px] text-neutral-500 mt-1">Relais : {s.label} aussi tenu ce jour par {s.names}</p>))}
+                              {notice && <p className="text-[11px] text-amber-400 mt-1">{notice}</p>}
                             </div>
                           );
                         })()}
@@ -754,7 +832,7 @@ export default function Pompistes() {
                             {row.status === 'Terminé' && (
                               <>
                                 {!isPastClosingTime(stationProfile) && (
-                                  <button onClick={() => resumeEmployee(row.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
+                                  <button onClick={() => handleResume(row)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
                                     Reprendre service
                                   </button>
                                 )}
@@ -777,7 +855,10 @@ export default function Pompistes() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-neutral-600 mt-5">
+          <p className="text-xs text-neutral-500 mt-5">
+            Un pistolet ne sert qu'à un pompiste en service à la fois : il se libère à la descente de celui qui le tient, pour le relais.
+          </p>
+          <p className="text-xs text-neutral-600 mt-1">
             Ces montants sont suivis à part : ils n'entrent ni dans les transactions de lavage, ni dans le Bilan ou l'Analytique.
           </p>
         </CardContent>

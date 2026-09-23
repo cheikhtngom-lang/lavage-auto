@@ -1023,7 +1023,8 @@ export function AppStateProvider({ children }) {
         supabase.from('attendance_records').upsert({
             station_id: stationId, employee_id: employeeId, work_date: todayKey,
             name: emp?.name, role: emp?.role, ...patchToRow(patch),
-        }, { onConflict: 'employee_id,work_date' }).then(() => {});
+        // Refus possible en base (ex : pistolet tenu par un pompiste en service, add_nozzle_exclusive.sql).
+        }, { onConflict: 'employee_id,work_date' }).then(({ error }) => { if (error) console.error('recordDailyAttendance:', error); });
     };
 
     // Poste un pompiste sur une pompe pour un jour donné (aujourd'hui, ou un jour passé à
