@@ -1,8 +1,9 @@
 // Boutique de station — catalogue de produits (pneus, huiles, pare-brise…)
-// publié par les stations Business et consulté par leurs clients depuis le
+// publié par les stations « Station de service » et consulté par leurs clients depuis le
 // tableau de bord automobiliste. Voir add_station_shop.sql,
 // src/pages/Admin/Shop.jsx et src/pages/Client/Shop.jsx.
 import { supabase } from './supabaseClient';
+import { isServiceStationPlan } from './offers';
 
 // Catégories proposées dans le formulaire produit (dropdown + « Autre »).
 export const SHOP_CATEGORIES = [
@@ -17,12 +18,12 @@ export const SHOP_CATEGORIES = [
   'Autre',
 ];
 
-// La station a-t-elle droit à une boutique ? (plan Pro ou Business, ou module
+// La station a-t-elle droit à une boutique ? (offre Station de service, ou module
 // mod_boutique) — le vrai contrôle est côté Postgres (station_has_shop +
 // policies RLS) ; ceci sert à l'affichage.
 export function stationHasShop(billing) {
   if (!billing) return false;
-  return billing.plan === 'Pro' || billing.plan === 'Business' || (billing.activeModules || []).includes('mod_boutique');
+  return isServiceStationPlan(billing.plan) || (billing.activeModules || []).includes('mod_boutique');
 }
 
 // ─── Côté station (admin) ───────────────────────────────────────────--

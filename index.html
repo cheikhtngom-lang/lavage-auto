@@ -94,9 +94,9 @@
           "description": "Logiciel de gestion de file d'attente virtuelle, réservation en ligne, planning et pointage des laveurs, comptabilité et paiement mobile Wave / Orange Money pour les stations de lavage auto.",
           "publisher": { "@id": "https://galsenautocleaner.com/#organization" },
           "offers": [
-            { "@type": "Offer", "name": "Starter", "price": "10000", "priceCurrency": "XOF", "description": "Forfait mensuel Starter, sans engagement." },
-            { "@type": "Offer", "name": "Pro", "price": "20000", "priceCurrency": "XOF", "description": "Forfait mensuel Pro, sans engagement." },
-            { "@type": "Offer", "name": "Business", "price": "35000", "priceCurrency": "XOF", "description": "Forfait mensuel Business, sans engagement." }
+            { "@type": "Offer", "name": "Starter", "price": "10000", "priceCurrency": "XOF", "description": "Forfait mensuel Starter pour station de lavage, sans engagement." },
+            { "@type": "Offer", "name": "Pro", "price": "20000", "priceCurrency": "XOF", "description": "Forfait mensuel Pro pour station de lavage, sans engagement." },
+            { "@type": "Offer", "name": "Station de service", "price": "35000", "priceCurrency": "XOF", "description": "Offre mensuelle Station de service (lavage, pompistes et carburant, boutique, vidange), sans engagement." }
           ]
         },
         {
@@ -1019,14 +1019,14 @@
             <div class="max-w-7xl mx-auto px-4 relative z-10">
                 <div class="reveal-item text-center mb-16">
                     <h2 class="text-3xl md:text-5xl font-bold mb-4">Des tarifs simples & clairs</h2>
-                    <p class="text-neutral-400 max-w-2xl mx-auto">Digitalisez votre lavage auto avec des forfaits sans engagement.</p>
+                    <p class="text-neutral-400 max-w-2xl mx-auto">Starter et Pro pour votre station de lavage. Station de service quand vous vendez aussi du carburant, des produits et des vidanges. Sans engagement.</p>
                 </div>
 
                 <div class="reveal-item grid md:grid-cols-2 xl:grid-cols-4 gap-8 xl:gap-6 max-w-7xl mx-auto pt-3 md:pt-4">
                     <!-- Starter -->
                     <div class="glass-card p-6 sm:p-10 xl:p-7 rounded-3xl border border-white/5 relative flex flex-col bg-black/20">
                         <h3 class="text-2xl font-bold mb-2">Starter</h3>
-                        <p class="text-neutral-400 text-sm mb-6">Pour bien démarrer.</p>
+                        <p class="text-neutral-400 text-sm mb-6">Station de lavage : pour bien démarrer.</p>
                         <div class="mb-8">
                             <span class="text-5xl xl:text-4xl font-bold text-white">10 000 F</span><span class="text-neutral-500"> / mois</span>
                         </div>
@@ -1049,7 +1049,7 @@
                     <div class="spotlight cta-beam p-[1px] rounded-3xl h-full">
                     <div class="glass-card p-6 sm:p-10 xl:p-7 rounded-3xl bg-blue-600/10 relative flex flex-col h-full shadow-2xl shadow-blue-900/20">
                         <h3 class="text-2xl font-bold mb-2 text-blue-400">Pro</h3>
-                        <p class="text-neutral-400 text-sm mb-6">Pour une équipe organisée.</p>
+                        <p class="text-neutral-400 text-sm mb-6">Station de lavage : toute la gestion, avec votre équipe.</p>
                         <div class="mb-8">
                             <span class="text-5xl xl:text-4xl font-bold text-white">20 000 F</span><span class="text-neutral-500"> / mois</span>
                         </div>
@@ -1058,7 +1058,7 @@
                             <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Planning d'équipe & pointage des laveurs</li>
                             <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Comptabilité complète (dépenses, objectifs)</li>
                             <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Reconnaissance automatique des clients par plaque</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Boutique en ligne (vente de produits)</li>
+                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Abonnements clients & fidélité</li>
                             <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> 5 comptes utilisateurs inclus</li>
                         </ul>
                         <button onclick="window.location.href='login.html?mode=register&role=agence&plan=pro'" class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors font-bold shadow-[0_0_20px_rgba(37,99,235,0.4)]">Choisir Pro</button>
@@ -1066,22 +1066,34 @@
                     </div>
                     </div>
 
-                    <!-- Business -->
-                    <div class="glass-card p-6 sm:p-10 xl:p-7 rounded-3xl border border-amber-500/20 relative flex flex-col bg-black/20">
-                        <h3 class="text-2xl font-bold mb-2 text-amber-400">Business</h3>
-                        <p class="text-neutral-400 text-sm mb-6">Pour les stations à fort trafic.</p>
-                        <div class="mb-8">
-                            <span class="text-5xl xl:text-4xl font-bold text-white">35 000 F</span><span class="text-neutral-500"> / mois</span>
+                    <!-- Station de service (clé interne « Business ») — photo de station-service
+                         en fond : Hans Eiskonen / Unsplash (licence Unsplash), public/images. -->
+                    <div class="relative rounded-3xl overflow-hidden border border-amber-500/30 flex flex-col bg-neutral-950 shadow-2xl shadow-amber-900/20 isolate">
+                        <!-- Bandeau photo en tête de carte, fondu dans le fond sombre : le titre se pose sur
+                             le bas du fondu, le prix et la liste restent sur fond uni (lisibilité). -->
+                        <div class="absolute inset-x-0 top-0 h-72 -z-10" aria-hidden="true">
+                            <img src="/images/offre-station-service.jpg" alt="" width="1600" height="1067" loading="lazy" decoding="async"
+                                 class="w-full h-full object-cover object-[50%_46%]">
+                            <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-neutral-950"></div>
                         </div>
-                        <ul class="space-y-4 text-sm text-neutral-300 mb-10 flex-1">
-                            <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Tout Pro, plus :</li>
-                            <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Analytique avancée (fidélité, qualité, tendances)</li>
-                            <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Abonnements clients VIP illimités</li>
-                            <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Bandeaux promotionnels personnalisés</li>
-                            <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Vidange sur rendez-vous, payable en ligne</li>
-                            <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> +10 comptes utilisateurs</li>
-                        </ul>
-                        <button onclick="window.location.href='login.html?mode=register&role=agence&plan=business'" class="w-full py-4 rounded-xl border border-amber-500/30 hover:bg-amber-500/10 transition-colors font-bold text-amber-300">Choisir Business</button>
+                        <div class="p-6 sm:p-10 xl:p-7 flex flex-col h-full">
+                            <span class="self-start mb-32 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-full px-3 py-1 backdrop-blur-sm">⛽ Nouvelle offre</span>
+                            <h3 class="text-2xl font-bold mb-2 text-amber-400">Station de service</h3>
+                            <p class="text-neutral-300 text-sm mb-6">Pour les stations-service qui lavent aussi.</p>
+                            <div class="mb-8">
+                                <span class="text-5xl xl:text-4xl font-bold text-white">35 000 F</span><span class="text-neutral-400"> / mois</span>
+                            </div>
+                            <ul class="space-y-4 text-sm text-neutral-200 mb-10 flex-1">
+                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Tout Pro, plus :</li>
+                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Pompistes : pompes, pistolets, pointage et relevés</li>
+                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Carburant suivi à part du lavage (litres, encaissé)</li>
+                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Boutique en ligne (pneus, huiles, accessoires)</li>
+                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Vidange sur rendez-vous, payable en ligne</li>
+                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Bilan d'activité et export PDF</li>
+                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> +10 comptes utilisateurs</li>
+                            </ul>
+                            <button onclick="window.location.href='login.html?mode=register&role=agence&plan=station-service'" class="w-full py-4 rounded-xl bg-amber-500/90 hover:bg-amber-400 text-neutral-950 transition-colors font-bold shadow-[0_0_20px_rgba(245,158,11,0.35)]">Choisir Station de service</button>
+                        </div>
                     </div>
 
                     <!-- Sur mesure (réseaux de stations) -->

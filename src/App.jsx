@@ -17,6 +17,7 @@ import { hasPerm } from './lib/permissions';
 import { stationHasShop } from './lib/shop';
 import { stationHasVidange } from './lib/vidange';
 import { stationHasPompistes } from './lib/pompistes';
+import { isServiceStationPlan } from './lib/offers';
 import PageSuspense from './components/ui/PageSuspense';
 
 // Pages chargées à la demande (une par rubrique) — voir components/ui/PageSuspense.jsx.
@@ -95,31 +96,31 @@ function RequirePerm({ perm, children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Comptabilité réservée aux forfaits Pro et Business (pas de module de
+// Comptabilité réservée à Pro et à l'offre Station de service (pas de module de
 // déblocage : contrairement à Bilan/Boutique/Vidange, elle ne fait pas
 // partie du catalogue d'add-ons payants, voir lib/stationModules.js).
 function RequireAccountingAccess({ children }) {
   const { stationBilling, myPermissions } = useAppState();
   if (stationBilling == null || myPermissions == null) return null;
-  const canSeeAccounting = stationBilling.plan === 'Pro' || stationBilling.plan === 'Business';
+  const canSeeAccounting = stationBilling.plan === 'Pro' || isServiceStationPlan(stationBilling.plan);
   if (canSeeAccounting && hasPerm(myPermissions, 'accounting.manage')) return children;
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Le Bilan est réservé au forfait Business (35 000) — ou débloqué
+// Le Bilan est réservé à l'offre Station de service (clé Business, 35 000) — ou débloqué
 // indépendamment du plan via le module "mod_bilan" (Super Admin > Modules,
 // voir lib/stationModules.js). On attend le chargement de la facturation
 // avant de conclure (null = pas encore chargé).
 function RequireBusinessPlan({ children }) {
   const { stationBilling, myPermissions } = useAppState();
   if (stationBilling == null || myPermissions == null) return null;
-  const canSeeBilan = stationBilling.plan === 'Business' || (stationBilling.activeModules || []).includes('mod_bilan');
+  const canSeeBilan = isServiceStationPlan(stationBilling.plan) || (stationBilling.activeModules || []).includes('mod_bilan');
   const canSeeFinance = hasPerm(myPermissions, 'accounting.manage');
   if (canSeeBilan && canSeeFinance) return children;
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Boutique : réservée aux forfaits Pro et Business, ou débloquée par le
+// Boutique : réservée à l'offre Station de service, ou débloquée par le
 // module "mod_boutique" (Super Admin > Modules) — même logique que le Bilan.
 function RequireShopAccess({ children }) {
   const { stationBilling, myPermissions } = useAppState();
@@ -129,7 +130,7 @@ function RequireShopAccess({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Vidange : réservée au forfait Business, ou débloquée par le module
+// Vidange : réservée à l'offre Station de service, ou débloquée par le module
 // "mod_vidange" (Super Admin > Modules) — même logique que le Bilan/la Boutique.
 function RequireVidangeAccess({ children }) {
   const { stationBilling, myPermissions } = useAppState();
@@ -138,7 +139,7 @@ function RequireVidangeAccess({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
-// Pompistes (stations d'essence qui font aussi du lavage) : forfaits Pro et Business. Le menu
+// Pompistes (stations-service qui font aussi du lavage) : offre Station de service. Le menu
 // peut aussi la masquer (Paramètres > Menu), sans jamais changer ce droit.
 function RequirePompistesAccess({ children }) {
   const { stationBilling, myPermissions } = useAppState();

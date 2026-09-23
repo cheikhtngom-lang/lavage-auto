@@ -8,6 +8,7 @@ import { getMyStationGroup, leaveGroup } from '../../lib/groups';
 import { createRenewalPayment, isSubscriptionEnded } from '../../lib/stationRenewal';
 import { payPlatformOnline } from '../../lib/paydunya';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { isServiceStationPlan, SERVICE_STATION_IMAGE } from '../../lib/offers';
 
 // Écran de blocage plein écran (pas de AdminLayout, pas de menu) quand
 // l'abonnement d'une station a pris fin (voir isSubscriptionEnded,
@@ -85,6 +86,7 @@ export default function SubscriptionEnded() {
   }
 
   const planDef = PLANS[stationBilling.plan] || { label: stationBilling.plan, price: 0 };
+  const serviceStation = isServiceStationPlan(stationBilling.plan);
   const latestPayment = stationRenewalPayments
     .filter((p) => p.stationId === stationId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
@@ -138,12 +140,19 @@ export default function SubscriptionEnded() {
               : "Votre période d'essai gratuit est terminée. Renouvelez votre abonnement pour retrouver l'accès à votre tableau de bord."}
           </p>
 
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6 flex items-center justify-between">
+          {/* Offre Station de service : photo de station-service en fond, comme sur la page d'accueil. */}
+          <div className={`relative isolate overflow-hidden rounded-xl p-4 mb-6 flex items-center justify-between border ${serviceStation ? 'border-amber-500/30' : 'bg-white/5 border-white/10'}`}>
+            {serviceStation && (
+              <>
+                <img src={SERVICE_STATION_IMAGE} alt="" aria-hidden="true" className="absolute inset-0 -z-10 w-full h-full object-cover object-[50%_38%] opacity-70" />
+                <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/70 to-black/50" />
+              </>
+            )}
             <div>
-              <p className="text-neutral-500 text-xs mb-1">Plan actuel</p>
-              <p className="text-white font-bold">{planDef.label}</p>
+              <p className="text-neutral-400 text-xs mb-1">Plan actuel</p>
+              <p className={`font-bold ${serviceStation ? 'text-amber-300' : 'text-white'}`}>{planDef.label}</p>
             </div>
-            <p className="text-white font-bold text-lg">{planDef.price.toLocaleString('fr-FR')} <span className="text-neutral-500 text-xs font-normal">FCFA/mois</span></p>
+            <p className="text-white font-bold text-lg">{planDef.price.toLocaleString('fr-FR')} <span className="text-neutral-400 text-xs font-normal">FCFA/mois</span></p>
           </div>
 
           {isPending ? (

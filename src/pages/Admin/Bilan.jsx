@@ -151,7 +151,7 @@ export default function Bilan() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">Bilan d'<span className="text-blue-400">activité</span></h1>
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2 py-1 rounded-md">Business</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2 py-1 rounded-md">Station de service</span>
           </div>
           <p className="text-neutral-400">Toutes vos données consolidées sur la période, avec comparaison à la période précédente.</p>
         </div>

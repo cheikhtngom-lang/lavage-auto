@@ -3,16 +3,17 @@
 // pour l'architecture complète (tables séparées de wash_pricing/reservations,
 // grand livre des reversements paiements_lavage réutilisé via type_service).
 import { supabase } from './supabaseClient';
+import { isServiceStationPlan } from './offers';
 
 export const OIL_TYPES = ['Minérale', 'Semi-Synthèse', 'Synthèse'];
 
-// La station a-t-elle droit à la vidange ? (plan Business, ou module
+// La station a-t-elle droit à la vidange ? (offre Station de service, ou module
 // mod_vidange) — le vrai contrôle est côté Postgres (station_has_vidange +
 // trigger sur stations.vidange_enabled, voir add_plan_gating.sql) ; ceci
 // sert à l'affichage (masquer l'onglet Réglages, le lien de menu...).
 export function stationHasVidange(billing) {
   if (!billing) return false;
-  return billing.plan === 'Business' || (billing.activeModules || []).includes('mod_vidange');
+  return isServiceStationPlan(billing.plan) || (billing.activeModules || []).includes('mod_vidange');
 }
 
 // Mêmes 4 catégories que la grille tarifaire lavage (Settings.jsx), dupliquées

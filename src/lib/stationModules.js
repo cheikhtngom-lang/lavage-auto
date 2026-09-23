@@ -1,6 +1,6 @@
 // Catalogue des modules & add-ons — options indépendantes qu'un Super Admin
 // peut activer/désactiver pour UNE station sans changer son plan de base
-// (Starter/Pro/Business), voir add_station_modules.sql (station_billing.
+// (Starter/Pro/Station de service — clé Business), voir add_station_modules.sql (station_billing.
 // active_modules) et Super Admin > Modules.
 //
 // `comingSoon: true` = la case à cocher se sauvegarde normalement (utile
@@ -14,21 +14,21 @@ export const STATION_MODULES = [
   {
     id: 'mod_vidange',
     name: 'Vidange',
-    desc: 'Rendez-vous de vidange payables en ligne par les clients (normalement réservé au plan Business) — utilisable même en Starter ou Pro.',
+    desc: 'Rendez-vous de vidange payables en ligne par les clients (normalement réservé à l’offre Station de service) — utilisable même en Starter ou Pro.',
     price: '8 000 FCFA/mois',
     icon: Wrench,
   },
   {
     id: 'mod_bilan',
     name: "Bilan d'activité",
-    desc: 'Rapport comparatif de période + export PDF (normalement réservé au plan Business) — utilisable même en Starter ou Pro.',
+    desc: 'Rapport comparatif de période + export PDF (normalement réservé à l’offre Station de service) — utilisable même en Starter ou Pro.',
     price: '8 000 FCFA/mois',
     icon: FileBarChart,
   },
   {
     id: 'mod_boutique',
     name: 'Boutique',
-    desc: 'Catalogue de produits (pneus, huiles, pare-brise…) visible par les clients de la station (normalement réservé au plan Business) — utilisable même en Starter ou Pro.',
+    desc: 'Catalogue de produits (pneus, huiles, pare-brise…) visible par les clients de la station (normalement réservé à l’offre Station de service) — utilisable même en Starter ou Pro.',
     price: '10 000 FCFA/mois',
     icon: Store,
   },

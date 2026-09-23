@@ -11,7 +11,7 @@ import { loadPlatformAnnouncements, sendPlatformAnnouncement as sendPlatformAnno
 export const DEFAULT_PLANS = {
     Starter: { label: 'Starter', price: 10000 },
     Pro: { label: 'Pro', price: 20000 },
-    Business: { label: 'Business', price: 35000 },
+    Business: { label: 'Station de service', price: 35000 }, // clé historique, voir lib/offers.js
 };
 
 const rowToDispute = (row) => ({

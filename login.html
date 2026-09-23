@@ -458,9 +458,9 @@
                                 <label class="field-label">Offre choisie</label>
                                 <select id="reg-agence-plan" required class="input-field input-field-green" style="appearance:none;">
                                     <option value="" style="background:#111">Sélectionner une offre...</option>
-                                    <option value="Starter" style="background:#111">Starter — 10 000 FCFA/mois</option>
-                                    <option value="Pro" style="background:#111">Pro — 20 000 FCFA/mois</option>
-                                    <option value="Business" style="background:#111">Business — 35 000 FCFA/mois</option>
+                                    <option value="Starter" style="background:#111">Starter (lavage) — 10 000 FCFA/mois</option>
+                                    <option value="Pro" style="background:#111">Pro (lavage) — 20 000 FCFA/mois</option>
+                                    <option value="Business" style="background:#111">Station de service (lavage + carburant, boutique, vidange) — 35 000 FCFA/mois</option>
                                 </select>
                             </div>
                             <div>
@@ -633,7 +633,8 @@
             // de tarifs (#tarifs sur index.html, ?plan=starter/pro/business) —
             // reste modifiable, ce n'est qu'un pré-remplissage.
             const planParam = params.get('plan');
-            const PLAN_PARAM_TO_KEY = { starter: 'Starter', pro: 'Pro', business: 'Business' };
+            // « business » : anciens liens ; l'offre s'appelle désormais Station de service (clé interne Business).
+            const PLAN_PARAM_TO_KEY = { starter: 'Starter', pro: 'Pro', business: 'Business', 'station-service': 'Business' };
             if (planParam && PLAN_PARAM_TO_KEY[planParam]) {
                 const planSelect = document.getElementById('reg-agence-plan');
                 if (planSelect) planSelect.value = PLAN_PARAM_TO_KEY[planParam];

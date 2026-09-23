@@ -1,17 +1,20 @@
-// Pompistes — stations d'essence qui font aussi du lavage (forfait Business).
+// Pompistes — stations-service qui font aussi du lavage (offre Station de service).
 // Voir add_pompistes.sql et src/pages/Admin/Pompistes.jsx.
 //
 // Un pompiste est une fiche `employees` de rôle 'Pompiste' ; son pointage et
 // son relevé de fin de journée (pompe, litres vendus, montant encaissé) sont
 // portés par la ligne attendance_records du (pompiste, jour).
 
+import { isServiceStationPlan } from './offers';
+
 export const POMPISTE_ROLE = 'Pompiste';
 
-// La station a-t-elle droit à Pompistes ? Forfaits Pro et Business — c'est le forfait de la
+// La station a-t-elle droit à Pompistes ? Offre Station de service seulement (Pro n'en fait plus
+// partie depuis le 23/09/2026, voir add_service_station_offer.sql) — c'est le forfait de la
 // station qui décide, y compris pour une station d'un groupe Sur mesure (elle a son propre
 // forfait). Le filtre est l'interface (forfait + permission), comme la comptabilité.
 export function stationHasPompistes(billing) {
-  return billing?.plan === 'Pro' || billing?.plan === 'Business';
+  return isServiceStationPlan(billing?.plan);
 }
 
 // Bornes des colonnes SQL (numeric(10,2) et integer) : mieux vaut refuser une

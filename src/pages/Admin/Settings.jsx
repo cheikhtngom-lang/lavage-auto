@@ -13,7 +13,7 @@ import { AD_PLANS, DEFAULT_AD_PLAN_ID, MAX_AD_IMAGE_SIZE, deriveAdStatus, create
 import { payPlatformOnline } from '../../lib/paydunya';
 import { listStationClients, exportStationData, exportStationClientData } from '../../lib/rgpdExport';
 import { hasModule } from '../../lib/stationModules';
-import { navAvailableTo, DEFAULT_HIDDEN_MENU } from '../../lib/adminNav';
+import { navAvailableTo, defaultHiddenMenu } from '../../lib/adminNav';
 import { OIL_TYPES, VIDANGE_CATEGORY_GRID, stationHasVidange } from '../../lib/vidange';
 import { stationHasPompistes } from '../../lib/pompistes';
 import PompistesSetup from '../../components/pompistes/PompistesSetup';
@@ -68,7 +68,7 @@ export default function Settings() {
   // Seules les rubriques auxquelles le compte a droit sont listées ; un changement
   // s'applique et se sauvegarde tout de suite (pas besoin de « Enregistrer »).
   const menuItems = navAvailableTo({ permissions: myPermissions, billing: stationBilling });
-  const hiddenKeys = hiddenMenu || DEFAULT_HIDDEN_MENU;
+  const hiddenKeys = hiddenMenu || defaultHiddenMenu(stationBilling);
   const toggleMenuItem = (key) => updateHiddenMenu(hiddenKeys.includes(key) ? hiddenKeys.filter((k) => k !== key) : [...hiddenKeys, key]);
   const [geoStatus, setGeoStatus] = useState(null); // null | 'loading' | 'success' | 'error'
   const [geoMessage, setGeoMessage] = useState('');
@@ -570,11 +570,11 @@ export default function Settings() {
             { id: 'menu', label: 'Menu & rubriques', icon: LayoutList },
             { id: 'nomprofil', label: 'Changer nom de profil', icon: Store },
             { id: 'employes', label: 'Gestion Employés', icon: Users },
-            // Pompistes & pompes : forfaits Pro et Business — voir RequirePompistesAccess (App.jsx).
+            // Pompistes & pompes : offre Station de service — voir RequirePompistesAccess (App.jsx).
             ...(canPompistes ? [{ id: 'pompistes', label: 'Pompistes & pompes', icon: Fuel }] : []),
             { id: 'temps', label: 'Temps Estimés', icon: Clock },
             { id: 'tarifs', label: 'Grille Tarifaire', icon: CreditCard },
-            // Vidange réservée au forfait Business (ou module mod_vidange) —
+            // Vidange réservée à l'offre Station de service (ou module mod_vidange) —
             // même logique que Boutique/Bilan, voir RequireVidangeAccess (App.jsx).
             ...(canVidange ? [{ id: 'vidange', label: 'Vidange', icon: Wrench }] : []),
             { id: 'promotions', label: 'Promotions', icon: Megaphone },

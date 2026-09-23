@@ -76,7 +76,7 @@ export default function Fuel() {
             <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
               <FuelIcon className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
               <h3 className="text-xl font-bold mb-2">Aucune station ne fait de carburant pour l’instant</h3>
-              <p className="text-neutral-400">Une station apparaît ici dès qu’elle déclare une pompe ou un pompiste (forfaits Pro et Business, rubrique Pompistes).</p>
+              <p className="text-neutral-400">Une station apparaît ici dès qu’elle déclare une pompe ou un pompiste (offre Station de service, rubrique Pompistes).</p>
             </div>
           ) : (
             <>

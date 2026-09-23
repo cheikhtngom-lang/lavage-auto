@@ -332,7 +332,7 @@ export default function Stations() {
         promoMessage: isBannerActive(promo) ? promo.banner.message : null,
         isFeatured: !!featuredAd || isModuleFeatured,
         featuredMessage: featuredAd?.message || null,
-        // Vidange (add_vidange_feature.sql) — réservée au forfait Business (ou
+        // Vidange (add_vidange_feature.sql) — réservée à l'offre Station de service (ou
         // module mod_vidange, voir stationHasVidange) : le bouton "Réserver une
         // vidange" n'apparaît que si la station y a droit ET l'a activée.
         vidangeConfig: { ...getVidangeStationConfig(s.id), enabled: getVidangeStationConfig(s.id).enabled && stationHasVidange(s) },

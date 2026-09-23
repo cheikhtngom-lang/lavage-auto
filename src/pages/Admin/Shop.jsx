@@ -173,9 +173,9 @@ export default function Shop() {
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="p-8 text-center">
             <Store className="w-10 h-10 text-neutral-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-white mb-2">Boutique réservée aux forfaits Pro et Business</h1>
+            <h1 className="text-2xl font-bold text-white mb-2">Boutique réservée à l'offre Station de service</h1>
             <p className="text-neutral-400">
-              Passez au forfait Pro ou Business (ou demandez le module « Boutique » au support)
+              Passez à l'offre Station de service (ou demandez le module « Boutique » au support)
               pour vendre vos produits — pneus, huiles, pare-brise… — à vos clients.
             </p>
           </CardContent>
