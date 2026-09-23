@@ -15,6 +15,8 @@ import SessionLockOverlay from '../SessionLockOverlay';
 import TrialBanner from './TrialBanner';
 import StationTransferBanner from './StationTransferBanner';
 import GroupStationBanners from './GroupStationBanners';
+import ClosurePendingScreen, { useMyClosure } from '../account/ClosurePendingScreen';
+import { exportStationData } from '../../lib/rgpdExport';
 import { supabase } from '../../lib/supabaseClient';
 import { openStation } from '../../lib/groups';
 
@@ -27,6 +29,7 @@ export default function AdminLayout() {
     stationProfile, stationProfileLoaded, stationBilling, myPermissions, hiddenMenu,
     receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement,
   } = useAppState();
+  const closure = useMyClosure(); // station (ou compte) en cours de fermeture : accès suspendu
 
   // La session station qui expire pour inactivité n'éjecte plus vers la page
   // de connexion : on affiche un écran verrouillé qui continue de surveiller
@@ -130,6 +133,10 @@ export default function AdminLayout() {
   // on n'affiche que les entrées libres — le propriétaire a ['*'] dès le premier
   // rendu, donc aucun flash.
   const navigation = visibleNav({ permissions: myPermissions, billing: stationBilling, hiddenMenu });
+
+  if (closure) {
+    return <ClosurePendingScreen closure={closure} onExport={() => exportStationData(getCurrentStationId(), stationProfile?.name)} exportLabel="Télécharger les données de la station (ZIP)" />;
+  }
 
   const handleLogout = () => {
     clearSession();

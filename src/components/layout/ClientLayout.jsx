@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, LogOut, Droplets, Menu, X, Crown, Gift, ShoppingBag } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useClientAccount } from '../../hooks/useClientAccount';
+import ClosurePendingScreen, { useMyClosure } from '../account/ClosurePendingScreen';
+import { exportClientOwnData } from '../../lib/rgpdExport';
 import { clearSession } from '../../lib/accounts';
 import ClientOnboarding from '../onboarding/ClientOnboarding';
 import SuperUserWelcomeOverlay from '../client/SuperUserWelcomeOverlay';
@@ -15,6 +17,7 @@ export default function ClientLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { account, loading, superUserStatus, stationAnnouncements, dismissAnnouncement } = useClientAccount();
   const isSuperUser = superUserStatus === 'ACTIVE';
+  const closure = useMyClosure(); // fermeture de compte programmée (add_account_closure.sql)
 
   // Pas de compte automobiliste connecté : direction la page de connexion
   // (login.html — page statique hors du routeur React). On attend la fin du
@@ -51,6 +54,7 @@ export default function ClientLayout() {
   };
 
   if (!account) return null;
+  if (closure) return <ClosurePendingScreen closure={closure} onExport={() => exportClientOwnData(account.id, account.name)} />;
 
   return (
     <div className="flex h-screen bg-neutral-950 text-white overflow-hidden font-sans">

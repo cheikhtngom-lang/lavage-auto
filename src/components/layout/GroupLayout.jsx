@@ -5,6 +5,8 @@ import { Building2, ShoppingCart, CreditCard, LogOut, Menu, X, Briefcase, Layout
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabaseClient';
 import { clearSession, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
+import ClosurePendingScreen, { useMyClosure } from '../account/ClosurePendingScreen';
+import { exportMyGroupData } from '../../lib/rgpdExport';
 import { closeStation, fetchMyGroup, fetchPlans, fetchDiscountTiers, GROUP_STATUS } from '../../lib/groups';
 
 // Espace du chef d'entreprise (offre Sur mesure) — /groupe. Il ne dépend
@@ -29,6 +31,7 @@ export default function GroupLayout() {
   const [plans, setPlans] = useState([]);
   const [tiers, setTiers] = useState([]); // paliers du tarif dégressif
   const [loaded, setLoaded] = useState(false);
+  const closure = useMyClosure(); // fermeture de l'espace programmée (add_account_closure.sql)
 
   // Accès réservé au chef d'entreprise.
   const allowed = getCurrentRole() === 'admin' && getIsGroupOwner();
@@ -58,6 +61,7 @@ export default function GroupLayout() {
   };
 
   if (!allowed) return null;
+  if (closure) return <ClosurePendingScreen closure={closure} onExport={() => exportMyGroupData()} exportLabel="Télécharger les données de l'entreprise (ZIP)" />;
   const status = org ? GROUP_STATUS[org.status] : null;
 
   return (

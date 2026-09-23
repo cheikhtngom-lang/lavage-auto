@@ -15,6 +15,7 @@
 //     RLS laisse passer un compte super_admin quelle que soit la station)
 import JSZip from 'jszip';
 import { supabase } from './supabaseClient';
+import { fetchMyGroup, fetchMyOwnerProfile, fetchGroupStations } from './groups';
 
 const BOM = '﻿'; // pour Excel FR
 
@@ -295,6 +296,81 @@ export async function exportAllStationsData(stations, { onProgress } = {}) {
   zip.file('LISEZ-MOI.txt', readmeAll(index));
   const blob = await finalizeZip(zip, onProgress, 90);
   triggerDownload(blob, `export-rgpd-TOUTES-STATIONS-${tsCompact()}.zip`);
+}
+
+// Chef d'entreprise (offre Sur mesure) : son profil, son entreprise (commandes,
+// demandes de rattachement, analyses IA) et un dossier par station du groupe.
+// Il ne lit pas les tables des stations en direct (RLS = station ouverte) :
+// chaque station passe par la fonction SQL group_export_station, qui vérifie
+// qu'elle appartient bien à son groupe (voir add_account_closure.sql).
+export async function exportGroupData({ org, profile, stations }, { onProgress } = {}) {
+  const notify = onProgress || (() => {});
+  const zip = new JSZip();
+  const generatedAt = new Date().toISOString();
+
+  notify(3, 'Lecture de votre entreprise…');
+  const groupDs = { generatedAt, tables: {}, counts: {}, errors: [] };
+  for (const name of ['organization_orders', 'group_join_requests', 'group_ai_reports']) {
+    const { rows, error } = await readTable(name, { organization_id: org.id });
+    groupDs.tables[name] = rows;
+    groupDs.counts[name] = rows.length;
+    if (error) groupDs.errors.push({ scope: name, message: error });
+  }
+  const groupManifest = writeDatasetIntoZip(zip, { extraRows: { profil: profile, entreprise: org }, ds: groupDs, prefix: 'entreprise/' });
+
+  const index = { format: 'lavage-auto-export-rgpd-groupe', genere_le: generatedAt, entreprise: org.name, comptages_entreprise: groupManifest.comptages, stations: [] };
+  const list = stations || [];
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i];
+    notify(8 + Math.round((i / Math.max(1, list.length)) * 80), `Station ${i + 1}/${list.length} : ${s.name}`);
+    const ds = { generatedAt, tables: {}, counts: {}, errors: [] };
+    let station = null;
+    let billing = null;
+    const { data, error } = await supabase.rpc('group_export_station', { p_station_id: s.id });
+    if (error) {
+      ds.errors.push({ scope: 'station', message: error.message });
+    } else {
+      station = data?.station || null;
+      billing = data?.station_billing || null;
+      Object.entries(data?.tables || {}).forEach(([name, rows]) => {
+        ds.tables[name] = rows || [];
+        ds.counts[name] = (rows || []).length;
+      });
+    }
+    const slug = `${slugify(s.name || s.id)}-${String(s.id).slice(0, 6)}`;
+    const manifest = writeDatasetIntoZip(zip, { extraRows: { station, station_billing: billing }, ds, prefix: `stations/${slug}/` });
+    index.stations.push({ id: s.id, nom: s.name || null, dossier: `stations/${slug}`, comptages: manifest.comptages, erreurs: (manifest.erreurs || []).length });
+  }
+
+  zip.file('index.json', JSON.stringify(index, null, 2));
+  const L = [
+    `EXPORT DES DONNÉES DE L'ENTREPRISE « ${org.name} » — Lavage Auto`,
+    '',
+    `Généré le : ${generatedAt}`,
+    "Fourni au titre du droit d'accès / de portabilité des données (RGPD art. 15 & 20 ;",
+    'loi sénégalaise n° 2008-12).',
+    '',
+    'entreprise/ ............ votre profil, l\'entreprise, commandes, demandes de',
+    '                         rattachement et analyses IA',
+    'stations/<nom>/ ........ un dossier par station (donnees/*.json, csv/*.csv,',
+    '                         manifest.json) : file, transactions, dépenses, équipe,',
+    '                         pointage, abonnements clients, vidange, boutique…',
+    '',
+    ...index.stations.map((s) => `  - ${s.nom || s.id}  →  ${s.dossier}${s.erreurs ? `  (${s.erreurs} avert.)` : ''}`),
+    '',
+    "Aucune donnée n'a été modifiée lors de cet export.",
+  ];
+  zip.file('LISEZ-MOI.txt', L.join('\r\n'));
+  const blob = await finalizeZip(zip, onProgress, 90);
+  triggerDownload(blob, `export-entreprise-${slugify(org.name)}-${tsCompact()}.zip`);
+}
+
+// Même export, en allant chercher soi-même l'entreprise, le profil et les stations.
+export async function exportMyGroupData({ onProgress } = {}) {
+  const [org, profile] = await Promise.all([fetchMyGroup(), fetchMyOwnerProfile()]);
+  if (!org) throw new Error('Aucune entreprise rattachée à ce compte.');
+  const stations = await fetchGroupStations(org.id);
+  return exportGroupData({ org, profile, stations }, { onProgress });
 }
 
 export async function exportClientOwnData(clientId, clientName, { onProgress } = {}) {

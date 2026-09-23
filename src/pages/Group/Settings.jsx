@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Phone, Mail, Lock, CheckCircle2, Camera, X, Loader2, Briefcase, ShieldCheck, Clock3, MonitorSmartphone, Eye, EyeOff } from 'lucide-react';
+import { User, Phone, Mail, Lock, CheckCircle2, Camera, X, Loader2, Briefcase, ShieldCheck, Clock3, MonitorSmartphone, Eye, EyeOff, FileDown, Download } from 'lucide-react';
 import { useGroup } from '../../components/layout/GroupLayout';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { changePassword } from '../../lib/accounts';
 import { supabase } from '../../lib/supabaseClient';
 import { fetchMyOwnerProfile, updateMyOwnerProfile, renameMyGroup, GROUP_STATUS } from '../../lib/groups';
 import { getIdleMinutes, setIdleMinutes, IDLE_MINUTES_DEFAULT } from '../../lib/idleTimeout';
+import { exportMyGroupData } from '../../lib/rgpdExport';
+import CloseAccountCard from '../../components/account/CloseAccountCard';
 
 // Même limites que la photo de profil automobiliste (Client/Settings.jsx).
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024;
@@ -53,6 +55,9 @@ export default function GroupSettings() {
 
   const [othersBusy, setOthersBusy] = useState(false);
   const [othersMsg, setOthersMsg] = useState({ ok: false, error: '' });
+
+  const [exportProgress, setExportProgress] = useState(null); // null | { pct, label }
+  const [exportError, setExportError] = useState('');
 
   useEffect(() => {
     fetchMyOwnerProfile()
@@ -177,6 +182,19 @@ export default function GroupSettings() {
       setOthersMsg({ ok: false, error: err.message || 'Impossible de déconnecter les autres appareils.' });
     } finally {
       setOthersBusy(false);
+    }
+  };
+
+  // Portabilité : profil, entreprise et un dossier par station du groupe (lib/rgpdExport.js).
+  const handleExport = async () => {
+    setExportError('');
+    setExportProgress({ pct: 0, label: 'Préparation…' });
+    try {
+      await exportMyGroupData({ onProgress: (pct, label) => setExportProgress({ pct, label }) });
+    } catch (err) {
+      setExportError(err.message || "Impossible de générer l'export.");
+    } finally {
+      setExportProgress(null);
     }
   };
 
@@ -336,6 +354,40 @@ export default function GroupSettings() {
           {othersMsg.error && <p className="text-sm text-red-400 mt-3">{othersMsg.error}</p>}
         </div>
       </div>
+
+      {/* ─── Mes données ─── */}
+      <div className={cardCls}>
+        <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><FileDown className="w-5 h-5 text-emerald-400" /> Mes données</h2>
+        <p className="text-neutral-400 text-sm mb-5">
+          Droit à la portabilité (RGPD art. 20 ; loi sénégalaise n° 2008-12) : téléchargez à tout moment une copie complète, en JSON et CSV —
+          votre profil, votre entreprise (commandes, analyses IA) et, pour chaque station du groupe, sa file, ses transactions, dépenses, équipe, pointage, abonnements clients, vidanges et boutique.
+        </p>
+        <button onClick={handleExport} disabled={!!exportProgress} className="flex items-center gap-2 bg-white/5 hover:bg-emerald-500/15 hover:text-emerald-300 disabled:opacity-60 text-neutral-300 border border-white/10 px-5 py-3 rounded-xl font-medium text-sm transition-colors">
+          {exportProgress ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {exportProgress ? `${exportProgress.label} (${exportProgress.pct} %)` : "Exporter les données de l'entreprise (ZIP)"}
+        </button>
+        {exportError && <p className="text-sm text-red-400 mt-3">{exportError}</p>}
+      </div>
+
+      {/* ─── Fermeture (add_account_closure.sql) ─── */}
+      {org?.name && (
+        <CloseAccountCard
+          title="Fermer mon espace entreprise"
+          intro="Vous arrêtez l'offre Sur mesure ? Fermez votre espace : vous disposez ensuite de 30 jours pour changer d'avis."
+          consequences={[
+            "Tout de suite : votre espace et les stations que vous avez créées sont suspendus (retirés de l'annuaire, plus de réservations, équipes sans accès).",
+            'Les stations rattachées à votre groupe continuent de fonctionner, puis redeviennent indépendantes au bout de 30 jours ; leurs propriétaires gardent leur compte.',
+            "Au bout de 30 jours : votre compte et les comptes d'équipe de vos stations sont supprimés ; l'historique de vos stations est conservé sous forme anonyme.",
+            "Les commandes en attente de paiement sont annulées ; le mois en cours n'est pas remboursé.",
+            "Les files d'attente de vos stations doivent être vides, et aucune cession en cours.",
+          ]}
+          confirmWord={org.name}
+          confirmHint={`Tapez le nom de l'entreprise (« ${org.name} ») pour confirmer`}
+          onExport={() => exportMyGroupData()}
+          exportLabel="Télécharger les données de l'entreprise (ZIP)"
+          buttonLabel="Fermer mon espace…"
+        />
+      )}
     </div>
   );
 }

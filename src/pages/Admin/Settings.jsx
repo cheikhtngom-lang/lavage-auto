@@ -3,7 +3,8 @@ import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, 
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { getCurrentStationId } from '../../lib/accounts';
+import { getCurrentStationId, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
+import CloseAccountCard from '../../components/account/CloseAccountCard';
 import { supabase } from '../../lib/supabaseClient';
 import { COUNTRIES, regionsOf } from '../../lib/countries';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
@@ -1637,6 +1638,27 @@ export default function Settings() {
                     </button>
                   </div>
                 </div>
+
+                {/* Fermeture du compte (add_account_closure.sql) — propriétaire seulement :
+                    une station créée par un patron Sur mesure ferme depuis l'espace du patron. */}
+                {getCurrentRole() === 'admin' && !getIsGroupOwner() && stationProfile?.name && (
+                  <CloseAccountCard
+                    title="Fermer la station et mon compte"
+                    intro="Vous arrêtez votre activité sur Clean Car Galsen ? Fermez votre station : vous disposez ensuite de 30 jours pour changer d'avis."
+                    consequences={[
+                      "Tout de suite : la station disparaît de l'annuaire et ne prend plus de réservations ; votre accès et celui de votre équipe sont suspendus.",
+                      "Au bout de 30 jours : votre compte et ceux de votre équipe sont supprimés.",
+                      "L'historique (lavages, transactions, dépenses) est conservé sous forme anonyme : noms des clients et des employés, plaques et coordonnées de la station sont effacés.",
+                      "L'abonnement du mois en cours n'est pas remboursé.",
+                      "La file d'attente doit être vide ; si la station fait partie d'un groupe, quittez-le d'abord.",
+                    ]}
+                    confirmWord={stationProfile.name}
+                    confirmHint={`Tapez le nom de la station (« ${stationProfile.name} ») pour confirmer`}
+                    onExport={() => exportStationData(stationId, stationProfile?.name)}
+                    exportLabel="Télécharger les données de la station (ZIP)"
+                    buttonLabel="Fermer la station…"
+                  />
+                )}
               </CardContent>
             </Card>
           )}

@@ -61,6 +61,7 @@ const rowToStation = (row) => ({
     // Offre Sur mesure : groupe de rattachement (sert au tarif dégressif du MRR, lib/groupPricing.js).
     organizationId: row.organization_id || null,
     groupArchivedAt: row.group_archived_at || null,
+    closedAt: row.closed_at || null, // compte fermé (add_account_closure.sql) : exclu des revenus
     plan: row.station_billing?.plan || 'Starter',
     activeModules: row.station_billing?.active_modules || [],
     subscriptionStatus: row.station_billing?.subscription_status || 'essai',

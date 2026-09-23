@@ -11,6 +11,7 @@ import { COUNTRIES, regionsOf, DEFAULT_COUNTRY } from '../../lib/countries';
 import { useClientCountry } from '../../hooks/useClientCountry';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import CloseAccountCard from '../../components/account/CloseAccountCard';
 
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — même limite que le logo station
 const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp'];
@@ -451,6 +452,22 @@ export default function Settings() {
         </button>
         {rgpdError && <p className="text-sm text-red-400 mt-3">{rgpdError}</p>}
       </div>
+
+      <CloseAccountCard
+        title="Fermer mon compte"
+        intro="Vous souhaitez quitter Clean Car Galsen ? Vous pouvez fermer votre compte à tout moment : vous disposez ensuite de 30 jours pour changer d'avis."
+        consequences={[
+          'Tout de suite : votre accès à l\'espace automobiliste est suspendu.',
+          'Au bout de 30 jours : votre compte, votre profil et vos véhicules sont supprimés.',
+          'Dans l\'historique des stations où vous êtes passé, votre nom et vos plaques sont effacés ; seuls les montants restent (comptabilité des stations).',
+          'Un abonnement Plus / Super User ou un solde prépayé en station n\'est pas remboursé.',
+          'Aucun lavage ne doit être en attente ou en cours.',
+        ]}
+        confirmWord="FERMER"
+        confirmHint="Tapez FERMER pour confirmer"
+        onExport={() => exportClientOwnData(account.id, account.name)}
+        buttonLabel="Fermer mon compte…"
+      />
 
       <div className="glass-card rounded-2xl p-6 md:p-8 border border-emerald-500/20 bg-emerald-500/[0.03] mt-8">
         <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">

@@ -42,9 +42,13 @@ export const MODULE_PRICE_BY_ID = Object.fromEntries(
   STATION_MODULES.map((m) => [m.id, moduleMonthlyPrice(m)]),
 );
 
+// Une station fermée (compte clôturé, voir add_account_closure.sql) garde sa
+// ligne et ses données anonymisées mais ne rapporte plus rien : hors revenus.
+const open = (stations) => (stations || []).filter((s) => !s.closedAt);
+
 // Stations dont l'abonnement est réellement validé (paiement à jour).
 export function validatedStations(stations) {
-  return (stations || []).filter((s) => s.subscriptionStatus === PAID_SUBSCRIPTION_STATUS);
+  return open(stations).filter((s) => s.subscriptionStatus === PAID_SUBSCRIPTION_STATUS);
 }
 
 // MRR réel = somme des prix de plan des seuls abonnements validés.
@@ -57,7 +61,7 @@ export function validatedMRR(stations, PLANS) {
 // paie pas encore son abonnement de base n'est pas un revenu acquis) —
 // `includeAll` pour le potentiel théorique.
 export function modulesMRR(stations, { includeAll = false } = {}) {
-  return (stations || [])
+  return open(stations)
     .filter((s) => (includeAll ? s.subscriptionStatus !== 'illimite' : s.subscriptionStatus === PAID_SUBSCRIPTION_STATUS))
     .reduce(
       (sum, s) => sum + (s.activeModules || []).reduce((a, id) => a + (MODULE_PRICE_BY_ID[id] || 0), 0),
@@ -69,7 +73,7 @@ export function modulesMRR(stations, { includeAll = false } = {}) {
 // associé (0 pour l'accès illimité, qui ne facture rien).
 export function subscriptionBreakdown(stations, PLANS) {
   return Object.values(SUBSCRIPTION_STATUS_META).map((meta) => {
-    const list = (stations || []).filter((s) => (s.subscriptionStatus || 'essai') === meta.key);
+    const list = open(stations).filter((s) => (s.subscriptionStatus || 'essai') === meta.key);
     return {
       ...meta,
       count: list.length,
