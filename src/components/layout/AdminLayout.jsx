@@ -14,6 +14,8 @@ import SessionLockOverlay from '../SessionLockOverlay';
 import TrialBanner from './TrialBanner';
 import StationTransferBanner from './StationTransferBanner';
 import GroupStationBanners from './GroupStationBanners';
+import { supabase } from '../../lib/supabaseClient';
+import { openStation } from '../../lib/groups';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -57,6 +59,49 @@ export default function AdminLayout() {
   useEffect(() => {
     if (getCurrentRole() !== 'staff') return;
     refreshStationFromProfile().then((changed) => { if (changed) window.location.reload(); });
+  }, []);
+
+  // Chef d'entreprise (Sur mesure) : l'accès aux données de la station passe
+  // par profiles.station_id (current_station_id(), RLS). Or passer par /groupe
+  // (autre onglet, bouton Retour du téléphone…) le remet à null, et ouvrir une
+  // autre station dans un autre onglet le déplace : cet onglet continuait alors
+  // d'afficher sa station, mais chaque ajout/encaissement était refusé ou
+  // restait sans effet. À chaque retour sur l'onglet, on ré-ouvre donc la
+  // station affichée ici ; si la base n'était plus dessus, on recharge.
+  useEffect(() => {
+    if (!getIsGroupOwner()) return undefined;
+    const stationId = getCurrentStationId();
+    if (!stationId || stationId === 'default') return undefined;
+    let busy = false;
+    const resync = async () => {
+      if (busy || document.visibilityState === 'hidden') return;
+      busy = true;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
+        if (!user) return;
+        const { data, error } = await supabase.from('profiles').select('station_id').eq('id', user.id).maybeSingle();
+        if (error || String(data?.station_id || '') === stationId) return;
+        try {
+          await openStation(stationId);
+          window.location.reload();
+        } catch {
+          // Station retirée/archivée du groupe entre-temps : retour à l'espace du groupe.
+          window.location.href = '/groupe';
+        }
+      } finally {
+        busy = false;
+      }
+    };
+    resync();
+    document.addEventListener('visibilitychange', resync);
+    window.addEventListener('focus', resync);
+    window.addEventListener('pageshow', resync);
+    return () => {
+      document.removeEventListener('visibilitychange', resync);
+      window.removeEventListener('focus', resync);
+      window.removeEventListener('pageshow', resync);
+    };
   }, []);
 
   // Abonnement terminé (impayé, ou essai gratuit écoulé) : plus aucun accès

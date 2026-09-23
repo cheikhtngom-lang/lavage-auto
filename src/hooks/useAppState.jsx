@@ -108,6 +108,24 @@ function rowToItem(row) {
     };
 }
 
+// Écritures de la file (ajout, Go, encaissement…) : au-delà de ce délai on
+// abandonne et on le dit, au lieu de laisser un bouton sans réponse sur une
+// connexion mobile qui décroche. AbortController plutôt qu'AbortSignal.timeout,
+// absent des navigateurs mobiles un peu anciens.
+const WRITE_TIMEOUT_MS = 20000;
+function timeoutSignal(ms = WRITE_TIMEOUT_MS) {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+}
+function friendlyWriteError(error) {
+    const msg = String(error?.message || '');
+    if (error?.name === 'AbortError' || /abort/i.test(msg)) return 'la connexion est trop lente ou coupée. Vérifiez le réseau puis réessayez.';
+    if (/failed to fetch|network|load failed/i.test(msg)) return 'pas de connexion internet. Vérifiez le réseau puis réessayez.';
+    if (/row-level security/i.test(msg)) return "cette station n'est plus ouverte sur votre compte. Rechargez la page.";
+    return msg || 'erreur inconnue.';
+}
+
 const AppStateContext = createContext(null);
 
 export function AppStateProvider({ children }) {
@@ -222,10 +240,22 @@ export function AppStateProvider({ children }) {
     const [activeWashes, setActiveWashes] = useState([]);
     const [completedWashes, setCompletedWashes] = useState([]);
     const [transactions, setTransactions] = useState([]);
+    // Ajouts manuels en cours : id provisoire "temp-…" -> promesse du vrai id (voir addWash / resolveWashId).
+    const pendingWashIdsRef = useRef(new Map());
 
+    // Numéro de la dernière lecture lancée : sur un réseau lent, plusieurs
+    // lectures se chevauchent (Realtime + focus + après chaque action) et une
+    // réponse ANCIENNE arrivée en dernier écrasait la file avec un état périmé
+    // (véhicule qui disparaît/réapparaît). Seule la plus récente s'applique.
+    const reservationsSeqRef = useRef(0);
     const loadReservations = useCallback(async () => {
         if (!stationId || stationId === 'default') { setQueue([]); setActiveWashes([]); setCompletedWashes([]); return; }
-        const { data } = await supabase.from('reservations').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
+        const seq = ++reservationsSeqRef.current;
+        const { data, error } = await supabase.from('reservations').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
+        if (seq !== reservationsSeqRef.current) return;
+        // Lecture en échec (coupure réseau) : on garde ce qui est affiché plutôt
+        // que de vider la file comme si la station n'avait plus aucun véhicule.
+        if (error) { console.error('loadReservations:', error); return; }
         const items = (data || []).map(rowToItem);
         setQueue(items.filter((i) => i.status === 'attente'));
         setActiveWashes(items.filter((i) => i.status === 'en_cours'));
@@ -487,7 +517,17 @@ export function AppStateProvider({ children }) {
         loadShopOrders();
         loadReceivedAnnouncements();
         loadSentAnnouncements();
-        const refresh = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadPumps(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); loadReceivedAnnouncements(); loadSentAnnouncements(); };
+        // Au plus une relecture complète toutes les 15 s : sur téléphone, `focus`
+        // se déclenche à chaque retour sur l'onglet (clavier, notification…) et
+        // relançait les 15 requêtes d'un coup, saturant une connexion mobile au
+        // moment même où le gérant ajoute/encaisse. Realtime couvre l'entre-deux.
+        let lastRefreshAt = Date.now();
+        const refresh = () => {
+            if (Date.now() - lastRefreshAt < 15000) return;
+            lastRefreshAt = Date.now();
+            refreshAll();
+        };
+        const refreshAll = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadPumps(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); loadReceivedAnnouncements(); loadSentAnnouncements(); };
         window.addEventListener('focus', refresh);
         // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
         // sont dans la publication supabase_realtime (voir schema.sql) : un
@@ -1237,6 +1277,11 @@ export function AppStateProvider({ children }) {
             vehicle: washData.vehicle, category: washData.category, service: washData.service,
             paid, amount, createdAt: new Date().toISOString(),
         }]);
+        // Promesse du vrai id : une action faite sur la ligne provisoire
+        // (Encaisser, Go, Passer…) l'attend au lieu d'être refusée — voir resolveWashId.
+        let settle;
+        pendingWashIdsRef.current.set(tempId, new Promise((resolve) => { settle = resolve; }));
+        const done = (realId) => settle(realId); // gardée dans la Map : un clic tardif sur l'ancien id retrouve le vrai
         supabase.from('reservations').insert({
             station_id: stationId, client_name: washData.client, vehicle_label: washData.vehicle,
             category: washData.category, service: washData.service, paid, amount, status: 'attente',
@@ -1244,13 +1289,24 @@ export function AppStateProvider({ children }) {
             // passage a déjà un compte automobiliste, on relie la réservation
             // pour qu'elle apparaisse en direct sur son tableau de bord.
             client_id: washData.clientId || null,
-        }).select().single().then(async ({ data, error }) => {
+        // Délai maximal : sur une connexion mobile qui décroche, la requête
+        // pouvait rester en suspens indéfiniment et la ligne provisoire avec.
+        }).select().single().abortSignal(timeoutSignal()).then(async ({ data, error }) => {
             if (error) {
                 console.error('addWash:', error);
+                done(null);
                 setQueue((prev) => prev.filter((q) => q.id !== tempId));
-                alert("Impossible d'ajouter ce véhicule : " + error.message);
+                alert("Impossible d'ajouter ce véhicule : " + friendlyWriteError(error));
+                loadReservations(); // un délai dépassé peut quand même avoir abouti côté serveur
                 return;
             }
+            // La vraie ligne remplace tout de suite la ligne provisoire, sans
+            // attendre la relecture complète de la file.
+            const real = rowToItem(data);
+            setQueue((prev) => prev.some((q) => q.id === real.id)
+                ? prev.filter((q) => q.id !== tempId)
+                : prev.map((q) => (q.id === tempId ? { ...real, paid: real.paid || q.paid } : q))); // q.paid : encaissé pendant l'ajout
+            done(data.id);
             // Payé directement à l'ajout ("Payé d'avance") : il faut créer la
             // transaction ici (rien d'autre ne le fera jamais, contrairement au
             // flux "Encaisser" plus tard qui passe par validatePayment) — sinon
@@ -1368,42 +1424,53 @@ export function AppStateProvider({ children }) {
     // historique), assigned_washer_names ne contient une valeur QUE s'il y en
     // a plusieurs.
     // Un id "temp-..." est une ligne optimiste d'addWash pas encore remplacée
-    // par la vraie ligne Supabase (voir addWash) — la fenêtre est courte (un
-    // aller-retour réseau) mais un update dessus ne toucherait aucune ligne
-    // réelle en base, sans erreur ni effet visible : on bloque plutôt que de
-    // laisser le gérant croire que son clic n'a rien fait.
-    const isPendingTempId = (id) => {
-        if (typeof id === 'string' && id.startsWith('temp-')) {
-            alert("Ce véhicule est en cours d'ajout, patientez un instant avant de réessayer.");
-            return true;
+    // par la vraie ligne Supabase (voir addWash). Au lieu de refuser le clic
+    // (« patientez un instant… », qui bloquait le gérant sur un réseau lent),
+    // on attend la fin de l'ajout puis on applique l'action au vrai id.
+    // Renvoie null si l'ajout a échoué (addWash a déjà prévenu le gérant).
+    const resolveWashId = async (id) => {
+        if (typeof id !== 'string' || !id.startsWith('temp-')) return id;
+        const pending = pendingWashIdsRef.current.get(id);
+        return pending ? await pending : null;
+    };
+
+    // Écriture commune aux actions de la file : délai maximal + message clair
+    // en cas d'échec (avant : erreur ignorée, le bouton semblait sans effet).
+    const updateReservation = async (id, patch, failMsg) => {
+        const realId = await resolveWashId(id);
+        if (!realId) return null;
+        const { data, error } = await supabase.from('reservations').update(patch).eq('id', realId).select().abortSignal(timeoutSignal());
+        if (error || !data || data.length === 0) {
+            console.error('updateReservation:', error || 'aucune ligne mise à jour');
+            alert(failMsg + ' : ' + (error ? friendlyWriteError(error) : 'la réservation est introuvable, rechargez la page.'));
+            loadReservations();
+            return null;
         }
-        return false;
+        return realId;
     };
 
     const startWash = (id, employeeIdOrIds) => {
-        if (isPendingTempId(id)) return;
         const ids = Array.isArray(employeeIdOrIds) ? employeeIdOrIds : [employeeIdOrIds];
         const emps = ids.map(eid => (employees || []).find(e => e.id === eid)).filter(Boolean);
         const names = emps.map(e => e.name);
-        supabase.from('reservations').update({
+        updateReservation(id, {
             status: 'en_cours',
             assigned_to_name: names[0] || 'Inconnu',
             assigned_washer_names: names.length > 1 ? names : null,
             started_at: new Date().toISOString(),
-        }).eq('id', id).then(() => loadReservations());
-
-        emps.forEach(emp => { if (emp.status === 'Terminé') resumeEmployee(emp.id); });
+        }, 'Impossible de lancer ce lavage').then((realId) => {
+            loadReservations();
+            if (realId) emps.forEach(emp => { if (emp.status === 'Terminé') resumeEmployee(emp.id); });
+        });
     };
 
     const endWash = (id) => {
-        supabase.from('reservations').update({
-            status: 'termine', completed_at: new Date().toISOString(),
-        }).eq('id', id).then(() => loadReservations());
+        updateReservation(id, { status: 'termine', completed_at: new Date().toISOString() }, 'Impossible de terminer ce lavage')
+            .then(() => loadReservations());
     };
 
     const skipWash = (id) => {
-        if (isPendingTempId(id)) return;
-        supabase.from('reservations').update({ status: 'annule' }).eq('id', id).then(() => loadReservations());
+        updateReservation(id, { status: 'annule' }, 'Impossible de retirer ce véhicule').then(() => loadReservations());
     };
 
     // Recule un véhicule payé en ligne (Wave/Orange Money) d'une place dans la
@@ -1417,16 +1484,17 @@ export function AppStateProvider({ children }) {
     // add_station_push_back_rpc.sql) — deux `update` séparés depuis le
     // navigateur pouvaient laisser l'ordre incohérent en cas de coupure
     // réseau pile entre les deux.
-    const pushBackOnePosition = (id) => {
+    const pushBackOnePosition = async (id) => {
         const idx = queue.findIndex((q) => q.id === id);
         if (idx === -1 || idx >= queue.length - 1) return;
-        supabase.rpc('station_push_back_one_position', { p_reservation_id: id })
+        const realId = await resolveWashId(id);
+        if (!realId) return;
+        supabase.rpc('station_push_back_one_position', { p_reservation_id: realId })
             .then(({ error }) => { if (error) console.error('pushBackOnePosition:', error); })
             .finally(() => loadReservations());
     };
 
-    const validatePayment = (id) => {
-        if (isPendingTempId(id)) return;
+    const validatePayment = async (id) => {
         const item = queue.find(q => q.id === id) || activeWashes.find(w => w.id === id);
         if (!item || item.paid) return;
 
@@ -1443,21 +1511,21 @@ export function AppStateProvider({ children }) {
         const activeSub = findEligibleSubscription(item.clientId, amount);
         const method = activeSub ? 'Abonnement' : 'Espèces';
 
-        supabase.from('reservations').update({ paid: true, amount }).eq('id', id).select().then(async ({ data, error }) => {
-            if (error || !data || data.length === 0) {
-                console.error('validatePayment:', error || 'aucune ligne mise à jour');
-                alert("Impossible de valider ce paiement, réessayez : " + (error?.message || 'la réservation est introuvable.'));
-                loadReservations();
-                return;
-            }
-            const { error: txError } = await supabase.from('transactions').insert({
-                station_id: stationId, reservation_id: id, client_id: item.clientId || null, client_name: item.client, vehicle_label: item.vehicle,
-                service: item.service, method, amount,
-            });
-            if (txError) console.error('validatePayment (transaction):', txError);
-            loadReservations();
-            loadTransactions();
+        // Affichage optimiste : le véhicule passe « payé » tout de suite, même
+        // s'il vient d'être ajouté et attend encore son vrai id (resolveWashId).
+        const markPaid = (list) => list.map((q) => (q.id === id ? { ...q, paid: true, amount } : q));
+        setQueue(markPaid);
+        setActiveWashes(markPaid);
+
+        const realId = await updateReservation(id, { paid: true, amount }, 'Impossible de valider ce paiement');
+        if (!realId) return;
+        const { error: txError } = await supabase.from('transactions').insert({
+            station_id: stationId, reservation_id: realId, client_id: item.clientId || null, client_name: item.client, vehicle_label: item.vehicle,
+            service: item.service, method, amount,
         });
+        if (txError) console.error('validatePayment (transaction):', txError);
+        loadReservations();
+        loadTransactions();
     };
 
     // Calcul du temps d'attente estimé pour un client spécifique
