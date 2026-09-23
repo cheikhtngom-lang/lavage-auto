@@ -48,6 +48,34 @@ export async function fetchMyGroup() {
   return data;
 }
 
+// ─── Paramètres du chef d'entreprise (/groupe/parametres) ──────────────
+// Son propre profil : même table que tout compte (profiles_update l'y autorise ;
+// rôle, station et drapeau patron restent verrouillés par trigger).
+export async function fetchMyOwnerProfile() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return null;
+  const { data, error } = await supabase.from('profiles').select('id, full_name, phone, email, photo_url').eq('id', uid).maybeSingle();
+  if (error) fail(error);
+  return data ? { ...data, email: data.email || session.user.email } : null;
+}
+
+export async function updateMyOwnerProfile(id, { fullName, phone, photoUrl }) {
+  const patch = {};
+  if (fullName !== undefined) patch.full_name = fullName;
+  if (phone !== undefined) patch.phone = phone;
+  if (photoUrl !== undefined) patch.photo_url = photoUrl;
+  const { error } = await supabase.from('profiles').update(patch).eq('id', id);
+  if (error) fail(error);
+}
+
+// Seule modification de l'organisation ouverte au patron (voir add_group_settings.sql).
+export async function renameMyGroup(name) {
+  const { data, error } = await supabase.rpc('rename_my_organization', { p_name: name });
+  if (error) fail(error);
+  return data;
+}
+
 export async function fetchPlans() {
   const { data, error } = await supabase.from('plans').select('*').order('price', { ascending: true });
   if (error) fail(error);

@@ -63,6 +63,7 @@ const GroupOrder = lazyPage(() => import('./pages/Group/Order'));
 const GroupBilling = lazyPage(() => import('./pages/Group/Billing'));
 const GroupAnalysis = lazyPage(() => import('./pages/Group/Analysis'));
 const GroupAccounting = lazyPage(() => import('./pages/Group/Accounting'));
+const GroupSettings = lazyPage(() => import('./pages/Group/Settings'));
 // Pages Super Admin
 const SuperAdminDashboard = lazyPage(() => import('./pages/SuperAdmin/Dashboard'));
 const SuperAdminAnnouncements = lazyPage(() => import('./pages/SuperAdmin/Announcements'));
@@ -204,6 +205,7 @@ function App() {
                 <Route path="analyse" element={<GroupAnalysis />} />
                 <Route path="commande" element={<GroupOrder />} />
                 <Route path="facturation" element={<GroupBilling />} />
+                <Route path="parametres" element={<GroupSettings />} />
               </Route>
 
               {/* Routes Super Admin */}

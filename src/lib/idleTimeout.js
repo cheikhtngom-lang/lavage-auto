@@ -48,7 +48,20 @@ function idleLimitMs() {
   return min * 60 * 1000;
 }
 
-const ACTIVITY_EVENTS = ['mousedown', 'keydown', 'touchstart', 'pointerdown', 'scroll', 'wheel'];
+// Réglage exposé dans Paramètres (espace patron) : même clé, donc propre à cet
+// appareil/navigateur. null = retour au défaut.
+export const IDLE_MINUTES_DEFAULT = DEFAULT_IDLE_MINUTES;
+export function getIdleMinutes() {
+  return Math.round(idleLimitMs() / 60000);
+}
+export function setIdleMinutes(min) {
+  try {
+    if (min == null || min === DEFAULT_IDLE_MINUTES) localStorage.removeItem(LIMIT_KEY);
+    else localStorage.setItem(LIMIT_KEY, String(min));
+  } catch { /* stockage indisponible : le réglage ne tient pas, le défaut s'applique */ }
+}
+
+const ACTIVITY_EVENTS =['mousedown', 'keydown', 'touchstart', 'pointerdown', 'scroll', 'wheel'];
 
 let started = false;
 let loggingOut = false;

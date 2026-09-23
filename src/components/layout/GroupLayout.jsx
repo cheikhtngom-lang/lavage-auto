@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import PageSuspense from '../ui/PageSuspense';
-import { Building2, ShoppingCart, CreditCard, LogOut, Menu, X, Briefcase, LayoutDashboard, Sparkles, Calculator } from 'lucide-react';
+import { Building2, ShoppingCart, CreditCard, LogOut, Menu, X, Briefcase, LayoutDashboard, Sparkles, Calculator, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabaseClient';
 import { clearSession, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
@@ -20,6 +20,7 @@ const NAV = [
   { name: 'Mes stations', href: '/groupe/stations', icon: Building2 },
   { name: 'Nouvelle commande', href: '/groupe/commande', icon: ShoppingCart },
   { name: 'Facturation', href: '/groupe/facturation', icon: CreditCard },
+  { name: 'Paramètres', href: '/groupe/parametres', icon: Settings },
 ];
 
 export default function GroupLayout() {
