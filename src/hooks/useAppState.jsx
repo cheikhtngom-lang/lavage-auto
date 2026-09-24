@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
-import { DEFAULT_PRICING, DEFAULT_DURATION } from '../lib/washDefaults';
+import { DEFAULT_PRICING, DEFAULT_DURATION, normalizeService } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
 import { nozzleLabel, nozzleKey, sortNozzles, normalizeLines } from '../lib/pompistes';
 import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi, loadStationKnownClients as loadStationKnownClientsApi, retireAnnouncement } from '../lib/announcements';
@@ -1281,13 +1281,28 @@ export function AppStateProvider({ children }) {
         return clientSubscriptions.find((s) => s.clientId === clientId && s.status === 'actif' && s.balance >= amount) || null;
     };
 
-    const addWash = (washData) => {
+    // Montant d'un lavage — SEULE règle de prix côté station : ajout, « Payé d'avance »,
+    // fenêtre « Confirmer le paiement », encaissement et prix affichés dans la file.
+    // Le prix figé à la réservation (promo, code promo côté client) est respecté,
+    // sauf s'il est nul ou si le service n'existe pas pour la catégorie (ex. Moto +
+    // Lavage Simple, réservations d'avant le correctif) : on recalcule alors avec le
+    // bon service et le tarif de la station.
+    const washAmountFor = (item) => {
+        const cat = item?.category || 'Particulier';
+        const service = normalizeService(cat, item?.service);
+        if (item?.amount > 0 && service === item?.service) return item.amount;
+        const basePrice = pricingConfig?.[cat]?.[service] || 2500;
+        return applyDiscount(promoConfig, cat, service, basePrice);
+    };
+
+    const addWash = (rawWash) => {
         if (!stationId || stationId === 'default') return;
+        // Moto / tricycle : toujours « Lavage Complet » (seul service de sa grille).
+        const washData = { ...rawWash, service: normalizeService(rawWash.category, rawWash.service) };
         // Prix figé dès la création (comme pour une réservation client), pour
         // que "Payé d'avance" à l'ajout ET "Encaisser" plus tard facturent
         // toujours le même montant — voir validatePayment ci-dessous.
-        const basePrice = (pricingConfig[washData.category] && pricingConfig[washData.category][washData.service]) || 2500;
-        const amount = applyDiscount(promoConfig, washData.category, washData.service, basePrice);
+        const amount = washAmountFor({ category: washData.category, service: washData.service });
         const paid = !!washData.paid;
         const activeSub = paid ? findEligibleSubscription(washData.clientId, amount) : null;
         const method = activeSub ? 'Abonnement' : 'Espèces';
@@ -1524,11 +1539,9 @@ export function AppStateProvider({ children }) {
         if (!item || item.paid) return;
 
         const cat = item.category || "Particulier";
-        // Si le prix a déjà été figé à la réservation (ex: côté client, avec un
-        // éventuel code promo appliqué), on le respecte plutôt que de le
-        // recalculer — sinon on applique la réduction en cours de la station.
-        const basePrice = (pricingConfig[cat] && pricingConfig[cat][item.service]) ? pricingConfig[cat][item.service] : 2500;
-        const amount = item.amount != null ? item.amount : applyDiscount(promoConfig, cat, item.service, basePrice);
+        // Même montant que celui affiché dans la fenêtre de confirmation (washAmountFor).
+        const service = normalizeService(cat, item.service);
+        const amount = washAmountFor(item);
         // Client reconnu (plaque/historique) avec un abonnement actif et un
         // solde suffisant à CETTE station : on encaisse via le wallet plutôt
         // qu'en espèces — le trigger de déduction (station_client_subscriptions)
@@ -1538,15 +1551,16 @@ export function AppStateProvider({ children }) {
 
         // Affichage optimiste : le véhicule passe « payé » tout de suite, même
         // s'il vient d'être ajouté et attend encore son vrai id (resolveWashId).
-        const markPaid = (list) => list.map((q) => (q.id === id ? { ...q, paid: true, amount } : q));
+        const markPaid = (list) => list.map((q) => (q.id === id ? { ...q, paid: true, amount, service } : q));
         setQueue(markPaid);
         setActiveWashes(markPaid);
 
-        const realId = await updateReservation(id, { paid: true, amount }, 'Impossible de valider ce paiement');
+        // Le service est corrigé au passage (Moto + Lavage Simple -> Lavage Complet).
+        const realId = await updateReservation(id, { paid: true, amount, service }, 'Impossible de valider ce paiement');
         if (!realId) return;
         const { error: txError } = await supabase.from('transactions').insert({
             station_id: stationId, reservation_id: realId, client_id: item.clientId || null, client_name: item.client, vehicle_label: item.vehicle,
-            service: item.service, method, amount,
+            service, method, amount,
         });
         if (txError) console.error('validatePayment (transaction):', txError);
         loadReservations();
@@ -1669,7 +1683,7 @@ export function AppStateProvider({ children }) {
             vidangeBookings, updateVidangeBookingStatus,
             shopOrders, updateShopOrderStatus,
             receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement, retireStationAnnouncement, loadStationKnownClients,
-            addWash, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
+            addWash, washAmountFor, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>

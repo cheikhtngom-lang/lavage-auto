@@ -7,6 +7,7 @@ import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plu
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBrands';
+import { normalizeService } from '../../lib/washDefaults';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { isPastClosingTime, findVehicleOwnerByPlate } from '../../lib/stationData';
@@ -280,7 +281,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 export default function StationDashboard() {
   useDocumentTitle('File d\'attente');
   const navigate = useNavigate();
-  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, requestFullReservationHistory, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
+  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, washAmountFor, requestFullReservationHistory, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
 
   const getDurationMinutes = (item) => {
     const cat = item?.category || 'Particulier';
@@ -407,10 +408,9 @@ export default function StationDashboard() {
   // l'appli, donc on le réutilise pour déclencher la modale multi-laveurs.
   const isBigVehicle = (item) => item?.category === 'Camion';
 
-  const getPrice = (item) => {
-    const cat = item?.category || 'Particulier';
-    return (pricingConfig?.[cat]?.[item?.service]) || 0;
-  };
+  // Même montant que celui réellement encaissé (useAppState.washAmountFor) : prix figé à la
+  // réservation, sinon tarif de la station avec le bon service (Moto = Lavage Complet).
+  const getPrice = (item) => washAmountFor(item);
 
   // Source unique pour "la station est-elle fermée maintenant" — voir aussi
   // Washers.jsx, qui doit rester cohérent avec cette même logique partagée
@@ -643,7 +643,7 @@ export default function StationDashboard() {
                     <div className="flex justify-between items-center mb-3">
                       <div>
                         <p className="text-xs text-neutral-500 uppercase font-bold tracking-wider mb-1">Service</p>
-                        <p className="text-white font-medium">{item.service}</p>
+                        <p className="text-white font-medium">{normalizeService(item.category || 'Particulier', item.service)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-neutral-500 uppercase font-bold tracking-wider mb-1">Laveur</p>
@@ -733,7 +733,7 @@ export default function StationDashboard() {
                           </p>
                         </td>
                         <td className="p-3">
-                          <p className="text-neutral-300 font-medium">{item.service}</p>
+                          <p className="text-neutral-300 font-medium">{normalizeService(item.category || 'Particulier', item.service)}</p>
                           <p className="text-blue-400 font-bold text-sm mt-0.5">{getPrice(item).toLocaleString('fr-FR')} FCFA</p>
                         </td>
                         <td className="p-3">
@@ -877,7 +877,7 @@ export default function StationDashboard() {
                         <p className="font-bold text-neutral-300 flex items-center">{item.vehicle}<GroupBadge item={item} /></p>
                         <p className="text-xs text-neutral-500">{item.client}</p>
                       </td>
-                      <td className="p-4 text-neutral-400">{item.service}</td>
+                      <td className="p-4 text-neutral-400">{normalizeService(item.category || 'Particulier', item.service)}</td>
                       <td className="p-4 text-neutral-400">{(item.assignedWasherNames && item.assignedWasherNames.length) ? item.assignedWasherNames.join(', ') : item.assignedTo}</td>
                     </motion.tr>
                   ))}
@@ -1089,7 +1089,7 @@ export default function StationDashboard() {
               </div>
 
               <div className="bg-orange-950/30 border border-orange-500/20 rounded-xl p-5 mb-6 text-center">
-                <p className="text-neutral-400 text-sm mb-1">{pendingPayItem.service} · {PRICING_CATEGORY_LABELS[pendingPayItem.category] || pendingPayItem.category}</p>
+                <p className="text-neutral-400 text-sm mb-1">{normalizeService(pendingPayItem.category || 'Particulier', pendingPayItem.service)} · {PRICING_CATEGORY_LABELS[pendingPayItem.category] || pendingPayItem.category}</p>
                 <p className="text-4xl font-bold text-white mt-2">
                   {getPrice(pendingPayItem).toLocaleString('fr-FR')}
                   <span className="text-lg font-medium text-neutral-400 ml-2">FCFA</span>
@@ -1184,7 +1184,8 @@ export default function StationDashboard() {
                      value={newWash.vehicle}
                      onChange={(val) => {
                        const guessedCategory = guessPricingCategory(val);
-                       setNewWash({ ...newWash, vehicle: val, ...(guessedCategory ? { category: guessedCategory } : {}) });
+                       // Moto / tricycle : le service suit (Lavage Complet, seul service de la catégorie).
+                       setNewWash({ ...newWash, vehicle: val, ...(guessedCategory ? { category: guessedCategory, service: normalizeService(guessedCategory, newWash.service) } : {}) });
                      }}
                    />
                  </div>
@@ -1240,7 +1241,7 @@ export default function StationDashboard() {
                   </label>
                 </div>
                 {newWash.paid && (() => {
-                  const amount = (pricingConfig[newWash.category] && pricingConfig[newWash.category][newWash.service]) || 2500;
+                  const amount = washAmountFor({ category: newWash.category, service: newWash.service });
                   const sub = newWash.clientId
                     ? (clientSubscriptions || []).find((s) => s.clientId === newWash.clientId && s.status === 'actif' && s.balance >= amount)
                     : null;

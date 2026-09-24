@@ -18,3 +18,14 @@ export const DEFAULT_DURATION = {
   "Transport": { "Lavage Simple": 20, "Lavage Complet": 40, "Lavage Moteur": 35 },
   "Camion": { "Lavage Simple": 30, "Lavage Complet": 45, "Lavage Moteur": 40 },
 };
+
+// Services proposés par catégorie de tarif : une moto / un tricycle n'a que
+// « Lavage Complet » (seule ligne de sa grille). Tout chemin qui crée une
+// réservation passe par normalizeService — sinon « Moto + Lavage Simple »
+// ne trouve aucun prix (0 F, ou le prix de secours) au lieu de celui de la station.
+export const WASH_SERVICES = ['Lavage Simple', 'Lavage Complet', 'Lavage Moteur'];
+export const servicesFor = (category) => (category === 'Moto' ? ['Lavage Complet'] : WASH_SERVICES);
+export const normalizeService = (category, service) => {
+  const allowed = servicesFor(category);
+  return allowed.includes(service) ? service : allowed[0];
+};

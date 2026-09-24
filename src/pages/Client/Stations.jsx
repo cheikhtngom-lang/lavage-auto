@@ -14,6 +14,7 @@ import {
   getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
+import { normalizeService } from '../../lib/washDefaults';
 import { deriveAdStatus } from '../../lib/ads';
 import { regionsOf, regionLabel, countryName, DEFAULT_COUNTRY } from '../../lib/countries';
 import { useClientCountry } from '../../hooks/useClientCountry';
@@ -490,11 +491,16 @@ export default function Stations() {
   const stationPromo = selectedStation ? getStationPromo(selectedStation.id) : null;
   const appliedPromoCode = stationPromo ? matchPromoCode(stationPromo, promoCodeInput) : null;
 
+  // Service réellement appliqué à un véhicule : une moto / un tricycle est toujours
+  // en « Lavage Complet » (seul service de sa grille), même réservé avec une voiture
+  // en « Lavage Simple » — sinon aucun prix n'était trouvé et la moto partait à 0 F.
+  const serviceForVehicle = (vehicle) => normalizeService(getPricingCategory(vehicle.category), service);
   const priceForVehicle = (vehicle) => {
     const category = getPricingCategory(vehicle.category);
     if (!category || !selectedStation) return 0;
-    const base = getStationPricing(selectedStation.id)?.[category]?.[service] || 0;
-    const discounted = applyDiscount(stationPromo, category, service, base);
+    const vehicleService = serviceForVehicle(vehicle);
+    const base = getStationPricing(selectedStation.id)?.[category]?.[vehicleService] || 0;
+    const discounted = applyDiscount(stationPromo, category, vehicleService, base);
     return appliedPromoCode ? applyPromoCode(appliedPromoCode, discounted) : discounted;
   };
   const servicePrice = selectedVehicles.reduce((sum, v) => sum + priceForVehicle(v), 0);
@@ -517,15 +523,16 @@ export default function Stations() {
       // pour que l'encaissement sur place facture le même montant que celui
       // affiché ici, même si la promo change ou expire entre-temps.
       const amount = priceForVehicle(vehicle);
+      const vehicleService = serviceForVehicle(vehicle);
       const reservation = await createReservation(selectedStation.id, {
-        clientId: account.id, clientName: account.name, vehicleLabel, category, service, paid, amount,
+        clientId: account.id, clientName: account.name, vehicleLabel, category, service: vehicleService, paid, amount,
         paymentMethod: paid ? method : null,
         reservationGroupId, groupSize: selectedVehicles.length,
       });
       if (paid) {
         try {
           await recordClientTransaction(selectedStation.id, {
-            reservationId: reservation.id, clientId: account.id, clientName: account.name, vehicleLabel, service, method, amount,
+            reservationId: reservation.id, clientId: account.id, clientName: account.name, vehicleLabel, service: vehicleService, method, amount,
           });
         } catch (err) {
           await markReservationUnpaid(reservation.id);
@@ -536,7 +543,7 @@ export default function Stations() {
           return;
         }
       }
-      createdEntries.push({ vehicle: vehicleLabel, position: waitingBefore + idx + 1, amount, wait: estimateItemWaitTime(selectedStation.id, reservation.created_at) });
+      createdEntries.push({ vehicle: vehicleLabel, service: vehicleService, position: waitingBefore + idx + 1, amount, wait: estimateItemWaitTime(selectedStation.id, reservation.created_at) });
     }
     unhideStation(selectedStation.id);
     refreshActivity();
@@ -576,7 +583,7 @@ export default function Stations() {
       client: ticketInfo.client,
       method: ticketInfo.method,
       total: ticketInfo.total,
-      items: ticketInfo.vehicles.map(v => ({ label: v.vehicle, service: ticketInfo.service, amount: v.amount })),
+      items: ticketInfo.vehicles.map(v => ({ label: v.vehicle, service: v.service || ticketInfo.service, amount: v.amount })),
     });
   };
 
@@ -596,7 +603,7 @@ export default function Stations() {
       const items = selectedVehicles.map((vehicle) => ({
         vehicleLabel: formatVehicleLabel(vehicle.brand, vehicle.plate),
         category: getPricingCategory(vehicle.category),
-        service,
+        service: serviceForVehicle(vehicle),
         amount: priceForVehicle(vehicle),
       }));
       unhideStation(selectedStation.id);
@@ -1051,6 +1058,9 @@ export default function Stations() {
                         {onlyMotoSelected && (
                           <p className="text-neutral-500 text-xs mt-1.5">Un seul type de lavage est proposé pour les motos et tricycles.</p>
                         )}
+                        {!onlyMotoSelected && service !== 'Lavage Complet' && selectedVehicles.some((v) => getPricingCategory(v.category) === 'Moto') && (
+                          <p className="text-neutral-500 text-xs mt-1.5">Les motos et tricycles sont lavés en « Lavage Complet », le seul type proposé pour eux.</p>
+                        )}
                       </div>
                     )}
                     {selectedVehicles.length > 0 && stationPromo?.code?.active && (
@@ -1372,7 +1382,8 @@ export default function Stations() {
                       {[
                         { label: 'Station', value: ticketInfo.station },
                         { label: 'Client', value: ticketInfo.client },
-                        { label: 'Service', value: ticketInfo.service },
+                        // Services réellement appliqués (une moto réservée avec une voiture est en Lavage Complet).
+                        { label: 'Service', value: [...new Set(ticketInfo.vehicles.map((v) => v.service || ticketInfo.service))].join(' / ') },
                         { label: 'Paiement', value: ticketInfo.paid ? `Payé via ${ticketInfo.method}` : 'À régler sur place', accent: ticketInfo.paid ? 'text-emerald-400' : 'text-orange-400' },
                       ].map(row => (
                         <div key={row.label} className="flex justify-between text-sm"><span className="text-neutral-400">{row.label}</span><span className={`font-medium ${row.accent || 'text-white'}`}>{row.value}</span></div>
