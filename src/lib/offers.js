@@ -12,3 +12,9 @@ export const isServiceStationPlan = (plan) => plan === SERVICE_STATION_PLAN;
 
 // Photo de fond de l'offre (public/images) — Hans Eiskonen / Unsplash (licence Unsplash).
 export const SERVICE_STATION_IMAGE = '/images/offre-station-service.jpg';
+
+// Annonces aux clients et publicité payante : à partir de Pro (24/09/2026) — une
+// station Starter n'y a pas accès. Même règle côté base : station_has_marketing
+// (add_marketing_plan_gate.sql, policies announcements_insert et station_ads_insert).
+export const MARKETING_PLANS = ['Pro', SERVICE_STATION_PLAN];
+export const stationHasMarketing = (billing) => MARKETING_PLANS.includes(billing?.plan);

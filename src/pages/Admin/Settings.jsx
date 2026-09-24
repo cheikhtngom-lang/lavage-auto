@@ -5,6 +5,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { getCurrentStationId, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
 import CloseAccountCard from '../../components/account/CloseAccountCard';
+import { stationHasMarketing } from '../../lib/offers';
 import { supabase } from '../../lib/supabaseClient';
 import { COUNTRIES, regionsOf } from '../../lib/countries';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
@@ -59,6 +60,8 @@ export default function Settings() {
   const hasLocation = registryEntry?.lat != null && registryEntry?.lng != null;
   const hasAdvancedLoyalty = hasModule(stationBilling?.activeModules, 'mod_fidelite_plus');
   const canVidange = stationHasVidange(stationBilling);
+  // Publicité (et Annonces, menu) : à partir de Pro — voir lib/offers.js.
+  const canMarketing = stationHasMarketing(stationBilling);
   const canPompistes = stationHasPompistes(stationBilling);
   const location = useLocation();
 
@@ -578,7 +581,7 @@ export default function Settings() {
             // même logique que Boutique/Bilan, voir RequireVidangeAccess (App.jsx).
             ...(canVidange ? [{ id: 'vidange', label: 'Vidange', icon: Wrench }] : []),
             { id: 'promotions', label: 'Promotions', icon: Megaphone },
-            { id: 'publicite', label: 'Passer une pub', icon: Camera },
+            ...(canMarketing ? [{ id: 'publicite', label: 'Passer une pub', icon: Camera }] : []),
             { id: 'securite', label: 'Sécurité & Accès', icon: Shield },
           ].map(tab => (
             <button
@@ -1190,6 +1193,12 @@ export default function Settings() {
               <CardContent className="p-8">
                 <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Megaphone className="w-5 h-5 text-blue-400" /> Promotions</h2>
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">Attirez plus de clients avec un bandeau promo, une réduction ciblée ou un code promo.</p>
+                {stationBilling && !canMarketing && (
+                  <div className="mb-8 flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3">
+                    <Megaphone className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-blue-200/90">Envoyer des annonces à vos clients et passer une publicité sur la plateforme : disponible à partir de l'offre <strong className="text-white">Pro</strong>.</p>
+                  </div>
+                )}
 
                 <form onSubmit={handleSavePromo} className="space-y-10">
                   {/* Bandeau promo */}
@@ -1329,7 +1338,7 @@ export default function Settings() {
             </Card>
           )}
 
-          {activeTab === 'publicite' && (
+          {activeTab === 'publicite' && canMarketing && (
             <Card className="border-white/5 bg-white/[0.02]">
               <CardContent className="p-8 max-w-2xl">
                 <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Camera className="w-5 h-5 text-blue-400" /> Passer une pub</h2>

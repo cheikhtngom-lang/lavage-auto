@@ -17,7 +17,7 @@ import { hasPerm } from './lib/permissions';
 import { stationHasShop } from './lib/shop';
 import { stationHasVidange } from './lib/vidange';
 import { stationHasPompistes } from './lib/pompistes';
-import { isServiceStationPlan } from './lib/offers';
+import { isServiceStationPlan, stationHasMarketing } from './lib/offers';
 import PageSuspense from './components/ui/PageSuspense';
 
 // Pages chargées à la demande (une par rubrique) — voir components/ui/PageSuspense.jsx.
@@ -148,6 +148,15 @@ function RequirePompistesAccess({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
+// Annonces aux clients : à partir de Pro (Starter exclu) — même règle en base
+// (station_has_marketing, add_marketing_plan_gate.sql).
+function RequireMarketingAccess({ children }) {
+  const { stationBilling, myPermissions } = useAppState();
+  if (stationBilling == null || myPermissions == null) return null;
+  if (stationHasMarketing(stationBilling) && hasPerm(myPermissions, 'announcements.manage')) return children;
+  return <Navigate to="/admin/queue" replace />;
+}
+
 function App() {
   // Expiration de session : déconnexion après 1 h sans interaction
   // (voir lib/idleTimeout.js). Ne touche pas aux visiteurs anonymes de /stations.
@@ -195,7 +204,7 @@ function App() {
                 <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />
-                <Route path="annonces" element={<RequirePerm perm="announcements.manage"><AdminAnnouncements /></RequirePerm>} />
+                <Route path="annonces" element={<RequireMarketingAccess><AdminAnnouncements /></RequireMarketingAccess>} />
               </Route>
 
               {/* Espace chef d'entreprise (offre Sur mesure) */}

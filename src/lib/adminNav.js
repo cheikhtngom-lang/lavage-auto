@@ -13,7 +13,7 @@ import {
   FileBarChart, Store, Wrench, Send, Fuel,
 } from 'lucide-react';
 import { hasPerm } from './permissions';
-import { SERVICE_STATION_PLAN, isServiceStationPlan } from './offers';
+import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './offers';
 
 // `locked` : jamais masquable (sans « Vue d'ensemble » il n'y aurait plus de
 // page d'accueil, sans « Paramètres » on ne pourrait plus rien réactiver).
@@ -35,7 +35,8 @@ export const ADMIN_NAV = [
   // Boutique : offre Station de service, ou module "mod_boutique" — voir RequireShopAccess (App.jsx).
   { key: 'shop', name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_boutique' },
   { key: 'team', name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
-  { key: 'annonces', name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage' },
+  // Annonces aux clients : à partir de Pro (lib/offers.js) — voir RequireMarketingAccess (App.jsx).
+  { key: 'annonces', name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage', plans: MARKETING_PLANS },
   { key: 'settings', name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage', locked: true },
 ];
 
