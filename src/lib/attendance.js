@@ -36,3 +36,13 @@ export function resolvePointageStatus(member) {
   if (member.status === 'Actif' && !member.clockInAt) return 'Absent';
   return member.status || 'Absent';
 }
+
+// Statut affiché dans la liste « Base de Laveurs / Pompistes » : un employé dont la
+// journée est terminée (« Fin de service ») apparaît en Repos. Affichage seulement :
+// son statut du jour reste « present » en base, sinon ses heures d'aujourd'hui
+// compteraient 0 dans l'export, il disparaîtrait du pointage du jour, et la prise
+// de poste automatique du lendemain ne se déclencherait plus.
+export function rosterDailyStatus(member) {
+  if (member?.dailyStatus === 'present' && member?.status === 'Fin de service') return 'repos';
+  return member?.dailyStatus;
+}

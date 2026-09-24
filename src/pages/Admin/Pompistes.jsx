@@ -10,7 +10,7 @@ import {
 import { useAppState } from '../../hooks/useAppState';
 import { isPastClosingTime } from '../../lib/stationData';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { formatMinutesToHM, formatWorkedTime, parseDurationToMinutes, todayKey, resolvePointageStatus } from '../../lib/attendance';
+import { formatMinutesToHM, formatWorkedTime, parseDurationToMinutes, todayKey, resolvePointageStatus, rosterDailyStatus } from '../../lib/attendance';
 import NozzleChip from '../../components/pompistes/NozzleChip';
 import {
   POMPISTE_ROLE, MAX_LITERS, MAX_AMOUNT, FUEL_LABEL, parseLiters, parseAmount, toInputValue, fmtLiters, fmtFcfa, pricePerLiter, summarizeReadings,
@@ -610,9 +610,9 @@ export default function Pompistes() {
                       </div>
                     </div>
                     <select
-                      value={p.dailyStatus}
+                      value={rosterDailyStatus(p)}
                       onChange={(e) => changeDailyStatus(p.id, e.target.value)}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors flex-shrink-0 ${DAILY_COLOR[p.dailyStatus] || DAILY_COLOR.absent}`}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors flex-shrink-0 ${DAILY_COLOR[rosterDailyStatus(p)] || DAILY_COLOR.absent}`}
                     >
                       <option value="present" className="bg-neutral-900 text-white">Présent</option>
                       <option value="repos" className="bg-neutral-900 text-white">Repos</option>

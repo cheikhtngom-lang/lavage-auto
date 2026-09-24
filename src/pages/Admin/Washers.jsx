@@ -7,7 +7,7 @@ import { CheckCircle2, Clock, XCircle, Search, Droplets, Calendar, Loader2, Chev
 import { useAppState } from '../../hooks/useAppState';
 import { isPastClosingTime } from '../../lib/stationData';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { formatMinutesToHM, formatWorkedTime, parseDurationToMinutes, dateKey, todayKey, resolvePointageStatus } from '../../lib/attendance';
+import { formatMinutesToHM, formatWorkedTime, parseDurationToMinutes, dateKey, todayKey, resolvePointageStatus, rosterDailyStatus } from '../../lib/attendance';
 import WorkedTimeCell from '../../components/ui/WorkedTimeCell';
 
 // ─── Planning de poste (prévisionnel, indépendant du pointage ci-dessus) ──
@@ -415,7 +415,7 @@ export default function Washers() {
             <p className="text-sm text-neutral-400 mb-6">Cochez les laveurs de garde pour la journée d'aujourd'hui.</p>
 
             <div className="space-y-3">
-              {filteredWashers.map(washer => (
+              {filteredWashers.map(washer => { const shownStatus = rosterDailyStatus(washer); return (
                 <div key={washer.id} className="flex items-center justify-between p-3 rounded-xl bg-neutral-900 border border-white/5">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs">
@@ -424,13 +424,13 @@ export default function Washers() {
                     <span className="text-sm font-medium text-white">{washer.name}</span>
                   </div>
                   <select
-                    value={washer.dailyStatus}
+                    value={shownStatus}
                     onChange={(e) => changeDailyStatus(washer.id, e.target.value)}
                     className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors ${
-                      washer.dailyStatus === 'present' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
-                      washer.dailyStatus === 'repos' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
-                      washer.dailyStatus === 'conge' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
-                      washer.dailyStatus === 'maladie' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                      shownStatus === 'present' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                      shownStatus === 'repos' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                      shownStatus === 'conge' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
+                      shownStatus === 'maladie' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
                       'bg-red-500/10 text-red-400 border-red-500/30'
                     }`}
                   >
@@ -441,7 +441,7 @@ export default function Washers() {
                     <option value="absent" className="bg-neutral-900 text-white">Absent (Injustifié)</option>
                   </select>
                 </div>
-              ))}
+              ); })}
             </div>
           </CardContent>
         </Card>
