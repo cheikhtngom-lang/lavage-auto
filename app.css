@@ -91,12 +91,21 @@ details.faq p { color: #a1a1aa; font-size: 0.95rem; line-height: 1.7; margin-top
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Même panneau, sans flou d'arrière-plan : pour les panneaux posés sur un fond
+   uni, où le flou ne se voit pas mais coûte cher (Safari recompose chaque
+   backdrop-filter à chaque image). Le flou reste sur .glass-panel là où il se
+   voit : en-tête qui défile par-dessus la page, badges posés sur la vidéo. */
+.glass-flat {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Pas de backdrop-filter : ces cartes sont toutes sur fond uni (écart visuel
+   mesuré nul) et c'était l'une des causes de lenteur sous Safari. */
 .glass-card {
     background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: all 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
 }
 
 .glass-card:hover {
