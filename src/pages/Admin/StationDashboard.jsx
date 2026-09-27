@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, ChevronsDown, Search, Timer, UserCheck, AlertCircle, Calendar, UserPlus, ArrowRight, LineChart, Hourglass } from 'lucide-react';
+import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronsDown, Timer, UserCheck, AlertCircle, Calendar, UserPlus, ArrowRight, LineChart, Hourglass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBrands';
@@ -58,22 +58,19 @@ function dateKey(d) {
 }
 function todayKey() { return dateKey(new Date()); }
 
-// ---- Types de véhicules par défaut ----
+// Nom inscrit quand le gérant ne saisit pas celui du client (pré-rempli dans le formulaire).
+const DEFAULT_CLIENT_NAME = 'Client';
+
+// ---- Types de véhicules proposés au gérant ----
+// Liste volontairement courte (demande de l'exploitant, 2026-09-27) : six
+// boutons à toucher plutôt qu'une longue liste déroulante à faire défiler.
 const DEFAULT_VEHICLE_TYPES = [
-  { label: '🏍️ Moto / Scooter', value: 'Moto / Scooter' },
-  { label: '🛺 Tricycle', value: 'Tricycle' },
-  { label: '🚗 Berline / Citadine', value: 'Berline / Citadine' },
-  { label: '🚗 Renault Logan', value: 'Renault Logan' },
-  { label: '🚗 Toyota Corolla', value: 'Toyota Corolla' },
-  { label: '🚗 Peugeot 205 / 206 / 207', value: 'Peugeot 205/206/207' },
-  { label: '🚙 4x4 / SUV', value: '4x4 / SUV' },
-  { label: '🚙 Hyundai Tucson / Santa Fe', value: 'Hyundai Tucson/Santa Fe' },
-  { label: '🚐 Minibus (6 places) / Clando', value: 'Minibus / Clando' },
-  { label: '🚌 Car rapide / Bus', value: 'Car rapide / Bus' },
-  { label: '🚛 Camion léger', value: 'Camion léger' },
-  { label: '🚛 Camion lourd / Remorque', value: 'Camion lourd' },
-  { label: '🚍 Bus / Car (+50 places)', value: 'Bus / Car (+50 places)' },
-  { label: '🚜 Engin / Tracteur', value: 'Engin / Tracteur' },
+  { emoji: '🏍️', label: 'Moto', value: 'Moto' },
+  { emoji: '🚗', label: 'Berline', value: 'Berline' },
+  { emoji: '🚙', label: 'SUV', value: 'SUV' },
+  { emoji: '🚐', label: 'Mini bus', value: 'Mini bus' },
+  { emoji: '🚛', label: 'Camion', value: 'Camion' },
+  { emoji: '🚌', label: 'Bus +50 places', value: 'Bus +50 places' },
 ];
 
 // Catégorie tarifaire suggérée pour chaque type par défaut ci-dessus — le
@@ -85,6 +82,13 @@ const DEFAULT_VEHICLE_TYPES = [
 // donc la catégorie à la sélection du type, sans empêcher l'admin de la
 // corriger ensuite manuellement si besoin.
 const VEHICLE_TYPE_PRICING_CATEGORY = {
+  'Moto': 'Moto',
+  'Berline': 'Particulier',
+  'SUV': 'Particulier',
+  'Mini bus': 'Transport',
+  'Camion': 'Camion',
+  'Bus +50 places': 'Camion',
+  // Anciens libellés (types déjà saisis, dictée vocale) : même tarification.
   'Moto / Scooter': 'Moto',
   'Tricycle': 'Moto',
   'Berline / Citadine': 'Particulier',
@@ -114,15 +118,15 @@ function guessPricingCategory(vehicleTypeValue) {
 // Dictée vocale (VoiceVehicleButton) : les types du formulaire station n'ont pas
 // exactement les libellés de vehicleBrands.js — on fait la correspondance ici.
 const CATEGORY_TO_STATION_TYPE = {
-  'Moto / Scooter': 'Moto / Scooter',
-  'Tricycle': 'Tricycle',
-  'Berline / Citadine': 'Berline / Citadine',
-  'SUV / 4x4': '4x4 / SUV',
-  'Utilitaire / Minibus': 'Minibus / Clando',
-  'Bus / Car rapide': 'Car rapide / Bus',
-  'Camion léger': 'Camion léger',
-  'Camion lourd / Remorque': 'Camion lourd',
-  'Bus / Car (+50 places)': 'Bus / Car (+50 places)',
+  'Moto / Scooter': 'Moto',
+  'Tricycle': 'Moto',
+  'Berline / Citadine': 'Berline',
+  'SUV / 4x4': 'SUV',
+  'Utilitaire / Minibus': 'Mini bus',
+  'Bus / Car rapide': 'Mini bus',
+  'Camion léger': 'Camion',
+  'Camion lourd / Remorque': 'Camion',
+  'Bus / Car (+50 places)': 'Bus +50 places',
 };
 const normalizeSpoken = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 // Type déjà connu de la station cité en toutes lettres dans la phrase
@@ -134,116 +138,43 @@ function findSpokenType(heard, values) {
     .sort((a, b) => b.length - a.length)[0] || null;
 }
 
-// ---- Composant Dropdown Searchable Véhicule ----
-function VehicleDropdown({ value, onChange }) {
-  const { customVehicleTypes, addCustomVehicleType } = useAppState();
-  const [open, setOpen] = React.useState(false);
-  const [search, setSearch] = React.useState('');
-  const dropdownRef = React.useRef(null);
-
-  const allTypes = [...DEFAULT_VEHICLE_TYPES, ...customVehicleTypes.map(v => ({ label: `✏️ ${v}`, value: v }))];
-  const filtered = allTypes.filter(t =>
-    t.label.toLowerCase().includes(search.toLowerCase()) ||
-    t.value.toLowerCase().includes(search.toLowerCase())
-  );
-
-  // Fermer si clic en dehors
-  React.useEffect(() => {
-    const handleClick = (e) => { if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const selectItem = (val) => { onChange(val); setSearch(''); setOpen(false); };
-
-  const addCustom = () => {
-    const trimmed = search.trim();
-    if (!trimmed) return;
-    const exists = allTypes.some(t => t.value.toLowerCase() === trimmed.toLowerCase());
-    if (!exists) addCustomVehicleType(trimmed);
-    onChange(trimmed);
-    setSearch('');
-    setOpen(false);
-  };
-
-  const showAddOption = search.trim() && !allTypes.some(t => t.value.toLowerCase() === search.trim().toLowerCase());
-
+// ---- Choix du type de véhicule : six boutons à toucher ----
+// Une valeur hors liste (modèle dicté à la voix, ou véhicule du garage d'un
+// client reconnu par sa plaque, ex. « Toyota Corolla ») reste affichée sous
+// les boutons ; toucher un type la remplace.
+function VehicleTypePicker({ value, onChange }) {
+  const isStandard = DEFAULT_VEHICLE_TYPES.some((t) => t.value === value);
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Trigger */}
-      <button
-        type="button"
-        onClick={() => { setOpen(o => !o); setSearch(''); }}
-        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 text-left flex items-center justify-between gap-2 transition-colors hover:border-white/20"
-      >
-        <span className={value ? 'text-white' : 'text-neutral-500'}>
-          {value || 'Sélectionner ou taper un type...'}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {/* Dropdown panel */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -6, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -6, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-50 left-0 right-0 mt-2 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden"
-            style={{ maxHeight: '300px' }}
-          >
-            {/* Recherche */}
-            <div className="p-2 border-b border-white/5 flex items-center gap-2">
-              <Search className="w-4 h-4 text-neutral-500 flex-shrink-0 ml-1" />
-              <input
-                autoFocus
-                type="text"
-                placeholder="Rechercher ou taper un type..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); showAddOption ? addCustom() : (filtered[0] && selectItem(filtered[0].value)); } }}
-                className="flex-1 bg-transparent text-white text-sm outline-none placeholder-neutral-600"
-              />
-            </div>
-
-            {/* Liste */}
-            <div className="overflow-y-auto" style={{ maxHeight: '220px' }}>
-              {filtered.map(t => (
-                <button
-                  key={t.value}
-                  type="button"
-                  onClick={() => selectItem(t.value)}
-                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-2 ${
-                    value === t.value
-                      ? 'bg-blue-600/20 text-blue-300'
-                      : 'text-neutral-300 hover:bg-white/5'
-                  }`}
-                >
-                  {value === t.value && <span className="text-blue-400 text-xs">✓</span>}
-                  {t.label}
-                </button>
-              ))}
-
-              {/* Option d'ajout custom */}
-              {showAddOption && (
-                <button
-                  type="button"
-                  onClick={addCustom}
-                  className="w-full text-left px-4 py-2.5 text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors flex items-center gap-2 border-t border-white/5"
-                >
-                  <Plus className="w-4 h-4" />
-                  Ajouter "<span className="font-semibold">{search.trim()}</span>" à la liste
-                </button>
-              )}
-
-              {filtered.length === 0 && !showAddOption && (
-                <p className="text-center text-neutral-600 text-sm py-4">Aucun résultat</p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div>
+      <div className="grid grid-cols-3 gap-2">
+        {DEFAULT_VEHICLE_TYPES.map((t) => {
+          const selected = value === t.value;
+          return (
+            <button
+              key={t.value}
+              type="button"
+              onClick={() => onChange(t.value)}
+              aria-pressed={selected}
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-center transition-colors ${
+                selected
+                  ? 'bg-blue-600/20 border-blue-500 text-white'
+                  : 'bg-neutral-950 border-white/10 text-neutral-300 hover:border-white/25 hover:text-white'
+              }`}
+            >
+              <span className="text-xl leading-none" aria-hidden="true">{t.emoji}</span>
+              <span className="text-xs font-semibold leading-tight">{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      {value && !isStandard && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-sm">
+          <span className="text-blue-200 truncate">Véhicule : <strong className="text-white">{value}</strong></span>
+          <button type="button" onClick={() => onChange('')} className="text-neutral-400 hover:text-white flex-shrink-0" aria-label="Effacer le véhicule">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -289,7 +220,7 @@ export default function StationDashboard() {
   };
 
   const [showAddModal, setShowAddModal] = React.useState(false);
-  const [newWash, setNewWash] = React.useState({ client: '', vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false, plate: '', clientId: null });
+  const [newWash, setNewWash] = React.useState({ client: DEFAULT_CLIENT_NAME, vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false, plate: '', clientId: null });
   // Reconnaissance d'un client de passage déjà automobiliste, via sa plaque
   // (voir lib/stationData.js findVehicleOwnerByPlate) — 'idle' | 'checking' | 'found' | 'not_found'.
   const [plateLookupStatus, setPlateLookupStatus] = React.useState('idle');
@@ -492,7 +423,7 @@ export default function StationDashboard() {
   const handleAddWash = (e) => {
     e.preventDefault();
     addWash({
-        client: newWash.client || "Client de passage",
+        client: newWash.client.trim() || DEFAULT_CLIENT_NAME,
         // Plaque (ou « Sans plaque ») dans le libellé : c'est ce texte qui apparaît
         // dans la file, les transactions et les reçus.
         vehicle: formatVehicleLabel(newWash.vehicle, newWash.plate),
@@ -502,7 +433,7 @@ export default function StationDashboard() {
         clientId: newWash.clientId,
     });
     setShowAddModal(false);
-    setNewWash({ client: '', vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false, plate: '', clientId: null });
+    setNewWash({ client: DEFAULT_CLIENT_NAME, vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false, plate: '', clientId: null });
     setPlateLookupStatus('idle');
   };
 
@@ -1230,7 +1161,9 @@ export default function StationDashboard() {
                   <label className="block text-sm font-medium text-neutral-400 mb-1">Nom du client (Optionnel)</label>
                   <input
                     type="text"
-                    placeholder="Ex: Client de passage"
+                    placeholder={DEFAULT_CLIENT_NAME}
+                    // « Client » est pré-rempli : il est sélectionné au toucher, taper un nom le remplace.
+                    onFocus={(e) => e.target.select()}
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500"
                     value={newWash.client}
                     onChange={(e) => setNewWash({...newWash, client: e.target.value})}
@@ -1238,7 +1171,7 @@ export default function StationDashboard() {
                 </div>
                 <div>
                    <label className="block text-sm font-medium text-neutral-400 mb-1">Type de véhicule</label>
-                   <VehicleDropdown
+                   <VehicleTypePicker
                      value={newWash.vehicle}
                      onChange={(val) => {
                        const guessedCategory = guessPricingCategory(val);
