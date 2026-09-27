@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Cadre des espaces connectés (AppShell.jsx) : hauteur de l'écran VISIBLE.
+   100vh seul inclut, sur Safari iPad/iPhone, la zone sous la barre d'outils —
+   le bas du menu et de la page restait caché. 100dvh la suit en direct. */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /* Impression du reçu (Transactions.jsx) : n'imprime que le contenu
    .receipt-preview, en cachant le reste de la page (modale, tableau...). */
 @media print {
@@ -34,6 +42,14 @@
 
   h1, h2, h3 {
     @apply font-display tracking-tight;
+  }
+
+  /* En-têtes de tableau sur une ligne : sur tablette, « Prise de poste » ou
+     « Temps de travail » s'empilaient sur 3 lignes. Tous les tableaux sont
+     dans une zone à défilement horizontal (overflow-x-auto) ; un <br>
+     volontaire (planning : jour / date) continue de passer à la ligne. */
+  th {
+    white-space: nowrap;
   }
 }
 

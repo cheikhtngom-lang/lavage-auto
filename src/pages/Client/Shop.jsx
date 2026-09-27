@@ -110,9 +110,9 @@ export default function Shop() {
   const hasAnyPromo = groups.some((g) => g.products.some((p) => productPricing(p).onSale));
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-5xl relative z-10">
+    <div className="container mx-auto px-4 py-8 sm:py-12 max-w-5xl relative z-10">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2 tracking-tight flex items-center gap-3">
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight flex items-center gap-3">
           <ShoppingBag className="w-8 h-8 text-blue-400" /> La <span className="text-blue-400">Boutique</span>
         </h1>
         <p className="text-neutral-400 text-lg">Pièces et accessoires proposés par les stations où vous avez réservé.</p>

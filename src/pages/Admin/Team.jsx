@@ -155,7 +155,7 @@ export default function Team() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">
           Gestion de l'<span className="text-blue-400">équipe</span>

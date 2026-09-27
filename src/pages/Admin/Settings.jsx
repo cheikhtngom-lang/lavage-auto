@@ -527,7 +527,7 @@ export default function Settings() {
   const selectedAdPlan = AD_PLANS.find((p) => p.id === adPlanId) || AD_PLANS[0];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       {/* Banner d'onboarding si la station n'est pas encore configurée */}
       {isNewStation && (
         <div className="mb-6 bg-orange-950/40 border border-orange-500/30 rounded-2xl p-5 flex items-start gap-4">
@@ -543,7 +543,7 @@ export default function Settings() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Paramètres de la <span className="text-blue-400">Station</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">Paramètres de la <span className="text-blue-400">Station</span></h1>
           <p className="text-neutral-400 text-lg">Configurez vos informations, tarifs et algorithmes.</p>
         </div>
         <button 
@@ -835,7 +835,7 @@ export default function Settings() {
 
           {activeTab === 'nomprofil' && (
             <Card className="border-white/5 bg-white/[0.02]">
-              <CardContent className="p-8 max-w-xl">
+              <CardContent className="p-4 sm:p-6 lg:p-8 max-w-xl">
                 <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Store className="w-5 h-5 text-blue-400" /> Nom de profil</h2>
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">C'est le nom affiché aux clients partout dans l'application (recherche, réservation, reçus).</p>
                 <form onSubmit={handleSaveProfileName} className="space-y-4">
@@ -1340,7 +1340,7 @@ export default function Settings() {
 
           {activeTab === 'publicite' && canMarketing && (
             <Card className="border-white/5 bg-white/[0.02]">
-              <CardContent className="p-8 max-w-2xl">
+              <CardContent className="p-4 sm:p-6 lg:p-8 max-w-2xl">
                 <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Camera className="w-5 h-5 text-blue-400" /> Passer une pub</h2>
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">
                   Diffusez un message sur le tableau de bord de <strong className="text-white">tous les automobilistes de la plateforme</strong>, à partir de {Math.min(...AD_PLANS.map(p => p.price)).toLocaleString('fr-FR')} FCFA.

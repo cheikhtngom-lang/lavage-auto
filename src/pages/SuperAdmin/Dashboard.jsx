@@ -200,14 +200,14 @@ export default function SuperAdminDashboard() {
   const revenueColumnLabel = revenueGranularity === 'jour' ? 'Jour' : revenueGranularity === 'annee' ? 'Année' : 'Mois';
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between mb-12"
       >
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight flex items-center">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center">
             Vue d'ensemble <span className="text-purple-400 ml-2">Plateforme</span>
           </h1>
           <p className="text-neutral-400 text-lg">Gérez l'ensemble de votre réseau de stations de lavage.</p>
@@ -341,7 +341,7 @@ export default function SuperAdminDashboard() {
               sélectionner (même effet que PeriodFilter), triée
               chronologiquement, total en pied de tableau. */}
           <div className="mt-6 rounded-xl border border-white/10 overflow-hidden">
-            <div className="overflow-y-auto" style={{ maxHeight: 360 }}>
+            <div className="overflow-auto" style={{ maxHeight: 360 }}>
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-neutral-900 z-10">
                   <tr className="text-neutral-500 text-xs uppercase tracking-wider">

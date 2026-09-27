@@ -43,10 +43,10 @@ export default function Garage() {
   const closeModal = () => { setShowAddModal(false); setForm(emptyForm); };
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-5xl relative z-10">
+    <div className="container mx-auto px-4 py-8 sm:py-12 max-w-5xl relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
         <div>
-          <h1 className="text-4xl font-bold mb-2 tracking-tight">Mon <span className="text-blue-400">Parking</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight">Mon <span className="text-blue-400">Parking</span></h1>
           <p className="text-neutral-400 text-lg">Retrouvez vos véhicules pour réserver plus vite.</p>
         </div>
         <button

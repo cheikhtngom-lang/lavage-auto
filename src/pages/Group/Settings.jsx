@@ -204,8 +204,8 @@ export default function GroupSettings() {
   const status = GROUP_STATUS[org?.status];
 
   return (
-    <div className="p-6 md:p-8 max-w-3xl mx-auto">
-      <h1 className="text-4xl font-bold tracking-tight mb-2"><span className="text-emerald-400">Paramètres</span></h1>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2"><span className="text-emerald-400">Paramètres</span></h1>
       <p className="text-neutral-400 mb-8">Votre profil, votre entreprise et la sécurité de votre compte.</p>
 
       {/* ─── Profil ─── */}

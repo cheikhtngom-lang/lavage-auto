@@ -42,10 +42,10 @@ export default function Motorists() {
   ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Automobilistes <span className="text-purple-400">Inscrits</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">Automobilistes <span className="text-purple-400">Inscrits</span></h1>
           <p className="text-neutral-400 text-lg">Registre des comptes automobilistes de toute la plateforme.</p>
         </div>
       </div>
@@ -90,8 +90,8 @@ export default function Motorists() {
         <div className="glass-card rounded-2xl overflow-hidden border-white/5">
           {/* Mobile : une carte par automobiliste (le tableau à 5 colonnes était
               coupé par overflow-hidden — email tronqué, Véhicules/Favoris/Date
-              hors-écran). Le tableau reste réservé à md et plus. */}
-          <div className="md:hidden divide-y divide-white/5">
+              hors-écran). Le tableau reste réservé aux grands écrans (lg), défilant si besoin. */}
+          <div className="lg:hidden divide-y divide-white/5">
             {paginated.map((c) => (
               <button key={c.id} type="button" onClick={() => setSelected(c)} className="w-full text-left p-4 hover:bg-white/5 transition-colors">
                 <p className="font-bold text-white">{c.name || 'Sans nom'}</p>
@@ -104,7 +104,8 @@ export default function Motorists() {
               </button>
             ))}
           </div>
-          <table className="hidden md:table w-full text-left border-collapse">
+          <div className="hidden lg:block overflow-x-auto">
+          <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-white/10 text-neutral-400 text-sm bg-black/20">
                 <th className="p-5 font-medium">Automobiliste</th>
@@ -133,6 +134,7 @@ export default function Motorists() {
               ))}
             </tbody>
           </table>
+          </div>
           <Pagination
             page={currentPage}
             pageSize={pageSize}

@@ -113,9 +113,9 @@ export default function SuperAdminSettings() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
           <SettingsIcon className="w-8 h-8 text-purple-400" /> Paramètres <span className="text-purple-400">Plateforme</span>
         </h1>
         <p className="text-neutral-400 text-lg">Gérez les plans d'abonnement, votre compte et le suivi d'activité.</p>

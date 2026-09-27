@@ -275,9 +275,9 @@ export default function Settings() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl relative z-10">
+    <div className="container mx-auto px-4 py-8 sm:py-12 max-w-3xl relative z-10">
       <div className="mb-10">
-        <h1 className="text-4xl font-bold mb-2 tracking-tight">Mes <span className="text-blue-400">Paramètres</span></h1>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight">Mes <span className="text-blue-400">Paramètres</span></h1>
         <p className="text-neutral-400 text-lg">Gérez vos informations personnelles et votre sécurité.</p>
       </div>
 

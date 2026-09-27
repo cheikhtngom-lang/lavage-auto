@@ -62,10 +62,10 @@ export default function Groups() {
   const paginated = groups.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Groupes <span className="text-purple-400">Sur mesure</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">Groupes <span className="text-purple-400">Sur mesure</span></h1>
           <p className="text-neutral-400 text-lg">Les chefs d’entreprise multi-stations et leurs paiements groupés.</p>
         </div>
         <button onClick={load} className="p-3 bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white rounded-xl transition-colors" title="Actualiser">

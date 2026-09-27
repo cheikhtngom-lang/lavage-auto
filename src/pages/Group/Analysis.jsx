@@ -128,10 +128,10 @@ export default function Analysis() {
   const resets = usage?.resets_on ? new Date(usage.resets_on).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) : null;
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3">
             Analyse <span className="text-emerald-400">IA</span>
             <Sparkles className="w-7 h-7 text-emerald-400" />
           </h1>

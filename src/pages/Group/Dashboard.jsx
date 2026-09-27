@@ -156,10 +156,10 @@ export default function Dashboard() {
   const hourData = (data?.hour || []).map((v, i) => ({ label: `${i}h`, value: v }));
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Tableau de <span className="text-emerald-400">bord</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Tableau de <span className="text-emerald-400">bord</span></h1>
           <p className="text-neutral-400 mt-1">{range ? `${range.label} · comparé à la période précédente de même durée` : 'Choisissez une période'}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

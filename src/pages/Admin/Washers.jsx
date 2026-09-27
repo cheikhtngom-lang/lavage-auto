@@ -183,6 +183,42 @@ export default function Washers() {
     recordDailyAttendance(id, patch);
   };
 
+  // Colonne « Statut » du pointage (tableau sur tablette/ordinateur, carte sur
+  // téléphone) : boutons d'action aujourd'hui, simple badge pour une date passée.
+  const renderPointageStatus = (member, pointageStatus) => {
+    if (!isToday) {
+      return (
+        <Badge variant="outline" className={`flex items-center gap-1.5 w-fit ml-auto whitespace-nowrap ${getStatusColor(pointageStatus)}`}>
+          {getStatusIcon(pointageStatus)} {pointageStatus}
+        </Badge>
+      );
+    }
+    return (
+      <div className="flex flex-wrap justify-end gap-2">
+        {pointageStatus === 'Actif' && (
+          <button onClick={() => handleClockOut(member.id)} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold text-xs whitespace-nowrap transition-colors shadow-lg shadow-red-500/20">
+            Descente
+          </button>
+        )}
+        {pointageStatus === 'Terminé' && (
+          <>
+            {!isPastClosingTime(stationProfile) && (
+              <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs whitespace-nowrap transition-colors shadow-lg shadow-emerald-500/20">
+                Reprendre service
+              </button>
+            )}
+            <button onClick={() => finishService(member.id)} className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold text-xs whitespace-nowrap transition-colors">
+              Fin de service
+            </button>
+          </>
+        )}
+        {pointageStatus === 'Fin de service' && (
+          <span className="text-xs text-neutral-500 italic whitespace-nowrap">Journée terminée</span>
+        )}
+      </div>
+    );
+  };
+
   // Export du pointage RÉEL d'un mois — classeur Excel professionnel à 3
   // feuilles, à partir des vraies données de `attendance_records`
   // (loadAttendanceForMonth) :
@@ -375,10 +411,10 @@ export default function Washers() {
   const selectedDateLabel = new Date(`${selectedDate}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Gestion des <span className="text-blue-400">Laveurs</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">Gestion des <span className="text-blue-400">Laveurs</span></h1>
           <p className="text-neutral-400 text-lg">Sélectionnez les laveurs présents et gérez leur pointage journalier.</p>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
@@ -406,27 +442,30 @@ export default function Washers() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Deux colonnes seulement sur grand écran (xl) : en dessous (tablette),
+          la Base puis le Pointage prennent chacun toute la largeur — sinon la
+          colonne de gauche faisait ~230 px et les statuts sortaient de la carte. */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
 
         {/* Colonne de gauche : Sélection des présents */}
         <Card className="h-fit">
-          <CardContent className="p-6">
-            <h2 className="text-xl font-bold text-white mb-4">Base de Laveurs</h2>
-            <p className="text-sm text-neutral-400 mb-6">Cochez les laveurs de garde pour la journée d'aujourd'hui.</p>
+          <CardContent className="p-4 sm:p-6">
+            <h2 className="text-xl font-bold text-white mb-2 sm:mb-4">Base de Laveurs</h2>
+            <p className="text-sm text-neutral-400 mb-4 sm:mb-6">Cochez les laveurs de garde pour la journée d'aujourd'hui.</p>
 
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 gap-3">
               {filteredWashers.map(washer => { const shownStatus = rosterDailyStatus(washer); return (
-                <div key={washer.id} className="flex items-center justify-between p-3 rounded-xl bg-neutral-900 border border-white/5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs">
+                <div key={washer.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-xl bg-neutral-900 border border-white/5">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 basis-28">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0">
                       {washer.avatar}
                     </div>
-                    <span className="text-sm font-medium text-white">{washer.name}</span>
+                    <span className="text-sm font-medium text-white break-words min-w-0">{washer.name}</span>
                   </div>
                   <select
                     value={shownStatus}
                     onChange={(e) => changeDailyStatus(washer.id, e.target.value)}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors ${
+                    className={`ml-auto flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors ${
                       shownStatus === 'present' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
                       shownStatus === 'repos' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
                       shownStatus === 'conge' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
@@ -447,11 +486,11 @@ export default function Washers() {
         </Card>
 
         {/* Colonne de droite : Pointage */}
-        <Card className="lg:col-span-2">
-          <CardContent className="p-6">
+        <Card className="xl:col-span-2">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex flex-wrap justify-between items-center gap-4 mb-2">
               <h2 className="text-xl font-bold text-white">Pointage {isToday ? 'Journalier' : '— Historique'}</h2>
-              <div className="relative w-64">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
                 <input
                   type="text"
@@ -486,86 +525,95 @@ export default function Washers() {
               <span className="text-sm text-neutral-500 capitalize">{selectedDateLabel}</span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="p-4 font-semibold text-neutral-400">Employé</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-center">Prise de poste</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-center">Descente</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-center">Temps de travail</th>
-                    <th className="p-4 font-semibold text-neutral-400 text-right">Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <AnimatePresence>
-                    {rowsToShow.length === 0 ? (
-                      <tr><td colSpan="5" className="p-8 text-center text-neutral-500">
-                        {isToday ? 'Aucun laveur sélectionné pour aujourd\'hui.' : 'Aucune donnée de pointage pour cette date.'}
-                      </td></tr>
-                    ) : (
-                      rowsToShow.map((member) => {
-                        const pointageStatus = isToday ? resolvePointageStatus(member) : (member.status || 'Absent');
-                        return (
-                        <motion.tr
-                          key={member.id}
-                          layout
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
-                        >
-                          <td className="p-4">
-                            <div className="font-bold text-white">{member.name}</div>
+            {rowsToShow.length === 0 ? (
+              <p className="p-8 text-center text-neutral-500 border-t border-white/10">
+                {isToday ? 'Aucun laveur sélectionné pour aujourd\'hui.' : 'Aucune donnée de pointage pour cette date.'}
+              </p>
+            ) : (
+              <>
+                {/* Téléphone : une carte par laveur (le tableau à 5 colonnes
+                    obligeait à défiler de côté pour atteindre « Descente »). */}
+                <div className="md:hidden space-y-3">
+                  {rowsToShow.map((member) => {
+                    const pointageStatus = isToday ? resolvePointageStatus(member) : (member.status || 'Absent');
+                    return (
+                      <div key={member.id} className="p-4 rounded-xl bg-neutral-900 border border-white/5">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="min-w-0">
+                            <div className="font-bold text-white break-words">{member.name}</div>
                             <div className="text-xs text-neutral-500">{member.role}</div>
-                          </td>
-                          <td className="p-4 text-center font-bold text-emerald-400">
-                            {member.clockIn || "-"}
-                          </td>
-                          <td className="p-4 text-center font-bold text-red-400">
-                            {member.clockOut || "-"}
-                          </td>
-                          <td className="p-4 text-center font-bold text-blue-400">
-                            <WorkedTimeCell member={member} status={pointageStatus} live={isToday} />
-                          </td>
-                          <td className="p-4 text-right">
-                            {isToday ? (
-                              <div className="flex justify-end gap-2">
-                                {pointageStatus === 'Actif' && (
-                                  <button onClick={() => handleClockOut(member.id)} className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-red-500/20">
-                                    Descente
-                                  </button>
-                                )}
-                                {pointageStatus === 'Terminé' && (
-                                  <>
-                                    {!isPastClosingTime(stationProfile) && (
-                                      <button onClick={() => resumeEmployee(member.id)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs transition-colors shadow-lg shadow-emerald-500/20">
-                                        Reprendre service
-                                      </button>
-                                    )}
-                                    <button onClick={() => finishService(member.id)} className="px-3 py-1.5 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg font-bold text-xs transition-colors">
-                                      Fin de service
-                                    </button>
-                                  </>
-                                )}
-                                {pointageStatus === 'Fin de service' && (
-                                  <span className="text-xs text-neutral-500 italic">Journée terminée</span>
-                                )}
-                              </div>
-                            ) : (
-                              <Badge variant="outline" className={`flex items-center gap-1.5 w-fit ml-auto ${getStatusColor(pointageStatus)}`}>
-                                {getStatusIcon(pointageStatus)} {pointageStatus}
-                              </Badge>
-                            )}
-                          </td>
-                        </motion.tr>
-                        );
-                      })
-                    )}
-                  </AnimatePresence>
-                </tbody>
-              </table>
-            </div>
+                          </div>
+                          {!isToday && renderPointageStatus(member, pointageStatus)}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="rounded-lg bg-white/[0.03] px-2 py-2">
+                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Prise de poste</div>
+                            <div className="font-bold text-emerald-400">{member.clockIn || '-'}</div>
+                          </div>
+                          <div className="rounded-lg bg-white/[0.03] px-2 py-2">
+                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Descente</div>
+                            <div className="font-bold text-red-400">{member.clockOut || '-'}</div>
+                          </div>
+                          <div className="rounded-lg bg-white/[0.03] px-2 py-2">
+                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Travail</div>
+                            <div className="font-bold text-blue-400"><WorkedTimeCell member={member} status={pointageStatus} live={isToday} /></div>
+                          </div>
+                        </div>
+                        {isToday && <div className="mt-3">{renderPointageStatus(member, pointageStatus)}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="px-3 py-4 font-semibold text-neutral-400">Employé</th>
+                        <th className="px-3 py-4 font-semibold text-neutral-400 text-center">Prise de poste</th>
+                        <th className="px-3 py-4 font-semibold text-neutral-400 text-center">Descente</th>
+                        <th className="px-3 py-4 font-semibold text-neutral-400 text-center">Temps de travail</th>
+                        <th className="px-3 py-4 font-semibold text-neutral-400 text-right">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <AnimatePresence>
+                        {rowsToShow.map((member) => {
+                          const pointageStatus = isToday ? resolvePointageStatus(member) : (member.status || 'Absent');
+                          return (
+                            <motion.tr
+                              key={member.id}
+                              layout
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                            >
+                              <td className="px-3 py-4">
+                                <div className="font-bold text-white">{member.name}</div>
+                                <div className="text-xs text-neutral-500">{member.role}</div>
+                              </td>
+                              <td className="px-3 py-4 text-center font-bold text-emerald-400 whitespace-nowrap">
+                                {member.clockIn || "-"}
+                              </td>
+                              <td className="px-3 py-4 text-center font-bold text-red-400 whitespace-nowrap">
+                                {member.clockOut || "-"}
+                              </td>
+                              <td className="px-3 py-4 text-center font-bold text-blue-400 whitespace-nowrap">
+                                <WorkedTimeCell member={member} status={pointageStatus} live={isToday} />
+                              </td>
+                              <td className="px-3 py-4 text-right">
+                                {renderPointageStatus(member, pointageStatus)}
+                              </td>
+                            </motion.tr>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -573,7 +621,7 @@ export default function Washers() {
       {/* Planning de poste (prévisionnel) — totalement indépendant du pointage
           ci-dessus : ne touche jamais daily_status/status/clockIn. */}
       <Card className="mt-8">
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl font-bold text-white">Planning de Poste</h2>
@@ -593,7 +641,7 @@ export default function Washers() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 mb-6">
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
             <button onClick={goPrevPeriod} className="p-1.5 rounded-lg bg-neutral-900 border border-white/10 text-neutral-400 hover:text-white transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>

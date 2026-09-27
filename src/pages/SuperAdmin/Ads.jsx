@@ -50,9 +50,9 @@ export default function SuperAdminAds() {
   ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Publicités <span className="text-amber-400">des stations</span></h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">Publicités <span className="text-amber-400">des stations</span></h1>
         <p className="text-neutral-400 text-lg">Campagnes payantes diffusées sur le tableau de bord de tous les automobilistes — revenus plateforme distincts des abonnements stations.</p>
       </div>
 

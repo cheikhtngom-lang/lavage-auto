@@ -10,9 +10,9 @@ export default function SuperAdminAnnouncements() {
   const { stations, platformAnnouncements, sendPlatformAnnouncement, retirePlatformAnnouncement } = useSuperAdminState();
 
   return (
-    <div className="p-8 max-w-4xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto relative z-10">
       <div className="mb-10">
-        <h1 className="text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
           <Send className="w-8 h-8 text-purple-400" /> Annonces
         </h1>
         <p className="text-neutral-400 text-lg">Diffusez un message à toutes les stations partenaires, ou à une seule.</p>

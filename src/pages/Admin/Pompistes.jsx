@@ -552,7 +552,7 @@ export default function Pompistes() {
   );
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">Gestion des <span className="text-blue-400">Pompistes</span></h1>
@@ -583,10 +583,11 @@ export default function Pompistes() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Deux colonnes seulement sur grand écran (xl), comme la page Laveurs. */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
         {/* ═══ Équipe de pompistes : présence du jour ═══ */}
         <Card className="h-fit">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
               <h2 className="text-xl font-bold text-white">Base de Pompistes</h2>
               {manageLink}
@@ -599,10 +600,10 @@ export default function Pompistes() {
                 <p className="text-xs text-neutral-500">Ajoutez vos pompistes et les pompes de la station dans Paramètres.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 gap-3">
                 {roster.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-neutral-900 border border-white/5">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 rounded-xl bg-neutral-900 border border-white/5">
+                    <div className="flex items-center gap-3 min-w-0 flex-1 basis-28">
                       <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0">{p.avatar}</div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-white truncate">{p.name}</p>
@@ -612,7 +613,7 @@ export default function Pompistes() {
                     <select
                       value={rosterDailyStatus(p)}
                       onChange={(e) => changeDailyStatus(p.id, e.target.value)}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors flex-shrink-0 ${DAILY_COLOR[rosterDailyStatus(p)] || DAILY_COLOR.absent}`}
+                      className={`ml-auto text-xs font-bold px-3 py-1.5 rounded-lg border outline-none appearance-none cursor-pointer transition-colors flex-shrink-0 ${DAILY_COLOR[rosterDailyStatus(p)] || DAILY_COLOR.absent}`}
                     >
                       <option value="present" className="bg-neutral-900 text-white">Présent</option>
                       <option value="repos" className="bg-neutral-900 text-white">Repos</option>
@@ -628,8 +629,8 @@ export default function Pompistes() {
         </Card>
 
         {/* ═══ Récapitulatif du jour ═══ */}
-        <Card className="lg:col-span-2">
-          <CardContent className="p-6">
+        <Card className="xl:col-span-2">
+          <CardContent className="p-4 sm:p-6">
             <h2 className="text-xl font-bold text-white mb-2">Récapitulatif {isToday ? 'du jour' : '— Historique'}</h2>
             <div className="flex flex-wrap items-center gap-3 mb-6">
               <div className="flex items-center gap-2 bg-neutral-900 border border-white/10 rounded-lg px-3 py-2">
@@ -709,7 +710,7 @@ export default function Pompistes() {
 
       {/* ═══ Pointage, pompe du jour et relevé ═══ */}
       <Card className="mt-8">
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <h2 className="text-xl font-bold text-white mb-4">Pointage {isToday ? 'Journalier' : '— Historique'}</h2>
 
           {activePumps.length === 0 && (

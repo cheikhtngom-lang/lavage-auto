@@ -59,8 +59,8 @@ export default function Billing() {
   const overdue = nextDate && nextDate < new Date();
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
-      <h1 className="text-4xl font-bold tracking-tight mb-2"><span className="text-emerald-400">Facturation</span></h1>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2"><span className="text-emerald-400">Facturation</span></h1>
       <p className="text-neutral-400 mb-8">Un seul paiement mensuel pour toutes vos stations.</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">

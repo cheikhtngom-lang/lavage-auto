@@ -138,14 +138,14 @@ export default function SuperAdminAnalytics() {
   ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10 pb-24">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10 pb-24">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4"
       >
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight flex items-center">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center">
             Analytique <span className="text-purple-400 ml-2">& Abonnements</span>
           </h1>
           <p className="text-neutral-400 text-lg">Volumes d'abonnements, fréquences et recettes de toute la plateforme.</p>

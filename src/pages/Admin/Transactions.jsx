@@ -91,10 +91,10 @@ export default function AdminTransactions() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">Historique des <span className="text-blue-400">Transactions</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">Historique des <span className="text-blue-400">Transactions</span></h1>
           <p className="text-neutral-400 text-lg">Consultez, filtrez et exportez vos revenus.</p>
         </div>
         <div className="flex items-center gap-4 bg-blue-950/30 border border-blue-500/20 rounded-2xl px-6 py-4 shadow-[0_0_15px_rgba(59,130,246,0.15)]">

@@ -164,7 +164,7 @@ export default function SuperAdminBilan() {
   const topCities = Object.entries(cityCounts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([label, value]) => ({ label, value }));
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       {/* En-tête */}
       <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-6">
         <div>

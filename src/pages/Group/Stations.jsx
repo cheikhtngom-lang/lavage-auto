@@ -344,10 +344,10 @@ export default function Stations() {
   const openRequests = requests.filter((r) => r.status === 'pending' || r.status === 'accepted');
 
   return (
-    <div className="p-6 md:p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">Mes <span className="text-emerald-400">stations</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Mes <span className="text-emerald-400">stations</span></h1>
           <p className="text-neutral-400 mt-1">Ouvrez une station pour y travailler avec tous les droits.</p>
         </div>
         <div className="flex gap-2 flex-wrap">

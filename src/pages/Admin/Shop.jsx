@@ -169,7 +169,7 @@ export default function Shop() {
   // mais si la facturation change en cours de session on reste cohérent.
   if (stationBilling && !canShop) {
     return (
-      <div className="p-8 max-w-3xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="p-8 text-center">
             <Store className="w-10 h-10 text-neutral-500 mx-auto mb-4" />
@@ -185,10 +185,10 @@ export default function Shop() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
             <Store className="w-8 h-8 text-emerald-400" /> Ma <span className="text-blue-400">Boutique</span>
           </h1>
           <p className="text-neutral-400 text-lg">Vendez vos produits (pneus, huiles, pare-brise…) à vos clients.</p>
@@ -201,14 +201,14 @@ export default function Shop() {
         )}
       </div>
 
-      <div className="flex gap-2 mb-8 border-b border-white/10">
+      <div className="flex gap-2 mb-8 border-b border-white/10 overflow-x-auto">
         {[
           { id: 'produits', label: 'Produits', icon: Store },
           { id: 'commandes', label: `Commandes${shopOrders.filter((o) => o.status === 'confirmee').length > 0 ? ` (${shopOrders.filter((o) => o.status === 'confirmee').length})` : ''}`, icon: ClipboardList },
           { id: 'historique', label: 'Historique', icon: History },
         ].map((tab) => (
           <button key={tab.id} onClick={() => setView(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-colors ${view === tab.id ? 'border-blue-500 text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}>
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 whitespace-nowrap flex-shrink-0 transition-colors ${view === tab.id ? 'border-blue-500 text-white' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}>
             <tab.icon className="w-4 h-4" /> {tab.label}
           </button>
         ))}

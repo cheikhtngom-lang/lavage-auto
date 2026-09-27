@@ -104,7 +104,7 @@ export default function Order() {
   // ─── Étape 2 : paiement ───────────────────────────────────────────────
   if (order) {
     return (
-      <div className="p-6 md:p-8 max-w-2xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">Règlement de la commande</h1>
         <p className="text-neutral-400 mb-6">Vos stations sont créées et activées dès la confirmation du paiement.</p>
         <div className="glass-card rounded-2xl p-6 border border-white/10 mb-6">
@@ -139,8 +139,8 @@ export default function Order() {
 
   // ─── Étape 1 : composition ────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
-      <h1 className="text-4xl font-bold mb-2 tracking-tight">Nouvelle <span className="text-emerald-400">commande</span></h1>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+      <h1 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight">Nouvelle <span className="text-emerald-400">commande</span></h1>
       <p className="text-neutral-400 mb-8">Ajoutez vos stations et choisissez l’abonnement de chacune. Le total est calculé pour vous.</p>
 
       <div className="glass-card rounded-2xl p-6 border border-white/10 mb-6">

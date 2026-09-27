@@ -54,10 +54,10 @@ export default function Fuel() {
   ];
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3"><FuelIcon className="w-9 h-9 text-amber-400" /> Carburant</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3"><FuelIcon className="w-9 h-9 text-amber-400" /> Carburant</h1>
           <p className="text-neutral-400 mt-1">{range ? `${range.label} · comparé à la période précédente de même durée` : 'Choisissez une période'}</p>
         </div>
         <button onClick={load} disabled={loading} className="self-start lg:self-auto p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-neutral-300 disabled:opacity-60" title="Actualiser">

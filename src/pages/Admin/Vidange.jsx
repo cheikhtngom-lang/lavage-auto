@@ -76,10 +76,10 @@ export default function Vidange() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">
             <Wrench className="w-8 h-8 text-blue-400 inline-block mr-2 -mt-1" /> Vidange
           </h1>
           <p className="text-neutral-400 text-lg">Rendez-vous de vidange réservés et payés en ligne par vos clients.</p>
