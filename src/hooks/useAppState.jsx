@@ -105,6 +105,10 @@ function rowToItem(row) {
         reservationGroupId: row.reservation_group_id,
         groupSize: row.group_size,
         createdAt: row.created_at,
+        // Liste d'attente avant fermeture (add_closing_waitlist.sql).
+        waitlistedAt: row.waitlisted_at || null,
+        promotedAt: row.promoted_at || null,
+        promotionSource: row.promotion_source || null,
     };
 }
 
@@ -240,6 +244,9 @@ export function AppStateProvider({ children }) {
     // peut réserver depuis son propre appareil, il faut voir sa réservation
     // apparaître ici sans recharger la page (voir [[backend_migration]]).
     const [queue, setQueue] = useState([]);
+    // Réservations en ligne arrivées trop tard pour être lavées avant la
+    // fermeture : hors file, en attente d'une place (add_closing_waitlist.sql).
+    const [waitlist, setWaitlist] = useState([]);
     const [activeWashes, setActiveWashes] = useState([]);
     const [completedWashes, setCompletedWashes] = useState([]);
     const [transactions, setTransactions] = useState([]);
@@ -262,12 +269,12 @@ export function AppStateProvider({ children }) {
     // relancerait toutes les lectures et l'abonnement Realtime de la station).
     const fullReservationHistoryRef = useRef(false);
     const loadReservations = useCallback(async () => {
-        if (!stationId || stationId === 'default') { setQueue([]); setActiveWashes([]); setCompletedWashes([]); return; }
+        if (!stationId || stationId === 'default') { setQueue([]); setWaitlist([]); setActiveWashes([]); setCompletedWashes([]); return; }
         const seq = ++reservationsSeqRef.current;
         let doneQuery = supabase.from('reservations').select('*').eq('station_id', stationId).eq('status', 'termine');
         if (!fullReservationHistoryRef.current) doneQuery = doneQuery.gte('completed_at', new Date(Date.now() - RECENT_COMPLETED_DAYS * 86400000).toISOString());
         const [live, done] = await Promise.all([
-            supabase.from('reservations').select('*').eq('station_id', stationId).in('status', ['attente', 'en_cours']).order('created_at', { ascending: true }),
+            supabase.from('reservations').select('*').eq('station_id', stationId).in('status', ['attente', 'en_cours', 'liste_attente']).order('created_at', { ascending: true }),
             doneQuery.order('completed_at', { ascending: false }),
         ]);
         if (seq !== reservationsSeqRef.current) return;
@@ -277,6 +284,7 @@ export function AppStateProvider({ children }) {
         if (error) { console.error('loadReservations:', error); return; }
         const items = [...(live.data || []), ...(done.data || [])].map(rowToItem);
         setQueue(items.filter((i) => i.status === 'attente'));
+        setWaitlist(items.filter((i) => i.status === 'liste_attente'));
         setActiveWashes(items.filter((i) => i.status === 'en_cours'));
         setCompletedWashes(items.filter((i) => i.status === 'termine').sort((a, b) => new Date(b.completedAtISO || 0) - new Date(a.completedAtISO || 0)));
     }, [stationId]);
@@ -1509,6 +1517,14 @@ export function AppStateProvider({ children }) {
             .then(() => loadReservations());
     };
 
+    // Le gérant fait entrer un véhicule de la liste d'attente dans la file
+    // (en fin de file), en acceptant de dépasser l'heure de fermeture.
+    const admitWaitlisted = async (id) => {
+        const { error } = await supabase.rpc('station_admit_waitlisted', { p_reservation_id: id });
+        if (error) { alert(`Impossible d'intégrer ce véhicule : ${friendlyWriteError(error)}`); return; }
+        await loadReservations();
+    };
+
     const skipWash = (id) => {
         updateReservation(id, { status: 'annule' }, 'Impossible de retirer ce véhicule').then(() => loadReservations());
     };
@@ -1683,7 +1699,7 @@ export function AppStateProvider({ children }) {
             vidangeBookings, updateVidangeBookingStatus,
             shopOrders, updateShopOrderStatus,
             receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement, retireStationAnnouncement, loadStationKnownClients,
-            addWash, washAmountFor, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, updatePricing, getEstimatedWaitTime,
+            addWash, washAmountFor, startWash, endWash, skipWash, pushBackOnePosition, waitlist, admitWaitlisted, validatePayment, updatePricing, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>

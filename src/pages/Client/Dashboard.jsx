@@ -3,12 +3,12 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Badge } from '../../components/ui/Badge';
 import { StarRatingDisplay, StarRatingInput } from '../../components/ui/StarRating';
-import { Car, Receipt, ArrowRight, Droplets, MapPin, Sparkles, Clock, Bell, X, Gift, Star, Download, Megaphone, ShieldCheck } from 'lucide-react';
+import { Car, Receipt, ArrowRight, Droplets, MapPin, Sparkles, Clock, Bell, X, Gift, Star, Download, Megaphone, ShieldCheck, Hourglass, XCircle, PartyPopper } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import {
-  getItemPosition, estimateItemWaitTime, pushBackReservation,
+  getItemPosition, estimateItemWaitTime, pushBackReservation, getWaitlistPosition, cancelMyReservation,
   addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile, getStationPromo,
 } from '../../lib/stationData';
 import { isBannerActive } from '../../lib/promoDefaults';
@@ -41,7 +41,20 @@ const PUSH_BACK_OPTIONS = [
   { positions: 999, label: 'Dernière place' },
 ];
 
-function LiveStatusCard({ reservation, onPushBack }) {
+function LiveStatusCard({ reservation, onPushBack, onCancel }) {
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const handleCancel = async () => {
+    setCancelLoading(true);
+    setCancelError('');
+    try {
+      await onCancel(reservation.item.id);
+    } catch (err) {
+      setCancelError(err.message || "Impossible d'annuler, réessayez.");
+      setCancelLoading(false);
+    }
+  };
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const [totalSeconds, setTotalSeconds] = useState(0);
   const [showPushBack, setShowPushBack] = useState(false);
@@ -83,12 +96,19 @@ function LiveStatusCard({ reservation, onPushBack }) {
     return () => clearInterval(interval);
   }, [reservation.isWashing, reservation.item.id, reservation.item.startedAt, reservation.station.id]);
 
-  const estimatedWait = !reservation.isWashing ? estimateItemWaitTime(reservation.station.id, reservation.item.createdAt) : 0;
+  const estimatedWait = !reservation.isWashing && !reservation.isWaitlisted ? estimateItemWaitTime(reservation.station.id, reservation.item.createdAt) : 0;
 
   return (
     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="animated-border-card">
       <div className="absolute inset-0 bg-gradient-to-r from-blue-600/30 to-emerald-500/30 blur-2xl z-0"></div>
-      <div className="animated-border-card-content p-8 relative flex flex-col gap-6 bg-neutral-950/80 backdrop-blur-3xl">
+      <div className="animated-border-card-content p-5 sm:p-8 relative flex flex-col gap-6 bg-neutral-950/80 backdrop-blur-3xl">
+        {/* Promu depuis la liste d'attente il y a moins de 30 min : place libérée. */}
+        {reservation.justPromoted && (
+          <div className="flex items-start gap-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3">
+            <PartyPopper className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-emerald-100/90"><strong className="text-emerald-300">Une place s'est libérée !</strong> Votre véhicule est passé de la liste d'attente à la file. Présentez-vous à la station.</p>
+          </div>
+        )}
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex flex-col items-center md:items-start text-center md:text-left">
             <Badge className="mb-4 bg-blue-500/20 text-blue-400 border-blue-500/30 px-3 py-1">{reservation.item.vehicle}</Badge>
@@ -141,6 +161,12 @@ function LiveStatusCard({ reservation, onPushBack }) {
                   </div>
                 </div>
               </div>
+            ) : reservation.isWaitlisted ? (
+              <div className="w-32 h-32 rounded-full border-8 border-amber-500/20 bg-black/40 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(245,158,11,0.15)] text-center">
+                <Hourglass className="w-5 h-5 text-amber-400 mb-1" />
+                <span className="text-2xl font-bold text-white">n{String.fromCharCode(176)}{reservation.waitlistPosition}</span>
+                <span className="text-[10px] text-amber-400 uppercase tracking-widest mt-1">Liste d'attente</span>
+              </div>
             ) : (
               <div className="w-32 h-32 rounded-full border-8 border-blue-500/20 bg-black/40 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.2)]">
                 <span className="text-3xl font-bold text-white">{reservation.position}</span>
@@ -151,9 +177,16 @@ function LiveStatusCard({ reservation, onPushBack }) {
           </div>
         </div>
 
+        {reservation.isWaitlisted && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 text-sm text-amber-100/90">
+            La station ferme{reservation.closeTime ? <> à <strong className="text-amber-300">{reservation.closeTime}</strong></> : ''} et la file est complète d'ici là.
+            Si une place se libère avant, vous passez automatiquement dans la file et vous êtes prévenu. Sinon, la demande expire à la fermeture, sans frais.
+          </div>
+        )}
+
         {/* Report de place — réservé aux clients abonnés de CETTE station,
             uniquement tant qu'on attend encore (pas de sens une fois lavage lancé). */}
-        {!reservation.isWashing && reservation.hasSubscription && (
+        {!reservation.isWashing && !reservation.isWaitlisted && reservation.hasSubscription && (
           <div className="pt-6 border-t border-white/10">
             {!showPushBack ? (
               <button onClick={() => setShowPushBack(true)}
@@ -181,6 +214,39 @@ function LiveStatusCard({ reservation, onPushBack }) {
             )}
           </div>
         )}
+
+        {/* Désistement : tant que le lavage n'a pas commencé et que rien n'est
+            payé (sinon remboursement → la station). La place libérée fait
+            monter le premier de la liste d'attente (côté serveur). */}
+        {!reservation.isWashing && !reservation.paid && (
+          <div className="pt-4 border-t border-white/10">
+            {!confirmCancel ? (
+              <button type="button" onClick={() => setConfirmCancel(true)}
+                className="flex items-center gap-2 text-sm font-medium text-neutral-400 hover:text-red-400 transition-colors">
+                <XCircle className="w-4 h-4" /> {reservation.isWaitlisted ? 'Quitter la liste d\'attente' : 'Je me désiste'}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-neutral-300 text-sm">
+                  {reservation.isWaitlisted
+                    ? `Retirer ${reservation.item.vehicle} de la liste d'attente de ${reservation.station.name} ?`
+                    : `Libérer votre place chez ${reservation.station.name} pour ${reservation.item.vehicle} ? Elle sera donnée au suivant.`}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={cancelLoading} onClick={handleCancel}
+                    className="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {cancelLoading ? 'Annulation…' : 'Oui, je me désiste'}
+                  </button>
+                  <button type="button" disabled={cancelLoading} onClick={() => { setConfirmCancel(false); setCancelError(''); }}
+                    className="px-4 py-2 rounded-lg text-neutral-400 hover:text-white text-sm font-medium transition-colors">
+                    Garder ma place
+                  </button>
+                </div>
+                {cancelError && <p className="text-red-400 text-xs">{cancelError}</p>}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -189,7 +255,7 @@ function LiveStatusCard({ reservation, onPushBack }) {
 export default function ClientOverview() {
   useDocumentTitle('Mon tableau de bord');
   const navigate = useNavigate();
-  const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd, myStationSubscriptions, refreshActivity } = useClientAccount();
+  const { account, reservations: myReservations, myTransactions: rawTransactions, dismissAd, myStationSubscriptions, expiredWaitlist, refreshActivity } = useClientAccount();
   const { stations: registry, stationAds, queueSnapshotVersion } = useSuperAdminState();
 
   const myName = account?.name || '';
@@ -216,6 +282,12 @@ export default function ClientOverview() {
     station: { id: r.station_id, name: r.stations?.name || 'Station' },
     item: { id: r.id, vehicle: r.vehicle_label, service: r.service, category: r.category, startedAt: r.started_at, createdAt: r.created_at },
     isWashing: r.status === 'en_cours',
+    // Liste d'attente avant fermeture (add_closing_waitlist.sql) : hors file.
+    isWaitlisted: r.status === 'liste_attente',
+    waitlistPosition: r.status === 'liste_attente' ? getWaitlistPosition(r.station_id, r.created_at) : null,
+    justPromoted: r.status === 'attente' && !!r.promoted_at && Date.now() - new Date(r.promoted_at).getTime() < 30 * 60000,
+    closeTime: getStationOperationalProfile(r.station_id)?.closeTime || null,
+    paid: !!r.paid,
     position: r.status === 'en_cours' ? 0 : getItemPosition(r.station_id, r.created_at),
     // Le report de place (voir LiveStatusCard) n'est proposé qu'aux clients
     // ayant un abonnement actif dans CETTE station précise (add_client_push_back.sql
@@ -228,6 +300,22 @@ export default function ClientOverview() {
     await pushBackReservation(reservationId, positions);
     refreshActivity();
   };
+  const handleCancelReservation = async (reservationId) => {
+    await cancelMyReservation(reservationId);
+    refreshActivity();
+  };
+
+  // Demandes de liste d'attente expirées à la fermeture (24 dernières heures),
+  // masquables une par une — mémorisé sur cet appareil seulement.
+  const [hiddenExpiredIds, setHiddenExpiredIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ccg_hidden_expired_waitlist') || '[]'); } catch { return []; }
+  });
+  const hideExpired = (id) => {
+    const next = [...hiddenExpiredIds, id];
+    setHiddenExpiredIds(next);
+    try { localStorage.setItem('ccg_hidden_expired_waitlist', JSON.stringify(next.slice(-50))); } catch { /* stockage indisponible */ }
+  };
+  const visibleExpired = (expiredWaitlist || []).filter((r) => !hiddenExpiredIds.includes(r.id));
   const [lastUpdated, setLastUpdated] = useState(Date.now());
   const [notifStatus, setNotifStatus] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'unsupported');
   const prevSignatures = useRef({}); // itemId -> signature, pour détecter les changements par véhicule
@@ -251,7 +339,7 @@ export default function ClientOverview() {
     if (notifStatus !== 'granted') return;
     reservations.forEach((res) => {
       const itemId = res.item.id;
-      const signature = `${res.station.id}:${res.isWashing ? 'washing' : res.position}`;
+      const signature = `${res.station.id}:${res.isWashing ? 'washing' : res.isWaitlisted ? 'waitlist' : res.position}`;
       const prev = prevSignatures.current[itemId];
 
       if (prev == null) {
@@ -259,7 +347,9 @@ export default function ClientOverview() {
         return;
       }
       if (signature !== prev) {
-        if (res.isWashing) {
+        if (prev.endsWith(':waitlist') && !res.isWaitlisted) {
+          new Notification('Une place s\'est libérée !', { body: `${res.item.vehicle} passe dans la file de ${res.station.name}. Présentez-vous à la station.` });
+        } else if (res.isWashing) {
           new Notification('Votre lavage a commencé !', { body: `${res.station.name} s'occupe de ${res.item.vehicle}.` });
         } else if (res.position <= 2) {
           new Notification('C\'est bientôt votre tour', { body: `Plus que ${res.position} avant ${res.item.vehicle} chez ${res.station.name}.` });
@@ -347,9 +437,9 @@ export default function ClientOverview() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-5xl relative z-10">
+    <div className="container mx-auto px-4 py-8 sm:py-12 max-w-5xl relative z-10">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
-        <h1 className="text-4xl font-bold mb-2 tracking-tight">Bonjour <span className="text-blue-400">{firstName}</span> 👋</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight">Bonjour <span className="text-blue-400">{firstName}</span> 👋</h1>
         <p className="text-neutral-400 text-lg">Suivez le statut de vos véhicules en temps réel.</p>
       </motion.div>
 
@@ -410,6 +500,23 @@ export default function ClientOverview() {
         </div>
       )}
 
+      {/* Liste d'attente : demandes non servies avant la fermeture. */}
+      {visibleExpired.length > 0 && (
+        <div className="mb-8 space-y-3">
+          {visibleExpired.map((r) => (
+            <div key={r.id} className="w-full flex items-center gap-3 bg-neutral-900/80 border border-white/10 rounded-2xl px-5 py-4">
+              <Hourglass className="w-5 h-5 text-neutral-400 flex-shrink-0" />
+              <span className="text-sm text-neutral-300 flex-1">
+                <strong className="text-white">{r.stations?.name || 'La station'}</strong> a fermé avant qu&apos;une place se libère pour {r.vehicle_label}. Votre demande a expiré, sans frais.
+              </span>
+              <button onClick={() => hideExpired(r.id)} className="text-neutral-500 hover:text-white flex-shrink-0" aria-label="Masquer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Active Status Board */}
       <section className="mb-16">
         <div className="flex items-center justify-between mb-6">
@@ -458,11 +565,11 @@ export default function ClientOverview() {
             {reservations.length > 0 ? (
               <div className="space-y-4">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  Lavage en cours
+                  {reservations.every((r) => r.isWaitlisted) ? 'Liste d\'attente' : 'Lavage en cours'}
                 </h2>
-                <div className={`grid grid-cols-1 gap-6 ${reservations.length > 1 ? 'md:grid-cols-2' : ''}`}>
+                <div className={`grid grid-cols-1 gap-6 ${reservations.length > 1 ? 'lg:grid-cols-2' : ''}`}>
                   {reservations.map((res) => (
-                    <LiveStatusCard key={res.item.id} reservation={res} onPushBack={handlePushBack} />
+                    <LiveStatusCard key={res.item.id} reservation={res} onPushBack={handlePushBack} onCancel={handleCancelReservation} />
                   ))}
                 </div>
               </div>

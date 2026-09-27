@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, ChevronsDown, Search, Timer, UserCheck, AlertCircle, Calendar, UserPlus, ArrowRight, LineChart } from 'lucide-react';
+import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronDown, ChevronsDown, Search, Timer, UserCheck, AlertCircle, Calendar, UserPlus, ArrowRight, LineChart, Hourglass } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBrands';
@@ -281,7 +281,7 @@ function WashTimer({ startedAt, durationMinutes }) {
 export default function StationDashboard() {
   useDocumentTitle('File d\'attente');
   const navigate = useNavigate();
-  const { queue, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, washAmountFor, requestFullReservationHistory, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
+  const { queue, waitlist, admitWaitlisted, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, washAmountFor, requestFullReservationHistory, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
 
   const getDurationMinutes = (item) => {
     const cat = item?.category || 'Particulier';
@@ -520,10 +520,10 @@ export default function StationDashboard() {
   React.useEffect(() => { setCompletedPage(1); }, [completedDate]);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative z-10">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">File d'attente <span className="text-emerald-400">Live</span></h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">File d'attente <span className="text-emerald-400">Live</span></h1>
           <p className="text-neutral-400 text-lg">Gérez l'ordre de passage et encaissez en un clic.</p>
         </div>
         <div className="flex items-center gap-4">
@@ -730,6 +730,14 @@ export default function StationDashboard() {
                             {item.category && <span className="bg-white/10 px-2 py-0.5 rounded text-xs mr-2">{PRICING_CATEGORY_LABELS[item.category] || item.category}</span>}
                             {item.client}
                             <GroupBadge item={item} />
+                            {item.promotedAt && (
+                              <span
+                                className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-md border bg-amber-500/10 text-amber-400 border-amber-500/20 whitespace-nowrap"
+                                title={item.promotionSource === 'station' ? "Intégré depuis la liste d'attente par la station" : "Monté automatiquement de la liste d'attente (place libérée)"}
+                              >
+                                {item.promotionSource === 'station' ? 'Intégré' : 'Place libérée'}
+                              </span>
+                            )}
                           </p>
                         </td>
                         <td className="p-3">
@@ -806,6 +814,56 @@ export default function StationDashboard() {
               </table>
             </div>
           </div>
+
+          {/* Liste d'attente avant fermeture (add_closing_waitlist.sql) :
+              réservations en ligne qui ne pouvaient plus être lavées avant
+              l'heure de fermeture. Une place libérée fait monter le premier
+              qui tient dans le temps (automatique, côté serveur) ; le gérant
+              peut aussi en intégrer un lui-même, quitte à dépasser l'heure. */}
+          {(waitlist || []).length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center text-amber-400">
+                <div className="p-2 bg-amber-500/10 rounded-lg mr-3">
+                  <Hourglass className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-semibold">Liste d'attente <span className="text-sm font-normal text-neutral-500">· fermeture {stationProfile?.closeTime}</span></h2>
+              </div>
+              <p className="text-sm text-neutral-400">Réservations en ligne arrivées trop tard pour être lavées avant la fermeture. Dès qu'une place se libère (absent, désistement), le premier qui tient dans le temps passe automatiquement dans la file.</p>
+              <div className="glass-card rounded-2xl divide-y divide-white/5">
+                {waitlist.map((item, index) => (
+                  <div key={item.id} className="flex flex-wrap items-center gap-3 p-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center font-bold text-amber-400 text-sm flex-shrink-0">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0 flex-1 basis-48">
+                      <p className="font-bold text-white">{item.vehicle}</p>
+                      <p className="text-sm text-neutral-400">
+                        {item.client} · {normalizeService(item.category || 'Particulier', item.service)} · depuis {new Date(item.waitlistedAt || item.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Intégrer ${item.vehicle} en fin de file ? La station risque de dépasser l'heure de fermeture (${stationProfile?.closeTime}).`)) admitWaitlisted(item.id);
+                        }}
+                        className="text-sm px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-neutral-950 transition-all font-medium border border-amber-500/20 hover:border-amber-500 whitespace-nowrap"
+                        title="Faire entrer ce véhicule en fin de file, en acceptant de dépasser l'heure de fermeture"
+                      >
+                        Intégrer à la file
+                      </button>
+                      <button
+                        onClick={() => skipWash(item.id)}
+                        className="text-neutral-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                        title="Retirer de la liste d'attente"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

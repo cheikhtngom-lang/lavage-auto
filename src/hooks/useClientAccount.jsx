@@ -16,6 +16,9 @@ export function ClientAccountProvider({ children }) {
     const [reservations, setReservations] = useState([]);
     const [myTransactions, setMyTransactions] = useState([]);
     const [myStationSubscriptions, setMyStationSubscriptions] = useState([]);
+    // Demandes de liste d'attente expirées à la fermeture ces dernières 24 h
+    // (add_closing_waitlist.sql) — pour prévenir le client qu'il n'a pas été servi.
+    const [expiredWaitlist, setExpiredWaitlist] = useState([]);
     const [superUserSub, setSuperUserSub] = useState(null);
 
     const load = useCallback(async () => {
@@ -44,15 +47,18 @@ export function ClientAccountProvider({ children }) {
     }, []);
 
     const loadActivity = useCallback(async (clientId, clientPhone) => {
-        if (!clientId) { setReservations([]); setMyTransactions([]); setMyStationSubscriptions([]); return; }
-        const [{ data: resData }, { data: txData }, { data: subData }] = await Promise.all([
-            supabase.from('reservations').select('*, stations(name, quartier, region)').eq('client_id', clientId).in('status', ['attente', 'en_cours']).order('created_at'),
+        if (!clientId) { setReservations([]); setMyTransactions([]); setMyStationSubscriptions([]); setExpiredWaitlist([]); return; }
+        const [{ data: resData }, { data: txData }, { data: subData }, { data: expiredData }] = await Promise.all([
+            supabase.from('reservations').select('*, stations(name, quartier, region)').eq('client_id', clientId).in('status', ['attente', 'en_cours', 'liste_attente']).order('created_at'),
             supabase.from('transactions').select('*, stations(name)').eq('client_id', clientId).order('created_at', { ascending: false }),
             supabase.from('station_client_subscriptions').select('*, stations(name)').or(`client_id.eq.${clientId}${clientPhone ? `,client_phone.eq.${clientPhone}` : ''}`).eq('status', 'actif'),
+            supabase.from('reservations').select('id, station_id, vehicle_label, waitlisted_at, stations(name)').eq('client_id', clientId).eq('status', 'annule').eq('cancel_reason', 'fermeture')
+                .gte('waitlisted_at', new Date(Date.now() - 24 * 3600 * 1000).toISOString()).order('waitlisted_at', { ascending: false }),
         ]);
         setReservations(resData || []);
         setMyTransactions(txData || []);
         setMyStationSubscriptions(subData || []);
+        setExpiredWaitlist(expiredData || []);
     }, []);
 
     useEffect(() => { load(); }, [load]);
@@ -93,7 +99,10 @@ export function ClientAccountProvider({ children }) {
         // un faux positif sur un déplacement interne de réservation) — cette
         // notification-ci est un déclencheur distinct, spécifique à l'INSERT.
         const notifyNewReservation = (payload) => {
-            if (payload.eventType === 'INSERT' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            // Inscription en liste d'attente : c'est le client lui-même qui vient
+            // de la faire, rien à lui annoncer (la montée en file, elle, est
+            // notifiée par Dashboard.jsx).
+            if (payload.eventType === 'INSERT' && payload.new?.status !== 'liste_attente' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
                 const n = new Notification('Lavage enregistré !', {
                     body: `${getStationName(payload.new.station_id)} a enregistré votre lavage — suivez-le en direct.`,
                 });
@@ -196,7 +205,7 @@ export function ClientAccountProvider({ children }) {
     return (
         <ClientAccountContext.Provider value={{
             account, loading, updateProfile, addVehicle, removeVehicle, toggleFavorite, hideStation, unhideStation, dismissAd,
-            reservations, myTransactions, myStationSubscriptions, refreshActivity,
+            reservations, myTransactions, myStationSubscriptions, expiredWaitlist, refreshActivity,
             superUserSub, superUserStatus, refreshSuperUser,
             stationAnnouncements, dismissAnnouncement,
         }}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download, Star, Wrench, Store, Calendar } from 'lucide-react';
+import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Ticket, Navigation, Building2, Heart, Car, Check, Smartphone, Wallet, Loader2, AlertTriangle, Megaphone, Download, Star, Wrench, Store, Calendar, Hourglass } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
@@ -12,6 +12,7 @@ import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 import {
   getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, markReservationUnpaid, getStationPricing, getStationOperationalProfile,
   getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
+  checkClosingCapacity, getWaitlistPosition,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
 import { normalizeService } from '../../lib/washDefaults';
@@ -186,7 +187,11 @@ export default function Stations() {
   useEffect(() => { setRegionInput(''); setAppliedSearch(null); }, [country.code]);
 
   const [selectedStation, setSelectedStation] = useState(null);
-  const [modalStep, setModalStep] = useState('detail'); // 'detail' | 'limit' | 'form' | 'payment'
+  const [modalStep, setModalStep] = useState('detail'); // 'detail' | 'limit' | 'form' | 'waitlist' | 'payment'
+  // Liste d'attente avant fermeture (add_closing_waitlist.sql) : { closingAt, fits: [bool par véhicule] }
+  // quand au moins un véhicule ne pourrait pas être lavé avant l'heure de fermeture.
+  const [closingPlan, setClosingPlan] = useState(null);
+  const [checkingClosing, setCheckingClosing] = useState(false);
   const [showTicket, setShowTicket] = useState(false);
   const [ticketInfo, setTicketInfo] = useState(null);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState([]);
@@ -469,10 +474,26 @@ export default function Stations() {
 
   // Étape 1 du formulaire (véhicule(s) + service) validée -> on passe au choix
   // du mode de paiement (Wave / Orange Money / sur place) avant de créer la réservation.
-  const goToPayment = (e) => {
+  const goToPayment = async (e) => {
     e.preventDefault();
-    if (selectedVehicles.length === 0 || !account || !selectedStation) return;
-    
+    if (selectedVehicles.length === 0 || !account || !selectedStation || checkingClosing) return;
+
+    // Heure de fermeture : avec les véhicules déjà en lavage et en file, le(s)
+    // sien(s) peuvent-ils encore être lavés à temps ? Sinon, on lui propose la
+    // liste d'attente (étape 'waitlist') au lieu de le laisser réserver une
+    // place que la station ne pourra pas honorer.
+    setCheckingClosing(true);
+    const capacity = await checkClosingCapacity(selectedStation.id, selectedVehicles.map((v) => ({
+      category: getPricingCategory(v.category), service: serviceForVehicle(v),
+    })));
+    setCheckingClosing(false);
+    if (capacity && capacity.fits.some((fits) => !fits)) {
+      setClosingPlan(capacity);
+      setModalStep('waitlist');
+      return;
+    }
+    setClosingPlan(null);
+
     // Si le client a un abonnement actif pour cette station avec un solde suffisant, on saute l'étape de paiement
     const activeSub = myStationSubscriptions?.find(sub => String(sub.station_id) === String(selectedStation.id));
     if (activeSub && activeSub.balance >= servicePrice) {
@@ -509,10 +530,13 @@ export default function Stations() {
   // fois le mode de paiement choisi (payé en ligne, ou à régler sur place).
   // Un `reservationGroupId` partagé relie les véhicules réservés ensemble,
   // pour que le tableau de bord station puisse les afficher groupés.
-  const finalizeReservation = async ({ paid, method }) => {
+  // `plan` (liste d'attente acceptée) : les véhicules qui ne tiennent pas avant
+  // la fermeture partent sur la liste d'attente, les autres dans la file.
+  const finalizeReservation = async ({ paid, method, plan = null }) => {
     if (selectedVehicles.length === 0 || !account || !selectedStation) return;
     const reservationGroupId = selectedVehicles.length > 1 ? `RG-${Date.now()}` : null;
     const waitingBefore = getStationWaitingCount(selectedStation.id);
+    let queuedCount = 0;
 
     const createdEntries = [];
     for (let idx = 0; idx < selectedVehicles.length; idx++) {
@@ -528,7 +552,18 @@ export default function Stations() {
         clientId: account.id, clientName: account.name, vehicleLabel, category, service: vehicleService, paid, amount,
         paymentMethod: paid ? method : null,
         reservationGroupId, groupSize: selectedVehicles.length,
+        waitlist: !!plan && plan.fits[idx] === false,
       });
+      // Statut renvoyé par le serveur : il a pu placer le véhicule en liste
+      // d'attente si la file s'est remplie entre la vérification et la réservation.
+      if (reservation.status === 'liste_attente') {
+        createdEntries.push({
+          vehicle: vehicleLabel, service: vehicleService, amount, waitlisted: true,
+          position: getWaitlistPosition(selectedStation.id, reservation.created_at),
+        });
+        continue;
+      }
+      queuedCount += 1;
       if (paid) {
         try {
           await recordClientTransaction(selectedStation.id, {
@@ -543,8 +578,10 @@ export default function Stations() {
           return;
         }
       }
-      createdEntries.push({ vehicle: vehicleLabel, service: vehicleService, position: waitingBefore + idx + 1, amount, wait: estimateItemWaitTime(selectedStation.id, reservation.created_at) });
+      createdEntries.push({ vehicle: vehicleLabel, service: vehicleService, position: waitingBefore + queuedCount, amount, wait: estimateItemWaitTime(selectedStation.id, reservation.created_at) });
     }
+    const queuedEntries = createdEntries.filter((e) => !e.waitlisted);
+    const closingProfile = getStationOperationalProfile(selectedStation.id);
     unhideStation(selectedStation.id);
     refreshActivity();
 
@@ -560,11 +597,16 @@ export default function Stations() {
       // attend forcément le plus longtemps) — même calcul réel que celui
       // affiché ensuite sur le suivi en direct (Client/Dashboard.jsx), au lieu
       // d'une estimation à plat (position × 20 min) déconnectée de la réalité.
-      estimatedWait: Math.max(0, ...createdEntries.map(e => e.wait)),
+      estimatedWait: queuedEntries.length > 0 ? Math.max(0, ...queuedEntries.map(e => e.wait)) : null,
+      waitlistedCount: createdEntries.length - queuedEntries.length,
+      closeTime: plan?.closingAt
+        ? plan.closingAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        : (closingProfile?.closeTime || null),
       ticketNumber: `TK-${Date.now().toString().slice(-5)}`,
       dateLabel, total: paid ? servicePrice : null,
       paid, method,
     });
+    setClosingPlan(null);
     setSelectedStation(null);
     setShowTicket(true);
     resetPaymentState();
@@ -747,7 +789,7 @@ export default function Stations() {
   }, [account, registry]);
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-6xl relative z-10">
+    <div className="container mx-auto px-4 py-8 sm:py-12 max-w-6xl relative z-10">
       {!isDashboardContext && (
         <nav aria-label="Fil d'Ariane" className="mb-6 text-sm text-neutral-500 flex items-center gap-2">
           <Link to="/" className="hover:text-white transition-colors">Accueil</Link>
@@ -1084,13 +1126,74 @@ export default function Stations() {
                     )}
                     {selectedVehicles.length > 0 && (
                       <div className="pt-2">
-                        <button type="submit"
+                        <button type="submit" disabled={checkingClosing}
                           className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
-                          Continuer vers le paiement <ArrowRight className="w-4 h-4" />
+                          {checkingClosing
+                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Vérification des disponibilités…</>
+                            : <>Continuer vers le paiement <ArrowRight className="w-4 h-4" /></>}
                         </button>
                       </div>
                     )}
                   </form>
+                </>
+              ) : modalStep === 'waitlist' && closingPlan ? (
+                <>
+                  {(() => {
+                    const closeLabel = closingPlan.closingAt
+                      ? closingPlan.closingAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                      : selectedStation.closeTime;
+                    const noneFits = closingPlan.fits.every((fits) => !fits);
+                    return (
+                      <>
+                        <div className="flex items-center gap-3 mb-5">
+                          <button onClick={() => setModalStep('form')} className="p-2 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0" title="Retour">
+                            <ArrowRight className="w-4 h-4 text-neutral-400 rotate-180" />
+                          </button>
+                          <div className="p-2.5 bg-amber-500/20 rounded-xl flex-shrink-0"><Hourglass className="w-5 h-5 text-amber-400" /></div>
+                          <div className="min-w-0">
+                            <h2 className="text-xl font-bold text-white">Fermeture à {closeLabel}</h2>
+                            <p className="text-neutral-400 text-sm truncate">{selectedStation.name}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3 mb-4 text-sm text-amber-100/90">
+                          {noneFits
+                            ? <>Avec les véhicules déjà en lavage et dans la file, votre lavage <strong className="text-amber-300">ne pourrait pas être terminé avant {closeLabel}</strong>, heure de descente de la station.</>
+                            : <>Tous vos véhicules ne pourront pas être lavés avant <strong className="text-amber-300">{closeLabel}</strong>, heure de descente de la station.</>}
+                        </div>
+
+                        {selectedVehicles.length > 1 && (
+                          <div className="space-y-2 mb-4">
+                            {selectedVehicles.map((v, idx) => (
+                              <div key={v.id} className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">
+                                <span className="text-sm text-white truncate">{formatVehicleLabel(v.brand, v.plate)}</span>
+                                {closingPlan.fits[idx]
+                                  ? <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-md whitespace-nowrap">Dans la file</span>
+                                  : <span className="text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-md whitespace-nowrap">Liste d&apos;attente</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <ul className="text-sm text-neutral-400 space-y-2 mb-6">
+                          <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" /> Si une place se libère avant {closeLabel} (absence, désistement), vous passez automatiquement dans la file et vous êtes prévenu.</li>
+                          <li className="flex gap-2"><Clock className="w-4 h-4 text-neutral-500 flex-shrink-0 mt-0.5" /> Sinon, votre demande expire à la fermeture, sans aucun frais.</li>
+                          <li className="flex gap-2"><Wallet className="w-4 h-4 text-neutral-500 flex-shrink-0 mt-0.5" /> Paiement à la station uniquement, une fois servi.</li>
+                        </ul>
+
+                        <div className="space-y-3">
+                          <button type="button" onClick={() => finalizeReservation({ paid: false, method: null, plan: closingPlan })}
+                            className="w-full bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
+                            <Hourglass className="w-4 h-4" /> M&apos;inscrire sur la liste d&apos;attente
+                          </button>
+                          <button type="button" onClick={() => { setClosingPlan(null); setSelectedStation(null); }}
+                            className="w-full py-3 rounded-xl border border-white/10 text-neutral-300 hover:text-white hover:bg-white/5 transition-colors font-medium text-sm">
+                            Choisir une autre station
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </>
               ) : modalStep === 'vidange-form' ? (
                 <>
@@ -1370,8 +1473,17 @@ export default function Stations() {
                       className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto mb-2">
                       <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                     </motion.div>
-                    <h2 className="text-lg font-bold text-white mb-1">{ticketInfo.vehicles.length > 1 ? 'Réservations confirmées !' : 'Réservation confirmée !'}</h2>
-                    <p className="text-neutral-400 text-xs">{ticketInfo.vehicles.length > 1 ? `${ticketInfo.vehicles.length} places sont réservées` : 'Votre place est réservée'}</p>
+                    {ticketInfo.waitlistedCount === ticketInfo.vehicles.length ? (
+                      <>
+                        <h2 className="text-lg font-bold text-white mb-1">Inscription en liste d&apos;attente</h2>
+                        <p className="text-neutral-400 text-xs">Nous vous prévenons dès qu&apos;une place se libère{ticketInfo.closeTime ? ` avant ${ticketInfo.closeTime}` : ''}.</p>
+                      </>
+                    ) : (
+                      <>
+                        <h2 className="text-lg font-bold text-white mb-1">{ticketInfo.vehicles.length > 1 ? 'Réservations confirmées !' : 'Réservation confirmée !'}</h2>
+                        <p className="text-neutral-400 text-xs">{ticketInfo.vehicles.length > 1 ? `${ticketInfo.vehicles.length - ticketInfo.waitlistedCount} place(s) réservée(s)${ticketInfo.waitlistedCount ? `, ${ticketInfo.waitlistedCount} en liste d'attente` : ''}` : 'Votre place est réservée'}</p>
+                      </>
+                    )}
                   </div>
                   <div className="p-4">
                     <div className="text-center mb-3">
@@ -1393,15 +1505,25 @@ export default function Stations() {
                       {ticketInfo.vehicles.map((v) => (
                         <div key={v.vehicle} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2">
                           <span className="text-white text-sm font-medium truncate pr-2">{v.vehicle}</span>
-                          <span className="text-blue-400 text-xs font-bold bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-md whitespace-nowrap">n{String.fromCharCode(176)}{v.position}</span>
+                          {v.waitlisted
+                            ? <span className="text-amber-400 text-xs font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-md whitespace-nowrap">Liste d&apos;attente n{String.fromCharCode(176)}{v.position}</span>
+                            : <span className="text-blue-400 text-xs font-bold bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-md whitespace-nowrap">n{String.fromCharCode(176)}{v.position}</span>}
                         </div>
                       ))}
                     </div>
                     <div className="grid grid-cols-1 gap-3 mb-4">
-                      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
-                        <p className="text-2xl font-bold text-emerald-400">~{ticketInfo.estimatedWait}</p>
-                        <p className="text-xs text-neutral-500 mt-1">Minutes d&apos;attente estimée</p>
-                      </div>
+                      {ticketInfo.estimatedWait != null && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
+                          <p className="text-2xl font-bold text-emerald-400">~{ticketInfo.estimatedWait}</p>
+                          <p className="text-xs text-neutral-500 mt-1">Minutes d&apos;attente estimée</p>
+                        </div>
+                      )}
+                      {ticketInfo.waitlistedCount > 0 && (
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-100/90">
+                          <p className="flex items-center gap-2 font-bold text-amber-300 mb-1"><Hourglass className="w-4 h-4" /> Liste d&apos;attente</p>
+                          <p>La station ferme{ticketInfo.closeTime ? ` à ${ticketInfo.closeTime}` : ''}. Si une place se libère avant, vous passez dans la file et recevez une notification. Sinon la demande expire, sans frais.</p>
+                        </div>
+                      )}
                     </div>
                     {ticketInfo.paid && (
                       <button onClick={handleDownloadReceipt}

@@ -212,6 +212,37 @@ export function estimateItemWaitTime(stationId, itemCreatedAt) {
   return Math.round(total);
 }
 
+// ─── Liste d'attente « avant fermeture » (add_closing_waitlist.sql) ──────
+// Une réservation en ligne qui ne pourrait pas être lavée avant l'heure de
+// fermeture part sur une liste d'attente séparée (status 'liste_attente') :
+// elle ne compte ni dans la position ni dans l'attente de la file normale.
+
+// Rang sur la liste d'attente de la station (1 = premier servi si une place
+// se libère) — le cache anonymisé contient aussi les réservations en liste.
+export function getWaitlistPosition(stationId, itemCreatedAt) {
+  const t = new Date(itemCreatedAt).getTime();
+  return queueSnapshot.filter((r) => r.station_id === stationId && r.status === 'liste_attente' && new Date(r.created_at).getTime() < t).length + 1;
+}
+
+// Vérifie, AVANT de réserver, quels véhicules peuvent encore être lavés avant
+// la fermeture (calcul fait par le serveur, qui fera foi à l'insertion).
+// items : [{ category, service }] dans l'ordre de passage.
+// Renvoie { closingAt: Date|null, fits: [bool…] } — ou null si la vérification
+// est indisponible : on ne bloque alors jamais une réservation pour ça.
+export async function checkClosingCapacity(stationId, items) {
+  const { data, error } = await supabase.rpc('check_closing_capacity', { p_station: stationId, p_items: items });
+  if (error || !data || !Array.isArray(data.fits)) return null;
+  return { closingAt: data.closing_at ? new Date(data.closing_at) : null, fits: data.fits.map(Boolean) };
+}
+
+// « Je me désiste » : le client annule lui-même une réservation pas encore
+// commencée ni payée (file ou liste d'attente) — la place libérée fait monter
+// automatiquement le premier de la liste d'attente, côté serveur.
+export async function cancelMyReservation(reservationId) {
+  const { error } = await supabase.rpc('client_cancel_reservation', { p_reservation_id: reservationId });
+  if (error) throw new Error(error.message);
+}
+
 // Report de position en libre-service, réservé aux clients abonnés de la
 // station (voir add_client_push_back.sql) — l'échange de created_at avec une
 // AUTRE réservation nécessite des droits élevés qu'un client n'a pas via RLS
@@ -226,12 +257,17 @@ export async function pushBackReservation(reservationId, positions) {
 }
 
 // ─── Réservation / encaissement (écriture côté client) ───────────────────
-export async function createReservation(stationId, { clientId, clientName, vehicleLabel, category, service, paid, amount, paymentMethod, reservationGroupId, groupSize }) {
+// `waitlist: true` inscrit directement le véhicule sur la liste d'attente
+// (le client l'a accepté). Sinon le serveur peut encore l'y placer si, entre
+// la vérification et la réservation, la file s'est remplie : le `status`
+// renvoyé est celui qui fait foi.
+export async function createReservation(stationId, { clientId, clientName, vehicleLabel, category, service, paid, amount, paymentMethod, reservationGroupId, groupSize, waitlist }) {
   const { data, error } = await supabase.from('reservations').insert({
     station_id: stationId, client_id: clientId, client_name: clientName, vehicle_label: vehicleLabel,
     category, service, paid: !!paid, amount, payment_method: paymentMethod || null,
     reservation_group_id: reservationGroupId, group_size: groupSize,
-  }).select('id, created_at').single();
+    ...(waitlist ? { status: 'liste_attente' } : {}),
+  }).select('id, created_at, status').single();
   if (error) throw new Error(error.message);
   return data;
 }
