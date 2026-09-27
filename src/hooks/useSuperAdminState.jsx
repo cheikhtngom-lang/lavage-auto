@@ -47,6 +47,9 @@ const rowToStation = (row) => ({
     loyaltyTiers: Array.isArray(row.loyalty_tiers) ? row.loyalty_tiers : null,
     openTime: row.open_time,
     closeTime: row.close_time,
+    // Horaire du samedi/dimanche, facultatif (add_weekend_hours.sql).
+    weekendOpenTime: row.weekend_open_time || null,
+    weekendCloseTime: row.weekend_close_time || null,
     logo: row.logo_url,
     cachet: row.cachet_url,
     promoConfig: row.promo_config || {},

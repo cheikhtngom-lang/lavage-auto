@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import {
-  getItemPosition, estimateItemWaitTime, pushBackReservation, getWaitlistPosition, cancelMyReservation,
+  getItemPosition, estimateItemWaitTime, pushBackReservation, getWaitlistPosition, cancelMyReservation, hoursForDate,
   addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile, getStationPromo,
 } from '../../lib/stationData';
 import { isBannerActive } from '../../lib/promoDefaults';
@@ -286,7 +286,7 @@ export default function ClientOverview() {
     isWaitlisted: r.status === 'liste_attente',
     waitlistPosition: r.status === 'liste_attente' ? getWaitlistPosition(r.station_id, r.created_at) : null,
     justPromoted: r.status === 'attente' && !!r.promoted_at && Date.now() - new Date(r.promoted_at).getTime() < 30 * 60000,
-    closeTime: getStationOperationalProfile(r.station_id)?.closeTime || null,
+    closeTime: hoursForDate(getStationOperationalProfile(r.station_id)).closeTime || null,
     paid: !!r.paid,
     position: r.status === 'en_cours' ? 0 : getItemPosition(r.station_id, r.created_at),
     // Le report de place (voir LiveStatusCard) n'est proposé qu'aux clients

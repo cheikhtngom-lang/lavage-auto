@@ -10,7 +10,7 @@ import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBr
 import { normalizeService } from '../../lib/washDefaults';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
-import { isPastClosingTime, findVehicleOwnerByPlate } from '../../lib/stationData';
+import { isPastClosingTime, findVehicleOwnerByPlate, hoursForDate } from '../../lib/stationData';
 import { formatPlate, formatVehicleLabel } from '../../lib/plateFormat';
 import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
 import Pagination from '../../components/ui/Pagination';
@@ -757,7 +757,7 @@ export default function StationDashboard() {
                 <div className="p-2 bg-amber-500/10 rounded-lg mr-3">
                   <Hourglass className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl font-semibold">Liste d'attente <span className="text-sm font-normal text-neutral-500">· fermeture {stationProfile?.closeTime}</span></h2>
+                <h2 className="text-xl font-semibold">Liste d'attente <span className="text-sm font-normal text-neutral-500">· fermeture {hoursForDate(stationProfile).closeTime}</span></h2>
               </div>
               <p className="text-sm text-neutral-400">Réservations en ligne arrivées trop tard pour être lavées avant la fermeture. Dès qu'une place se libère (absent, désistement), le premier qui tient dans le temps passe automatiquement dans la file.</p>
               <div className="glass-card rounded-2xl divide-y divide-white/5">
@@ -775,7 +775,7 @@ export default function StationDashboard() {
                     <div className="flex items-center gap-2 ml-auto">
                       <button
                         onClick={() => {
-                          if (window.confirm(`Intégrer ${item.vehicle} en fin de file ? La station risque de dépasser l'heure de fermeture (${stationProfile?.closeTime}).`)) admitWaitlisted(item.id);
+                          if (window.confirm(`Intégrer ${item.vehicle} en fin de file ? La station risque de dépasser l'heure de fermeture (${hoursForDate(stationProfile).closeTime}).`)) admitWaitlisted(item.id);
                         }}
                         className="text-sm px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500 hover:text-neutral-950 transition-all font-medium border border-amber-500/20 hover:border-amber-500 whitespace-nowrap"
                         title="Faire entrer ce véhicule en fin de file, en acceptant de dépasser l'heure de fermeture"

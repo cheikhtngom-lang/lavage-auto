@@ -12,7 +12,7 @@ import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 import {
   getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, markReservationUnpaid, getStationPricing, getStationOperationalProfile,
   getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
-  checkClosingCapacity, getWaitlistPosition,
+  checkClosingCapacity, getWaitlistPosition, hoursForDate, formatOpeningHours,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
 import { normalizeService } from '../../lib/washDefaults';
@@ -251,8 +251,9 @@ export default function Stations() {
       if (cancelled) return;
       setVidangeSlots(computeVidangeSlots({
         dateStr: vidangeDate,
-        openTime: selectedStation.openTime,
-        closeTime: selectedStation.closeTime,
+        // Horaire du jour choisi (semaine ou week-end).
+        openTime: hoursForDate(selectedStation, new Date(`${vidangeDate}T12:00:00`)).openTime,
+        closeTime: hoursForDate(selectedStation, new Date(`${vidangeDate}T12:00:00`)).closeTime,
         slotMinutes: selectedStation.vidangeConfig?.slotMinutes,
         dailyCapacity: selectedStation.vidangeConfig?.dailyCapacity,
         bookedSlots: booked,
@@ -329,6 +330,8 @@ export default function Stations() {
         open: isStationOpenNow(profile),
         openTime: profile?.openTime,
         closeTime: profile?.closeTime,
+        weekendOpenTime: profile?.weekendOpenTime || null,
+        weekendCloseTime: profile?.weekendCloseTime || null,
         waitingCount: getStationWaitingCount(s.id),
         // Distinct de waitingCount : véhicules déjà en cours de lavage — sans ça,
         // un client voyait "0 en attente" alors que la station était occupée.
@@ -601,7 +604,7 @@ export default function Stations() {
       waitlistedCount: createdEntries.length - queuedEntries.length,
       closeTime: plan?.closingAt
         ? plan.closingAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-        : (closingProfile?.closeTime || null),
+        : (hoursForDate(closingProfile).closeTime || null),
       ticketNumber: `TK-${Date.now().toString().slice(-5)}`,
       dateLabel, total: paid ? servicePrice : null,
       paid, method,
@@ -1007,6 +1010,11 @@ export default function Stations() {
                       <p className={`text-sm font-bold ${selectedStation.open ? 'text-emerald-400' : 'text-red-400'}`}>{selectedStation.open ? 'Ouvert' : 'Fermé'}</p>
                       <p className="text-xs text-neutral-500 mt-1">Statut actuel</p>
                     </div>
+                    {formatOpeningHours(selectedStation) && (
+                      <p className="col-span-3 text-xs text-neutral-400 text-center flex items-center justify-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 flex-shrink-0" /> {formatOpeningHours(selectedStation)}
+                      </p>
+                    )}
                   </div>
                   <button onClick={handleReserveClick} disabled={!selectedStation.open}
                     className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2">
@@ -1141,7 +1149,7 @@ export default function Stations() {
                   {(() => {
                     const closeLabel = closingPlan.closingAt
                       ? closingPlan.closingAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                      : selectedStation.closeTime;
+                      : hoursForDate(selectedStation).closeTime;
                     const noneFits = closingPlan.fits.every((fits) => !fits);
                     return (
                       <>

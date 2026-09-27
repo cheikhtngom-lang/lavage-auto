@@ -3,6 +3,7 @@ import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION, normalizeService } from '../lib/washDefaults';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
+import { closingDateFor, hoursForDate } from '../lib/stationData';
 import { nozzleLabel, nozzleKey, sortNozzles, normalizeLines } from '../lib/pompistes';
 import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi, loadStationKnownClients as loadStationKnownClientsApi, retireAnnouncement } from '../lib/announcements';
 
@@ -60,6 +61,8 @@ const defaultStationProfile = {
     country: "SN",
     openTime: "08:00",
     closeTime: "20:00",
+    weekendOpenTime: null, // samedi et dimanche — null = même horaire que la semaine
+    weekendCloseTime: null,
     logo: null, // Data URL (image encodée) — voir updateStationProfile
     cachet: null, // Data URL du cachet/tampon officiel — apposé sur les reçus
     dailyRevenueTarget: 50000, // Objectif de revenus journalier affiché dans Accounting.jsx
@@ -625,6 +628,9 @@ export function AppStateProvider({ children }) {
         country: row?.country || 'SN',
         openTime: row?.open_time || '08:00',
         closeTime: row?.close_time || '20:00',
+        // Samedi et dimanche, facultatif (add_weekend_hours.sql) : null = même horaire.
+        weekendOpenTime: row?.weekend_open_time || null,
+        weekendCloseTime: row?.weekend_close_time || null,
         logo: row?.logo_url || null,
         cachet: row?.cachet_url || null,
         dailyRevenueTarget: row?.daily_revenue_target ?? 50000,
@@ -974,7 +980,7 @@ export function AppStateProvider({ children }) {
         const stale = employees.filter((e) =>
             (e?.role === 'Laveur' || e?.role === 'Pompiste') && e?.dailyStatus === 'present' && e?.clockInAt
             && localDateKey(new Date(e.clockInAt)) !== todayKey);
-        if (stale.length === 0 || !stationId || stationId === 'default') return;
+        if (stale.length === 0 || !stationId || stationId === 'default' || !stationProfileLoaded) return;
 
         // Clôture propre de la journée précédente AVANT la remise à zéro : si
         // le gérant a oublié de cliquer "Descendre", on ne perd pas la journée
@@ -983,10 +989,11 @@ export function AppStateProvider({ children }) {
         // estimation de rattrapage (cas "oubli") : le gérant peut corriger la
         // ligne du mois. Rien à voir avec l'arrêt du compteur en cours de
         // journée, qui lui n'a plus lieu à la fermeture (voir plus bas).
-        const [ch, cm] = String(stationProfile?.closeTime || '23:59').split(':').map(Number);
         stale.forEach((e) => {
             if (e.clockOutAt) return; // déjà clôturé
             const clockInAt = new Date(e.clockInAt);
+            // Heure de fermeture de CE jour-là (semaine ou week-end).
+            const [ch, cm] = String(hoursForDate(stationProfile, clockInAt).closeTime || '23:59').split(':').map(Number);
             const workDate = localDateKey(clockInAt);
             const endAt = new Date(clockInAt);
             if (!Number.isNaN(ch) && !Number.isNaN(cm)) endAt.setHours(ch, cm, 0, 0);
@@ -1010,7 +1017,7 @@ export function AppStateProvider({ children }) {
             daily_status: 'repos', status: 'Repos', clock_in: null, clock_out: null, clock_in_at: null, clock_out_at: null, total_time: null,
         }).in('id', stale.map((e) => e.id)).then(() => loadEmployees());
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [employees.map((e) => `${e.id}:${e.dailyStatus}:${e.clockInAt || ''}`).join(','), stationProfile?.closeTime]);
+    }, [employees.map((e) => `${e.id}:${e.dailyStatus}:${e.clockInAt || ''}`).join(','), stationProfileLoaded, stationProfile?.closeTime, stationProfile?.weekendCloseTime]);
 
     // Enregistre/complète l'entrée du jour courant pour un employé (statut du jour et/ou
     // pointage). Chaque appel fusionne avec l'entrée existante du jour, pour que la
@@ -1233,9 +1240,12 @@ export function AppStateProvider({ children }) {
         const newP = { ...rawP, name: (rawP?.name || '').trim() || stationProfile?.name || '' };
         setStationProfile(newP);
         if (!stationId || stationId === 'default') return;
+        const weekendSet = !!(newP.weekendOpenTime && newP.weekendCloseTime);
         supabase.from('stations').update({
             name: newP.name, owner_phone: newP.phone, address: newP.address, quartier: newP.quartier,
             region: newP.region, country: newP.country || 'SN', open_time: newP.openTime, close_time: newP.closeTime,
+            // Horaire du week-end : les deux heures ou aucune (contrainte stations_weekend_hours_check).
+            weekend_open_time: weekendSet ? newP.weekendOpenTime : null, weekend_close_time: weekendSet ? newP.weekendCloseTime : null,
             logo_url: newP.logo, cachet_url: newP.cachet, daily_revenue_target: newP.dailyRevenueTarget,
         }).eq('id', stationId).then(() => {});
     };
@@ -1412,58 +1422,89 @@ export function AppStateProvider({ children }) {
         loadScheduleRange(key, key);
     }, [stationId, loadScheduleRange]);
 
-    // Arrêt automatique du compteur — UNIQUEMENT à l'heure de fin d'un créneau
-    // PLANIFIÉ pour ce laveur ce jour-là (shift_templates.end_time via
-    // scheduleByDate). C'est "l'heure de descente définie par la station".
+    // Descente automatique des laveurs (vérifiée au montage puis chaque minute ;
+    // un tableau de bord ouvert après la fermeture rattrape aussitôt, à l'heure
+    // exacte de fermeture, pas à l'heure où la page s'ouvre).
     //
-    // Il n'y a PLUS d'arrêt à l'heure de fermeture de la station : un laveur
-    // sans créneau planifié voit son temps tourner tant que le gérant n'a pas
-    // cliqué "Descendre" — y compris si la page est rechargée ou la session
-    // interrompue (le temps = now - clockInAt, recalculé à chaque affichage,
-    // il ne "s'arrête" jamais tout seul). Le cas "gérant qui oublie" est
-    // rattrapé au changement de jour par la réinitialisation quotidienne
-    // ci-dessus, qui clôture proprement la journée avant de remettre à zéro.
+    // 1. À l'HEURE DE FERMETURE du jour (semaine ou week-end, voir
+    //    hoursForDate / add_weekend_hours.sql), tout laveur encore en service
+    //    (« Actif ») ou descendu provisoirement (« Terminé ») passe en « Fin de
+    //    service » — demande de l'exploitant (2026-09-27) : à la fermeture, les
+    //    laveurs postés descendent. Exceptions voulues :
+    //      • un créneau PLANIFIÉ qui finit plus tard (ex. station fermée à 20h,
+    //        poste jusqu'à 21h) : la descente attend la fin du créneau ;
+    //      • un laveur qui a pointé APRÈS la fermeture (travail exceptionnel
+    //        après l'heure) : le gérant le descend lui-même ;
+    //      • une plage nocturne (fermeture le lendemain) : pas de descente auto.
+    //    Historique : cet arrêt à la fermeture avait été retiré le 2026-09-09
+    //    car le temps se figeait à la fermeture alors que la station tournait
+    //    encore (horaire unique pour toute la semaine) ; avec l'horaire du
+    //    week-end, l'heure de fermeture du jour est désormais la bonne.
     //
-    // "Terminé" et pas "Fin de service" : "Fin de service" est définitif et
-    // sans bouton dans Washers.jsx — l'arrêt auto masquerait alors "Reprendre
-    // service"/"Fin de service" dont le gérant a besoin. "Terminé" garde ces
-    // boutons : l'arrêt ne fait que figer le compteur, le gérant garde la main.
+    // 2. Avant la fermeture, à l'heure de fin d'un créneau PLANIFIÉ : compteur
+    //    figé en « Terminé » (pas « Fin de service »), le gérant garde les
+    //    boutons « Reprendre service » / « Fin de service ».
     //
-    // Vérifié au montage puis chaque minute — pas de tâche serveur sur ce projet.
+    // Le temps de travail est compté jusqu'à l'heure de descente pile.
     useEffect(() => {
         const checkAutoClockOut = () => {
-            if (!stationId || stationId === 'default') return;
+            // Profil pas encore chargé : ses horaires par défaut (20:00) ne sont
+            // pas ceux de la station — ne rien décider avant.
+            if (!stationId || stationId === 'default' || !stationProfileLoaded) return;
             const now = new Date();
             const localDateKey = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
             const todayKey = localDateKey(now);
+            const closingAt = closingDateFor(stationProfile, now);
+            const clockOutPatch = (clockInAt, at) => {
+                const totalMinutes = Math.max(0, Math.round((at.getTime() - clockInAt.getTime()) / 60000));
+                return {
+                    clockOut: at.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+                    clockOutAt: at.toISOString(),
+                    totalTime: `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`,
+                };
+            };
 
             employees
-                .filter((e) => e.role === 'Laveur' && e.status === 'Actif' && e.clockInAt
+                .filter((e) => e.role === 'Laveur' && (e.status === 'Actif' || e.status === 'Terminé') && e.clockInAt
                     && localDateKey(new Date(e.clockInAt)) === todayKey)
                 .forEach((w) => {
-                    // Uniquement si un créneau lui est assigné aujourd'hui.
+                    const clockInAt = new Date(w.clockInAt);
                     const tplId = scheduleByDate?.[todayKey]?.[w.id];
                     const tpl = tplId ? shiftTemplates.find((t) => t.id === tplId) : null;
-                    if (!tpl?.endTime) return; // pas de créneau -> jamais d'arrêt auto
-                    const [h, m] = String(tpl.endTime).split(':').map(Number);
-                    if (Number.isNaN(h) || Number.isNaN(m)) return;
-                    const cutoffAt = new Date(now);
-                    cutoffAt.setHours(h, m, 0, 0);
-                    if (now < cutoffAt) return; // pas encore l'heure de fin de poste
-                    const clockInAt = new Date(w.clockInAt);
-                    const totalMinutes = Math.max(0, Math.round((cutoffAt.getTime() - clockInAt.getTime()) / 60000));
-                    const total = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
-                    const display = cutoffAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                    const patch = { status: 'Terminé', clockOut: display, clockOutAt: cutoffAt.toISOString(), totalTime: total };
-                    updateEmployee(w.id, patch);
-                    recordDailyAttendance(w.id, patch);
+                    let shiftEndAt = null;
+                    const [h, m] = String(tpl?.endTime || '').split(':').map(Number);
+                    if (tpl?.endTime && !Number.isNaN(h) && !Number.isNaN(m)) {
+                        shiftEndAt = new Date(now);
+                        shiftEndAt.setHours(h, m, 0, 0);
+                    }
+
+                    // 1. Fermeture → Fin de service.
+                    if (closingAt && clockInAt < closingAt) {
+                        const descentAt = shiftEndAt && shiftEndAt > closingAt ? shiftEndAt : closingAt;
+                        if (now >= descentAt) {
+                            const patch = w.status === 'Actif'
+                                ? { status: 'Fin de service', ...clockOutPatch(clockInAt, descentAt) }
+                                : { status: 'Fin de service' }; // « Terminé » : sortie déjà enregistrée
+                            updateEmployee(w.id, patch);
+                            recordDailyAttendance(w.id, patch);
+                            return;
+                        }
+                    }
+
+                    // 2. Fin de créneau planifié avant la fermeture → Terminé.
+                    if (w.status === 'Actif' && shiftEndAt && now >= shiftEndAt && clockInAt < shiftEndAt) {
+                        const patch = { status: 'Terminé', ...clockOutPatch(clockInAt, shiftEndAt) };
+                        updateEmployee(w.id, patch);
+                        recordDailyAttendance(w.id, patch);
+                    }
                 });
         };
         checkAutoClockOut();
         const interval = setInterval(checkAutoClockOut, 60000);
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationId, scheduleByDate, shiftTemplates]);
+    }, [employees.map((e) => `${e.id}:${e.status}:${e.clockInAt || ''}`).join(','), stationId, scheduleByDate, shiftTemplates,
+        stationProfileLoaded, stationProfile?.openTime, stationProfile?.closeTime, stationProfile?.weekendOpenTime, stationProfile?.weekendCloseTime]);
 
     // employeeIdOrIds accepte un seul id (lavage classique) ou un tableau de
     // 2-3 ids (véhicule volumineux — bus/camion, voir handleGoClick dans

@@ -78,7 +78,8 @@ export function getStationOperationalProfile(stationId) {
   if (!s) return null;
   return {
     name: s.name, phone: s.ownerPhone, address: s.address, quartier: s.quartier, region: s.region, country: s.country,
-    openTime: s.openTime, closeTime: s.closeTime, logo: s.logo, cachet: s.cachet,
+    openTime: s.openTime, closeTime: s.closeTime, weekendOpenTime: s.weekendOpenTime, weekendCloseTime: s.weekendCloseTime,
+    logo: s.logo, cachet: s.cachet,
   };
 }
 
@@ -142,21 +143,58 @@ export function getStationActiveCount(stationId) {
   return publicStats[stationId]?.activeCount || 0;
 }
 
+// ─── Horaires d'ouverture (add_weekend_hours.sql) ───────────────────────
+// openTime / closeTime = jours ouvrables (lundi → vendredi) ;
+// weekendOpenTime / weekendCloseTime, facultatifs = samedi et dimanche.
+// Sans horaire de week-end, le même horaire vaut toute la semaine.
+// Toute lecture d'horaire passe par hoursForDate — même règle que
+// station_closing_at côté serveur (liste d'attente avant fermeture).
+const toMinutes = (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm || '');
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+export function hasWeekendHours(profile) {
+  return !!(profile?.weekendOpenTime && profile?.weekendCloseTime);
+}
+
+// Horaire qui s'applique le jour de `date` : { openTime, closeTime, weekend }.
+export function hoursForDate(profile, date = new Date()) {
+  const day = date.getDay(); // 0 = dimanche, 6 = samedi
+  if ((day === 0 || day === 6) && hasWeekendHours(profile)) {
+    return { openTime: profile.weekendOpenTime, closeTime: profile.weekendCloseTime, weekend: true };
+  }
+  return { openTime: profile?.openTime, closeTime: profile?.closeTime, weekend: false };
+}
+
+// « 08:00 – 20:00 », ou « Lun–ven 08:00 – 20:00 · Sam–dim 09:00 – 23:00 ».
+export function formatOpeningHours(profile) {
+  if (!profile?.openTime || !profile?.closeTime) return '';
+  const week = `${profile.openTime} – ${profile.closeTime}`;
+  if (!hasWeekendHours(profile)) return week;
+  return `Lun–ven ${week} · Sam–dim ${profile.weekendOpenTime} – ${profile.weekendCloseTime}`;
+}
+
 // Une station sans horaires configurés est considérée ouverte par défaut
 // (ne pas bloquer les réservations d'une station qui vient de s'inscrire).
-export function isStationOpenNow(profile) {
-  if (!profile?.openTime || !profile?.closeTime) return true;
-  const [oh, om] = profile.openTime.split(':').map(Number);
-  const [ch, cm] = profile.closeTime.split(':').map(Number);
-  const now = new Date();
+export function isStationOpenNow(profile, now = new Date()) {
+  const today = hoursForDate(profile, now);
+  const o = toMinutes(today.openTime);
+  const c = toMinutes(today.closeTime);
+  if (o == null || c == null) return true;
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const openMinutes = oh * 60 + om;
-  const closeMinutes = ch * 60 + cm;
-  // Plage nocturne (ex: 20:00 -> 06:00, fermeture le lendemain) : ouvert si on
-  // est après l'heure d'ouverture OU avant l'heure de fermeture. Sans ce cas,
-  // une station qui ferme après minuit apparaissait "Fermé" 24h/24.
-  if (closeMinutes <= openMinutes) return nowMinutes >= openMinutes || nowMinutes < closeMinutes;
-  return nowMinutes >= openMinutes && nowMinutes < closeMinutes;
+  // Plage nocturne (ex: 20:00 -> 06:00, fermeture le lendemain) : ouvert dès
+  // l'ouverture et jusqu'à minuit. Sans ce cas, une station qui ferme après
+  // minuit apparaissait "Fermé" 24h/24.
+  if (c <= o ? nowMinutes >= o : nowMinutes >= o && nowMinutes < c) return true;
+  // Fin de nuit d'une plage nocturne commencée la veille (ex : vendredi 20:00
+  // → samedi 02:00, avec un autre horaire le samedi).
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const prev = hoursForDate(profile, yesterday);
+  const po = toMinutes(prev.openTime);
+  const pc = toMinutes(prev.closeTime);
+  return po != null && pc != null && pc <= po && nowMinutes < pc;
 }
 
 // Utilisé côté admin (StationDashboard "Go", Washers "Reprendre service") pour
@@ -164,14 +202,29 @@ export function isStationOpenNow(profile) {
 // isStationOpenNow ci-dessus (badge Ouvert/Fermé côté client), on ne bloque
 // pas avant l'heure d'ouverture : un gérant qui prépare la station ou un
 // laveur qui pointe en avance ne doit pas se retrouver bloqué.
-export function isPastClosingTime(profile) {
-  if (!profile?.closeTime) return false;
-  const [closeH, closeM] = profile.closeTime.split(':').map(Number);
-  if (Number.isNaN(closeH) || Number.isNaN(closeM)) return false;
-  const now = new Date();
-  const closeAt = new Date(now);
-  closeAt.setHours(closeH, closeM, 0, 0);
-  return now >= closeAt;
+export function isPastClosingTime(profile, now = new Date()) {
+  const { openTime, closeTime } = hoursForDate(profile, now);
+  const c = toMinutes(closeTime);
+  if (c == null) return false;
+  const o = toMinutes(openTime);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  // Plage nocturne : « après la fermeture » = entre la fermeture du matin et
+  // la réouverture du soir (avant, la fonction bloquait toute la journée).
+  if (o != null && c <= o) return nowMinutes >= c && nowMinutes < o;
+  return nowMinutes >= c;
+}
+
+// Heure de fermeture du jour de `date` (objet Date), ou null s'il n'y a pas
+// d'horaire ou si la plage est nocturne (fermeture le lendemain) — sert à la
+// descente automatique des laveurs à la fermeture (useAppState).
+export function closingDateFor(profile, date = new Date()) {
+  const { openTime, closeTime } = hoursForDate(profile, date);
+  const c = toMinutes(closeTime);
+  const o = toMinutes(openTime);
+  if (c == null || (o != null && c <= o)) return null;
+  const at = new Date(date);
+  at.setHours(Math.floor(c / 60), c % 60, 0, 0);
+  return at;
 }
 
 // Position dans la file (1 = prochain) et temps d'attente estimé pour UNE

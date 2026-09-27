@@ -5,6 +5,7 @@ import { Clock, Users, Car, Target, TrendingUp, Banknote, Receipt, Calendar } fr
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { hoursForDate } from '../../lib/stationData';
 import { AreaChart, Donut, Gauge } from '../../components/ui/charts';
 
 // Clé du jour au format YYYY-MM-DD (fuseau local) — même helper qu'ailleurs
@@ -208,8 +209,10 @@ export default function Analytics() {
     const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
     return m ? Number(m[1]) : fallback;
   };
-  let openHour = parseHour(stationProfile?.openTime, 8);
-  let closeHour = parseHour(stationProfile?.closeTime, 20);
+  // Horaire du jour affiché (semaine ou week-end, voir hoursForDate).
+  const peakHours = hoursForDate(stationProfile, new Date(`${peakDate}T12:00:00`));
+  let openHour = parseHour(peakHours.openTime, 8);
+  let closeHour = parseHour(peakHours.closeTime, 20);
   if (!(closeHour > openHour)) { openHour = 8; closeHour = 20; } // garde-fou si horaires mal configurés
 
   const hourSlots = [];
@@ -350,7 +353,7 @@ export default function Analytics() {
               </div>
             </div>
             <p className="text-neutral-500 text-xs mb-6 capitalize">
-              {stationProfile?.openTime || '08:00'} – {stationProfile?.closeTime || '20:00'} · {peakDateLabel}
+              {peakHours.openTime || '08:00'} – {peakHours.closeTime || '20:00'} · {peakDateLabel}
             </p>
 
             {!hasFrequencyData ? (

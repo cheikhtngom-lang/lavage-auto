@@ -1177,7 +1177,7 @@
 
         async function loadPublicStations() {
             const [{ data: stations }, { data: reviews }] = await Promise.all([
-                supabase.from('stations').select('id, name, quartier, region, country, city, address, status, open_time, close_time, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
+                supabase.from('stations').select('id, name, quartier, region, country, city, address, status, open_time, close_time, weekend_open_time, weekend_close_time, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
                 supabase.from('station_reviews').select('station_id, rating'),
             ]);
             const ratingByStation = {};
@@ -1195,7 +1195,7 @@
             // même logique que /stations et Mes Stations) pour l'afficher à la place.
             window.__publicStations = (stations || []).map((s) => ({
                 ...s,
-                _open: isStationOpenNow({ openTime: s.open_time, closeTime: s.close_time }),
+                _open: isStationOpenNow({ openTime: s.open_time, closeTime: s.close_time, weekendOpenTime: s.weekend_open_time, weekendCloseTime: s.weekend_close_time }),
                 _rating: ratingByStation[s.id] ? { average: ratingByStation[s.id].sum / ratingByStation[s.id].count, count: ratingByStation[s.id].count } : null,
             }));
             window.dispatchEvent(new Event('ccg:public-stations-ready'));

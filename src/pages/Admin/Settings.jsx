@@ -753,16 +753,50 @@ export default function Settings() {
                 )}
 
                 <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4">Horaires d'ouverture</h2>
+                {/* Semaine (lundi → vendredi) + week-end facultatif (samedi et
+                    dimanche, add_weekend_hours.sql). Ces heures pilotent le badge
+                    Ouvert/Fermé, la liste d'attente avant fermeture et la descente
+                    automatique des laveurs. */}
+                <p className="text-sm font-semibold text-neutral-300 mb-3">
+                  {(profile?.weekendOpenTime != null) ? 'Du lundi au vendredi' : 'Tous les jours'}
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Heure d'ouverture</label>
-                    <input type="time" value={profile?.openTime || ''} onChange={e => setProfile({...profile, openTime: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                    <input type="time" value={profile?.openTime || ''} onChange={e => setProfile({...profile, openTime: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Heure de fermeture</label>
-                    <input type="time" value={profile?.closeTime || ''} onChange={e => setProfile({...profile, closeTime: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                    <input type="time" value={profile?.closeTime || ''} onChange={e => setProfile({...profile, closeTime: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]" />
                   </div>
                 </div>
+                <label className="mt-5 flex items-center gap-3 cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={profile?.weekendOpenTime != null}
+                    onChange={(e) => setProfile(e.target.checked
+                      ? { ...profile, weekendOpenTime: profile?.openTime || '08:00', weekendCloseTime: profile?.closeTime || '20:00' }
+                      : { ...profile, weekendOpenTime: null, weekendCloseTime: null })}
+                    className="w-4 h-4 accent-blue-500"
+                  />
+                  <span className="text-sm text-neutral-300">Horaires différents le week-end (samedi et dimanche)</span>
+                </label>
+                {profile?.weekendOpenTime != null && (
+                  <>
+                    <p className="text-sm font-semibold text-neutral-300 mt-5 mb-3">Samedi et dimanche</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-400">Heure d'ouverture</label>
+                        <input type="time" value={profile?.weekendOpenTime || ''} onChange={e => setProfile({...profile, weekendOpenTime: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-400">Heure de fermeture</label>
+                        <input type="time" value={profile?.weekendCloseTime || ''} onChange={e => setProfile({...profile, weekendCloseTime: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]" />
+                      </div>
+                    </div>
+                  </>
+                )}
+                <p className="text-neutral-500 text-xs mt-3">À l'heure de fermeture du jour, les laveurs encore en service descendent automatiquement (Fin de service), sauf si leur créneau du planning finit plus tard.</p>
 
                 <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4">Objectif de revenus</h2>
                 <div className="space-y-2 max-w-sm">
