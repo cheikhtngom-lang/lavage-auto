@@ -247,7 +247,7 @@ export default function Settings() {
     
     addEmployee({
         name: newEmp.name,
-        role: newEmp.role === 'laveur' ? 'Laveur' : newEmp.role === 'caisse' ? 'Caisse' : 'Superviseur',
+        role: newEmp.role === 'laveur' ? 'Laveur' : newEmp.role === 'caisse' ? 'Caisse' : 'Gérant',
         access: newEmp.role === 'laveur' ? 'Aucun' : newEmp.role === 'caisse' ? 'Limité' : 'Complet',
     });
     
@@ -958,7 +958,7 @@ export default function Settings() {
                     <select value={newEmp.role} onChange={e => setNewEmp({...newEmp, role: e.target.value})} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none">
                       <option value="laveur">Laveur</option>
                       <option value="caisse">Caisse / Accueil</option>
-                      <option value="superviseur">Superviseur</option>
+                      <option value="gerant">Gérant</option>
                     </select>
                   </div>
                   <div className="space-y-2">

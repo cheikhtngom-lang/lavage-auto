@@ -31,7 +31,7 @@ export const PERMISSION_GROUPS = ['Exploitation', 'Finances', 'Administration'];
 // Clés d'un rôle "catalogue" (is_builtin) — sert à afficher un libellé et à
 // empêcher l'édition côté UI. La source de vérité reste la table station_roles.
 export const BUILTIN_ROLE_KEYS = [
-  'super_admin_station', 'gerant', 'caissier', 'superviseur', 'reception', 'laveur',
+  'super_admin_station', 'gerant', 'caissier', 'reception', 'laveur',
 ];
 
 export function hasPerm(permissions, key) {

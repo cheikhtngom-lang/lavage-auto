@@ -15,7 +15,7 @@ const TOUR_STEPS = [
   { selector: '[data-tour="admin-nav-washers"]', title: 'Laveurs', text: 'Gérez la présence de vos laveurs au jour le jour et suivez leur pointage.' },
   { selector: '[data-tour="admin-nav-transactions"]', title: 'Transactions', text: 'Retrouvez tous les paiements encaissés, avec leurs reçus.' },
   { selector: '[data-tour="admin-nav-analytics"]', title: 'Analytique', text: 'Suivez votre chiffre d\'affaires et l\'activité de votre équipe.' },
-  { selector: '[data-tour="admin-nav-team"]', title: 'Équipe', text: 'Ajoutez et gérez tous les membres de votre équipe (laveurs, caisse, superviseurs).' },
+  { selector: '[data-tour="admin-nav-team"]', title: 'Équipe', text: 'Ajoutez et gérez tous les membres de votre équipe (gérant, caisse, laveurs).' },
   { selector: '[data-tour="admin-nav-settings"]', title: 'Paramètres', text: "Personnalisez vos tarifs, vos horaires, et les informations de votre station à tout moment." },
 ];
 
