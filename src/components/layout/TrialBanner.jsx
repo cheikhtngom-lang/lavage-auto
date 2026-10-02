@@ -2,7 +2,7 @@ import React from 'react';
 import { Sparkles } from 'lucide-react';
 import { trialDaysRemaining, trialProgressPercent, trialUrgency, trialTotalDays } from '../../lib/stationTrial';
 
-// Bandeau d'essai gratuit (15 jours) affiché au-dessus de l'espace station tant
+// Bandeau d'essai gratuit (7 jours, voir lib/stationTrial.js) affiché au-dessus de l'espace station tant
 // que subscription_status === 'essai' (voir add_station_trial.sql). N'agit
 // jamais automatiquement sur l'abonnement à l'expiration — c'est toujours le
 // Super Admin qui bascule manuellement vers "a_jour"/"en_retard" (voir
@@ -17,10 +17,10 @@ export default function TrialBanner({ billing }) {
   if (!billing || billing.subscriptionStatus !== 'essai' || !billing.trialEndsAt) return null;
 
   const daysRemaining = trialDaysRemaining(billing.trialEndsAt);
-  const percent = trialProgressPercent(billing.trialEndsAt);
-  const totalDays = trialTotalDays(billing.trialEndsAt);
+  const percent = trialProgressPercent(billing.trialEndsAt, billing.trialStartedAt);
+  const totalDays = trialTotalDays(billing.trialEndsAt, billing.trialStartedAt);
   const isExpired = daysRemaining <= 0;
-  const style = URGENCY_STYLES[trialUrgency(billing.trialEndsAt)];
+  const style = URGENCY_STYLES[trialUrgency(billing.trialEndsAt, billing.trialStartedAt)];
 
   return (
     <div className={`relative z-20 flex flex-col sm:flex-row sm:items-center gap-3 border-b px-6 py-3 text-sm ${style.bg}`}>

@@ -244,8 +244,8 @@ export default function Billing() {
                     </span>
                     {s.subscriptionStatus === 'essai' && s.trialEndsAt && (() => {
                       const remaining = trialDaysRemaining(s.trialEndsAt);
-                      const percent = trialProgressPercent(s.trialEndsAt);
-                      const urgency = trialUrgency(s.trialEndsAt);
+                      const percent = trialProgressPercent(s.trialEndsAt, s.joinedAt);
+                      const urgency = trialUrgency(s.trialEndsAt, s.joinedAt);
                       const textClass = urgency === 'danger' ? 'text-red-400' : urgency === 'warning' ? 'text-orange-400' : 'text-neutral-500';
                       const barClass = urgency === 'danger' ? 'bg-red-400' : urgency === 'warning' ? 'bg-orange-400' : 'bg-emerald-400';
                       return (

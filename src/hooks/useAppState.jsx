@@ -656,7 +656,8 @@ export function AppStateProvider({ children }) {
             if (cancelled) return;
             setStationProfile(rowToProfile(data));
             setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
-            setStationBilling(rowToBilling(data?.station_billing));
+            // Début de l'essai = création de la station (barre d'essai, lib/stationTrial.js).
+            setStationBilling({ ...rowToBilling(data?.station_billing), trialStartedAt: data?.created_at || null });
             if (Array.isArray(data?.hidden_menu)) rememberHiddenMenu(data.hidden_menu);
             setStationProfileLoaded(true);
         });

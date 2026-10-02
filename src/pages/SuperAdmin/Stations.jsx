@@ -49,8 +49,8 @@ const emptyForm = { name: '', ownerName: '', ownerEmail: '', ownerPhone: '', add
 function TrialMiniBar({ station }) {
   if (station.subscriptionStatus !== 'essai' || !station.trialEndsAt) return null;
   const remaining = trialDaysRemaining(station.trialEndsAt);
-  const percent = trialProgressPercent(station.trialEndsAt);
-  const urgency = trialUrgency(station.trialEndsAt);
+  const percent = trialProgressPercent(station.trialEndsAt, station.joinedAt);
+  const urgency = trialUrgency(station.trialEndsAt, station.joinedAt);
   const textClass = urgency === 'danger' ? 'text-red-400' : urgency === 'warning' ? 'text-orange-400' : 'text-emerald-400';
   const barClass = urgency === 'danger' ? 'bg-red-400' : urgency === 'warning' ? 'bg-orange-400' : 'bg-emerald-400';
   return (
