@@ -34,7 +34,7 @@ export async function loadPlatformAnnouncements() {
 // ajouter ici, la lecture se limite naturellement au bon sous-ensemble.
 export async function loadStationAnnouncements() {
   const { data, error } = await supabase
-    .from('announcements').select('*, stations(name)')
+    .from('announcements').select('*, stations!station_id(name)')
     .eq('scope', 'station_to_clients')
     .order('created_at', { ascending: false })
     .limit(50);
