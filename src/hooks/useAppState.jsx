@@ -664,17 +664,55 @@ export function AppStateProvider({ children }) {
     useEffect(() => {
         setStationProfileLoaded(false);
         if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); setStationBilling(null); setStationProfileLoaded(true); return; }
+        // Un échec (onglet resté inactif : session en cours de renouvellement,
+        // réseau coupé, requête bloquée) n'écrase plus rien : avant, la station
+        // devenait vide — nom en chargement sans fin, offre retombée à Starter,
+        // menu amputé — jusqu'au rechargement de la page. On réessaie, et on
+        // relit au retour sur l'onglet tant que le chargement n'a pas abouti.
         let cancelled = false;
-        supabase.from('stations').select('*, station_billing(*)').eq('id', stationId).single().then(({ data }) => {
+        let loaded = false;
+        let attempts = 0;
+        let retryTimer = null;
+        const load = async () => {
+            clearTimeout(retryTimer);
+            let data = null;
+            let error = null;
+            try {
+                // Course contre un délai : une requête peut rester bloquée AVANT
+                // l'envoi (renouvellement de session au réveil de l'onglet), là où
+                // abortSignal n'agit pas.
+                ({ data, error } = await Promise.race([
+                    supabase.from('stations').select('*, station_billing(*)').eq('id', stationId).abortSignal(timeoutSignal(8000)).single(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('délai dépassé')), 8000)),
+                ]));
+            } catch (e) { error = e; }
             if (cancelled) return;
+            // Aucune ligne (PGRST116) : réponse définitive, pas un incident à réessayer.
+            if ((error && error.code !== 'PGRST116') || (!data && !error)) {
+                console.error('loadStationProfile:', error || 'réponse vide');
+                attempts += 1;
+                retryTimer = setTimeout(load, Math.min(15000, 1000 * 2 ** attempts));
+                return;
+            }
+            loaded = true;
+            attempts = 0;
             setStationProfile(rowToProfile(data));
             setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
             // Début de l'essai = création de la station (barre d'essai, lib/stationTrial.js).
             setStationBilling({ ...rowToBilling(data?.station_billing), trialStartedAt: data?.created_at || null });
             if (Array.isArray(data?.hidden_menu)) rememberHiddenMenu(data.hidden_menu);
             setStationProfileLoaded(true);
-        });
-        return () => { cancelled = true; };
+        };
+        load();
+        const onBack = () => { if (!loaded && document.visibilityState === 'visible') { attempts = 0; load(); } };
+        window.addEventListener('focus', onBack);
+        document.addEventListener('visibilitychange', onBack);
+        return () => {
+            cancelled = true;
+            clearTimeout(retryTimer);
+            window.removeEventListener('focus', onBack);
+            document.removeEventListener('visibilitychange', onBack);
+        };
     }, [stationId]);
 
     // ─── Permissions du compte connecté (gestion d'équipe, voir
