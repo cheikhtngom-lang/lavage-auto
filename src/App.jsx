@@ -46,6 +46,7 @@ const ClientShop = lazyPage(() => import('./pages/Client/Shop'));
 const StationDashboard = lazyPage(() => import('./pages/Admin/StationDashboard'));
 const AdminTransactions = lazyPage(() => import('./pages/Admin/Transactions'));
 const Accounting = lazyPage(() => import('./pages/Admin/Accounting'));
+const AdminPayouts = lazyPage(() => import('./pages/Admin/Payouts'));
 const Analytics = lazyPage(() => import('./pages/Admin/Analytics'));
 const Team = lazyPage(() => import('./pages/Admin/Team'));
 const Washers = lazyPage(() => import('./pages/Admin/Washers'));
@@ -76,6 +77,7 @@ const SuperAdminMotorists = lazyPage(() => import('./pages/SuperAdmin/Motorists'
 const SuperAdminSuperUsers = lazyPage(() => import('./pages/SuperAdmin/SuperUsers'));
 const SuperAdminAds = lazyPage(() => import('./pages/SuperAdmin/Ads'));
 const SuperAdminBilling = lazyPage(() => import('./pages/SuperAdmin/Billing'));
+const SuperAdminPayouts = lazyPage(() => import('./pages/SuperAdmin/Payouts'));
 const SuperAdminBilan = lazyPage(() => import('./pages/SuperAdmin/Bilan'));
 const SuperAdminFuel = lazyPage(() => import('./pages/SuperAdmin/Fuel'));
 const SuperAdminSupport = lazyPage(() => import('./pages/SuperAdmin/Support'));
@@ -196,6 +198,7 @@ function App() {
                 <Route path="transactions" element={<RequirePerm perm="transactions.view"><AdminTransactions /></RequirePerm>} />
                 <Route path="accounting" element={<RequireAccountingAccess><Accounting /></RequireAccountingAccess>} />
                 <Route path="analytics" element={<RequirePerm perm="analytics.view"><Analytics /></RequirePerm>} />
+                <Route path="reversements" element={<RequirePerm perm="accounting.manage"><AdminPayouts /></RequirePerm>} />
                 <Route path="bilan" element={<RequireBusinessPlan><Bilan /></RequireBusinessPlan>} />
                 <Route path="shop" element={<RequireShopAccess><Shop /></RequireShopAccess>} />
                 <Route path="team" element={<RequirePerm perm="team.manage"><Team /></RequirePerm>} />
@@ -230,6 +233,7 @@ function App() {
                 <Route path="super-users" element={<SuperAdminSuperUsers />} />
                 <Route path="ads" element={<SuperAdminAds />} />
                 <Route path="billing" element={<SuperAdminBilling />} />
+                <Route path="reversements" element={<SuperAdminPayouts />} />
                 <Route path="carburant" element={<SuperAdminFuel />} />
                 <Route path="bilan" element={<SuperAdminBilan />} />
                 <Route path="support" element={<SuperAdminSupport />} />

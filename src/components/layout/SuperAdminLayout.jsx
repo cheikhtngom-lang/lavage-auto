@@ -1,14 +1,16 @@
 import React, { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import PageSuspense from '../ui/PageSuspense';
-import { LayoutDashboard, Building2, CreditCard, LifeBuoy, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes, Briefcase, Fuel } from 'lucide-react';
+import { LayoutDashboard, Building2, CreditCard, LifeBuoy, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes, Briefcase, Fuel, Wallet } from 'lucide-react';
 import { getCurrentRole, clearSession } from '../../lib/accounts';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import SuperUserNotifBell from '../superadmin/SuperUserNotifBell';
 import AppShell from './AppShell';
+import { groupPayoutsByStation } from '../../lib/payouts';
 
 export default function SuperAdminLayout() {
-  const { superUserSubscriptions, stationAds } = useSuperAdminState();
+  const { superUserSubscriptions, stationAds, lavagePayments } = useSuperAdminState();
+  const stationsToPayCount = groupPayoutsByStation(lavagePayments || []).filter((g) => g.pendingTotal > 0).length;
   const pendingSuperUserCount = superUserSubscriptions.filter((s) => s.status === 'PENDING').length;
   const pendingAdsCount = stationAds.filter((a) => a.status === 'PENDING').length;
 
@@ -30,6 +32,7 @@ export default function SuperAdminLayout() {
     { name: 'Publicités', href: '/superadmin/ads', icon: Megaphone, badge: pendingAdsCount },
     { name: 'Annonces', href: '/superadmin/annonces', icon: Send },
     { name: 'Facturation', href: '/superadmin/billing', icon: CreditCard },
+    { name: 'Reversements', href: '/superadmin/reversements', icon: Wallet, badge: stationsToPayCount },
     { name: 'Carburant', href: '/superadmin/carburant', icon: Fuel },
     { name: 'Bilan', href: '/superadmin/bilan', icon: FileBarChart },
     { name: 'Support', href: '/superadmin/support', icon: LifeBuoy },

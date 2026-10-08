@@ -10,7 +10,7 @@
 //     d'accès : la route reste joignable.
 import {
   LayoutDashboard, Users, Settings, Droplets, Activity, Calculator, LineChart, Sparkles,
-  FileBarChart, Store, Wrench, Send, Fuel,
+  FileBarChart, Store, Wrench, Send, Fuel, Wallet,
 } from 'lucide-react';
 import { hasPerm } from './permissions';
 import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './offers';
@@ -28,6 +28,8 @@ export const ADMIN_NAV = [
   { key: 'transactions', name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
   // Comptabilité : Pro et Station de service — voir RequireAccountingAccess (App.jsx).
   { key: 'accounting', name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ['Pro', SERVICE_STATION_PLAN] },
+  // Reversements des paiements en ligne : tous les forfaits (une station Starter peut aussi être payée en ligne).
+  { key: 'reversements', name: 'Reversements', href: '/admin/reversements', icon: Wallet, perm: 'accounting.manage', hint: 'Ce que la plateforme vous reverse sur les paiements en ligne, et l’historique.' },
   { key: 'subscriptions', name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
   { key: 'analytics', name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
   // Bilan : offre Station de service, ou module "mod_bilan" — voir RequireBusinessPlan (App.jsx).

@@ -48,6 +48,7 @@ export const ROUTE_PERMISSION = {
   '/admin/vidange': 'vidange.manage',
   '/admin/transactions': 'transactions.view',
   '/admin/accounting': 'accounting.manage',
+  '/admin/reversements': 'accounting.manage',
   '/admin/subscriptions': 'subscriptions.manage',
   '/admin/analytics': 'analytics.view',
   '/admin/shop': 'shop.manage',
