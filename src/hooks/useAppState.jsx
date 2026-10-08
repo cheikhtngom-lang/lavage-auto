@@ -1563,24 +1563,45 @@ export function AppStateProvider({ children }) {
         return realId;
     };
 
+    // Déplace tout de suite un véhicule d'une liste de la file à l'autre (même
+    // principe que updateEmployee) : avant, Lancer / Terminer / Retirer
+    // attendaient l'écriture PUIS une relecture complète de la file. La
+    // confirmation arrive par Realtime ; en cas d'échec updateReservation
+    // relit la base, ce qui annule le déplacement.
+    const moveWashLocally = (id, status, fields = {}) => {
+        const item = [...queue, ...waitlist, ...activeWashes, ...completedWashes].find((i) => i.id === id);
+        if (!item) return;
+        const next = { ...item, ...fields, status };
+        const without = (prev) => prev.filter((i) => i.id !== id);
+        setQueue(without);
+        setWaitlist(without);
+        setActiveWashes((prev) => (status === 'en_cours' ? [...without(prev), next] : without(prev)));
+        setCompletedWashes((prev) => (status === 'termine' ? [next, ...without(prev)] : without(prev)));
+    };
+
     const startWash = (id, employeeIdOrIds) => {
         const ids = Array.isArray(employeeIdOrIds) ? employeeIdOrIds : [employeeIdOrIds];
         const emps = ids.map(eid => (employees || []).find(e => e.id === eid)).filter(Boolean);
         const names = emps.map(e => e.name);
+        const startedAt = new Date().toISOString();
+        moveWashLocally(id, 'en_cours', { assignedTo: names[0] || 'Inconnu', assignedWasherNames: names.length > 1 ? names : null, startedAt });
         updateReservation(id, {
             status: 'en_cours',
             assigned_to_name: names[0] || 'Inconnu',
             assigned_washer_names: names.length > 1 ? names : null,
-            started_at: new Date().toISOString(),
+            started_at: startedAt,
         }, 'Impossible de lancer ce lavage').then((realId) => {
-            loadReservations();
             if (realId) emps.forEach(emp => { if (emp.status === 'Terminé') resumeEmployee(emp.id); });
         });
     };
 
     const endWash = (id) => {
-        updateReservation(id, { status: 'termine', completed_at: new Date().toISOString() }, 'Impossible de terminer ce lavage')
-            .then(() => loadReservations());
+        const now = new Date();
+        moveWashLocally(id, 'termine', {
+            completedAt: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            completedAtISO: now.toISOString(),
+        });
+        updateReservation(id, { status: 'termine', completed_at: now.toISOString() }, 'Impossible de terminer ce lavage');
     };
 
     // Le gérant fait entrer un véhicule de la liste d'attente dans la file
@@ -1592,7 +1613,8 @@ export function AppStateProvider({ children }) {
     };
 
     const skipWash = (id) => {
-        updateReservation(id, { status: 'annule' }, 'Impossible de retirer ce véhicule').then(() => loadReservations());
+        moveWashLocally(id, 'annule');
+        updateReservation(id, { status: 'annule' }, 'Impossible de retirer ce véhicule');
     };
 
     // Recule un véhicule payé en ligne (Wave/Orange Money) d'une place dans la
