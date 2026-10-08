@@ -142,10 +142,17 @@ export function AppStateProvider({ children }) {
     const stationId = getCurrentStationId();
 
     const [employees, setEmployees] = useState([]);
+    // Modifications d'employés envoyées mais pas encore confirmées par la base
+    // (id -> { patch, token }). updateEmployee les affiche tout de suite ; une
+    // relecture qui arrive entre-temps (Realtime, focus) les réapplique, sinon
+    // l'écran reviendrait un instant à l'ancien état — et l'effet de prise de
+    // poste auto de Washers.jsx re-pointerait le laveur.
+    const pendingEmployeePatches = useRef(new Map());
     const loadEmployees = useCallback(async () => {
         if (!stationId || stationId === 'default') { setEmployees([]); return; }
         const { data } = await supabase.from('employees').select('*').eq('station_id', stationId).order('created_at', { ascending: true });
-        setEmployees((data || []).map(rowToEmployee));
+        const pending = pendingEmployeePatches.current;
+        setEmployees((data || []).map(rowToEmployee).map((e) => (pending.has(e.id) ? { ...e, ...pending.get(e.id).patch } : e)));
     }, [stationId]);
 
     // Pompes à essence de la station (Paramètres > Pompistes & pompes, voir
@@ -572,22 +579,28 @@ export function AppStateProvider({ children }) {
         // `custom_vehicle_types` n'y est pas encore (change trop rarement pour
         // en avoir besoin). Le setInterval restant sert de filet de sécurité
         // (une reconnexion Realtime manquée ne doit pas figer la file indéfiniment).
+        // Une rafale de changements (plusieurs laveurs pointés, descente auto à la
+        // fermeture, lavage multi-laveurs…) ne déclenche qu'UNE relecture par table
+        // au lieu d'une par ligne modifiée : moins de requêtes quand beaucoup de
+        // stations travaillent en même temps.
+        const timers = new Set();
+        const batched = (fn) => { let t; return () => { clearTimeout(t); timers.delete(t); t = setTimeout(() => { timers.delete(t); fn(); }, 250); timers.add(t); }; };
         const channel = (stationId && stationId !== 'default')
             ? supabase
                 .channel(`station-live-${stationId}`)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `station_id=eq.${stationId}` }, loadReservations)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `station_id=eq.${stationId}` }, loadTransactions)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `station_id=eq.${stationId}` }, loadExpenses)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews', filter: `station_id=eq.${stationId}` }, loadReviews)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `station_id=eq.${stationId}` }, loadEmployees)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage', filter: `station_id=eq.${stationId}` }, loadLavagePayments)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'vidange_bookings', filter: `station_id=eq.${stationId}` }, loadVidangeBookings)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_orders', filter: `station_id=eq.${stationId}` }, loadShopOrders)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `station_id=eq.${stationId}` }, batched(loadReservations))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `station_id=eq.${stationId}` }, batched(loadTransactions))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `station_id=eq.${stationId}` }, batched(loadExpenses))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'station_reviews', filter: `station_id=eq.${stationId}` }, batched(loadReviews))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'employees', filter: `station_id=eq.${stationId}` }, batched(loadEmployees))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'paiements_lavage', filter: `station_id=eq.${stationId}` }, batched(loadLavagePayments))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'vidange_bookings', filter: `station_id=eq.${stationId}` }, batched(loadVidangeBookings))
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_orders', filter: `station_id=eq.${stationId}` }, batched(loadShopOrders))
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => { loadReceivedAnnouncements(); loadSentAnnouncements(); })
                 .subscribe()
             : null;
         const interval = setInterval(refresh, 45000);
-        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
+        return () => { clearInterval(interval); timers.forEach(clearTimeout); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
     }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadPumps, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, loadShopOrders, loadReceivedAnnouncements, loadSentAnnouncements, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée
@@ -1279,9 +1292,20 @@ export function AppStateProvider({ children }) {
         return { success: !error, error };
     };
 
+    // Affichage immédiat (pointage, statut du jour…) : avant, l'écran attendait
+    // la mise à jour PUIS une relecture complète des employés, soit 4 allers-
+    // retours en série pour « Présent » + prise de poste auto. La confirmation
+    // arrive par Realtime ; en cas d'échec on relit la base pour annuler.
     const updateEmployee = (id, updatedData) => {
         if (!stationId || stationId === 'default') return;
-        supabase.from('employees').update(patchToRow(updatedData)).eq('id', id).then(() => loadEmployees());
+        const pending = pendingEmployeePatches.current;
+        const token = {};
+        pending.set(id, { patch: { ...(pending.get(id)?.patch || {}), ...updatedData }, token });
+        setEmployees((prev) => prev.map((e) => (e.id === id ? { ...e, ...updatedData } : e)));
+        supabase.from('employees').update(patchToRow(updatedData)).eq('id', id).then(({ error }) => {
+            if (pending.get(id)?.token === token) pending.delete(id);
+            if (error) { console.error('updateEmployee:', error); pending.delete(id); loadEmployees(); }
+        });
     };
 
     const deleteEmployee = (id) => {
