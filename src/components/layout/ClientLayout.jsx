@@ -10,6 +10,7 @@ import { clearSession } from '../../lib/accounts';
 import ClientOnboarding from '../onboarding/ClientOnboarding';
 import SuperUserWelcomeOverlay from '../client/SuperUserWelcomeOverlay';
 import AnnouncementBell from '../ui/AnnouncementBell';
+import AnnouncementPopup from '../ui/AnnouncementPopup';
 import AppShell from './AppShell';
 
 export default function ClientLayout() {
@@ -56,6 +57,11 @@ export default function ClientLayout() {
         <>
           <ClientOnboarding />
           <SuperUserWelcomeOverlay />
+          <AnnouncementPopup
+            announcements={stationAnnouncements}
+            dismissedIds={account.dismissedAnnouncementIds || []}
+            onDismiss={dismissAnnouncement}
+          />
         </>
       )}
       actions={(

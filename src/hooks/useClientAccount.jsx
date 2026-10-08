@@ -110,11 +110,23 @@ export function ClientAccountProvider({ children }) {
             }
             refresh();
         };
+        // Nouvelle annonce d'une station : notification du téléphone/navigateur
+        // (même principe que « Lavage enregistré ! »), en plus de la fenêtre
+        // AnnouncementPopup. Realtime applique le RLS : on ne reçoit que les
+        // annonces que ce client a le droit de lire.
+        const notifyAnnouncement = (payload) => {
+            loadClientAnnouncements();
+            const a = payload.new;
+            if (payload.eventType === 'INSERT' && a?.scope === 'station_to_clients' && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                const n = new Notification(`${getStationName(a.station_id)} : ${a.title}`, { body: a.message, tag: `announcement-${a.id}` });
+                n.onclick = () => window.focus();
+            }
+        };
         const channel = supabase
             .channel(`client-live-${account.id}`)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations', filter: `client_id=eq.${account.id}` }, notifyNewReservation)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `client_id=eq.${account.id}` }, refresh)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, loadClientAnnouncements)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, notifyAnnouncement)
             .subscribe();
         const interval = setInterval(refresh, 45000);
         return () => { clearInterval(interval); window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
