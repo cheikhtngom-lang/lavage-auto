@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Store, Clock, CreditCard, Shield, Users, UserPlus, CheckCircle2, Loader2, AlertTriangle, Trash2, RefreshCw, Image, X, MapPin, Lock, Mail, Stamp, Megaphone, Percent, Ticket, Smartphone, Clock3, XCircle, Camera, Download, FileDown, Plus, Wrench, LayoutList, Fuel } from 'lucide-react';
+import { discountServices, generatePromoCode } from '../../lib/promoDefaults';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -1269,7 +1270,7 @@ export default function Settings() {
                         <span className="text-sm text-neutral-400">Active</span>
                       </label>
                     </div>
-                    <p className="text-neutral-500 text-xs mb-4">Le prix affiché et facturé sera automatiquement réduit pour cette catégorie + ce service, tant que la promo est active.</p>
+                    <p className="text-neutral-500 text-xs mb-4">Le prix affiché et facturé sera automatiquement réduit pour cette catégorie et les services cochés, tant que la promo est active.</p>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-neutral-400">Catégorie</label>
@@ -1278,21 +1279,38 @@ export default function Settings() {
                           onChange={e => {
                             const category = e.target.value;
                             const services = promoServicesFor(category);
-                            const service = services.includes(promo?.discount?.service) ? promo.discount.service : services[0];
-                            setPromo({ ...promo, discount: { ...(promo?.discount || {}), category, service } });
+                            const kept = discountServices(promo?.discount).filter((sv) => services.includes(sv));
+                            const chosen = kept.length ? kept : [services[0]];
+                            setPromo({ ...promo, discount: { ...(promo?.discount || {}), category, services: chosen, service: chosen[0] } });
                           }}
                           className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none">
                           {PROMO_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-neutral-400">Service</label>
-                        <select
-                          value={promo?.discount?.service || 'Lavage Simple'}
-                          onChange={e => setPromo({ ...promo, discount: { ...(promo?.discount || {}), service: e.target.value } })}
-                          className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 appearance-none">
-                          {promoServicesFor(promo?.discount?.category || 'Particulier').map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                        <label className="text-sm font-medium text-neutral-400">Services</label>
+                        {(() => {
+                          const all = promoServicesFor(promo?.discount?.category || 'Particulier');
+                          const chosen = discountServices(promo?.discount);
+                          const setServices = (list) => setPromo({ ...promo, discount: { ...(promo?.discount || {}), services: list, service: list[0] } });
+                          // Au moins un service reste coché (sinon la promo ne viserait rien).
+                          const toggle = (sv) => {
+                            const next = chosen.includes(sv) ? chosen.filter((x) => x !== sv) : all.filter((x) => x === sv || chosen.includes(x));
+                            if (next.length) setServices(next);
+                          };
+                          const allOn = all.every((sv) => chosen.includes(sv));
+                          const chip = (on) => `px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${on ? 'bg-blue-600/20 border-blue-500/50 text-blue-300' : 'bg-neutral-900 border-white/10 text-neutral-400 hover:text-white'}`;
+                          return (
+                            <div className="flex flex-wrap gap-1.5">
+                              {all.length > 1 && (
+                                <button type="button" onClick={() => setServices(allOn ? [all[0]] : all)} className={chip(allOn)}>Tous</button>
+                              )}
+                              {all.map((sv) => (
+                                <button key={sv} type="button" onClick={() => toggle(sv)} className={chip(chosen.includes(sv))}>{sv}</button>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-neutral-400">Réduction</label>
@@ -1325,14 +1343,21 @@ export default function Settings() {
                         <span className="text-sm text-neutral-400">Active</span>
                       </label>
                     </div>
-                    <p className="text-neutral-500 text-xs mb-4">Un code que vos clients saisissent à la réservation pour obtenir un avantage — utile pour le parrainage ou une campagne ponctuelle.</p>
+                    <p className="text-neutral-500 text-xs mb-4">Un code que vos clients saisissent en réservant en ligne pour obtenir un avantage — utile pour le parrainage ou une campagne ponctuelle. Tapez le vôtre ou cliquez sur « Générer », puis communiquez-le à vos clients (annonce, WhatsApp, affiche).</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-neutral-400">Code</label>
-                        <input type="text" placeholder="Ex: BIENVENUE10"
-                          value={promo?.code?.code || ''}
-                          onChange={e => setPromo({ ...promo, code: { ...(promo?.code || {}), code: e.target.value.toUpperCase() } })}
-                          className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                        <div className="flex gap-2">
+                          <input type="text" placeholder="Ex: BIENVENUE10"
+                            value={promo?.code?.code || ''}
+                            onChange={e => setPromo({ ...promo, code: { ...(promo?.code || {}), code: e.target.value.toUpperCase() } })}
+                            className="min-w-0 flex-1 bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                          <button type="button" title="Proposer un code au hasard"
+                            onClick={() => setPromo({ ...promo, code: { ...(promo?.code || {}), code: generatePromoCode(stationProfile?.name) } })}
+                            className="px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 text-sm font-medium transition-colors flex-shrink-0">
+                            Générer
+                          </button>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-neutral-400">Avantage</label>

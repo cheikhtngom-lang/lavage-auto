@@ -3,8 +3,10 @@
 export const DEFAULT_PROMO = {
   // Message court affiché sur la fiche de la station côté client (recherche + détail).
   banner: { message: '', expiresAt: '' },
-  // Réduction ciblée sur UNE catégorie de véhicule + UN type de lavage.
-  discount: { active: false, category: 'Particulier', service: 'Lavage Simple', percent: 0, expiresAt: '' },
+  // Réduction ciblée sur UNE catégorie de véhicule + un ou plusieurs types de
+  // lavage (`services`). Les anciennes configs n'ont que `service` (un seul) :
+  // discountServices() lit les deux formes.
+  discount: { active: false, category: 'Particulier', services: ['Lavage Simple'], percent: 0, expiresAt: '' },
   // Code que le client saisit à la réservation pour obtenir un avantage.
   code: { code: '', type: 'percent', value: 0, active: false }, // type: 'percent' | 'free'
 };
@@ -18,11 +20,17 @@ export function isBannerActive(promo) {
   return true;
 }
 
+// Services visés par la réduction (nouvelle forme `services`, ou ancien `service` seul).
+export function discountServices(discount) {
+  if (Array.isArray(discount?.services) && discount.services.length) return discount.services;
+  return discount?.service ? [discount.service] : [];
+}
+
 // Applique la réduction ciblée de la station à un prix de base, si elle est
-// active, non expirée, et correspond exactement à la catégorie + service donnés.
+// active, non expirée, et vise cette catégorie et ce service.
 export function applyDiscount(promo, category, service, basePrice) {
   const d = promo?.discount;
-  if (!d?.active || d.category !== category || d.service !== service) return basePrice;
+  if (!d?.active || d.category !== category || !discountServices(d).includes(service)) return basePrice;
   if (d.expiresAt && d.expiresAt < todayStr()) return basePrice;
   const pct = Math.min(100, Math.max(0, Number(d.percent) || 0));
   return Math.round(basePrice * (1 - pct / 100));
@@ -41,4 +49,14 @@ export function applyPromoCode(promoCode, price) {
   if (promoCode.type === 'free') return 0;
   const pct = Math.min(100, Math.max(0, Number(promoCode.value) || 0));
   return Math.round(price * (1 - pct / 100));
+}
+
+// Propose un code promo lisible (ex : BAYE-7K3Q) : début du nom de la station
+// + 4 caractères sans 0/O/1/I pour éviter les confusions à la saisie.
+export function generatePromoCode(stationName) {
+  const prefix = String(stationName || '').normalize('NFD').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 6) || 'PROMO';
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let tail = '';
+  for (let i = 0; i < 4; i++) tail += chars[Math.floor(Math.random() * chars.length)];
+  return prefix + '-' + tail;
 }
