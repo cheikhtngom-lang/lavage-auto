@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Logiciel de gestion pour station de lavage auto au Sénégal | Clean Car Galsen</title>
-    <meta name="description" content="Digitalisez votre station de lavage auto : file d'attente virtuelle, réservation en ligne, planning des laveurs et paiement Wave / Orange Money. Essai gratuit, sans engagement.">
+    <meta name="description" content="Digitalisez votre station de lavage auto : file d'attente virtuelle, réservation en ligne, planning des laveurs et paiement Wave / Orange Money. Sans engagement.">
     <meta name="keywords" content="logiciel station de lavage, gestion file d'attente lavage auto, SaaS lavage auto Sénégal, réservation lavage auto Dakar, logiciel car wash">
     <link rel="canonical" href="https://galsenautocleaner.com/">
     <meta name="robots" content="index, follow, max-image-preview:large">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Clean Car Galsen">
     <meta property="og:title" content="Le logiciel des stations de lavage auto au Sénégal | Clean Car Galsen">
-    <meta property="og:description" content="File d'attente virtuelle, réservation en ligne, planning des laveurs et paiement mobile Wave / Orange Money. Essai gratuit, sans engagement.">
+    <meta property="og:description" content="File d'attente virtuelle, réservation en ligne, planning des laveurs et paiement mobile Wave / Orange Money. Sans engagement.">
     <meta property="og:image" content="https://galsenautocleaner.com/images/og-image.jpg">
     <meta property="og:image:alt" content="Clean Car Galsen — un laveur en action dans une station de lavage auto au Sénégal">
     <meta property="og:image:type" content="image/jpeg">
@@ -23,7 +23,7 @@
     <meta property="og:locale" content="fr_SN">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Le logiciel des stations de lavage auto au Sénégal | Clean Car Galsen">
-    <meta name="twitter:description" content="File d'attente virtuelle, réservation en ligne, planning des laveurs et paiement mobile Wave / Orange Money. Essai gratuit, sans engagement.">
+    <meta name="twitter:description" content="File d'attente virtuelle, réservation en ligne, planning des laveurs et paiement mobile Wave / Orange Money. Sans engagement.">
     <meta name="twitter:image" content="https://galsenautocleaner.com/images/og-image.jpg">
 
     <!-- Temps de réponse : connexions anticipées vers les domaines externes utilisés -->
@@ -178,6 +178,29 @@
             animation: stations-scroll linear infinite;
         }
         .stations-marquee:hover .stations-track { animation-play-state: paused; }
+
+        /* Bandeau défilant en haut du hero (messages Super Admin + pubs
+           payées, voir src/lib/ticker.js). Fond opaque plutôt qu'un flou
+           (coûteux sur Safari). Pause au survol / au doigt. */
+        .hero-ticker {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+            overflow: hidden; background: rgba(10, 10, 10, 0.72);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .hero-ticker-track { display: flex; width: max-content; animation: stations-scroll linear infinite; }
+        .hero-ticker:hover .hero-ticker-track, .hero-ticker:active .hero-ticker-track { animation-play-state: paused; }
+        .hero-ticker-item {
+            display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.55rem 1.75rem;
+            white-space: nowrap; font-size: 13px; color: #e5e5e5;
+        }
+        .hero-ticker-item b { color: #93c5fd; font-weight: 700; }
+        .hero-ticker-item.is-ad b { color: #fcd34d; }
+        .hero-ticker-item a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+        .hero-ticker-dot { width: 4px; height: 4px; border-radius: 9999px; background: rgba(255, 255, 255, 0.3); }
+        @media (prefers-reduced-motion: reduce) {
+            .hero-ticker { overflow-x: auto; }
+            .hero-ticker-track { animation: none; }
+        }
         @keyframes stations-scroll {
             from { transform: translate3d(0, 0, 0); }
             to   { transform: translate3d(-50%, 0, 0); }
@@ -356,6 +379,11 @@
         <!-- Note : sur iOS le playsinline + muted permettent l'autoplay ; l'overlay
              dégradé masque en partie le bouton lecture natif si l'autoplay échoue. -->
         <section id="accueil" class="relative w-full min-h-[80vh] md:min-h-screen flex items-center overflow-hidden">
+            <!-- Bandeau défilant (annonces, mises en avant, pubs payées) — rempli
+                 par initHeroTicker() ; reste masqué s'il n'y a rien à afficher. -->
+            <div id="hero-ticker" class="hero-ticker" style="display:none" role="region" aria-label="Annonces">
+                <div id="hero-ticker-track" class="hero-ticker-track"></div>
+            </div>
             <video id="hero-video" muted loop playsinline preload="none" aria-hidden="true"
                    poster="/images/hero-poster.jpg" data-src="/videos/hero-wash.mp4"
                    class="absolute inset-0 w-full h-full object-cover"></video>
@@ -1034,7 +1062,7 @@
                             <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> Paiement mobile Wave / Orange Money</li>
                             <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> 3 comptes utilisateurs inclus</li>
                         </ul>
-                        <button onclick="window.location.href='login.html?mode=register&role=agence&plan=starter'" class="w-full py-4 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-bold text-white">Commencer l'essai</button>
+                        <button onclick="window.location.href='login.html?mode=register&role=agence&plan=starter'" class="w-full py-4 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-bold text-white">Choisir Starter</button>
                     </div>
 
                     <!-- Pro — le badge est sur un wrapper .relative EXTÉRIEUR à .spotlight
@@ -1149,7 +1177,7 @@
                 <h2 class="text-4xl md:text-6xl font-bold mb-6">Prêt à digitaliser votre station ?</h2>
                 <p class="text-xl text-neutral-400 mb-10 max-w-2xl mx-auto">Rejoignez le réseau. Offrez une expérience Premium à vos clients. Maximisez vos revenus.</p>
                 <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-white hover:bg-neutral-200 text-black rounded-full px-10 py-5 font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-transform active:scale-95 text-lg">
-                    Créer mon Espace Gratuitement
+                    Créer mon espace station
                 </button>
             </div>
         </section>
@@ -1171,6 +1199,44 @@
          filtrer côté client. -->
     <script type="module">
         import { supabase } from '/src/lib/supabaseClient.js';
+        import { loadTickerItems } from '/src/lib/ticker.js';
+
+        // Bandeau défilant du hero. Texte inséré en textContent (jamais en
+        // HTML) : un message de pub saisi par une station ne peut rien injecter.
+        async function initHeroTicker() {
+            const box = document.getElementById('hero-ticker');
+            const track = document.getElementById('hero-ticker-track');
+            if (!box || !track) return;
+            let items = [];
+            try { items = await loadTickerItems(supabase); } catch (e) { return; }
+            if (!items.length) return;
+            const build = () => {
+                const frag = document.createDocumentFragment();
+                items.forEach((it) => {
+                    const el = document.createElement(it.href ? 'a' : 'span');
+                    el.className = 'hero-ticker-item' + (it.kind === 'ad' ? ' is-ad' : '');
+                    if (it.href) { el.href = it.href; if (/^https?:/i.test(it.href)) { el.target = '_blank'; el.rel = 'noopener'; } }
+                    if (it.label) { const b = document.createElement('b'); b.textContent = it.label; el.appendChild(b); }
+                    el.appendChild(document.createTextNode(it.text));
+                    frag.appendChild(el);
+                    const dot = document.createElement('span');
+                    dot.className = 'hero-ticker-dot';
+                    dot.setAttribute('aria-hidden', 'true');
+                    frag.appendChild(dot);
+                });
+                return frag;
+            };
+            // Contenu doublé : l'animation glisse de -50 % puis reboucle sans à-coup.
+            track.appendChild(build());
+            const copy = build();
+            // Copie purement visuelle : ni lue par les lecteurs d'écran, ni atteignable au clavier.
+            Array.from(copy.childNodes).forEach((n) => { if (n.nodeType !== 1) return; n.setAttribute('aria-hidden', 'true'); if (n.tagName === 'A') n.tabIndex = -1; });
+            track.appendChild(copy);
+            const chars = items.reduce((n, it) => n + it.text.length + (it.label || '').length, 0);
+            track.style.animationDuration = Math.max(18, Math.round(chars * 0.22)) + 's';
+            box.style.display = '';
+        }
+        initHeroTicker();
         import { isStationOpenNow } from '/src/lib/stationData.js';
         import { COUNTRIES, regionsOf, regionLabel, countryName, getCountry } from '/src/lib/countries.js';
         import { loadCountryState, resolveCountry, setCountryOverride, clearUrlCountry, saveProfileCountry } from '/src/lib/userCountry.js';
