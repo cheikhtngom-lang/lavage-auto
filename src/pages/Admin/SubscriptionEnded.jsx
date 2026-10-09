@@ -16,7 +16,6 @@ import { isServiceStationPlan, SERVICE_STATION_IMAGE } from '../../lib/offers';
 // déconnecter. AdminLayout.jsx redirige ici automatiquement ; cette page
 // se protège aussi elle-même au cas où elle serait ouverte directement.
 export default function SubscriptionEnded() {
-  useDocumentTitle('Abonnement expiré');
   const navigate = useNavigate();
   const { stationBilling, stationProfile } = useAppState();
   const { PLANS, stationRenewalPayments } = useSuperAdminState();
@@ -30,6 +29,11 @@ export default function SubscriptionEnded() {
   // Station d'un groupe Sur mesure : son abonnement est réglé par le groupe, pas ici.
   const [group, setGroup] = useState(undefined); // undefined = chargement, null = station indépendante
   const [leaving, setLeaving] = useState(false);
+  // Offre à payer : celle de la station par défaut (choisie à l'inscription),
+  // modifiable ici — le prix est imposé côté serveur (create-platform-payment).
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const isNewStation = stationBilling?.subscriptionStatus === 'a_payer';
+  useDocumentTitle(isNewStation ? 'Activer ma station' : 'Abonnement expiré');
 
   useEffect(() => {
     const role = getCurrentRole();
@@ -85,8 +89,10 @@ export default function SubscriptionEnded() {
     );
   }
 
-  const planDef = PLANS[stationBilling.plan] || { label: stationBilling.plan, price: 0 };
-  const serviceStation = isServiceStationPlan(stationBilling.plan);
+  const planKey = selectedPlan || stationBilling.plan;
+  const planDef = PLANS[planKey] || { label: planKey, price: 0 };
+  const serviceStation = isServiceStationPlan(planKey);
+  const planOptions = Object.entries(PLANS || {}).sort(([, a], [, b]) => (a.price || 0) - (b.price || 0));
   const latestPayment = stationRenewalPayments
     .filter((p) => p.stationId === stationId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
@@ -101,7 +107,7 @@ export default function SubscriptionEnded() {
     setError('');
     try {
       const row = await createRenewalPayment(stationId, {
-        plan: stationBilling.plan,
+        plan: planKey,
         amount: planDef.price,
         method: paymentMethod === 'wave' ? 'Wave' : 'Orange Money',
         reference: paymentPhone.trim(),
@@ -130,15 +136,29 @@ export default function SubscriptionEnded() {
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2.5 bg-red-500/20 rounded-xl"><Lock className="w-5 h-5 text-red-400" /></div>
             <div>
-              <h1 className="text-xl font-bold text-white">Abonnement terminé</h1>
+              <h1 className="text-xl font-bold text-white">{isNewStation ? 'Activez votre station' : 'Abonnement terminé'}</h1>
               <p className="text-neutral-400 text-sm">{stationProfile?.name || 'Votre station'}</p>
             </div>
           </div>
           <p className="text-sm text-neutral-400 mb-6">
-            {stationBilling.subscriptionStatus === 'en_retard'
-              ? "Votre abonnement est marqué impayé. L'accès à votre tableau de bord est suspendu jusqu'au renouvellement."
-              : "Votre période d'essai gratuit est terminée. Renouvelez votre abonnement pour retrouver l'accès à votre tableau de bord."}
+            {isNewStation
+              ? "Choisissez votre offre et réglez le premier mois pour accéder à votre espace station. Sans engagement : vous pouvez arrêter à tout moment."
+              : stationBilling.subscriptionStatus === 'en_retard'
+                ? "Votre abonnement est marqué impayé. L'accès à votre tableau de bord est suspendu jusqu'au renouvellement."
+                : "Votre période d'essai gratuit est terminée. Choisissez votre offre pour retrouver l'accès à votre tableau de bord."}
           </p>
+
+          {planOptions.length > 1 && !isPending && !submitting && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {planOptions.map(([key, p]) => (
+                <button key={key} type="button" onClick={() => setSelectedPlan(key)}
+                  className={`rounded-xl border px-2 py-2.5 text-center transition-colors ${key === planKey ? 'border-blue-500/60 bg-blue-600/15' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
+                  <span className={`block text-xs font-bold ${key === planKey ? 'text-white' : 'text-neutral-300'}`}>{p.label}</span>
+                  <span className="block text-[11px] text-neutral-500 mt-0.5">{(p.price || 0).toLocaleString('fr-FR')} F</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Offre Station de service : photo de station-service en fond, comme sur la page d'accueil. */}
           <div className={`relative isolate overflow-hidden rounded-xl p-4 mb-6 flex items-center justify-between border ${serviceStation ? 'border-amber-500/30' : 'bg-white/5 border-white/10'}`}>
@@ -149,7 +169,7 @@ export default function SubscriptionEnded() {
               </>
             )}
             <div>
-              <p className="text-neutral-400 text-xs mb-1">Plan actuel</p>
+              <p className="text-neutral-400 text-xs mb-1">Offre choisie</p>
               <p className={`font-bold ${serviceStation ? 'text-amber-300' : 'text-white'}`}>{planDef.label}</p>
             </div>
             <p className="text-white font-bold text-lg">{planDef.price.toLocaleString('fr-FR')} <span className="text-neutral-400 text-xs font-normal">FCFA/mois</span></p>

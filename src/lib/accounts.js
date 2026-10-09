@@ -63,18 +63,20 @@ export async function createStationAccount({ name, address, city, quartier, regi
   }).select().single();
   if (stationError) throw new Error(stationError.message);
 
-  // handle_new_station() crée la ligne station_billing avec plan='Starter' par
-  // défaut (voir supabase/schema.sql) — on applique ensuite l'offre réellement
-  // choisie sur la page de tarifs/le formulaire d'inscription (essai gratuit
-  // de 7 jours inchangé, voir change_trial_to_7_days.sql).
-  if (plan) {
-    await supabase.from('station_billing').update({ plan }).eq('station_id', station.id);
-  }
-
   const { error: profileError } = await supabase.from('profiles').insert({
     id: data.user.id, role: 'admin', station_id: station.id, full_name: ownerName, email: loginEmail, phone: phone || '',
   });
   if (profileError) throw new Error(profileError.message);
+
+  // handle_new_station() crée la ligne station_billing en « à payer », offre
+  // Starter par défaut (remove_station_trial.sql) : on enregistre l'offre
+  // choisie sur la page de tarifs / le formulaire, une fois le profil créé
+  // (la fonction s'appuie sur la station du compte connecté). Elle sera
+  // proposée par défaut sur l'écran de paiement (/admin/renouveler).
+  if (plan) {
+    const { error: planError } = await supabase.rpc('set_pending_station_plan', { p_plan: plan });
+    if (planError) console.error('set_pending_station_plan:', planError);
+  }
 
   triggerWelcomeEmail(data.user.id);
   return { id: station.id, name: station.name, ownerEmail: loginEmail };

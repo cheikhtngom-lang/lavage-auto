@@ -12,6 +12,7 @@ const SUB_STATUS = {
   en_retard: { label: 'Impayé', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
   essai: { label: 'Essai gratuit', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
   illimite: { label: 'Accès illimité', className: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+  a_payer: { label: 'En attente de paiement', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
 };
 
 export default function Billing() {

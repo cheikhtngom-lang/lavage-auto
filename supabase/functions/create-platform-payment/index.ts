@@ -68,7 +68,16 @@ Deno.serve(async (req) => {
       return json({ error: "Cette commande n'est plus en attente de paiement." }, 409);
     }
 
-    const amount = Number(row.amount);
+    let amount = Number(row.amount);
+    // Abonnement station : le prix vient TOUJOURS de la table plans, jamais
+    // du montant écrit par la station dans sa ligne (sinon on pourrait payer
+    // l'offre Station de service au prix de Starter). L'offre payée est
+    // appliquée à la confirmation (finalizePayment, kind 'saas').
+    if (kind === "saas") {
+      const { data: plan } = await asUser.from("plans").select("price").eq("key", row.plan ?? "").maybeSingle();
+      if (!plan) return json({ error: "Offre inconnue." }, 400);
+      amount = Number(plan.price);
+    }
     if (!amount || amount <= 0) return json({ error: "Montant invalide." }, 400);
 
     const descriptions: Record<string, string> = {

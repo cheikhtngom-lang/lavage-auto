@@ -558,7 +558,7 @@ export async function finalizePlatform(admin: any, token: string, kind: string, 
 
   // kind === "saas"
   const { data: pay } = await admin.from("station_renewal_payments")
-    .select("id, status, station_id").eq("id", rowId).single();
+    .select("id, status, station_id, plan").eq("id", rowId).single();
   if (!pay || pay.status === "CONFIRMED") return;
   const nextDate = new Date(now); nextDate.setDate(nextDate.getDate() + 30);
   await admin.from("station_renewal_payments").update({
@@ -566,9 +566,16 @@ export async function finalizePlatform(admin: any, token: string, kind: string, 
     confirmed_at: now.toISOString(),
     paydunya_token: token,
   }).eq("id", rowId);
+  // L'offre payée devient l'offre de la station (choix à l'activation ou
+  // changement d'offre au renouvellement) — prix imposé par
+  // create-platform-payment depuis la table plans.
+  const { data: knownPlan } = pay.plan
+    ? await admin.from("plans").select("key").eq("key", pay.plan).maybeSingle()
+    : { data: null };
   await admin.from("station_billing").update({
     subscription_status: "a_jour",
     next_billing_date: nextDate.toISOString(),
+    ...(knownPlan ? { plan: knownPlan.key } : {}),
   }).eq("station_id", pay.station_id);
   await log(admin, "Renouvellement d'abonnement confirmé par PayDunya");
 }

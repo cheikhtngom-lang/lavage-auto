@@ -11,11 +11,12 @@ import { trialDaysRemaining } from './stationTrial';
 
 // Vrai une fois l'abonnement bel et bien terminé : marquée impayée par le
 // Super Admin (en_retard), ou essai gratuit écoulé sans être passée à un
-// abonnement payant. Ne déclenche rien tout seul (voir schema.sql) — sert
+// abonnement payant, ou nouvelle station qui n'a pas encore payé sa première
+// offre ('a_payer', remove_station_trial.sql). Ne déclenche rien tout seul (voir schema.sql) — sert
 // uniquement à décider, côté lecture, si l'accès doit être bloqué.
 export function isSubscriptionEnded(billing) {
   if (!billing) return false;
-  if (billing.subscriptionStatus === 'en_retard') return true;
+  if (billing.subscriptionStatus === 'en_retard' || billing.subscriptionStatus === 'a_payer') return true;
   if (billing.subscriptionStatus === 'essai' && billing.trialEndsAt) return trialDaysRemaining(billing.trialEndsAt) <= 0;
   return false;
 }

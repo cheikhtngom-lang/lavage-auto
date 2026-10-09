@@ -14,6 +14,7 @@ const SUB_LABEL = {
   en_retard: ['Impayé', 'text-red-400'],
   essai: ['Essai', 'text-blue-400'],
   illimite: ['Illimité', 'text-purple-400'],
+  a_payer: ['À payer', 'text-amber-400'],
 };
 
 function Modal({ title, onClose, children }) {

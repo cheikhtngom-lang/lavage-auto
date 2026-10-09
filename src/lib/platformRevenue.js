@@ -23,6 +23,8 @@ export const SUBSCRIPTION_STATUS_META = {
   essai: { key: 'essai', label: 'Essai gratuit', color: '#3b82f6' },
   en_retard: { key: 'en_retard', label: 'Impayé', color: '#ef4444' },
   illimite: { key: 'illimite', label: 'Accès illimité (offert)', color: '#a855f7' },
+  // Nouvelle station inscrite sans avoir encore payé sa première offre (remove_station_trial.sql).
+  a_payer: { key: 'a_payer', label: 'En attente de paiement', color: '#f59e0b' },
 };
 
 const planPrice = (PLANS, key) => (PLANS && PLANS[key] && Number(PLANS[key].price)) || 0;

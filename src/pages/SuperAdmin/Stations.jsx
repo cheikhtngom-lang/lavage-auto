@@ -32,6 +32,9 @@ function SubscriptionInline({ station }) {
   if (station.subscriptionStatus === 'en_retard') {
     return <span className="flex items-center gap-1 text-red-400"><Hourglass className="w-3.5 h-3.5" /> Impayé</span>;
   }
+  if (station.subscriptionStatus === 'a_payer') {
+    return <span className="flex items-center gap-1 text-amber-400"><Hourglass className="w-3.5 h-3.5" /> À payer</span>;
+  }
   const remaining = trialDaysRemaining(station.trialEndsAt);
   const urgent = remaining !== null && remaining <= 5;
   return (

@@ -639,10 +639,11 @@ export function SuperAdminStateProvider({ children }) {
         nextDate.setDate(nextDate.getDate() + 30);
         await Promise.all([
             supabase.from('station_renewal_payments').update({ status: 'CONFIRMED', confirmed_at: confirmedAt.toISOString() }).eq('id', id),
-            supabase.from('station_billing').update({ subscription_status: 'a_jour', next_billing_date: nextDate.toISOString() }).eq('station_id', payment.stationId),
+            // L'offre payée devient celle de la station (même règle que finalizePayment).
+            supabase.from('station_billing').update({ subscription_status: 'a_jour', next_billing_date: nextDate.toISOString(), ...(payment.plan ? { plan: payment.plan } : {}) }).eq('station_id', payment.stationId),
         ]);
         setStationRenewalPayments((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'CONFIRMED', confirmedAt: confirmedAt.toISOString() } : p)));
-        setStations((prev) => prev.map((s) => (s.id === payment.stationId ? { ...s, subscriptionStatus: 'a_jour', nextBillingDate: nextDate.toISOString() } : s)));
+        setStations((prev) => prev.map((s) => (s.id === payment.stationId ? { ...s, subscriptionStatus: 'a_jour', nextBillingDate: nextDate.toISOString(), ...(payment.plan ? { plan: payment.plan } : {}) } : s)));
         logAction(`Renouvellement confirmé : ${payment.stationName}`);
     };
 
