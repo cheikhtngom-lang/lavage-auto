@@ -36,3 +36,9 @@ verify_jwt = false
 # comme send-retention-reminders. Le secret est vérifié dans le gestionnaire.
 [functions.group-ai-weekly]
 verify_jwt = false
+
+# Relances email 5 jours avant l'échéance d'un abonnement (stations + clients
+# abonnés) : appelée chaque jour par pg_cron avec le CRON_SECRET, comme
+# send-retention-reminders. Le secret est vérifié dans le gestionnaire.
+[functions.send-subscription-reminders]
+verify_jwt = false

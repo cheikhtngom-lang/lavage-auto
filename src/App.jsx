@@ -47,6 +47,7 @@ const StationDashboard = lazyPage(() => import('./pages/Admin/StationDashboard')
 const AdminTransactions = lazyPage(() => import('./pages/Admin/Transactions'));
 const Accounting = lazyPage(() => import('./pages/Admin/Accounting'));
 const AdminPayouts = lazyPage(() => import('./pages/Admin/Payouts'));
+const AdminReminders = lazyPage(() => import('./pages/Admin/Reminders'));
 const Analytics = lazyPage(() => import('./pages/Admin/Analytics'));
 const Team = lazyPage(() => import('./pages/Admin/Team'));
 const Washers = lazyPage(() => import('./pages/Admin/Washers'));
@@ -78,6 +79,8 @@ const SuperAdminSuperUsers = lazyPage(() => import('./pages/SuperAdmin/SuperUser
 const SuperAdminAds = lazyPage(() => import('./pages/SuperAdmin/Ads'));
 const SuperAdminBilling = lazyPage(() => import('./pages/SuperAdmin/Billing'));
 const SuperAdminPayouts = lazyPage(() => import('./pages/SuperAdmin/Payouts'));
+const SuperAdminReminders = lazyPage(() => import('./pages/SuperAdmin/Reminders'));
+const SuperAdminTicker = lazyPage(() => import('./pages/SuperAdmin/Ticker'));
 const SuperAdminBilan = lazyPage(() => import('./pages/SuperAdmin/Bilan'));
 const SuperAdminFuel = lazyPage(() => import('./pages/SuperAdmin/Fuel'));
 const SuperAdminSupport = lazyPage(() => import('./pages/SuperAdmin/Support'));
@@ -206,6 +209,7 @@ function App() {
                 <Route path="pompistes" element={<RequirePompistesAccess><Pompistes /></RequirePompistesAccess>} />
                 <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
+                <Route path="relances" element={<RequirePerm perm="subscriptions.manage"><AdminReminders /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />
                 <Route path="annonces" element={<RequireMarketingAccess><AdminAnnouncements /></RequireMarketingAccess>} />
               </Route>
@@ -234,6 +238,8 @@ function App() {
                 <Route path="ads" element={<SuperAdminAds />} />
                 <Route path="billing" element={<SuperAdminBilling />} />
                 <Route path="reversements" element={<SuperAdminPayouts />} />
+                <Route path="relances" element={<SuperAdminReminders />} />
+                <Route path="bandeau" element={<SuperAdminTicker />} />
                 <Route path="carburant" element={<SuperAdminFuel />} />
                 <Route path="bilan" element={<SuperAdminBilan />} />
                 <Route path="support" element={<SuperAdminSupport />} />

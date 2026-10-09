@@ -10,7 +10,7 @@
 //     d'accès : la route reste joignable.
 import {
   LayoutDashboard, Users, Settings, Droplets, Activity, Calculator, LineChart, Sparkles,
-  FileBarChart, Store, Wrench, Send, Fuel, Wallet,
+  FileBarChart, Store, Wrench, Send, Fuel, Wallet, BellRing,
 } from 'lucide-react';
 import { hasPerm } from './permissions';
 import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './offers';
@@ -31,6 +31,8 @@ export const ADMIN_NAV = [
   // Reversements des paiements en ligne : tous les forfaits (une station Starter peut aussi être payée en ligne).
   { key: 'reversements', name: 'Reversements', href: '/admin/reversements', icon: Wallet, perm: 'accounting.manage', hint: 'Ce que la plateforme vous reverse sur les paiements en ligne, et l’historique.' },
   { key: 'subscriptions', name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
+  // Relances des clients abonnés 5 jours avant l'échéance (email auto + WhatsApp), voir lib/subscriptionReminders.js.
+  { key: 'relances', name: 'Relances', href: '/admin/relances', icon: BellRing, perm: 'subscriptions.manage', hint: 'Clients dont l’abonnement se termine bientôt : email automatique et relance WhatsApp.' },
   { key: 'analytics', name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
   // Bilan : offre Station de service, ou module "mod_bilan" — voir RequireBusinessPlan (App.jsx).
   { key: 'bilan', name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_bilan' },

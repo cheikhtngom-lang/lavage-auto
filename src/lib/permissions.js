@@ -50,6 +50,7 @@ export const ROUTE_PERMISSION = {
   '/admin/accounting': 'accounting.manage',
   '/admin/reversements': 'accounting.manage',
   '/admin/subscriptions': 'subscriptions.manage',
+  '/admin/relances': 'subscriptions.manage',
   '/admin/analytics': 'analytics.view',
   '/admin/shop': 'shop.manage',
   '/admin/team': 'team.manage',
