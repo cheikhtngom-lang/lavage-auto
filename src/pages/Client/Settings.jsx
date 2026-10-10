@@ -12,6 +12,7 @@ import { useClientCountry } from '../../hooks/useClientCountry';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import CloseAccountCard from '../../components/account/CloseAccountCard';
+import PasswordInput from '../../components/ui/PasswordInput';
 
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — même limite que le logo station
 const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp'];
@@ -410,18 +411,18 @@ export default function Settings() {
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-neutral-400 mb-1.5">Mot de passe actuel</label>
-            <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+            <PasswordInput required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
               className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-neutral-400 mb-1.5">Nouveau mot de passe</label>
-              <input type="password" required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
+              <PasswordInput required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
                 className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors" />
             </div>
             <div>
               <label className="block text-sm font-medium text-neutral-400 mb-1.5">Confirmer</label>
-              <input type="password" required value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
+              <PasswordInput required value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
                 className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors" />
             </div>
           </div>

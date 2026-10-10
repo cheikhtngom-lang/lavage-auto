@@ -6,6 +6,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { getCurrentStationId, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
 import CloseAccountCard from '../../components/account/CloseAccountCard';
+import PasswordInput from '../../components/ui/PasswordInput';
 import { stationHasMarketing } from '../../lib/offers';
 import { supabase } from '../../lib/supabaseClient';
 import { COUNTRIES, regionsOf } from '../../lib/countries';
@@ -895,17 +896,17 @@ export default function Settings() {
                 <form onSubmit={handleChangeCredentials} className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Ancien mot de passe</label>
-                    <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                    <PasswordInput required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
                       className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Nouveau mot de passe</label>
-                    <input type="password" required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                    <PasswordInput required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
                       className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Confirmer mot de passe</label>
-                    <input type="password" required value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
+                    <PasswordInput required value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
                       className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   </div>
                   {credentialsError && <p className="text-sm text-red-400">{credentialsError}</p>}
@@ -1562,20 +1563,20 @@ export default function Settings() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Mot de passe actuel</label>
-                    <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                    <PasswordInput required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
                       placeholder="Requis pour confirmer tout changement"
                       className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-neutral-400">Nouveau mot de passe</label>
-                      <input type="password" minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                      <PasswordInput minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
                         placeholder="Laisser vide pour ne pas changer"
                         className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-neutral-400">Confirmer le nouveau mot de passe</label>
-                      <input type="password" value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
+                      <PasswordInput value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
                         className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
                     </div>
                   </div>

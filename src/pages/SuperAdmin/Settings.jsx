@@ -7,6 +7,7 @@ import { changePassword } from '../../lib/accounts';
 import { exportStationData, exportAllStationsData } from '../../lib/rgpdExport';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import CountriesPanel from '../../components/superadmin/CountriesPanel';
+import PasswordInput from '../../components/ui/PasswordInput';
 
 const PLAN_ACCENTS = {
   Starter: { ring: 'border-blue-500/30', text: 'text-blue-400', bg: 'bg-blue-500/10' },
@@ -221,18 +222,18 @@ export default function SuperAdminSettings() {
               <form onSubmit={handleChangePassword} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-neutral-400">Mot de passe actuel</label>
-                  <input type="password" required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                  <PasswordInput required value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Nouveau mot de passe</label>
-                    <input type="password" required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                    <PasswordInput required minLength={8} value={newPassword} onChange={e => setNewPassword(e.target.value)}
                       className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Confirmer</label>
-                    <input type="password" required value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
+                    <PasswordInput required value={newPasswordConfirm} onChange={e => setNewPasswordConfirm(e.target.value)}
                       className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500" />
                   </div>
                 </div>
