@@ -227,13 +227,18 @@ export function closingDateFor(profile, date = new Date()) {
   return at;
 }
 
-// Position dans la file (1 = prochain) et temps d'attente estimé pour UNE
+// Nombre de véhicules devant nous et temps d'attente estimé pour UNE
 // réservation dont on connaît déjà l'horodatage de création (le client a accès
 // à sa propre réservation via RLS — voir useClientAccount.jsx — ce module ne
 // fait que situer cette réservation dans la file anonymisée des autres).
-export function getItemPosition(stationId, itemCreatedAt) {
+// « Devant nous » = les véhicules déjà en lavage + ceux en attente arrivés
+// avant. L'ancien calcul (rang dans l'attente, 1 = prochain) ignorait les
+// lavages en cours : 2 véhicules au lavage et personne d'autre en attente
+// affichaient « 1 avant vous » au lieu de 2.
+export function getVehiclesAhead(stationId, itemCreatedAt) {
   const t = new Date(itemCreatedAt).getTime();
-  return queueSnapshot.filter((r) => r.station_id === stationId && r.status === 'attente' && new Date(r.created_at).getTime() < t).length + 1;
+  return queueSnapshot.filter((r) => r.station_id === stationId
+    && (r.status === 'en_cours' || (r.status === 'attente' && new Date(r.created_at).getTime() < t))).length;
 }
 
 export function estimateItemWaitTime(stationId, itemCreatedAt) {

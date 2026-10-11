@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import {
-  getItemPosition, estimateItemWaitTime, pushBackReservation, getWaitlistPosition, cancelMyReservation, hoursForDate,
+  getVehiclesAhead, estimateItemWaitTime, pushBackReservation, getWaitlistPosition, cancelMyReservation, hoursForDate,
   addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile, getStationPromo,
 } from '../../lib/stationData';
 import { isBannerActive } from '../../lib/promoDefaults';
@@ -169,7 +169,7 @@ function LiveStatusCard({ reservation, onPushBack, onCancel }) {
               </div>
             ) : (
               <div className="w-32 h-32 rounded-full border-8 border-blue-500/20 bg-black/40 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.2)]">
-                <span className="text-3xl font-bold text-white">{reservation.position}</span>
+                <span className="text-3xl font-bold text-white">{reservation.ahead}</span>
                 <span className="text-[10px] text-neutral-400 uppercase tracking-widest mt-1">Avant vous</span>
                 <span className="text-blue-400 font-medium text-xs mt-1">~{estimatedWait} min</span>
               </div>
@@ -288,7 +288,7 @@ export default function ClientOverview() {
     justPromoted: r.status === 'attente' && !!r.promoted_at && Date.now() - new Date(r.promoted_at).getTime() < 30 * 60000,
     closeTime: hoursForDate(getStationOperationalProfile(r.station_id)).closeTime || null,
     paid: !!r.paid,
-    position: r.status === 'en_cours' ? 0 : getItemPosition(r.station_id, r.created_at),
+    ahead: r.status === 'en_cours' ? 0 : getVehiclesAhead(r.station_id, r.created_at),
     // Le report de place (voir LiveStatusCard) n'est proposé qu'aux clients
     // ayant un abonnement actif dans CETTE station précise (add_client_push_back.sql
     // vérifie la même condition côté serveur — ce booléen ne fait que décider
@@ -332,14 +332,14 @@ export default function ClientOverview() {
   useEffect(() => { setLastUpdated(Date.now()); }, [myReservations]);
 
   // Notification navigateur sur les changements significatifs, par véhicule :
-  // position qui devient 1 ou 2, ou passage en lavage. On ignore les absences
+  // plus que 0, 1 ou 2 véhicules devant, ou passage en lavage. On ignore les absences
   // transitoires de réservation (ex: la station déplace l'entrée file→en cours
   // en deux écritures successives) — seul un item.id nouveau réinitialise le suivi.
   useEffect(() => {
     if (notifStatus !== 'granted') return;
     reservations.forEach((res) => {
       const itemId = res.item.id;
-      const signature = `${res.station.id}:${res.isWashing ? 'washing' : res.isWaitlisted ? 'waitlist' : res.position}`;
+      const signature = `${res.station.id}:${res.isWashing ? 'washing' : res.isWaitlisted ? 'waitlist' : res.ahead}`;
       const prev = prevSignatures.current[itemId];
 
       if (prev == null) {
@@ -351,8 +351,12 @@ export default function ClientOverview() {
           new Notification('Une place s\'est libérée !', { body: `${res.item.vehicle} passe dans la file de ${res.station.name}. Présentez-vous à la station.` });
         } else if (res.isWashing) {
           new Notification('Votre lavage a commencé !', { body: `${res.station.name} s'occupe de ${res.item.vehicle}.` });
-        } else if (res.position <= 2) {
-          new Notification('C\'est bientôt votre tour', { body: `Plus que ${res.position} avant ${res.item.vehicle} chez ${res.station.name}.` });
+        } else if (res.ahead <= 2) {
+          new Notification('C\'est bientôt votre tour', {
+            body: res.ahead === 0
+              ? `${res.item.vehicle} est le prochain chez ${res.station.name}.`
+              : `Plus que ${res.ahead} véhicule${res.ahead > 1 ? 's' : ''} avant ${res.item.vehicle} chez ${res.station.name}.`,
+          });
         }
         prevSignatures.current[itemId] = signature;
       }

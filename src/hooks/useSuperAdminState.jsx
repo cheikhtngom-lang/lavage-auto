@@ -205,7 +205,7 @@ export function SuperAdminStateProvider({ children }) {
     const isSuperAdmin = getCurrentRole() === 'super_admin';
     // La file anonymisée (all_stations_queue_snapshot/station_public_stats)
     // n'a de consommateur que côté automobiliste/visiteur anonyme
-    // (getItemPosition/estimateItemWaitTime/getStationWaitingCount, voir
+    // (getVehiclesAhead/estimateItemWaitTime/getStationWaitingCount, voir
     // Client/Dashboard.jsx + Client/Stations.jsx) : une station voit SA
     // propre file via useAppState (déjà scoped station_id), le Super Admin
     // ne l'affiche nulle part. La charger et écouter TOUTE la table
@@ -227,7 +227,7 @@ export function SuperAdminStateProvider({ children }) {
     const [stationRenewalPayments, setStationRenewalPayments] = useState([]);
     const [lavagePayments, setLavagePayments] = useState([]);
     const [stationTransactions, setStationTransactions] = useState([]);
-    // getItemPosition/estimateItemWaitTime (stationData.js) lisent un cache
+    // getVehiclesAhead/estimateItemWaitTime (stationData.js) lisent un cache
     // hors-React (queueSnapshot, simple variable de module) — le recharger ne
     // suffit donc pas à rafraîchir l'écran automobiliste : rien ne dit à React
     // de re-rendre tant qu'aucun état React ne change. Ce compteur sert
@@ -422,7 +422,7 @@ export function SuperAdminStateProvider({ children }) {
         // `all_stations_queue_snapshot`/`station_public_stats` sont des fonctions
         // RPC (non abonnables directement), mais la table `reservations` dont
         // elles dépendent l'est — écouter ses changements ici permet au temps
-        // d'attente affiché côté automobiliste (getItemPosition/estimateItemWaitTime,
+        // d'attente affiché côté automobiliste (getVehiclesAhead/estimateItemWaitTime,
         // stationData.js) de se mettre à jour en direct dès qu'un véhicule
         // (n'importe lequel, à n'importe quelle station) change de statut, au
         // lieu d'attendre jusqu'à 45s ou un changement d'onglet. Uniquement pour
