@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import {
-  getVehiclesAhead, estimateItemWaitTime, pushBackReservation, getWaitlistPosition, cancelMyReservation, hoursForDate,
+  getVehiclesAhead, estimateItemWaitTime, getQueueForecast, formatWaitMinutes, pushBackReservation, getWaitlistPosition, cancelMyReservation, hoursForDate,
   addStationReview, hasClientReviewedTransaction, getStationDurationConfig, getStationOperationalProfile, getStationPromo,
 } from '../../lib/stationData';
 import { isBannerActive } from '../../lib/promoDefaults';
@@ -74,6 +74,9 @@ function LiveStatusCard({ reservation, onPushBack, onCancel }) {
     }
   };
 
+  // Durée du lavage en cours : celle de la prévision serveur (durée réellement
+  // constatée dans la station), sinon la grille de la station.
+  const forecastDuration = getQueueForecast(reservation.item.id)?.durationMinutes ?? null;
   useEffect(() => {
     if (!reservation.isWashing) {
       setRemainingSeconds(0);
@@ -82,7 +85,7 @@ function LiveStatusCard({ reservation, onPushBack, onCancel }) {
     }
     const durationConfig = getStationDurationConfig(reservation.station.id);
     const cat = reservation.item.category || 'Particulier';
-    const minutes = durationConfig?.[cat]?.[reservation.item.service] ?? 30;
+    const minutes = forecastDuration ?? durationConfig?.[cat]?.[reservation.item.service] ?? 30;
     const total = Math.max(0, Math.round(minutes * 60));
     setTotalSeconds(total);
 
@@ -94,9 +97,18 @@ function LiveStatusCard({ reservation, onPushBack, onCancel }) {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [reservation.isWashing, reservation.item.id, reservation.item.startedAt, reservation.station.id]);
+  }, [reservation.isWashing, reservation.item.id, reservation.item.startedAt, reservation.station.id, forecastDuration]);
 
-  const estimatedWait = !reservation.isWashing && !reservation.isWaitlisted ? estimateItemWaitTime(reservation.station.id, reservation.item.createdAt) : 0;
+  // L'heure de passage est absolue : les minutes restantes baissent avec le
+  // temps, même sans nouvel évènement dans la file — on rafraîchit toutes les 20 s.
+  const isQueued = !reservation.isWashing && !reservation.isWaitlisted;
+  const [, setClock] = useState(0);
+  useEffect(() => {
+    if (!isQueued) return undefined;
+    const id = setInterval(() => setClock((n) => n + 1), 20000);
+    return () => clearInterval(id);
+  }, [isQueued]);
+  const estimatedWait = isQueued ? formatWaitMinutes(estimateItemWaitTime(reservation.item.id, reservation.item.forecastStartAt)) : null;
 
   return (
     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 200, damping: 20 }} className="animated-border-card">
@@ -171,7 +183,7 @@ function LiveStatusCard({ reservation, onPushBack, onCancel }) {
               <div className="w-32 h-32 rounded-full border-8 border-blue-500/20 bg-black/40 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.2)]">
                 <span className="text-3xl font-bold text-white">{reservation.ahead}</span>
                 <span className="text-[10px] text-neutral-400 uppercase tracking-widest mt-1">Avant vous</span>
-                <span className="text-blue-400 font-medium text-xs mt-1">~{estimatedWait} min</span>
+                {estimatedWait && <span className="text-blue-400 font-medium text-xs mt-1">{estimatedWait}</span>}
               </div>
             )}
           </div>
@@ -280,7 +292,7 @@ export default function ClientOverview() {
   // Realtime au lieu d'attendre un rechargement manuel de la page.
   const reservations = myReservations.map((r) => ({
     station: { id: r.station_id, name: r.stations?.name || 'Station' },
-    item: { id: r.id, vehicle: r.vehicle_label, service: r.service, category: r.category, startedAt: r.started_at, createdAt: r.created_at },
+    item: { id: r.id, vehicle: r.vehicle_label, service: r.service, category: r.category, startedAt: r.started_at, createdAt: r.created_at, forecastStartAt: r.forecast_start_at || null },
     isWashing: r.status === 'en_cours',
     // Liste d'attente avant fermeture (add_closing_waitlist.sql) : hors file.
     isWaitlisted: r.status === 'liste_attente',

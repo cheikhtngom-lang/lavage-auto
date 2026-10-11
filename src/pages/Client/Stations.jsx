@@ -11,7 +11,7 @@ import { formatPlate, formatVehicleLabel, NO_PLATE_LABEL } from '../../lib/plate
 import { applyVoiceToVehicleForm } from '../../lib/voiceVehicle';
 import {
   getStationWaitingCount, getStationActiveCount, createReservation, recordClientTransaction, markReservationUnpaid, getStationPricing, getStationOperationalProfile,
-  getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime,
+  getStationPromo, isStationOpenNow, getStationRatingSummary, MAX_ACTIVE_VEHICLES_PER_CLIENT, estimateItemWaitTime, getStationNextStartMinutes, formatWaitMinutes,
   checkClosingCapacity, getWaitlistPosition, hoursForDate, formatOpeningHours,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
@@ -581,7 +581,7 @@ export default function Stations() {
           return;
         }
       }
-      createdEntries.push({ vehicle: vehicleLabel, service: vehicleService, position: waitingBefore + queuedCount, amount, wait: estimateItemWaitTime(selectedStation.id, reservation.created_at) });
+      createdEntries.push({ vehicle: vehicleLabel, service: vehicleService, position: waitingBefore + queuedCount, amount, wait: estimateItemWaitTime(reservation.id, reservation.forecast_start_at) });
     }
     const queuedEntries = createdEntries.filter((e) => !e.waitlisted);
     const closingProfile = getStationOperationalProfile(selectedStation.id);
@@ -596,11 +596,13 @@ export default function Stations() {
       client: account.name, vehicles: createdEntries, service,
       station: selectedStation.name, stationAddress: selectedStation.address, stationPhone: stationProfile?.phone || '',
       stationLogo: stationProfile?.logo || null, stationCachet: stationProfile?.cachet || null,
-      // Le pire des cas parmi les véhicules réservés (le dernier de la file
-      // attend forcément le plus longtemps) — même calcul réel que celui
-      // affiché ensuite sur le suivi en direct (Client/Dashboard.jsx), au lieu
-      // d'une estimation à plat (position × 20 min) déconnectée de la réalité.
-      estimatedWait: queuedEntries.length > 0 ? Math.max(0, ...queuedEntries.map(e => e.wait)) : null,
+      // Le pire des cas parmi les véhicules réservés — heure de passage calculée
+      // par le serveur à la création (forecast_start_at), même calcul que le
+      // suivi en direct (Client/Dashboard.jsx).
+      estimatedWait: (() => {
+        const waits = queuedEntries.map((e) => e.wait).filter((w) => w != null);
+        return waits.length > 0 ? formatWaitMinutes(Math.max(...waits)) : null;
+      })(),
       waitlistedCount: createdEntries.length - queuedEntries.length,
       closeTime: plan?.closingAt
         ? plan.closingAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
@@ -1078,10 +1080,15 @@ export default function Stations() {
                       <p className="text-neutral-400 text-sm">{selectedStation.name} · {account?.name}</p>
                     </div>
                   </div>
-                  {selectedStation.waitingCount > 0 && (
+                  {(selectedStation.waitingCount > 0 || selectedStation.activeCount > 0) && (
                     <div className="bg-blue-950/40 border border-blue-500/20 rounded-xl px-4 py-3 mb-5 flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
-                      <p className="text-sm text-blue-200/80"><strong className="text-blue-400">{selectedStation.waitingCount} véhicule(s)</strong> en file. Vous serez le <strong className="text-white">n{String.fromCharCode(176)}{selectedStation.waitingCount + 1}</strong>.</p>
+                      <p className="text-sm text-blue-200/80">
+                        {selectedStation.waitingCount > 0
+                          ? <><strong className="text-blue-400">{selectedStation.waitingCount} véhicule(s)</strong> en file. Vous serez le <strong className="text-white">n{String.fromCharCode(176)}{selectedStation.waitingCount + 1}</strong>.</>
+                          : <><strong className="text-blue-400">{selectedStation.activeCount} véhicule(s)</strong> en lavage, personne en file.</>}
+                        {' '}Passage estimé : <strong className="text-white">{formatWaitMinutes(getStationNextStartMinutes(selectedStation.id))}</strong>.
+                      </p>
                     </div>
                   )}
                   <form onSubmit={goToPayment} className="space-y-4">
@@ -1522,8 +1529,8 @@ export default function Stations() {
                     <div className="grid grid-cols-1 gap-3 mb-4">
                       {ticketInfo.estimatedWait != null && (
                         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
-                          <p className="text-2xl font-bold text-emerald-400">~{ticketInfo.estimatedWait}</p>
-                          <p className="text-xs text-neutral-500 mt-1">Minutes d&apos;attente estimée</p>
+                          <p className="text-2xl font-bold text-emerald-400">{ticketInfo.estimatedWait}</p>
+                          <p className="text-xs text-neutral-500 mt-1">Attente estimée</p>
                         </div>
                       )}
                       {ticketInfo.waitlistedCount > 0 && (

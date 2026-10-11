@@ -66,6 +66,7 @@ const defaultStationProfile = {
     logo: null, // Data URL (image encodée) — voir updateStationProfile
     cachet: null, // Data URL du cachet/tampon officiel — apposé sur les reçus
     dailyRevenueTarget: 50000, // Objectif de revenus journalier affiché dans Accounting.jsx
+    washBays: null, // Postes de lavage (plafond facultatif du temps d'attente client)
 };
 
 // ─── Identifiants des données fictives à supprimer ───────────────────────────
@@ -647,6 +648,8 @@ export function AppStateProvider({ children }) {
         logo: row?.logo_url || null,
         cachet: row?.cachet_url || null,
         dailyRevenueTarget: row?.daily_revenue_target ?? 50000,
+        // Plafond facultatif de véhicules lavés en même temps (add_queue_forecast.sql) : null = pas de plafond.
+        washBays: row?.wash_bays ?? null,
         vidangeEnabled: !!row?.vidange_enabled,
         vidangeSlotMinutes: row?.vidange_slot_minutes || 60,
         vidangeDailyCapacity: row?.vidange_daily_capacity || 1,
@@ -1299,6 +1302,7 @@ export function AppStateProvider({ children }) {
             // Horaire du week-end : les deux heures ou aucune (contrainte stations_weekend_hours_check).
             weekend_open_time: weekendSet ? newP.weekendOpenTime : null, weekend_close_time: weekendSet ? newP.weekendCloseTime : null,
             logo_url: newP.logo, cachet_url: newP.cachet, daily_revenue_target: newP.dailyRevenueTarget,
+            wash_bays: Number(newP.washBays) >= 1 ? Math.min(50, Math.round(Number(newP.washBays))) : null,
         }).eq('id', stationId).then(() => {});
     };
     // Coche/décoche des rubriques du menu : appliqué tout de suite, sauvegardé en
@@ -1709,40 +1713,6 @@ export function AppStateProvider({ children }) {
         loadTransactions();
     };
 
-    // Calcul du temps d'attente estimé pour un client spécifique
-    const getEstimatedWaitTime = (clientName) => {
-        const norm = (clientName || '').trim().toLowerCase();
-        const clientIndex = (queue || []).findIndex(q => (q.client || '').trim().toLowerCase() === norm);
-        if (clientIndex === -1) return 0; // Si le client n'est pas dans la file d'attente, temps = 0
-
-        let totalWaitTime = 0;
-
-        // 1. Temps RÉELLEMENT restant des véhicules en cours (durée - temps déjà
-        // écoulé depuis startedAt), pas une estimation à plat à 50% du temps total.
-        (activeWashes || []).forEach(wash => {
-            const cat = wash.category || "Particulier";
-            const time = (durationConfig[cat] && durationConfig[cat][wash.service]) ? durationConfig[cat][wash.service] : 30;
-            const elapsedMin = wash.startedAt ? (Date.now() - new Date(wash.startedAt).getTime()) / 60000 : time / 2;
-            totalWaitTime += Math.max(0, time - elapsedMin);
-        });
-
-        // 2. Temps des véhicules devant lui dans la file d'attente
-        for (let i = 0; i < clientIndex; i++) {
-            const wash = (queue || [])[i];
-            const cat = wash.category || "Particulier";
-            const time = (durationConfig[cat] && durationConfig[cat][wash.service]) ? durationConfig[cat][wash.service] : 30;
-            totalWaitTime += time;
-        }
-
-        // Pas de division par une "capacité parallèle" : le temps d'attente est
-        // la somme du temps restant des véhicules en lavage + le temps de lavage
-        // de chacun des véhicules devant lui dans la file (formule confirmée par
-        // le gérant). Diviser par le nombre d'employés "présents" sous-estimait
-        // fortement l'attente (ce chiffre inclut souvent du personnel qui ne
-        // lave pas en parallèle — caissier, gardien...).
-        return Math.round(totalWaitTime);
-    };
-
     // ─── Nettoyage ciblé des données fictives ────────────────────────────────
     // Supprime UNIQUEMENT les entrées de démo connues.
     // Toutes les données créées manuellement sont préservées.
@@ -1825,7 +1795,7 @@ export function AppStateProvider({ children }) {
             vidangeBookings, updateVidangeBookingStatus,
             shopOrders, updateShopOrderStatus,
             receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement, retireStationAnnouncement, loadStationKnownClients,
-            addWash, washAmountFor, startWash, endWash, skipWash, pushBackOnePosition, waitlist, admitWaitlisted, validatePayment, updatePricing, getEstimatedWaitTime,
+            addWash, washAmountFor, startWash, endWash, skipWash, pushBackOnePosition, waitlist, admitWaitlisted, validatePayment, updatePricing,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>
