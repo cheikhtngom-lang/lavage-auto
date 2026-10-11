@@ -59,7 +59,6 @@ export function setPublicStatsCache(rows) {
       waitingCount: Number(r.waiting_count) || 0,
       activeCount: Number(r.active_count) || 0,
       activeEmployees: Number(r.active_employees) || 0,
-      nextStartAt: r.next_start_at || null,
     };
   });
 }
@@ -242,49 +241,33 @@ export function getVehiclesAhead(stationId, itemCreatedAt) {
     && (r.status === 'en_cours' || (r.status === 'attente' && new Date(r.created_at).getTime() < t))).length;
 }
 
-// ─── Temps d'attente (add_queue_forecast.sql) ───────────────────────────
-// Calculé par le serveur (station_queue_forecast) et non plus ici : chaque
-// véhicule en file va au PREMIER laveur pointé qui se libère, avec les durées
-// réellement constatées dans la station. L'ancienne somme en série (reste de
-// tous les lavages en cours + durée de chaque véhicule devant) supposait un
-// seul véhicule lavé à la fois : 2 laveurs occupés (fin dans 1 min 30 et dans
-// 18 min) affichaient ~20 min au lieu de 1 min 30. Le même calcul décide de la
-// liste d'attente avant fermeture : affichage et serveur ne divergent plus.
+export function estimateItemWaitTime(stationId, itemCreatedAt) {
+  const t = new Date(itemCreatedAt).getTime();
+  const durationConfig = getStationDurationConfig(stationId);
+  const timeFor = (r) => durationConfig?.[r.category]?.[r.service] ?? 30;
 
-// Prévision d'une réservation de la file : { durationMinutes, startAt, endAt }
-// (startAt = heure de passage pour un véhicule en attente), ou null.
-export function getQueueForecast(reservationId) {
-  const row = queueSnapshot.find((r) => r.id === reservationId);
-  if (!row || (row.estimated_start_at == null && row.estimated_end_at == null)) return null;
-  return {
-    durationMinutes: row.duration_minutes != null ? Number(row.duration_minutes) : null,
-    startAt: row.estimated_start_at ? new Date(row.estimated_start_at) : null,
-    endAt: row.estimated_end_at ? new Date(row.estimated_end_at) : null,
-  };
-}
+  const activeWashes = queueSnapshot.filter((r) => r.station_id === stationId && r.status === 'en_cours');
+  let total = 0;
+  activeWashes.forEach((r) => {
+    // Temps RÉELLEMENT restant (durée - temps déjà écoulé depuis started_at),
+    // pas une estimation à plat — sinon un lavage commencé il y a 18 min sur
+    // 20 comptait encore pour 10 min restantes dans l'attente affichée au client.
+    const durationMin = timeFor(r);
+    const elapsedMin = r.started_at ? (Date.now() - new Date(r.started_at).getTime()) / 60000 : durationMin / 2;
+    total += Math.max(0, durationMin - elapsedMin);
+  });
+  queueSnapshot
+    .filter((r) => r.station_id === stationId && r.status === 'attente' && new Date(r.created_at).getTime() < t)
+    .forEach((r) => { total += timeFor(r); });
 
-// Minutes avant le passage d'une réservation en file, ou null si inconnu.
-// `fallbackStartAt` : heure de passage figée à la création
-// (reservations.forecast_start_at), le temps que la file anonymisée se
-// recharge juste après une réservation.
-export function estimateItemWaitTime(reservationId, fallbackStartAt = null) {
-  const startAt = getQueueForecast(reservationId)?.startAt || (fallbackStartAt ? new Date(fallbackStartAt) : null);
-  if (!startAt) return null;
-  return Math.max(0, (startAt.getTime() - Date.now()) / 60000);
-}
-
-// Minutes avant le passage d'une NOUVELLE réservation dans cette station
-// (0 = file vide ou laveur libre).
-export function getStationNextStartMinutes(stationId) {
-  const nextStartAt = publicStats[stationId]?.nextStartAt;
-  if (!nextStartAt) return 0;
-  return Math.max(0, (new Date(nextStartAt).getTime() - Date.now()) / 60000);
-}
-
-// « < 1 min » / « ~5 min » — affichage en minutes seulement.
-export function formatWaitMinutes(minutes) {
-  if (minutes == null) return null;
-  return minutes < 1 ? '< 1 min' : `~${Math.ceil(minutes)} min`;
+  // Pas de division par une "capacité parallèle" : le temps d'attente est la
+  // somme du temps restant des véhicules en lavage + le temps de lavage de
+  // chacun des véhicules devant nous dans la file (formule confirmée par le
+  // gérant). Diviser par le nombre d'employés "présents" aujourd'hui
+  // (station_public_stats.active_employees) sous-estimait fortement l'attente,
+  // ce chiffre incluant souvent du personnel qui ne lave pas en parallèle
+  // (caissier, gardien...) alors qu'une seule voiture à la fois est lavée.
+  return Math.round(total);
 }
 
 // ─── Liste d'attente « avant fermeture » (add_closing_waitlist.sql) ──────
@@ -342,7 +325,7 @@ export async function createReservation(stationId, { clientId, clientName, vehic
     category, service, paid: !!paid, amount, payment_method: paymentMethod || null,
     reservation_group_id: reservationGroupId, group_size: groupSize,
     ...(waitlist ? { status: 'liste_attente' } : {}),
-  }).select('id, created_at, status, forecast_start_at').single();
+  }).select('id, created_at, status').single();
   if (error) throw new Error(error.message);
   return data;
 }

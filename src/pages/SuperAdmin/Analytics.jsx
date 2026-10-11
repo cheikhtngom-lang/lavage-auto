@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Building2, Users, CreditCard, TrendingUp, Wallet, Gauge,
-  Crown, MapPin, Repeat, Sparkles, ArrowUpRight, ArrowDownRight, Timer,
+  Crown, MapPin, Repeat, Sparkles, ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { supabase } from '../../lib/supabaseClient';
 import { GRANULARITIES, buildBuckets, countInBuckets } from '../../lib/dateBuckets';
 import { validatedMRR, validatedStations, modulesMRR, subscriptionBreakdown, stationPrice } from '../../lib/platformRevenue';
 import LineChart from '../../components/ui/LineChart';
@@ -33,17 +32,6 @@ export default function SuperAdminAnalytics() {
   const { stations, clientAccounts, PLANS } = useSuperAdminState();
   const [granularity, setGranularity] = useState('mois');
   const [mrrPeriod, setMrrPeriod] = useState('semestre');
-
-  // Précision des temps d'attente (add_queue_forecast.sql) : heure de passage
-  // annoncée à la création vs heure réelle de lancement, 30 derniers jours.
-  const [forecastAccuracy, setForecastAccuracy] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    supabase.rpc('queue_forecast_accuracy', { p_days: 30 }).then(({ data, error }) => {
-      if (!cancelled) setForecastAccuracy(error ? [] : (data || []));
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   const now = new Date();
   const activeStations = stations.filter(s => s.status === 'active');
@@ -398,51 +386,6 @@ export default function SuperAdminAnalytics() {
           )}
         </motion.div>
       </div>
-
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="glass-card rounded-2xl p-8">
-        <div className="flex items-center gap-2 mb-1">
-          <Timer className="w-5 h-5 text-cyan-400" />
-          <h2 className="text-xl font-bold text-white">Précision des temps d'attente <span className="text-neutral-500 font-normal text-base">(30 jours)</span></h2>
-        </div>
-        <p className="text-neutral-500 text-sm mb-6">
-          Écart entre l'heure de passage annoncée au client à la réservation et l'heure réelle de lancement du lavage.
-          Une réservation en ligne inclut le retard éventuel du client à se présenter.
-        </p>
-        {forecastAccuracy == null ? (
-          <p className="text-neutral-500 text-sm">Chargement…</p>
-        ) : forecastAccuracy.length === 0 ? (
-          <p className="text-neutral-500 text-sm">Aucune donnée pour le moment : les mesures commencent avec les nouvelles réservations.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-neutral-500 border-b border-white/10">
-                  <th className="py-2 pr-4 font-medium">Station</th>
-                  <th className="py-2 pr-4 font-medium text-right">Lavages mesurés</th>
-                  <th className="py-2 pr-4 font-medium text-right">Écart typique</th>
-                  <th className="py-2 font-medium text-right">Tendance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {forecastAccuracy.map((row) => {
-                  const abs = Number(row.median_abs_error_minutes) || 0;
-                  const bias = Number(row.median_error_minutes) || 0;
-                  return (
-                    <tr key={row.station_id} className="border-b border-white/5">
-                      <td className="py-2.5 pr-4 text-white font-medium">{row.station_name || 'Station'}</td>
-                      <td className="py-2.5 pr-4 text-right text-neutral-300">{row.samples}</td>
-                      <td className={`py-2.5 pr-4 text-right font-bold ${abs <= 3 ? 'text-emerald-400' : abs <= 8 ? 'text-amber-400' : 'text-red-400'}`}>± {abs.toLocaleString('fr-FR')} min</td>
-                      <td className="py-2.5 text-right text-neutral-400">
-                        {Math.abs(bias) < 1 ? 'À l\'heure' : bias > 0 ? `Lancé ${bias.toLocaleString('fr-FR')} min plus tard` : `Lancé ${Math.abs(bias).toLocaleString('fr-FR')} min plus tôt`}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </motion.div>
     </div>
   );
 }

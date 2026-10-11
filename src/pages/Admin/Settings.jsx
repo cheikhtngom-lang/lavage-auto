@@ -800,15 +800,6 @@ export default function Settings() {
                 )}
                 <p className="text-neutral-500 text-xs mt-3">À l'heure de fermeture du jour, les laveurs encore en service descendent automatiquement (Fin de service), sauf si leur créneau du planning finit plus tard.</p>
 
-                <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4">Postes de lavage</h2>
-                <div className="space-y-2 max-w-sm">
-                  <label className="text-sm font-medium text-neutral-400">Véhicules lavables en même temps</label>
-                  <input type="number" min="1" max="50" step="1" placeholder="Pas de limite" value={profile?.washBays ?? ''}
-                    onChange={e => setProfile({ ...profile, washBays: e.target.value === '' ? null : Number(e.target.value) })}
-                    className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
-                  <p className="text-neutral-500 text-xs">Sert au temps d'attente affiché à vos clients : chaque laveur pointé prend un véhicule, sans dépasser ce nombre (emplacements, matériel). Laissez vide si chaque laveur peut laver en même temps.</p>
-                </div>
-
                 <h2 className="text-2xl font-bold text-white mt-10 mb-6 border-b border-white/10 pb-4">Objectif de revenus</h2>
                 <div className="space-y-2 max-w-sm">
                   <label className="text-sm font-medium text-neutral-400">Objectif journalier (FCFA)</label>
