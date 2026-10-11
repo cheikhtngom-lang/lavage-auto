@@ -169,8 +169,8 @@ drop index if exists public.reservations_station_completed_idx;
 -- Colonnes stations.wash_bays et reservations.forecast_start_at LAISSÉES en
 -- place (vides, plus lues ni écrites) : un onglet ouvert avant le retour
 -- arrière les lit/écrit encore ; les supprimer ferait échouer sa réservation
--- ou l'enregistrement de ses paramètres. À supprimer une fois tous les
--- navigateurs rechargés :
+-- ou l'enregistrement de ses paramètres. Suppression programmée le
+-- 12 octobre 2026 à 03:00 GMT (drop_queue_forecast_columns.sql, pg_cron) :
 --   alter table public.reservations drop column if exists forecast_start_at;
 --   alter table public.stations drop constraint if exists stations_wash_bays_check;
 --   alter table public.stations drop column if exists wash_bays;
