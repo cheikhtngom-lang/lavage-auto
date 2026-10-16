@@ -15,33 +15,44 @@ import {
 import { hasPerm } from './permissions';
 import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './offers';
 
+// Sections du menu (titres affichés par AppShell) — l'ordre du catalogue
+// suit ces groupes, Paramètres > Menu reprend le même ordre.
+const EXPLOITATION = 'Exploitation';
+const FINANCES = 'Ventes & finances';
+const CLIENTS = 'Clients';
+const ADMINISTRATION = 'Administration';
+
 // `locked` : jamais masquable (sans « Vue d'ensemble » il n'y aurait plus de
 // page d'accueil, sans « Paramètres » on ne pourrait plus rien réactiver).
 export const ADMIN_NAV = [
-  { key: 'queue', name: "Vue d'ensemble", href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null, locked: true },
-  { key: 'washers', name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage' },
+  // ─── Exploitation ───
+  { key: 'queue', name: "Vue d'ensemble", href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null, locked: true, section: EXPLOITATION },
+  { key: 'washers', name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage', section: EXPLOITATION },
   // Pompistes : offre Station de service (clé 'Business', voir lib/offers.js) — voir
   // RequirePompistesAccess (App.jsx).
-  { key: 'pompistes', name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', plans: [SERVICE_STATION_PLAN], hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.' },
+  { key: 'pompistes', name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', plans: [SERVICE_STATION_PLAN], hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.', section: EXPLOITATION },
   // Vidange : offre Station de service, ou module "mod_vidange" — voir RequireVidangeAccess (App.jsx).
-  { key: 'vidange', name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_vidange' },
-  { key: 'transactions', name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view' },
-  // Comptabilité : Pro et Station de service — voir RequireAccountingAccess (App.jsx).
-  { key: 'accounting', name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ['Pro', SERVICE_STATION_PLAN] },
-  // Reversements des paiements en ligne : tous les forfaits (une station Starter peut aussi être payée en ligne).
-  { key: 'reversements', name: 'Reversements', href: '/admin/reversements', icon: Wallet, perm: 'accounting.manage', hint: 'Ce que la plateforme vous reverse sur les paiements en ligne, et l’historique.' },
-  { key: 'subscriptions', name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage' },
-  // Relances des clients abonnés 5 jours avant l'échéance (email auto + WhatsApp), voir lib/subscriptionReminders.js.
-  { key: 'relances', name: 'Relances', href: '/admin/relances', icon: BellRing, perm: 'subscriptions.manage', hint: 'Clients dont l’abonnement se termine bientôt : email automatique et relance WhatsApp.' },
-  { key: 'analytics', name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view' },
-  // Bilan : offre Station de service, ou module "mod_bilan" — voir RequireBusinessPlan (App.jsx).
-  { key: 'bilan', name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_bilan' },
+  { key: 'vidange', name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_vidange', section: EXPLOITATION },
+  // ─── Ventes & finances ───
   // Boutique : offre Station de service, ou module "mod_boutique" — voir RequireShopAccess (App.jsx).
-  { key: 'shop', name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_boutique' },
-  { key: 'team', name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage' },
+  { key: 'shop', name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_boutique', section: FINANCES },
+  { key: 'transactions', name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view', section: FINANCES },
+  // Comptabilité : Pro et Station de service — voir RequireAccountingAccess (App.jsx).
+  { key: 'accounting', name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ['Pro', SERVICE_STATION_PLAN], section: FINANCES },
+  // Reversements des paiements en ligne : tous les forfaits (une station Starter peut aussi être payée en ligne).
+  { key: 'reversements', name: 'Reversements', href: '/admin/reversements', icon: Wallet, perm: 'accounting.manage', hint: 'Ce que la plateforme vous reverse sur les paiements en ligne, et l’historique.', section: FINANCES },
+  // Bilan : offre Station de service, ou module "mod_bilan" — voir RequireBusinessPlan (App.jsx).
+  { key: 'bilan', name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_bilan', section: FINANCES },
+  { key: 'analytics', name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view', section: FINANCES },
+  // ─── Clients ───
+  { key: 'subscriptions', name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage', section: CLIENTS },
+  // Relances des clients abonnés 5 jours avant l'échéance (email auto + WhatsApp), voir lib/subscriptionReminders.js.
+  { key: 'relances', name: 'Relances', href: '/admin/relances', icon: BellRing, perm: 'subscriptions.manage', hint: 'Clients dont l’abonnement se termine bientôt : email automatique et relance WhatsApp.', section: CLIENTS },
   // Annonces aux clients : à partir de Pro (lib/offers.js) — voir RequireMarketingAccess (App.jsx).
-  { key: 'annonces', name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage', plans: MARKETING_PLANS },
-  { key: 'settings', name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage', locked: true },
+  { key: 'annonces', name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage', plans: MARKETING_PLANS, section: CLIENTS },
+  // ─── Administration ───
+  { key: 'team', name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage', section: ADMINISTRATION },
+  { key: 'settings', name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage', locked: true, section: ADMINISTRATION },
 ];
 
 // Rubriques masquées tant que la station n'a rien choisi : Pompistes n'a de

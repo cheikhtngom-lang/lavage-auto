@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import PageSuspense from '../ui/PageSuspense';
 import { useAppState } from '../../hooks/useAppState';
 import { clearSession, getCurrentRole, getCurrentStationId, getIsGroupOwner, refreshStationFromProfile } from '../../lib/accounts';
@@ -17,14 +17,26 @@ import ClosurePendingScreen, { useMyClosure } from '../account/ClosurePendingScr
 import { exportStationData } from '../../lib/rgpdExport';
 import { supabase } from '../../lib/supabaseClient';
 import { openStation } from '../../lib/groups';
+import { SERVICE_STATION_LABEL, isServiceStationPlan } from '../../lib/offers';
+import { stockLevel } from '../../lib/shop';
+
+// Statut affiché sous le nom de la station (pastille + libellé).
+const SUBSCRIPTION_STATUS = {
+  a_jour: { label: 'Abonnement actif', dot: 'bg-emerald-400' },
+  essai: { label: 'Essai gratuit', dot: 'bg-amber-400' },
+};
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [sessionLocked, setSessionLocked] = useState(false);
   const {
-    stationProfile, stationProfileLoaded, stationBilling, myPermissions, hiddenMenu,
+    stationProfile, stationProfileLoaded, stationBilling, myPermissions, myRoleName, hiddenMenu,
     receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement,
+    queue, shopOrders,
   } = useAppState();
+  const [accountName, setAccountName] = useState('');
+  const [stockAlerts, setStockAlerts] = useState(0);
   const closure = useMyClosure(); // station (ou compte) en cours de fermeture : accès suspendu
 
   // La session station qui expire pour inactivité n'éjecte plus vers la page
@@ -119,7 +131,51 @@ export default function AdminLayout() {
   // (Paramètres > Menu). Tant que les permissions ne sont pas chargées (staff),
   // on n'affiche que les entrées libres — le propriétaire a ['*'] dès le premier
   // rendu, donc aucun flash.
-  const navigation = visibleNav({ permissions: myPermissions, billing: stationBilling, hiddenMenu });
+  const baseNav = visibleNav({ permissions: myPermissions, billing: stationBilling, hiddenMenu });
+  const showsShop = baseNav.some((item) => item.key === 'shop');
+
+  // Nom du compte connecté (carte en pied de menu).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+      const { data } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).maybeSingle();
+      if (!cancelled) setAccountName(data?.full_name?.trim() || data?.email || user.email || '');
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Produits épuisés ou en stock bas (pastille « Boutique ») : relu à chaque
+  // changement de page, ce qui suffit à suivre une vente ou un réassort.
+  useEffect(() => {
+    const stationId = getCurrentStationId();
+    if (!showsShop || !stationId || stationId === 'default') { setStockAlerts(0); return undefined; }
+    let cancelled = false;
+    supabase.from('shop_products').select('stock, low_stock_threshold').eq('station_id', stationId).not('stock', 'is', null)
+      .then(({ data, error }) => {
+        if (!cancelled && !error) setStockAlerts((data || []).filter((p) => ['out', 'low'].includes(stockLevel(p))).length);
+      });
+    return () => { cancelled = true; };
+  }, [showsShop, location.pathname]);
+
+  // Pastilles : véhicules en attente, commandes boutique à traiter, alertes de stock.
+  const waitingCount = (queue || []).length;
+  const ordersToHandle = (shopOrders || []).filter((o) => o.status === 'confirmee').length;
+  const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+  const navigation = baseNav.map((item) => {
+    if (item.key === 'queue') return { ...item, badges: [{ count: waitingCount, tone: 'blue', label: plural(waitingCount, 'véhicule en attente', 'véhicules en attente') }] };
+    if (item.key === 'shop') {
+      return { ...item, badges: [
+        { count: ordersToHandle, tone: 'blue', label: plural(ordersToHandle, 'commande à traiter', 'commandes à traiter') },
+        { count: stockAlerts, tone: 'amber', label: plural(stockAlerts, 'alerte de stock', 'alertes de stock') },
+      ] };
+    }
+    return item;
+  });
+
+  const planLabel = stationBilling ? (isServiceStationPlan(stationBilling.plan) ? SERVICE_STATION_LABEL : `Offre ${stationBilling.plan}`) : null;
+  const status = stationBilling ? SUBSCRIPTION_STATUS[stationBilling.subscriptionStatus] : null;
 
   if (closure) {
     return <ClosurePendingScreen closure={closure} onExport={() => exportStationData(getCurrentStationId(), stationProfile?.name)} exportLabel="Télécharger les données de la station (ZIP)" />;
@@ -146,6 +202,7 @@ export default function AdminLayout() {
       accent="blue"
       activeLayoutId="activeTab"
       nav={navigation}
+      user={accountName ? { name: accountName, subtitle: myRoleName || 'Compte station' } : null}
       onLogout={handleLogout}
       actions={bell}
       glows={['bg-blue-600/10', 'bg-emerald-600/10']}
@@ -165,11 +222,15 @@ export default function AdminLayout() {
       brandText={stationName === null ? (
         <div className="h-5 w-28 rounded bg-white/10 animate-pulse" />
       ) : (
-        <span className={`font-bold text-lg tracking-wide truncate block ${
-          isConfigured
-            ? 'text-transparent bg-clip-text bg-gradient-to-r from-white to-neutral-400'
-            : 'text-orange-400'
+        <span className={`font-bold text-[15px] leading-tight tracking-tight truncate block ${
+          isConfigured ? 'text-white' : 'text-orange-400'
         }`}>{stationName}</span>
+      )}
+      brandSub={planLabel && (
+        <span className="flex items-center gap-1.5 text-[11.5px] text-neutral-400 min-w-0" title={status?.label}>
+          {status && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${status.dot}`} />}
+          <span className="truncate">{planLabel}</span>
+        </span>
       )}
       mobileBrand={(
         <>
