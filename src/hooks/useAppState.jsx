@@ -405,7 +405,7 @@ export function AppStateProvider({ children }) {
         if (!stationId || stationId === 'default') { setShopOrders([]); return; }
         const { data } = await supabase.from('shop_orders').select('*').eq('station_id', stationId).order('created_at', { ascending: false });
         setShopOrders((data || []).map((row) => ({
-            id: row.id, clientName: row.client_name, productName: row.product_name, unitPrice: row.unit_price,
+            id: row.id, clientName: row.client_name, productId: row.product_id, productName: row.product_name, unitPrice: row.unit_price,
             quantity: row.quantity, amount: row.amount, fulfillmentType: row.fulfillment_type,
             deliveryAddress: row.delivery_address, deliveryPhone: row.delivery_phone,
             paid: row.paid, paymentMethod: row.payment_method, status: row.status, createdAt: row.created_at,

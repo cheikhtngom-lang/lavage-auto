@@ -2,10 +2,14 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone, Droplets, Store, PieChart } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
+import { useShopSales } from '../../hooks/useShopSales';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { stationHasPompistes } from '../../lib/pompistes';
+import { stationHasShop } from '../../lib/shop';
+import { onlineOrderRevenue, soldLines, topProducts, splitRevenue } from '../../lib/shopStats';
+import TopProducts from '../../components/ui/TopProducts';
 
 const EXPENSE_CATEGORIES = ['Savon', 'Eau', 'Électricité', 'Matériel', 'Autre'];
 // Dépenses de l'activité carburant (stations avec Pompistes) : suivies à part du lavage.
@@ -58,6 +62,25 @@ function methodStatsInRange(transactions, start, end, matches) {
   }, { revenue: 0, count: 0 });
 }
 
+// Périodes de la section « Revenus : lavage et boutique ».
+const SPLIT_PERIODS = [
+  { id: 'jour', label: "Aujourd'hui" },
+  { id: 'semaine', label: 'Cette semaine' },
+  { id: 'mois', label: 'Ce mois' },
+  { id: 'annee', label: 'Cette année' },
+  { id: 'tout', label: 'Tout' },
+];
+function periodRange(id, now) {
+  const today = startOfDay(now);
+  if (id === 'jour') return [today, addDays(today, 1)];
+  if (id === 'semaine') { const w = startOfWeek(now); return [w, addDays(w, 7)]; }
+  if (id === 'mois') return [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 1)];
+  if (id === 'annee') return [new Date(now.getFullYear(), 0, 1), new Date(now.getFullYear() + 1, 0, 1)];
+  return [new Date(0), new Date(8.64e15)];
+}
+const inRange = (iso, [start, end]) => { const d = new Date(iso); return d >= start && d < end; };
+const pct = (part, total) => (total > 0 ? Math.round((part / total) * 100) : 0);
+
 function percentChange(current, previous) {
   if (previous === 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
@@ -83,10 +106,17 @@ function TrendBadge({ pct, invert = false }) {
 
 export default function Accounting() {
   useDocumentTitle('Comptabilité');
-  const { transactions, expenses: allExpenses, addExpense, stationProfile, stationBilling, clientSubscriptionInvoices } = useAppState();
+  const { transactions: washAndShopTransactions, shopOrders, expenses: allExpenses, addExpense, stationProfile, stationBilling, clientSubscriptionInvoices } = useAppState();
   // Les dépenses de carburant sont suivies à part : elles ne s'ajoutent pas aux dépenses de lavage (ni au Bilan).
   const expenses = (allExpenses || []).filter((e) => !isFuelExpense(e));
   const hasFuel = stationHasPompistes(stationBilling);
+
+  // Revenus GLOBAUX : transactions (lavages + ventes boutique sur place) +
+  // commandes boutique payées en ligne, absentes de `transactions` (voir lib/shopStats.js).
+  const transactions = [...(washAndShopTransactions || []), ...onlineOrderRevenue(shopOrders)];
+  const hasShop = stationHasShop(stationBilling);
+  const shopSales = useShopSales(hasShop, (washAndShopTransactions || []).length);
+  const [splitPeriod, setSplitPeriod] = useState('mois');
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [newExpense, setNewExpense] = useState({ label: '', amount: '', category: 'Savon', activity: 'lavage' });
@@ -116,11 +146,12 @@ export default function Accounting() {
   const lastWeekComparableRevenue = sumInRange(transactions, lastWeekStart, lastWeekComparablePoint);
   const weekChangePct = percentChange(weekRevenue, lastWeekComparableRevenue);
 
-  // Part des ventes boutique sur place (déjà comprises dans les revenus, voir
-  // add_shop_stock_sales.sql : chaque vente crée une transaction « Boutique »).
-  const shopTransactions = (transactions || []).filter((tx) => tx.service === 'Boutique');
-  const todayShopRevenue = sumInRange(shopTransactions, todayStart, addDays(todayStart, 1));
-  const weekShopRevenue = sumInRange(shopTransactions, weekStart, addDays(weekStart, 7));
+  // Revenus séparés lavage / boutique + produits les plus vendus, sur la période choisie.
+  const splitRange = periodRange(splitPeriod, now);
+  const split = splitRevenue(transactions.filter((tx) => inRange(tx.createdAt, splitRange)));
+  const splitTop = topProducts(soldLines(shopSales, shopOrders).filter((l) => inRange(l.createdAt, splitRange)));
+  const showShopSplit = hasShop || transactions.some((tx) => tx.service === 'Boutique');
+  const splitLabel = SPLIT_PERIODS.find((p) => p.id === splitPeriod)?.label;
 
   const weekDays = Array.from({ length: 7 }).map((_, i) => {
     const dayStart = addDays(weekStart, i);
@@ -182,7 +213,7 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Revenus d'aujourd'hui</p>
             <h3 className="text-3xl font-bold text-white">{todayRevenue.toLocaleString('fr-FR')} FCFA</h3>
-            {todayShopRevenue > 0 && <p className="text-neutral-500 text-xs mt-2">dont boutique : {todayShopRevenue.toLocaleString('fr-FR')} FCFA</p>}
+            {showShopSplit && <p className="text-neutral-500 text-xs mt-2">Lavage + boutique</p>}
           </CardContent>
         </Card>
 
@@ -197,7 +228,7 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Revenus de la semaine</p>
             <h3 className="text-3xl font-bold text-white">{weekRevenue.toLocaleString('fr-FR')} FCFA</h3>
-            {weekShopRevenue > 0 && <p className="text-neutral-500 text-xs mt-2">dont boutique : {weekShopRevenue.toLocaleString('fr-FR')} FCFA</p>}
+            {showShopSplit && <p className="text-neutral-500 text-xs mt-2">Lavage + boutique</p>}
           </CardContent>
         </Card>
 
@@ -229,6 +260,68 @@ export default function Accounting() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Revenus globaux, puis séparés lavage / boutique, + top 5 des produits */}
+      {showShopSplit && (
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2"><PieChart className="w-5 h-5 text-blue-400" /> Revenus : lavage et boutique</h2>
+            <div role="tablist" aria-label="Période" className="flex gap-1 overflow-x-auto bg-white/5 border border-white/10 rounded-xl p-1 self-start md:self-auto max-w-full">
+              {SPLIT_PERIODS.map((p) => (
+                <button key={p.id} type="button" role="tab" aria-selected={splitPeriod === p.id} onClick={() => setSplitPeriod(p.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${splitPeriod === p.id ? 'bg-blue-600 text-white shadow shadow-blue-500/30' : 'text-neutral-400 hover:text-white'}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 border-white/5 bg-gradient-to-br from-blue-900/10 to-black relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+              <CardContent className="p-6 relative z-10">
+                <p className="text-neutral-400 text-sm font-medium mb-1">Revenu global · {splitLabel}</p>
+                <h3 className="text-4xl font-bold text-white tracking-tight">{split.total.toLocaleString('fr-FR')} <span className="text-lg font-medium text-neutral-400">FCFA</span></h3>
+
+                {/* Barre de répartition lavage / boutique */}
+                <div className="mt-6 h-3 w-full rounded-full bg-neutral-900 overflow-hidden flex" role="img"
+                  aria-label={`Lavage ${pct(split.lavage, split.total)} %, boutique ${pct(split.boutique, split.total)} %`}>
+                  {split.total > 0 && (
+                    <>
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${(split.lavage / split.total) * 100}%` }} transition={{ duration: 0.8 }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400" />
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${(split.boutique / split.total) * 100}%` }} transition={{ duration: 0.8, delay: 0.1 }} className="h-full bg-gradient-to-r from-emerald-500 to-teal-300" />
+                    </>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Droplets className="w-4 h-4 text-blue-400" /> Lavage</span>
+                      <span className="text-xs font-bold text-blue-300 bg-blue-500/10 px-2 py-0.5 rounded-md">{pct(split.lavage, split.total)} %</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white">{split.lavage.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
+                    <p className="text-neutral-500 text-xs mt-1">{split.lavageCount} encaissement{split.lavageCount > 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Store className="w-4 h-4 text-emerald-400" /> Boutique</span>
+                      <span className="text-xs font-bold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-md">{pct(split.boutique, split.total)} %</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white">{split.boutique.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
+                    <p className="text-neutral-500 text-xs mt-1">
+                      {split.boutiqueCount} vente{split.boutiqueCount > 1 ? 's' : ''}
+                      {split.boutiqueOnline > 0 && ` · dont ${split.boutiqueOnline.toLocaleString('fr-FR')} FCFA en ligne`}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <TopProducts products={splitTop} periodLabel={splitLabel} />
+          </div>
+        </div>
+      )}
 
       {/* Encaissements du jour par mode de paiement */}
       <h2 className="text-xl font-bold text-white mb-4">Encaissements du jour</h2>

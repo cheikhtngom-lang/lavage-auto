@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
-import { Clock, Users, Car, Target, TrendingUp, Banknote, Receipt, Calendar } from 'lucide-react';
+import { Clock, Users, Car, Target, TrendingUp, TrendingDown, Banknote, Receipt, Calendar, Store, Droplets } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
+import { useShopSales } from '../../hooks/useShopSales';
+import { stationHasShop } from '../../lib/shop';
+import { onlineOrderRevenue, soldLines, topProducts, splitRevenue, isShopRevenue } from '../../lib/shopStats';
+import TopProducts from '../../components/ui/TopProducts';
 import { PRICING_CATEGORY_LABELS } from '../../lib/vehicleBrands';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { hoursForDate } from '../../lib/stationData';
@@ -83,7 +87,13 @@ function formatCompact(n) {
 
 export default function Analytics() {
   useDocumentTitle('Analytique');
-  const { transactions, completedWashes, activeWashes, reviews, stationProfile, requestFullReservationHistory } = useAppState();
+  const { transactions: washAndShopTransactions, shopOrders, stationBilling, completedWashes, activeWashes, reviews, stationProfile, requestFullReservationHistory } = useAppState();
+  // Recettes GLOBALES : transactions (lavages + ventes boutique sur place) +
+  // commandes boutique payées en ligne, absentes de `transactions` (voir lib/shopStats.js).
+  const transactions = [...(washAndShopTransactions || []), ...onlineOrderRevenue(shopOrders)];
+  const hasShop = stationHasShop(stationBilling);
+  const shopSales = useShopSales(hasShop, (washAndShopTransactions || []).length);
+  const showShop = hasShop || transactions.some(isShopRevenue);
   // Tout l'historique des lavages (la file n'en charge que les derniers jours, voir loadReservations).
   useEffect(() => { requestFullReservationHistory(); }, [requestFullReservationHistory]);
 
@@ -138,6 +148,19 @@ export default function Analytics() {
   // Score Qualité : moyenne réelle des avis (station_reviews) postés sur la fenêtre.
   const filteredReviews = (reviews || []).filter((r) => matchesWindow(r.createdAt, currentWindow));
   const avgRating = filteredReviews.length > 0 ? filteredReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / filteredReviews.length : null;
+
+  // Boutique sur la fenêtre : chiffre d'affaires (sur place + en ligne),
+  // évolution vs la période précédente équivalente, articles, top 5.
+  const revenueSplit = splitRevenue(filteredTransactions);
+  const windowLines = soldLines(shopSales, shopOrders).filter((l) => matchesWindow(l.createdAt, currentWindow));
+  const top5 = topProducts(windowLines);
+  const unitsSold = windowLines.reduce((s, l) => s + l.quantity, 0);
+  const avgBasket = revenueSplit.boutiqueCount > 0 ? Math.round(revenueSplit.boutique / revenueSplit.boutiqueCount) : null;
+  let shopTrend = null;
+  if (timeSegment !== 'Tous') {
+    const previousShop = splitRevenue(transactions.filter((tx) => matchesWindow(tx.createdAt, getPreviousWindow(currentWindow)))).boutique;
+    if (previousShop > 0) shopTrend = Math.round(((revenueSplit.boutique - previousShop) / previousShop) * 100);
+  }
 
   const statCards = [
     { title: "Temps d'attente moyen", value: avgWaitMinutes != null ? `${avgWaitMinutes} min` : '—', icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10', caption: waitTimesMin.length > 0 ? `${waitTimesMin.length} lavage${waitTimesMin.length > 1 ? 's' : ''} mesuré${waitTimesMin.length > 1 ? 's' : ''}` : 'Aucune donnée' },
@@ -292,11 +315,31 @@ export default function Analytics() {
                 <p className="text-neutral-500 text-xs mt-1 capitalize">{revenuePeriodLabel}</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
-              <Receipt className="w-5 h-5 text-neutral-400" />
-              <div>
-                <p className="text-xl font-bold text-white">{filteredTransactions.length}</p>
-                <p className="text-xs text-neutral-500">Transaction{filteredTransactions.length > 1 ? 's' : ''} encaissée{filteredTransactions.length > 1 ? 's' : ''}</p>
+            <div className="flex flex-wrap items-stretch gap-3">
+              {showShop && (
+                <>
+                  <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
+                    <Droplets className="w-5 h-5 text-blue-400" />
+                    <div>
+                      <p className="text-xl font-bold text-white">{revenueSplit.lavage.toLocaleString('fr-FR')} <span className="text-xs font-medium text-neutral-500">F</span></p>
+                      <p className="text-xs text-neutral-500">Lavage · {totalRevenue > 0 ? Math.round((revenueSplit.lavage / totalRevenue) * 100) : 0} %</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
+                    <Store className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <p className="text-xl font-bold text-white">{revenueSplit.boutique.toLocaleString('fr-FR')} <span className="text-xs font-medium text-neutral-500">F</span></p>
+                      <p className="text-xs text-neutral-500">Boutique · {totalRevenue > 0 ? Math.round((revenueSplit.boutique / totalRevenue) * 100) : 0} %</p>
+                    </div>
+                  </div>
+                </>
+              )}
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
+                <Receipt className="w-5 h-5 text-neutral-400" />
+                <div>
+                  <p className="text-xl font-bold text-white">{filteredTransactions.length}</p>
+                  <p className="text-xs text-neutral-500">Encaissement{filteredTransactions.length > 1 ? 's' : ''}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -322,6 +365,46 @@ export default function Analytics() {
           </Card>
         ))}
       </div>
+
+      {/* Boutique : ventes sur place + en ligne sur la période, et top 5 des produits */}
+      {showShop && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <Card className="border-white/5 bg-gradient-to-br from-emerald-900/15 to-black relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <CardContent className="p-6 relative z-10">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="p-3 bg-emerald-500/15 rounded-xl"><Store className="w-6 h-6 text-emerald-400" /></div>
+                {shopTrend != null && (
+                  <span className={`text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1 ${shopTrend >= 0 ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'}`}
+                    title="Par rapport à la période précédente équivalente">
+                    {shopTrend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {shopTrend >= 0 ? '+' : ''}{shopTrend} %
+                  </span>
+                )}
+              </div>
+              <p className="text-neutral-400 text-sm">Ventes boutique</p>
+              <h3 className="text-3xl font-bold text-white mb-5">{revenueSplit.boutique.toLocaleString('fr-FR')} <span className="text-base font-medium text-neutral-500">FCFA</span></h3>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                {[
+                  ['Ventes', revenueSplit.boutiqueCount.toLocaleString('fr-FR')],
+                  ['Articles', unitsSold.toLocaleString('fr-FR')],
+                  ['Panier moyen', avgBasket != null ? `${avgBasket.toLocaleString('fr-FR')} F` : '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-white/[0.03] border border-white/5 px-2 py-3">
+                    <p className="text-white font-bold text-sm truncate">{value}</p>
+                    <p className="text-neutral-500 text-[11px] mt-0.5">{label}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-neutral-500 text-xs mt-4">
+                Sur place : <span className="text-neutral-300">{(revenueSplit.boutique - revenueSplit.boutiqueOnline).toLocaleString('fr-FR')} F</span>
+                {' · '}En ligne : <span className="text-neutral-300">{revenueSplit.boutiqueOnline.toLocaleString('fr-FR')} F</span>
+              </p>
+            </CardContent>
+          </Card>
+          <TopProducts products={top5} periodLabel={revenuePeriodLabel} className="lg:col-span-2" />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Fréquence des lavages */}
