@@ -308,10 +308,12 @@ export function SuperAdminStateProvider({ children }) {
         since.setFullYear(since.getFullYear() - 5);
         const { data } = await supabase
             .from('transactions')
-            .select('id, station_id, amount, created_at, stations(name)')
+            .select('id, station_id, service, amount, created_at, stations(name)')
             .gte('created_at', since.toISOString())
             .order('created_at', { ascending: false });
-        setStationTransactions((data || []).map(rowToStationTransaction));
+        // Ventes boutique sur place (add_shop_stock_sales.sql) : pas des lavages,
+        // elles fausseraient le chiffre d'affaires et le nombre de « lavages encaissés ».
+        setStationTransactions((data || []).filter((row) => row.service !== 'Boutique').map(rowToStationTransaction));
     }, []);
 
     // Annonces diffusées à toutes les stations (add_announcements.sql) —

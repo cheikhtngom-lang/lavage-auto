@@ -116,6 +116,12 @@ export default function Accounting() {
   const lastWeekComparableRevenue = sumInRange(transactions, lastWeekStart, lastWeekComparablePoint);
   const weekChangePct = percentChange(weekRevenue, lastWeekComparableRevenue);
 
+  // Part des ventes boutique sur place (déjà comprises dans les revenus, voir
+  // add_shop_stock_sales.sql : chaque vente crée une transaction « Boutique »).
+  const shopTransactions = (transactions || []).filter((tx) => tx.service === 'Boutique');
+  const todayShopRevenue = sumInRange(shopTransactions, todayStart, addDays(todayStart, 1));
+  const weekShopRevenue = sumInRange(shopTransactions, weekStart, addDays(weekStart, 7));
+
   const weekDays = Array.from({ length: 7 }).map((_, i) => {
     const dayStart = addDays(weekStart, i);
     return statsInRange(transactions, dayStart, addDays(dayStart, 1));
@@ -176,6 +182,7 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Revenus d'aujourd'hui</p>
             <h3 className="text-3xl font-bold text-white">{todayRevenue.toLocaleString('fr-FR')} FCFA</h3>
+            {todayShopRevenue > 0 && <p className="text-neutral-500 text-xs mt-2">dont boutique : {todayShopRevenue.toLocaleString('fr-FR')} FCFA</p>}
           </CardContent>
         </Card>
 
@@ -190,6 +197,7 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Revenus de la semaine</p>
             <h3 className="text-3xl font-bold text-white">{weekRevenue.toLocaleString('fr-FR')} FCFA</h3>
+            {weekShopRevenue > 0 && <p className="text-neutral-500 text-xs mt-2">dont boutique : {weekShopRevenue.toLocaleString('fr-FR')} FCFA</p>}
           </CardContent>
         </Card>
 
@@ -249,7 +257,7 @@ export default function Accounting() {
               </div>
               <span className="text-xs font-medium text-neutral-400">{onlineToday.count} paiement{onlineToday.count > 1 ? 's' : ''}</span>
             </div>
-            <p className="text-neutral-400 text-sm font-medium mb-1">En ligne (PayDunya)</p>
+            <p className="text-neutral-400 text-sm font-medium mb-1">Wave, Orange Money, carte, en ligne</p>
             <h3 className="text-3xl font-bold text-white">{onlineToday.revenue.toLocaleString('fr-FR')} FCFA</h3>
             <p className="text-neutral-500 text-xs mt-2">Cette semaine : {onlineWeek.revenue.toLocaleString('fr-FR')} FCFA</p>
           </CardContent>
@@ -264,7 +272,7 @@ export default function Accounting() {
               </div>
               <span className="text-xs font-medium text-neutral-400">{encaisseToday.count} paiement{encaisseToday.count > 1 ? 's' : ''}</span>
             </div>
-            <p className="text-neutral-400 text-sm font-medium mb-1">Total encaissé (espèces + en ligne)</p>
+            <p className="text-neutral-400 text-sm font-medium mb-1">Total encaissé (espèces + mobile money)</p>
             <h3 className="text-3xl font-bold text-white">{encaisseToday.revenue.toLocaleString('fr-FR')} FCFA</h3>
             <p className="text-neutral-500 text-xs mt-2">Cette semaine : {encaisseWeekRevenue.toLocaleString('fr-FR')} FCFA</p>
           </CardContent>
@@ -349,7 +357,7 @@ export default function Accounting() {
                           vectorEffect="non-scaling-stroke"
                           className="cursor-pointer hover:fill-blue-500 transition-colors"
                         >
-                          <title>{d.revenue.toLocaleString('fr-FR')} FCFA · {d.count} lavage{d.count > 1 ? 's' : ''}</title>
+                          <title>{d.revenue.toLocaleString('fr-FR')} FCFA · {d.count} encaissement{d.count > 1 ? 's' : ''}</title>
                         </motion.circle>
                       ))}
                     </>

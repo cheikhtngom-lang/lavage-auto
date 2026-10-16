@@ -1785,6 +1785,8 @@ export function AppStateProvider({ children }) {
         supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
         supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());
         supabase.from('expenses').delete().eq('station_id', stationId).then(() => loadExpenses());
+        // Ventes boutique sur place : leurs recettes (transactions) partent ci-dessus.
+        supabase.from('shop_sales').delete().eq('station_id', stationId).then(() => {});
     };
 
     // Réinitialisation complète de LA STATION COURANTE uniquement (profil,
@@ -1797,6 +1799,8 @@ export function AppStateProvider({ children }) {
             supabase.from('vidange_pricing').delete().eq('station_id', stationId).then(() => {});
             supabase.from('vidange_bookings').delete().eq('station_id', stationId).then(() => loadVidangeBookings());
             supabase.from('shop_orders').delete().eq('station_id', stationId).then(() => loadShopOrders());
+            supabase.from('shop_sales').delete().eq('station_id', stationId).then(() => {});
+            supabase.from('shop_stock_movements').delete().eq('station_id', stationId).then(() => {});
             supabase.from('stations').update({ promo_config: {}, vidange_enabled: false }).eq('id', stationId).then(() => {});
             supabase.from('reservations').delete().eq('station_id', stationId).then(() => loadReservations());
             supabase.from('transactions').delete().eq('station_id', stationId).then(() => loadTransactions());

@@ -1,17 +1,21 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search, Minus, Tag, ClipboardList, CheckCircle2, XCircle, Truck, MapPin, History, Camera, Sparkles } from 'lucide-react';
+import { Store, Plus, Pencil, Trash2, X, Loader2, ImagePlus, Eye, EyeOff, PackageSearch, Search, Tag, ClipboardList, CheckCircle2, XCircle, Truck, MapPin, History, Camera, Sparkles, ShoppingCart, Boxes, AlertTriangle } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import ShopHistory from '../../components/ui/ShopHistory';
+import ShopSales from '../../components/ui/ShopSales';
+import ShopStockMovements from '../../components/ui/ShopStockMovements';
+import ShopSaleModal from '../../components/ui/ShopSaleModal';
+import ShopStockModal from '../../components/ui/ShopStockModal';
 import CameraCapture from '../../components/ui/CameraCapture';
 import StudioPhotoModal from '../../components/ui/StudioPhotoModal';
 import { useAppState } from '../../hooks/useAppState';
 import { getCurrentStationId } from '../../lib/accounts';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import {
-  SHOP_CATEGORIES, stationHasShop, productPricing, promoStatus,
-  loadStationProducts, saveProduct, setProductActive, deleteProduct, adjustStock,
+  SHOP_CATEGORIES, stationHasShop, productPricing, promoStatus, stockLevel, DEFAULT_LOW_STOCK_THRESHOLD,
+  loadStationProducts, saveProduct, setProductActive, deleteProduct,
 } from '../../lib/shop';
 
 // Photo brute acceptée en entrée : elle est redimensionnée/compressée avant
@@ -20,6 +24,7 @@ const MAX_SOURCE_PHOTO_SIZE = 25 * 1024 * 1024;
 
 const emptyForm = {
   id: null, name: '', description: '', category: 'Pneus', price: '', stock: '',
+  lowStockThreshold: String(DEFAULT_LOW_STOCK_THRESHOLD),
   promoType: '', promoPercent: '', promoBuyQty: '2', promoFreeQty: '1',
   promoStartDate: '', promoStartTime: '', promoEndDate: '', promoEndTime: '',
   imageUrl: null, active: true,
@@ -48,7 +53,13 @@ export default function Shop() {
   const stationId = getCurrentStationId();
   const canShop = stationHasShop(stationBilling);
 
-  const [view, setView] = useState('produits'); // 'produits' | 'commandes' | 'historique'
+  const [view, setView] = useState('produits'); // 'produits' | 'ventes' | 'stock' | 'commandes' | 'historique'
+  // Vente sur place : null = fermée, sinon { productId } (null = vente vide).
+  const [sale, setSale] = useState(null);
+  const [stockProductId, setStockProductId] = useState(null);
+  const [stockFilter, setStockFilter] = useState('tous'); // 'tous' | 'alerte'
+  // Change à chaque vente / mouvement : recharge les onglets Ventes et Stock.
+  const [refreshKey, setRefreshKey] = useState(0);
   const [orderUpdating, setOrderUpdating] = useState({});
   const handleOrderStatus = async (id, status) => {
     setOrderUpdating((prev) => ({ ...prev, [id]: true }));
@@ -78,13 +89,22 @@ export default function Shop() {
     }
   }, [stationId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Une commande payée en ligne baisse le stock côté serveur : on relit le
+  // catalogue quand la liste des commandes change (Realtime shop_orders).
+  useEffect(() => { refresh(); }, [refresh, shopOrders.length]);
+
+  // Après une vente, une entrée ou une correction de stock.
+  const handleStockChanged = useCallback(async () => {
+    setRefreshKey((k) => k + 1);
+    await refresh();
+  }, [refresh]);
 
   const openAdd = () => { setForm(emptyForm); setImageError(''); setError(''); setShowModal(true); };
   const openEdit = (p) => {
     setForm({
       id: p.id, name: p.name, description: p.description || '', category: p.category || 'Autre',
       price: String(p.price ?? ''), stock: p.stock == null ? '' : String(p.stock),
+      lowStockThreshold: String(p.low_stock_threshold ?? DEFAULT_LOW_STOCK_THRESHOLD),
       promoType: p.promo_type || '',
       promoPercent: p.promo_percent == null ? '' : String(p.promo_percent),
       promoBuyQty: p.promo_buy_qty == null ? '2' : String(p.promo_buy_qty),
@@ -96,11 +116,6 @@ export default function Shop() {
       imageUrl: p.image_url || null, active: p.active,
     });
     setImageError(''); setError(''); setShowModal(true);
-  };
-
-  const handleStock = async (p, delta) => {
-    try { await adjustStock(p.id, delta); await refresh(); }
-    catch (err) { setError(err.message); }
   };
 
   const handleImage = (e) => {
@@ -157,13 +172,20 @@ export default function Shop() {
     catch (err) { setError(err.message); }
   };
 
+  // Alertes de stock : produits épuisés ou sous leur seuil « stock bas ».
+  const outCount = products.filter((p) => stockLevel(p) === 'out').length;
+  const lowCount = products.filter((p) => stockLevel(p) === 'low').length;
+  const showAlertsOnly = stockFilter === 'alerte' && outCount + lowCount > 0;
+
   const q = search.trim().toLowerCase();
-  const filtered = q
-    ? products.filter((p) =>
-        (p.name || '').toLowerCase().includes(q) ||
-        (p.category || '').toLowerCase().includes(q) ||
-        (p.description || '').toLowerCase().includes(q))
-    : products;
+  const filtered = products.filter((p) => {
+    if (showAlertsOnly && !['out', 'low'].includes(stockLevel(p))) return false;
+    return !q ||
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q) ||
+      (p.description || '').toLowerCase().includes(q);
+  });
+  const stockProduct = stockProductId ? products.find((p) => p.id === stockProductId) : null;
 
   // Garde-fou d'affichage : la route est déjà protégée (RequireShopAccess),
   // mais si la facturation change en cours de session on reste cohérent.
@@ -193,17 +215,27 @@ export default function Shop() {
           </h1>
           <p className="text-neutral-400 text-lg">Vendez vos produits (pneus, huiles, pare-brise…) à vos clients.</p>
         </div>
-        {view === 'produits' && (
-          <button onClick={openAdd}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2">
-            <Plus className="w-5 h-5" /> Ajouter un produit
-          </button>
-        )}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {['produits', 'ventes', 'stock'].includes(view) && products.length > 0 && (
+            <button onClick={() => setSale({ productId: null })}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2">
+              <ShoppingCart className="w-5 h-5" /> Enregistrer une vente
+            </button>
+          )}
+          {view === 'produits' && (
+            <button onClick={openAdd}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+              <Plus className="w-5 h-5" /> Ajouter un produit
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2 mb-8 border-b border-white/10 overflow-x-auto">
         {[
           { id: 'produits', label: 'Produits', icon: Store },
+          { id: 'ventes', label: 'Ventes sur place', icon: ShoppingCart },
+          { id: 'stock', label: `Stock${outCount + lowCount > 0 ? ` (${outCount + lowCount})` : ''}`, icon: Boxes },
           { id: 'commandes', label: `Commandes${shopOrders.filter((o) => o.status === 'confirmee').length > 0 ? ` (${shopOrders.filter((o) => o.status === 'confirmee').length})` : ''}`, icon: ClipboardList },
           { id: 'historique', label: 'Historique', icon: History },
         ].map((tab) => (
@@ -218,6 +250,10 @@ export default function Shop() {
 
       {view === 'historique' ? (
         <ShopHistory stationId={stationId} products={products} />
+      ) : view === 'ventes' ? (
+        <ShopSales stationId={stationId} refreshKey={refreshKey} onChanged={handleStockChanged} />
+      ) : view === 'stock' ? (
+        <ShopStockMovements stationId={stationId} products={products} refreshKey={refreshKey} onOpenStock={(p) => setStockProductId(p.id)} />
       ) : view === 'commandes' ? (
         shopOrders.length === 0 ? (
           <Card className="border-white/5 bg-white/[0.02] border-dashed">
@@ -269,6 +305,21 @@ export default function Shop() {
         )
       ) : (
       <>
+      {outCount + lowCount > 0 && (
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-wrap items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+          <p className="text-sm text-amber-100 flex-1 min-w-[200px]">
+            {outCount > 0 && <><span className="font-bold text-red-300">{outCount} produit{outCount > 1 ? 's' : ''} épuisé{outCount > 1 ? 's' : ''}</span>{lowCount > 0 ? ' · ' : ''}</>}
+            {lowCount > 0 && <span className="font-bold">{lowCount} en stock bas</span>}
+            {' '}— pensez à réapprovisionner.
+          </p>
+          <button onClick={() => setStockFilter(showAlertsOnly ? 'tous' : 'alerte')}
+            className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold transition-colors">
+            {showAlertsOnly ? 'Voir tous les produits' : 'Voir ces produits'}
+          </button>
+        </div>
+      )}
+
       {products.length > 0 && (
         <div className="relative mb-6 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
@@ -289,7 +340,7 @@ export default function Shop() {
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (
-        <p className="text-neutral-500 text-center py-12">Aucun produit ne correspond à « {search.trim()} ».</p>
+        <p className="text-neutral-500 text-center py-12">{q ? `Aucun produit ne correspond à « ${search.trim()} ».` : 'Aucun produit en alerte de stock.'}</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((p) => {
@@ -326,22 +377,31 @@ export default function Shop() {
                   {ps === 'scheduled' && <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/20">Promo programmée</Badge>}
                   {ps === 'ended' && <Badge variant="outline" className="bg-neutral-500/10 text-neutral-400 border-neutral-500/20">Promo terminée</Badge>}
                 </div>
-                {p.stock != null && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <button type="button" onClick={() => handleStock(p, -1)} disabled={p.stock <= 0} title="−1 vendu"
-                      className="p-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className={`text-sm font-bold ${p.stock > 0 ? 'text-white' : 'text-red-400'}`}>
-                      {p.stock > 0 ? `Stock : ${p.stock}` : 'Rupture'}
-                    </span>
-                    <button type="button" onClick={() => handleStock(p, 1)} title="+1 (réassort)"
-                      className="p-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 transition-colors">
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                {(() => {
+                  const level = stockLevel(p);
+                  return (
+                    <p className={`text-sm font-bold mb-2 flex items-center gap-1.5 ${
+                      level === 'out' ? 'text-red-400' : level === 'low' ? 'text-amber-400' : level === 'ok' ? 'text-white' : 'text-neutral-500'}`}>
+                      {(level === 'out' || level === 'low') && <AlertTriangle className="w-4 h-4" />}
+                      {level === null ? 'Sur commande (stock non suivi)'
+                        : level === 'out' ? 'Épuisé'
+                        : level === 'low' ? `Stock bas : ${p.stock}`
+                        : `Stock : ${p.stock}`}
+                    </p>
+                  );
+                })()}
                 {p.description && <p className="text-neutral-500 text-xs line-clamp-2 mb-3">{p.description}</p>}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button onClick={() => setSale({ productId: p.id })} disabled={stockLevel(p) === 'out'}
+                    title={stockLevel(p) === 'out' ? 'Épuisé : réapprovisionnez d\'abord' : 'Enregistrer une vente sur place'}
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold transition-colors">
+                    <ShoppingCart className="w-4 h-4" /> Vendre
+                  </button>
+                  <button onClick={() => setStockProductId(p.id)} title="Réapprovisionner ou corriger le stock"
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 text-xs font-bold transition-colors">
+                    <Boxes className="w-4 h-4" /> Stock
+                  </button>
+                </div>
                 <div className="flex gap-2">
                   <button onClick={() => toggleActive(p)} title={p.active ? 'Masquer' : 'Publier'}
                     className="p-2 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 transition-colors">
@@ -399,11 +459,35 @@ export default function Shop() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-neutral-400 mb-1">Stock <span className="text-neutral-600">(laisser vide = sur commande)</span></label>
-                  <input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                    placeholder="Ex: 8"
-                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                <div className="grid grid-cols-2 gap-4">
+                  {form.id ? (
+                    // Après la création, le stock ne bouge que par une vente, une
+                    // entrée ou une correction (bouton « Stock ») : chaque mouvement
+                    // est journalisé et une vente faite entre-temps n'est pas écrasée.
+                    <div>
+                      <span className="block text-sm font-medium text-neutral-400 mb-1">Stock actuel</span>
+                      <p className="px-4 py-3 rounded-xl border border-white/5 bg-white/[0.02] text-white">
+                        {form.stock === '' ? <span className="text-neutral-500">Sur commande</span> : form.stock}
+                      </p>
+                      <button type="button" onClick={() => { setShowModal(false); setStockProductId(form.id); }}
+                        className="text-xs text-blue-400 hover:text-blue-300 mt-1.5">Réapprovisionner ou corriger…</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-400 mb-1">Stock initial</label>
+                      <input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                        placeholder="Ex: 8"
+                        className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                      <p className="text-neutral-600 text-xs mt-1">Vide = sur commande (stock non suivi)</p>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-400 mb-1">Alerte stock bas</label>
+                    <input type="number" min="0" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
+                      placeholder={String(DEFAULT_LOW_STOCK_THRESHOLD)}
+                      className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
+                    <p className="text-neutral-600 text-xs mt-1">Alerte quand il en reste ce nombre ou moins</p>
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
@@ -599,6 +683,19 @@ export default function Shop() {
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {sale && (
+          <ShopSaleModal products={products} initialProductId={sale.productId}
+            onClose={() => setSale(null)} onSaved={handleStockChanged} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {stockProduct && (
+          <ShopStockModal product={stockProduct} stationId={stationId}
+            onClose={() => setStockProductId(null)} onChanged={handleStockChanged} />
         )}
       </AnimatePresence>
 

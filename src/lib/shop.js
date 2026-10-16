@@ -40,15 +40,20 @@ export async function loadStationProducts(stationId) {
 const toIso = (v) => (v ? new Date(v).toISOString() : null);
 const toIntOrNull = (v) => (v === '' || v == null ? null : parseInt(v, 10));
 
+// Le stock n'est envoyé qu'à la création (stock initial) : ensuite il ne
+// change que par une vente, une entrée ou une correction (fonctions
+// ci-dessous), pour qu'un formulaire resté ouvert n'écrase jamais une vente
+// faite entre-temps — et que chaque mouvement soit journalisé avec son motif.
 export async function saveProduct(stationId, product) {
   const price = parseInt(product.price, 10) || 0;
   const type = product.promoType || null; // '', 'percent', 'bogo'
+  const threshold = parseInt(product.lowStockThreshold, 10);
   const row = {
     name: product.name.trim(),
     description: product.description?.trim() || null,
     category: product.category || 'Autre',
     price,
-    stock: toIntOrNull(product.stock),
+    low_stock_threshold: threshold >= 0 ? threshold : DEFAULT_LOW_STOCK_THRESHOLD,
     // Promo : on ne garde que les champs du type choisi, le reste à null.
     promo_type: type === 'percent' || type === 'bogo' ? type : null,
     promo_percent: type === 'percent' ? toIntOrNull(product.promoPercent) : null,
@@ -61,25 +66,16 @@ export async function saveProduct(stationId, product) {
   };
   if (product.id) {
     const { error } = await supabase.from('shop_products').update(row).eq('id', product.id);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(friendlyShopError(error));
   } else {
-    const { error } = await supabase.from('shop_products').insert({ station_id: stationId, ...row });
-    if (error) throw new Error(error.message);
+    const { error } = await supabase.from('shop_products').insert({ station_id: stationId, ...row, stock: toIntOrNull(product.stock) });
+    if (error) throw new Error(friendlyShopError(error));
   }
 }
 
 export async function setProductActive(id, active) {
   const { error } = await supabase.from('shop_products').update({ active }).eq('id', id);
   if (error) throw new Error(error.message);
-}
-
-// Décrémente (« −1 vendu ») ou incrémente le stock d'un produit de façon
-// atomique côté Postgres (voir shop_adjust_stock dans add_station_shop.sql).
-// Renvoie le nouveau stock, ou null si le produit n'a pas de stock suivi.
-export async function adjustStock(id, delta) {
-  const { data, error } = await supabase.rpc('shop_adjust_stock', { p_id: id, p_delta: delta });
-  if (error) throw new Error(error.message);
-  return data;
 }
 
 export async function deleteProduct(id) {
@@ -106,6 +102,101 @@ export async function loadShopHistory(stationId, limit = 1000) {
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
+  return data || [];
+}
+
+// ─── Stock et ventes sur place (add_shop_stock_sales.sql) ──────────────
+// Tout passe par des fonctions Postgres qui verrouillent le produit : le
+// stock ne descend jamais sous 0 et une vente supérieure au stock est
+// refusée côté serveur, même si deux postes vendent en même temps. Chaque
+// vente crée aussi sa recette dans `transactions` (service « Boutique »),
+// donc dans la Comptabilité, les Transactions, l'Analytique et le Bilan.
+export const DEFAULT_LOW_STOCK_THRESHOLD = 3;
+export const SHOP_SALE_SERVICE = 'Boutique';
+// Mêmes libellés que transactions.method (voir Accounting.jsx : Espèces à
+// part, les autres comptés en « mobile money / en ligne »).
+export const SALE_PAYMENT_METHODS = ['Espèces', 'Wave', 'Orange Money', 'Carte'];
+
+// Niveau de stock d'un produit : null = non suivi (« sur commande »),
+// 'out' = épuisé, 'low' = stock bas (≤ seuil), 'ok' sinon.
+export function stockLevel(p) {
+  if (p.stock == null) return null;
+  if (p.stock <= 0) return 'out';
+  return p.stock <= (p.low_stock_threshold ?? DEFAULT_LOW_STOCK_THRESHOLD) ? 'low' : 'ok';
+}
+
+export const STOCK_MOVEMENTS = {
+  stock_initial: { label: 'Stock initial', tone: 'blue' },
+  entree: { label: 'Entrée de stock', tone: 'emerald' },
+  vente_sur_place: { label: 'Vente sur place', tone: 'amber' },
+  vente_en_ligne: { label: 'Vente en ligne', tone: 'amber' },
+  correction: { label: 'Correction', tone: 'neutral' },
+  annulation_vente: { label: 'Vente annulée (retour)', tone: 'blue' },
+  suivi_arrete: { label: 'Suivi arrêté', tone: 'neutral' },
+};
+
+// Fonction/table absente = migration pas encore exécutée : message clair
+// plutôt que l'erreur technique de PostgREST.
+function friendlyShopError(error) {
+  const msg = error?.message || '';
+  if (error?.code === 'PGRST202' || error?.code === 'PGRST205' || error?.code === '42P01' || /low_stock_threshold|schema cache/.test(msg)) {
+    return "La gestion de stock n'est pas encore activée sur la base : le fichier add_shop_stock_sales.sql doit être exécuté dans Supabase.";
+  }
+  return msg || 'Opération impossible.';
+}
+
+// items : [{ productId, quantity, unitPrice }]. Renvoie { sale_id, transaction_id, amount, items }.
+export async function recordShopSale({ items, paymentMethod, clientName, note }) {
+  const { data, error } = await supabase.rpc('shop_record_sale', {
+    p_items: items.map((it) => ({ product_id: it.productId, quantity: it.quantity, unit_price: it.unitPrice })),
+    p_payment_method: paymentMethod,
+    p_client_name: clientName?.trim() || null,
+    p_note: note?.trim() || null,
+  });
+  if (error) throw new Error(friendlyShopError(error));
+  return data;
+}
+
+export async function cancelShopSale(id, reason) {
+  const { error } = await supabase.rpc('shop_cancel_sale', { p_sale_id: id, p_reason: reason?.trim() || null });
+  if (error) throw new Error(friendlyShopError(error));
+}
+
+// Réapprovisionnement : ajoute `quantity` (démarre le suivi si le produit était « sur commande »).
+export async function addStockEntry(productId, quantity, note) {
+  const { data, error } = await supabase.rpc('shop_stock_entry', { p_product_id: productId, p_quantity: quantity, p_note: note?.trim() || null });
+  if (error) throw new Error(friendlyShopError(error));
+  return data;
+}
+
+// Correction / inventaire : fixe le stock à la quantité comptée (null = ne plus suivre).
+export async function setProductStock(productId, stock, note) {
+  const { data, error } = await supabase.rpc('shop_stock_set', { p_product_id: productId, p_stock: stock, p_note: note?.trim() || null });
+  if (error) throw new Error(friendlyShopError(error));
+  return data;
+}
+
+// Le nom du client vient de la recette liée (transactions) : il n'est stocké
+// que là, et y est anonymisé à la fermeture d'un compte.
+export async function loadShopSales(stationId, limit = 1000) {
+  const { data, error } = await supabase
+    .from('shop_sales')
+    .select('id, items, amount, payment_method, note, status, cancel_reason, cancelled_at, created_at, transactions(client_name)')
+    .eq('station_id', stationId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(friendlyShopError(error));
+  return data || [];
+}
+
+export async function loadStockMovements(stationId, { productId = null, limit = 1000 } = {}) {
+  let query = supabase
+    .from('shop_stock_movements')
+    .select('id, product_id, product_name, movement_type, quantity, stock_before, stock_after, note, sale_id, backfilled, created_at')
+    .eq('station_id', stationId);
+  if (productId) query = query.eq('product_id', productId);
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(friendlyShopError(error));
   return data || [];
 }
 
