@@ -20,6 +20,8 @@ export default function TrialBanner({ billing }) {
   const percent = trialProgressPercent(billing.trialEndsAt, billing.trialStartedAt);
   const totalDays = trialTotalDays(billing.trialEndsAt, billing.trialStartedAt);
   const isExpired = daysRemaining <= 0;
+  // « Accès gratuit offert » (Super Admin > Facturation) ou ancien essai gratuit.
+  const label = billing.freeAccessOffered ? 'Accès gratuit' : 'Essai gratuit';
   const style = URGENCY_STYLES[trialUrgency(billing.trialEndsAt, billing.trialStartedAt)];
 
   return (
@@ -27,8 +29,8 @@ export default function TrialBanner({ billing }) {
       <span className={`flex items-center gap-2 font-medium flex-shrink-0 ${style.text}`}>
         <Sparkles className="w-4 h-4" />
         {isExpired
-          ? "Essai gratuit terminé"
-          : `Essai gratuit — ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''} sur ${totalDays}`}
+          ? `${label} terminé`
+          : `${label} — ${daysRemaining} jour${daysRemaining > 1 ? 's' : ''} restant${daysRemaining > 1 ? 's' : ''} sur ${totalDays}`}
       </span>
       <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden min-w-[120px]">
         <div className={`h-full rounded-full transition-all duration-500 ${style.bar}`} style={{ width: `${percent}%` }} />

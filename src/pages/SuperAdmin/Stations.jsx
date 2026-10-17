@@ -52,14 +52,17 @@ const emptyForm = { name: '', ownerName: '', ownerEmail: '', ownerPhone: '', add
 function TrialMiniBar({ station }) {
   if (station.subscriptionStatus !== 'essai' || !station.trialEndsAt) return null;
   const remaining = trialDaysRemaining(station.trialEndsAt);
-  const percent = trialProgressPercent(station.trialEndsAt, station.joinedAt);
-  const urgency = trialUrgency(station.trialEndsAt, station.joinedAt);
+  // Accès gratuit offert (Facturation) : la barre part de son début, pas de l'inscription.
+  const startedAt = station.trialStartedAt || station.joinedAt;
+  const percent = trialProgressPercent(station.trialEndsAt, startedAt);
+  const urgency = trialUrgency(station.trialEndsAt, startedAt);
+  const label = station.trialStartedAt ? 'Accès gratuit' : 'Essai';
   const textClass = urgency === 'danger' ? 'text-red-400' : urgency === 'warning' ? 'text-orange-400' : 'text-emerald-400';
   const barClass = urgency === 'danger' ? 'bg-red-400' : urgency === 'warning' ? 'bg-orange-400' : 'bg-emerald-400';
   return (
     <div className="mt-1">
       <p className={`text-xs mb-1 ${textClass}`}>
-        {remaining <= 0 ? 'Essai terminé' : `Essai — ${remaining} j restants`}
+        {remaining <= 0 ? `${label} terminé` : `${label} — ${remaining} j restants`}
       </p>
       <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
         <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percent}%` }} />

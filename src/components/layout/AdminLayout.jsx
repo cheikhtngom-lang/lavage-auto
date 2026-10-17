@@ -18,6 +18,7 @@ import { exportStationData } from '../../lib/rgpdExport';
 import { supabase } from '../../lib/supabaseClient';
 import { openStation } from '../../lib/groups';
 import { SERVICE_STATION_LABEL, isServiceStationPlan } from '../../lib/offers';
+import { trialLabel } from '../../lib/stationTrial';
 import { stockLevel } from '../../lib/shop';
 
 // Statut affiché sous le nom de la station (pastille + libellé).
@@ -175,7 +176,10 @@ export default function AdminLayout() {
   });
 
   const planLabel = stationBilling ? (isServiceStationPlan(stationBilling.plan) ? SERVICE_STATION_LABEL : `Offre ${stationBilling.plan}`) : null;
-  const status = stationBilling ? SUBSCRIPTION_STATUS[stationBilling.subscriptionStatus] : null;
+  const baseStatus = stationBilling ? SUBSCRIPTION_STATUS[stationBilling.subscriptionStatus] : null;
+  const status = baseStatus && stationBilling.subscriptionStatus === 'essai'
+    ? { ...baseStatus, label: trialLabel(stationBilling.freeAccessOffered) }
+    : baseStatus;
 
   if (closure) {
     return <ClosurePendingScreen closure={closure} onExport={() => exportStationData(getCurrentStationId(), stationProfile?.name)} exportLabel="Télécharger les données de la station (ZIP)" />;

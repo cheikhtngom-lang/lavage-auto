@@ -48,3 +48,32 @@ export function trialUrgency(trialEndsAt, startedAt) {
   if (remaining / total < 0.5) return 'warning';
   return 'ok';
 }
+
+// ─── Accès gratuit offert par le Super Admin ────────────────────────────
+// Facturation > « Offrir un accès gratuit » : 1 semaine, 10 jours ou 1 mois.
+// Repose sur le statut 'essai' (mêmes règles d'accès, de bannière et de fin
+// que l'ancien essai gratuit) ; station_billing.trial_started_at marque un
+// accès OFFERT et date son début (add_affiliates_tracking.sql).
+export const FREE_ACCESS_OPTIONS = [
+  { days: 7, label: '1 semaine' },
+  { days: 10, label: '10 jours' },
+  { days: 30, label: '1 mois' },
+];
+
+export const trialLabel = (offered) => (offered ? 'Accès gratuit offert' : 'Essai gratuit');
+
+// Effet d'un accès gratuit de `days` jours sur une station (forme plate du
+// Super Admin) :
+//   - 'echeance'     : abonnement payé et en cours → l'échéance recule d'autant ;
+//   - 'prolongation' : accès gratuit / essai en cours → prolongé depuis sa fin ;
+//   - 'essai'        : sinon (à payer, impayée, essai terminé) → à partir d'aujourd'hui.
+export function freeAccessPlan(station, days, now = new Date()) {
+  const plus = (d) => { const x = new Date(d); x.setDate(x.getDate() + days); return x; };
+  const paidUntil = station.subscriptionStatus === 'a_jour' && station.nextBillingDate ? new Date(station.nextBillingDate) : null;
+  if (paidUntil && paidUntil > now) return { mode: 'echeance', from: paidUntil, until: plus(paidUntil) };
+  const trialEnd = station.subscriptionStatus === 'essai' && station.trialEndsAt ? new Date(station.trialEndsAt) : null;
+  if (trialEnd && trialEnd > now) {
+    return { mode: 'prolongation', from: trialEnd, until: plus(trialEnd), startedAt: new Date(station.trialStartedAt || station.joinedAt || now) };
+  }
+  return { mode: 'essai', from: now, until: plus(now), startedAt: now };
+}

@@ -4,6 +4,7 @@ import { getCurrentRole } from '../lib/accounts';
 import { setStationsCache, setWashPricingCache, setVidangePricingCache, setQueueSnapshotCache, setPublicStatsCache, setReviewsCache } from '../lib/stationData';
 import { setCustomBrandsCache } from '../lib/vehicleBrands';
 import { applyGroupDiscount } from '../lib/groupPricing';
+import { freeAccessPlan } from '../lib/stationTrial';
 import { loadPlatformAnnouncements, sendPlatformAnnouncement as sendPlatformAnnouncementApi, retireAnnouncement } from '../lib/announcements';
 
 // Plans par défaut — modifiables depuis Super Admin > Paramètres (table `plans`,
@@ -70,6 +71,8 @@ const rowToStation = (row) => ({
     subscriptionStatus: row.station_billing?.subscription_status || 'essai',
     nextBillingDate: row.station_billing?.next_billing_date || null,
     trialEndsAt: row.station_billing?.trial_ends_at || null,
+    // Accès gratuit offert par le Super Admin (début de la période), voir freeAccessPlan (lib/stationTrial.js).
+    trialStartedAt: row.station_billing?.trial_started_at || null,
     clientsCount: row.station_billing?.clients_count || 0,
     notes: row.station_billing?.notes || '',
 });
@@ -585,6 +588,29 @@ export function SuperAdminStateProvider({ children }) {
         if (station) logAction(`Accès illimité retiré : ${station.name}`);
     };
 
+    // Accès gratuit offert (Facturation : 1 semaine, 10 jours, 1 mois) — effet
+    // décidé par freeAccessPlan (lib/stationTrial.js) : échéance repoussée pour
+    // une station déjà payée, sinon statut 'essai' jusqu'à la date offerte. À la
+    // fin, la station retrouve l'écran de paiement (isSubscriptionEnded).
+    const grantFreeAccess = async (id, days) => {
+        const station = stations.find((s) => s.id === id);
+        if (!station || !(days > 0)) return;
+        const plan = freeAccessPlan(station, days);
+        const until = plan.until.toISOString();
+        if (plan.mode === 'echeance') {
+            const { error } = await supabase.from('station_billing').update({ next_billing_date: until }).eq('station_id', id);
+            if (error) throw new Error(error.message);
+            setStations((prev) => prev.map((s) => (s.id === id ? { ...s, nextBillingDate: until } : s)));
+        } else {
+            const startedAt = plan.startedAt.toISOString();
+            const { error } = await supabase.from('station_billing')
+                .update({ subscription_status: 'essai', trial_ends_at: until, trial_started_at: startedAt }).eq('station_id', id);
+            if (error) throw new Error(error.message);
+            setStations((prev) => prev.map((s) => (s.id === id ? { ...s, subscriptionStatus: 'essai', trialEndsAt: until, trialStartedAt: startedAt } : s)));
+        }
+        logAction(`Accès gratuit de ${days} jours offert à ${station.name} (jusqu'au ${plan.until.toLocaleDateString('fr-FR')})`);
+    };
+
     // Confirme un paiement Super User (ligne PENDING -> ACTIVE) une fois
     // l'argent réellement reçu (Wave/OM) — jamais déclenché automatiquement au
     // clic "Payer" côté client, voir src/lib/superUser.js. Abonnement d'1 mois
@@ -721,7 +747,7 @@ export function SuperAdminStateProvider({ children }) {
         <SuperAdminStateContext.Provider value={{
             stations: pricedStations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
             addStation, updateStation, setStationStatus, deleteStation, setStationPlan, toggleStationModule,
-            markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
+            markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess, grantFreeAccess,
             addDispute, resolveDispute, refundDispute, logAction,
             updatePlan, resetPlans,
             superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,

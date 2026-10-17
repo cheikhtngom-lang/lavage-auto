@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search, Gift, X } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { trialDaysRemaining, trialProgressPercent, trialUrgency } from '../../lib/stationTrial';
+import { trialDaysRemaining, trialProgressPercent, trialUrgency, trialLabel, FREE_ACCESS_OPTIONS, freeAccessPlan } from '../../lib/stationTrial';
+import { stationDueDate } from '../../lib/subscriptionReminders';
 import { validatedMRR, validatedStations, modulesMRR, stationPrice } from '../../lib/platformRevenue';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
@@ -15,13 +16,90 @@ const SUB_STATUS = {
   a_payer: { label: 'En attente de paiement', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
 };
 
+const frDate = (d) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+// Fenêtre « Offrir un accès gratuit » : durée au choix (FREE_ACCESS_OPTIONS),
+// effet expliqué avant de valider (freeAccessPlan, lib/stationTrial.js).
+function FreeAccessModal({ station, planLabel, onClose, onGrant }) {
+  const [days, setDays] = useState(FREE_ACCESS_OPTIONS[0].days);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const plan = freeAccessPlan(station, days);
+  const effect = plan.mode === 'echeance'
+    ? `Abonnement déjà payé jusqu'au ${frDate(plan.from)} : la prochaine échéance passera au ${frDate(plan.until)}.`
+    : plan.mode === 'prolongation'
+      ? `Accès gratuit en cours jusqu'au ${frDate(plan.from)} : il sera prolongé jusqu'au ${frDate(plan.until)}.`
+      : `La station aura accès à son espace gratuitement jusqu'au ${frDate(plan.until)}. Ensuite, elle devra payer son offre (${planLabel}) pour continuer.`;
+
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await onGrant(station.id, days);
+      onClose();
+    } catch (err) {
+      setError(err?.message || "L'accès n'a pas pu être offert. Réessayez.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        role="dialog" aria-modal="true" aria-labelledby="free-access-title"
+        className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
+      >
+        <button onClick={onClose} disabled={busy} aria-label="Fermer" className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+          <X className="w-6 h-6" />
+        </button>
+        <div className="p-3 rounded-xl bg-purple-500/10 w-fit mb-4"><Gift className="w-6 h-6 text-purple-400" /></div>
+        <h2 id="free-access-title" className="text-2xl font-bold text-white mb-1">Offrir un accès gratuit</h2>
+        <p className="text-neutral-400 mb-6">{station.name}</p>
+
+        <div className="grid grid-cols-3 gap-2 mb-5" role="radiogroup" aria-label="Durée offerte">
+          {FREE_ACCESS_OPTIONS.map((o) => {
+            const active = o.days === days;
+            return (
+              <button
+                key={o.days}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setDays(o.days)}
+                className={`rounded-xl border px-3 py-3 text-center transition-colors ${active ? 'border-purple-500 bg-purple-500/15 text-white' : 'border-white/10 bg-white/[0.03] text-neutral-300 hover:bg-white/[0.06]'}`}
+              >
+                <span className="block font-bold">{o.label}</span>
+                <span className="block text-xs text-neutral-400 mt-0.5">{o.days} jours</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-sm text-neutral-300 leading-relaxed rounded-xl bg-white/[0.03] border border-white/5 p-4 mb-5">{effect}</p>
+        {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
+
+        <div className="flex gap-3">
+          <button type="button" onClick={onClose} disabled={busy} className="flex-1 bg-white/5 hover:bg-white/10 text-white font-semibold py-3 rounded-xl transition-colors">Annuler</button>
+          <button type="button" onClick={submit} disabled={busy} className="flex-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+            <Gift className="w-4 h-4" /> {busy ? 'Enregistrement…' : 'Offrir'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function Billing() {
   useDocumentTitle('Facturation');
   const {
-    stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess,
+    stations, PLANS, markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess, grantFreeAccess,
     stationRenewalPayments, confirmRenewalPayment, rejectRenewalPayment,
   } = useSuperAdminState();
   const [reminded, setReminded] = useState({});
+  const [freeAccessFor, setFreeAccessFor] = useState(null); // station à qui offrir un accès gratuit
   const pendingRenewals = stationRenewalPayments.filter((p) => p.status === 'PENDING');
 
   const [search, setSearch] = useState('');
@@ -179,18 +257,18 @@ export default function Billing() {
                   </td>
                   <td className="p-5">
                     <span className={`text-xs font-medium px-3 py-1 rounded-full border ${SUB_STATUS[s.subscriptionStatus]?.className}`}>
-                      {SUB_STATUS[s.subscriptionStatus]?.label || s.subscriptionStatus}
+                      {s.subscriptionStatus === 'essai' ? trialLabel(!!s.trialStartedAt) : (SUB_STATUS[s.subscriptionStatus]?.label || s.subscriptionStatus)}
                     </span>
                     {s.subscriptionStatus === 'essai' && s.trialEndsAt && (() => {
                       const remaining = trialDaysRemaining(s.trialEndsAt);
-                      const percent = trialProgressPercent(s.trialEndsAt, s.joinedAt);
-                      const urgency = trialUrgency(s.trialEndsAt, s.joinedAt);
+                      const percent = trialProgressPercent(s.trialEndsAt, s.trialStartedAt || s.joinedAt);
+                      const urgency = trialUrgency(s.trialEndsAt, s.trialStartedAt || s.joinedAt);
                       const textClass = urgency === 'danger' ? 'text-red-400' : urgency === 'warning' ? 'text-orange-400' : 'text-neutral-500';
                       const barClass = urgency === 'danger' ? 'bg-red-400' : urgency === 'warning' ? 'bg-orange-400' : 'bg-emerald-400';
                       return (
                         <div className="mt-2 max-w-[140px]">
                           <p className={`text-xs mb-1 ${textClass}`}>
-                            {remaining <= 0 ? 'Essai terminé' : `${remaining} j restants`}
+                            {remaining <= 0 ? (s.trialStartedAt ? 'Accès gratuit terminé' : 'Essai terminé') : `${remaining} j restants`}
                           </p>
                           <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                             <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percent}%` }} />
@@ -200,7 +278,7 @@ export default function Billing() {
                     })()}
                   </td>
                   <td className="p-5 text-neutral-400 text-sm">
-                    {s.nextBillingDate ? new Date(s.nextBillingDate).toLocaleDateString('fr-FR') : '—'}
+                    {stationDueDate(s) ? new Date(stationDueDate(s)).toLocaleDateString('fr-FR') : '—'}
                   </td>
                   <td className="p-5">
                     <div className="flex justify-end gap-2">
@@ -241,6 +319,14 @@ export default function Billing() {
                           </button>
                           {reminded[s.id] && <span className="text-xs text-blue-400 self-center">Envoyée ✓</span>}
                           <button
+                            onClick={() => setFreeAccessFor(s)}
+                            className="p-2 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-neutral-400 rounded-lg transition-colors"
+                            title="Offrir un accès gratuit (1 semaine, 10 jours, 1 mois)"
+                            aria-label={`Offrir un accès gratuit à ${s.name}`}
+                          >
+                            <Gift className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => { if (window.confirm(`Donner un accès illimité (gratuit) à ${s.name} ?`)) grantUnlimitedAccess(s.id); }}
                             className="p-2 bg-white/5 hover:bg-purple-500/20 hover:text-purple-400 text-neutral-400 rounded-lg transition-colors"
                             title="Donner un accès illimité"
@@ -264,6 +350,16 @@ export default function Billing() {
           />
         </div>
       )}
+      <AnimatePresence>
+        {freeAccessFor && (
+          <FreeAccessModal
+            station={freeAccessFor}
+            planLabel={PLANS[freeAccessFor.plan]?.label || freeAccessFor.plan}
+            onClose={() => setFreeAccessFor(null)}
+            onGrant={grantFreeAccess}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

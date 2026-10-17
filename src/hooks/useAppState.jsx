@@ -698,8 +698,10 @@ export function AppStateProvider({ children }) {
             attempts = 0;
             setStationProfile(rowToProfile(data));
             setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
-            // Début de l'essai = création de la station (barre d'essai, lib/stationTrial.js).
-            setStationBilling({ ...rowToBilling(data?.station_billing), trialStartedAt: data?.created_at || null });
+            // Début de l'essai = création de la station (barre d'essai, lib/stationTrial.js),
+            // ou début de l'accès gratuit offert par le Super Admin (trial_started_at).
+            const offeredFrom = data?.station_billing?.trial_started_at || null;
+            setStationBilling({ ...rowToBilling(data?.station_billing), trialStartedAt: offeredFrom || data?.created_at || null, freeAccessOffered: !!offeredFrom });
             if (Array.isArray(data?.hidden_menu)) rememberHiddenMenu(data.hidden_menu);
             setStationProfileLoaded(true);
         };
