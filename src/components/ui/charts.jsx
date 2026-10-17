@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 
 // Graphiques SVG "maison" (aucune librairie de charts : ni visx ni recharts, le
@@ -22,10 +22,16 @@ export const compactNumber = (v) => (compactFmt ? compactFmt.format(v) : String(
 
 const cleanId = (id) => id.replace(/[^a-zA-Z0-9_-]/g, '');
 
-function useElementWidth(ref, fallback = 640) {
+// Largeur réelle d'un conteneur. Renvoie [ref, largeur] : la ref est un callback qui
+// garde l'élément en état, donc la mesure démarre dès que le conteneur apparaît —
+// y compris quand le graphique a d'abord rendu un état vide (données encore en
+// chargement) puis son conteneur au rendu suivant. Un useEffect sur ref.current ne
+// repassait pas dans ce cas et le SVG restait à `fallback` px (débordement sur mobile).
+function useElementWidth(fallback = 640) {
+  const [el, setEl] = useState(null);
   const [width, setWidth] = useState(fallback);
-  useEffect(() => {
-    const el = ref.current;
+  // useLayoutEffect : mesure avant l'affichage, pas d'image intermédiaire à `fallback` px.
+  useLayoutEffect(() => {
     if (!el) return undefined;
     const measure = () => setWidth(el.clientWidth || fallback);
     measure();
@@ -36,8 +42,8 @@ function useElementWidth(ref, fallback = 640) {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ref, fallback]);
-  return width;
+  }, [el, fallback]);
+  return [setEl, width];
 }
 
 // Échelle « propre » (graduations rondes 1/2/5 × 10ⁿ) qui inclut toujours zéro.
@@ -138,8 +144,7 @@ export function AreaChart({
   data, series, height = 240, formatValue = (v) => v.toLocaleString('fr-FR'), formatTick = compactNumber,
   integer = false, emptyWhenZero = false, ariaLabel = 'Graphique en courbe',
 }) {
-  const wrapRef = useRef(null);
-  const width = useElementWidth(wrapRef);
+  const [wrapRef, width] = useElementWidth();
   const uid = cleanId(useId());
   const [active, setActive] = useState(null);
 
@@ -159,9 +164,7 @@ export function AreaChart({
   const baseY = yOf(Math.min(Math.max(0, scale.min), scale.max));
 
   const onMove = (e) => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const px = e.clientX - el.getBoundingClientRect().left;
+    const px = e.clientX - e.currentTarget.getBoundingClientRect().left;
     const idx = n > 1 ? Math.round(((px - pad.l) / plotW) * (n - 1)) : 0;
     setActive(Math.max(0, Math.min(n - 1, idx)));
   };
@@ -264,9 +267,8 @@ export function BarChart({
   groups, series, height = 220, formatValue = (v) => v.toLocaleString('fr-FR'), formatTick = compactNumber,
   integer = false, minColWidth = 0, ariaLabel = 'Graphique en barres',
 }) {
-  const outerRef = useRef(null);
+  const [outerRef, containerW] = useElementWidth(520);
   const innerRef = useRef(null);
-  const containerW = useElementWidth(outerRef, 520);
   const uid = cleanId(useId());
   const [active, setActive] = useState(null);
 

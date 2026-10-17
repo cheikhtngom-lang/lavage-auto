@@ -491,9 +491,7 @@ export default function Affiliates() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 <Card title="Visites dans le temps" subtitle="Toutes les visites et les 3 premières sources" className="lg:col-span-2">
-                  {/* key : la courbe ne mesure sa largeur qu'au montage (useElementWidth, charts.jsx) —
-                      on la remonte une fois les chiffres arrivés, sinon elle garde 640 px (déborde sur téléphone). */}
-                  <AreaChart key={`${fromIso}|${loading}|${totals.visite > 0}`} data={chartData} series={chartSeries} height={260} integer emptyWhenZero
+                  <AreaChart data={chartData} series={chartSeries} height={260} integer emptyWhenZero
                     formatValue={(v) => plural(v, 'visite', 'visites')} formatTick={(v) => String(Math.round(v))} ariaLabel="Visites dans le temps" />
                 </Card>
                 <Card title="Répartition des visites" subtitle="Par provenance">
