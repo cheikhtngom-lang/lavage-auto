@@ -30,3 +30,9 @@ vite.config.js.timestamp-*
 
 # Supabase CLI : état local de `supabase link`
 supabase/.temp/
+
+# Tutoriels vidéo (motion design) : sources + rendus, hors dépôt
+tutos-video/
+
+# Prospection commerciale (contacts publics Google Maps), hors dépôt
+commercial/
