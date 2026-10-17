@@ -10,7 +10,7 @@ import {
   buildLastTwoMonths, DOW_FR_SHORT,
   fcfa, fcfaCompact, pct,
 } from '../../lib/bilan';
-import { downloadBilanPdf } from '../../lib/bilanPdf';
+import { downloadBilanPptx } from '../../lib/bilanPptx';
 import { Donut, Legend, Bars, GroupedBars, VerticalBars, AreaLine, Gauge, CHART_COLORS } from '../../components/ui/charts';
 
 function Delta({ d, invert = false, className = '' }) {
@@ -73,12 +73,12 @@ export default function Bilan() {
   // période ci-dessus (voir lastTwoCompleteMonths dans lib/bilan.js).
   const lastTwoMonths = useMemo(() => buildLastTwoMonths(data), [data]);
 
-  const [pdfBusy, setPdfBusy] = useState(false);
-  const handlePdf = async () => {
+  const [pptxBusy, setPptxBusy] = useState(false);
+  const handlePptx = async () => {
     if (!bilan) return;
-    setPdfBusy(true);
+    setPptxBusy(true);
     try {
-      await downloadBilanPdf({
+      await downloadBilanPptx({
         station: {
           name: stationProfile?.name || 'Ma station',
           address: [stationProfile?.address, stationProfile?.quartier].filter(Boolean).join(', '),
@@ -91,9 +91,9 @@ export default function Bilan() {
         lastTwoMonths,
       });
     } catch (e) {
-      alert('Export PDF impossible : ' + (e?.message || e));
+      alert('Export PowerPoint impossible : ' + (e?.message || e));
     } finally {
-      setPdfBusy(false);
+      setPptxBusy(false);
     }
   };
 
@@ -156,12 +156,12 @@ export default function Bilan() {
           <p className="text-neutral-400">Toutes vos données consolidées sur la période, avec comparaison à la période précédente.</p>
         </div>
         <button
-          onClick={handlePdf}
-          disabled={pdfBusy}
+          onClick={handlePptx}
+          disabled={pptxBusy}
           className="cta-beam bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white px-5 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-blue-500/20 flex items-center gap-2 flex-shrink-0"
         >
-          {pdfBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-          Télécharger le PDF
+          {pptxBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+          Télécharger en PowerPoint
         </button>
       </div>
 

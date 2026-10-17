@@ -12,7 +12,7 @@ import {
   fcfa, fcfaCompact,
 } from '../../lib/platformBilan';
 import { validatedMRR, modulesMRR, subscriptionBreakdown } from '../../lib/platformRevenue';
-import { downloadPlatformBilanPdf } from '../../lib/platformBilanPdf';
+import { downloadPlatformBilanPptx } from '../../lib/platformBilanPptx';
 import { Donut, Legend, Bars, GroupedBars, AreaLine, CHART_COLORS } from '../../components/ui/charts';
 import AnimatedCounter from '../../components/ui/AnimatedCounter';
 
@@ -76,16 +76,16 @@ export default function SuperAdminBilan() {
   const period = periods.find((p) => periodKey(p) === selKey) || periods[0];
   const bilan = useMemo(() => (period ? buildPlatformBilan(data, period) : null), [data, period]);
 
-  const [pdfBusy, setPdfBusy] = useState(false);
-  const handlePdf = async () => {
+  const [pptxBusy, setPptxBusy] = useState(false);
+  const handlePptx = async () => {
     if (!bilan) return;
-    setPdfBusy(true);
+    setPptxBusy(true);
     try {
-      await downloadPlatformBilanPdf({ bilan, mrrNow, modulesNow, statusBreakdown });
+      await downloadPlatformBilanPptx({ bilan, mrrNow, modulesNow, statusBreakdown, PLANS });
     } catch (e) {
-      alert('Export PDF impossible : ' + (e?.message || e));
+      alert('Export PowerPoint impossible : ' + (e?.message || e));
     } finally {
-      setPdfBusy(false);
+      setPptxBusy(false);
     }
   };
 
@@ -172,12 +172,12 @@ export default function SuperAdminBilan() {
           <p className="text-neutral-400">Tous les revenus : abonnements, modules, publicités, Super User, renouvellements et commission des lavages en ligne — avec comparaison à la période précédente.</p>
         </div>
         <button
-          onClick={handlePdf}
-          disabled={pdfBusy}
+          onClick={handlePptx}
+          disabled={pptxBusy}
           className="bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white px-5 py-3 rounded-xl font-bold transition-colors shadow-lg shadow-purple-500/20 flex items-center gap-2 flex-shrink-0"
         >
-          {pdfBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-          Télécharger le PDF
+          {pptxBusy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+          Télécharger en PowerPoint
         </button>
       </div>
 

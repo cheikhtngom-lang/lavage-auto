@@ -1,5 +1,5 @@
-// Rapport PDF du groupe (Sur mesure > Tableau de bord). Même esprit que le
-// Bilan d'une station (lib/bilanPdf.js) : A4 portrait, thème clair, généré
+// Rapport PDF du groupe (Sur mesure > Tableau de bord). Mise en page
+// « rapport d'expert » : A4 portrait, thème clair, généré
 // 100 % côté navigateur avec jsPDF (rendu net et léger, aucune capture d'écran).
 import jsPDF from 'jspdf';
 import { fcfa, pct } from './bilan';
