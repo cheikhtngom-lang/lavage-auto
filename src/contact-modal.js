@@ -9,6 +9,9 @@
 
 import { getCountry } from './lib/countries.js';
 import { detectCountry, getCountryOverride, getUrlCountry } from './lib/userCountry.js';
+import { messageAttribution } from './lib/attribution.js';
+// Provenance des visiteurs (Super Admin > Affiliés) : sur toutes les pages qui ont cette fenêtre.
+import './visit-tracker.js';
 
 const MIN_FILL_MS = 2500; // en dessous : formulaire rempli par un robot (vérifié aussi côté serveur)
 
@@ -156,6 +159,7 @@ if (root) {
           message,
           company_website: String(data.get('company_website') || ''), // honeypot
           elapsedMs: Date.now() - openedAt,
+          attribution: messageAttribution(), // réseau social / lien d'affilié d'où vient le visiteur
         },
       });
       if (error) {

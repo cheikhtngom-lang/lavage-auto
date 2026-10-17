@@ -11,6 +11,11 @@
 // Purge au passage les messages de plus de 12 mois (durée de conservation
 // annoncée dans confidentialite.html).
 //
+// Provenance (Super Admin > Affiliés, add_affiliates_tracking.sql) : le
+// formulaire joint « attribution » (réseau social, campagne, code d'affilié,
+// site précédent, page d'arrivée — src/lib/attribution.js). Valeurs contrôlées
+// ici ; un code d'affilié inconnu ou désactivé est ignoré.
+//
 // Secrets (Supabase > Edge Functions > Manage secrets) :
 //   RESEND_API_KEY     — déjà utilisé par send-welcome-email
 //   RESEND_FROM        — optionnel, défaut "Clean Car Galsen <onboarding@resend.dev>"
@@ -38,6 +43,48 @@ const SUBJECTS = [
 ];
 // Ancien libellé (avant le 23/09/2026) : une page restée ouverte peut encore l'envoyer.
 const LEGACY_SUBJECTS: Record<string, string> = { "Protection des données (CDP · RGPD)": "Protection des données (CDP)" };
+
+// Doit rester identique à SOURCES dans src/lib/trafficSources.js et à record_site_event().
+const SOURCES: Record<string, string> = {
+  facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok", whatsapp: "WhatsApp", linkedin: "LinkedIn",
+  youtube: "YouTube", x: "X (Twitter)", snapchat: "Snapchat", telegram: "Telegram", google: "Google",
+  recherche: "Autres moteurs de recherche", site: "Autres sites", direct: "Accès direct", autre: "Autre / campagne",
+};
+
+const clip = (value: unknown, max: number) => {
+  const s = typeof value === "string" ? value.trim() : "";
+  return s ? s.slice(0, max) : null;
+};
+
+// Provenance envoyée par le formulaire → colonnes de contact_messages (rien
+// d'envoyé : page restée ouverte d'avant le suivi, stockage bloqué → source vide).
+async function readAttribution(raw: unknown) {
+  if (!raw || typeof raw !== "object") return { row: {} as Record<string, string | null>, affiliateName: null };
+  const a = raw as Record<string, unknown>;
+  let source = typeof a.source === "string" ? a.source.trim().toLowerCase() : "";
+  if (!source) source = "direct";
+  else if (!(source in SOURCES)) source = "autre";
+  const refRaw = typeof a.ref === "string" ? a.ref.trim().toLowerCase() : "";
+  const ref = /^[a-z0-9][a-z0-9_-]{1,29}$/.test(refRaw) ? refRaw : null;
+  let affiliate: { id: string; name: string; network: string } | null = null;
+  if (ref) {
+    const { data } = await supabase.from("affiliates").select("id, name, network").eq("code", ref).eq("active", true).maybeSingle();
+    affiliate = data ?? null;
+    if (affiliate && (source === "direct" || source === "autre") && affiliate.network !== "autre") source = affiliate.network;
+  }
+  return {
+    row: {
+      source,
+      medium: clip(a.medium, 60),
+      campaign: clip(a.campaign, 60),
+      ref,
+      affiliate_id: affiliate?.id ?? null,
+      referrer_host: clip(a.referrer_host, 120)?.toLowerCase() ?? null,
+      landing_path: clip(a.landing_path, 200),
+    },
+    affiliateName: affiliate?.name ?? null,
+  };
+}
 
 const MAX_PER_HOUR = 5;
 const MIN_FILL_MS = 2500;
@@ -106,9 +153,10 @@ Deno.serve(async (req) => {
       return json({ error: "Trop de messages envoyés récemment. Réessayez dans une heure ou écrivez-nous par email." }, 429);
     }
 
+    const attribution = await readAttribution(body.attribution);
     const { data: row, error: insertError } = await supabase
       .from("contact_messages")
-      .insert({ name, email, subject, message, ip_hash: ipHash })
+      .insert({ name, email, subject, message, ip_hash: ipHash, ...attribution.row })
       .select("id")
       .single();
     if (insertError || !row) {
@@ -121,12 +169,20 @@ Deno.serve(async (req) => {
     cutoff.setMonth(cutoff.getMonth() - RETENTION_MONTHS);
     await supabase.from("contact_messages").delete().lt("created_at", cutoff.toISOString());
 
+    const provenance = [
+      attribution.row.source ? (SOURCES[attribution.row.source] ?? attribution.row.source) : "Non renseignée",
+      attribution.row.campaign && `campagne « ${attribution.row.campaign} »`,
+      attribution.affiliateName && `affilié : ${attribution.affiliateName}`,
+      attribution.row.referrer_host && `depuis ${attribution.row.referrer_host}`,
+    ].filter(Boolean).join(" · ");
+
     // Notification à l'équipe. Si Resend échoue, le message reste enregistré
     // (notified_at vide) : on répond quand même "ok" au visiteur.
     const html = `
       <div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;">
         <h1 style="font-size:18px;margin:0 0 12px;">Nouveau message — ${escapeHtml(subject)}</h1>
         <p style="font-size:14px;margin:0 0 4px;"><strong>De :</strong> ${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;</p>
+        <p style="font-size:14px;margin:0 0 4px;"><strong>Provenance :</strong> ${escapeHtml(provenance)}</p>
         <p style="font-size:14px;margin:0 0 16px;color:#666;">Répondez directement à cet email pour écrire au visiteur.</p>
         <div style="font-size:15px;line-height:1.6;white-space:pre-wrap;border-left:3px solid #10b981;padding-left:12px;">${escapeHtml(message)}</div>
       </div>`;

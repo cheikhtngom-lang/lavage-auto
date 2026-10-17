@@ -84,6 +84,7 @@ const SuperAdminTicker = lazyPage(() => import('./pages/SuperAdmin/Ticker'));
 const SuperAdminBilan = lazyPage(() => import('./pages/SuperAdmin/Bilan'));
 const SuperAdminFuel = lazyPage(() => import('./pages/SuperAdmin/Fuel'));
 const SuperAdminSupport = lazyPage(() => import('./pages/SuperAdmin/Support'));
+const SuperAdminAffiliates = lazyPage(() => import('./pages/SuperAdmin/Affiliates'));
 const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'));
 
 // Mock Home/Login Pages
@@ -243,6 +244,7 @@ function App() {
                 <Route path="carburant" element={<SuperAdminFuel />} />
                 <Route path="bilan" element={<SuperAdminBilan />} />
                 <Route path="support" element={<SuperAdminSupport />} />
+                <Route path="affilies" element={<SuperAdminAffiliates />} />
                 <Route path="settings" element={<SuperAdminSettings />} />
               </Route>
             </Routes>

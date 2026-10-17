@@ -6,6 +6,7 @@
 // Module sans dépendance React : importable aussi bien depuis login.html
 // (script type="module") que depuis les hooks React.
 import { supabase } from './supabaseClient';
+import { canRecord, siteEventArgs } from './attribution';
 
 // signUp() ne renvoie pas toujours une session active immédiatement (selon
 // la configuration exacte du projet, même avec "Confirm email" désactivé) —
@@ -26,8 +27,17 @@ function triggerWelcomeEmail(profileId) {
   supabase.functions.invoke('send-welcome-email', { body: { profileId } }).catch(() => {});
 }
 
+// Provenance de l'inscription (réseau social, lien d'affilié… — Super Admin >
+// Affiliés, voir lib/attribution.js). Une seule fois par compte, contrôlé par
+// record_site_event() ; jamais bloquant pour l'inscription.
+function recordSignupSource(kind) {
+  if (!canRecord()) return;
+  supabase.rpc('record_site_event', siteEventArgs(`inscription_${kind}`)).then(() => {}, () => {});
+}
+
 // ─── Inscription ────────────────────────────────────────────────────────
-export async function createClientAccount({ firstName, lastName, email, phone, password }) {
+// trackAs : type d'inscription compté dans Affiliés (null : compté par l'appelant).
+export async function createClientAccount({ firstName, lastName, email, phone, password }, { trackAs = 'automobiliste' } = {}) {
   const fullName = `${firstName} ${lastName}`.trim();
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw new Error(error.message === 'User already registered' ? 'Un compte existe déjà avec cet email.' : error.message);
@@ -40,6 +50,7 @@ export async function createClientAccount({ firstName, lastName, email, phone, p
   if (profileError) throw new Error(profileError.message);
 
   triggerWelcomeEmail(data.user.id);
+  if (trackAs) recordSignupSource(trackAs);
   return { id: data.user.id, name: fullName, email, phone: phone || '' };
 }
 
@@ -79,6 +90,7 @@ export async function createStationAccount({ name, address, city, quartier, regi
   }
 
   triggerWelcomeEmail(data.user.id);
+  recordSignupSource('station');
   return { id: station.id, name: station.name, ownerEmail: loginEmail };
 }
 
@@ -118,10 +130,12 @@ export async function convertClientToGroup(name) {
 // conversion en groupe. Si la conversion échoue, le compte existe déjà en tant
 // qu'automobiliste (on le dit à l'utilisateur pour qu'il se connecte et réessaye).
 export async function createGroupOwnerAccount({ firstName, lastName, email, phone, password, orgName }) {
-  const client = await createClientAccount({ firstName, lastName, email, phone, password });
+  const client = await createClientAccount({ firstName, lastName, email, phone, password }, { trackAs: null });
   try {
     await convertClientToGroup(orgName);
+    recordSignupSource('groupe');
   } catch (err) {
+    recordSignupSource('automobiliste');
     throw new Error("Votre compte est créé, mais le groupe n'a pas pu être ouvert (" + err.message + "). Connectez-vous puis contactez le support.");
   }
   return client;

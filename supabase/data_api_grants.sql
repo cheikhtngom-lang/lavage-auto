@@ -40,6 +40,15 @@ begin
     if t.relname = 'group_discount_tiers' then
       -- add_group_volume_discount.sql : lecture pour les comptes connectés, écriture serveur seulement.
       execute format('grant select on public.%I to authenticated', t.relname);
+    elsif t.relname = 'site_event_salts' then
+      -- add_affiliates_tracking.sql : sel de l'empreinte du jour, jamais exposé (service_role seul).
+      null;
+    elsif t.relname = 'site_events' then
+      -- add_affiliates_tracking.sql : écrit seulement par record_site_event() ; lecture / effacement Super Admin (RLS).
+      execute format('grant select, delete on public.%I to authenticated', t.relname);
+    elsif t.relname = 'affiliates' then
+      -- add_affiliates_tracking.sql : Super Admin seulement (RLS), rien pour les visiteurs.
+      execute format('grant select, insert, update, delete on public.%I to authenticated', t.relname);
     else
       execute format('grant select on public.%I to anon', t.relname);
       execute format('grant select, insert, update, delete on public.%I to authenticated', t.relname);
