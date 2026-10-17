@@ -110,7 +110,7 @@ export default function StationTransferBanner() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
             {!done && (
-              <button onClick={() => setShowModal(false)} disabled={busy} className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+              <button onClick={() => setShowModal(false)} disabled={busy} className="modal-close" aria-label="Fermer" title="Fermer">
                 <X className="w-6 h-6" />
               </button>
             )}

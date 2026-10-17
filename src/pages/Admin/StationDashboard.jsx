@@ -1127,7 +1127,7 @@ export default function StationDashboard() {
             >
               <button
                 onClick={() => setShowAddModal(false)}
-                className="absolute top-4 right-4 text-neutral-400 hover:text-white"
+                className="modal-close" aria-label="Fermer" title="Fermer"
               >
                 <X className="w-6 h-6" />
               </button>

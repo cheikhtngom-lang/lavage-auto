@@ -141,7 +141,7 @@ function ReadingModal({ row, dateLabel, pumpOptions, nozzlesOfPump, initial, onS
         onSubmit={submit} onClick={(e) => e.stopPropagation()}
         className={`bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full ${nozzleMode ? 'max-w-xl' : 'max-w-md'} shadow-2xl relative max-h-[90vh] overflow-y-auto`}
       >
-        <button type="button" onClick={onClose} className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+        <button type="button" onClick={onClose} className="modal-close" aria-label="Fermer" title="Fermer"><X className="w-6 h-6" /></button>
         <h2 className="text-xl font-bold text-white pr-8 flex items-center gap-2"><Fuel className="w-5 h-5 text-blue-400" /> Relevé de {row.name}</h2>
         <p className="text-sm text-neutral-400 mt-1 mb-5">
           <span className="capitalize">{dateLabel}</span>

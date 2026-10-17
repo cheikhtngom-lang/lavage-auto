@@ -21,7 +21,7 @@ function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+        <button onClick={onClose} className="modal-close" aria-label="Fermer" title="Fermer"><X className="w-6 h-6" /></button>
         <h2 className="text-xl font-bold text-white mb-4 pr-8">{title}</h2>
         {children}
       </div>

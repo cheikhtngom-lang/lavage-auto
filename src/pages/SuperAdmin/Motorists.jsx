@@ -156,7 +156,7 @@ export default function Motorists() {
               onClick={(e) => e.stopPropagation()}
               className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
-              <button onClick={() => setSelected(null)} className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+              <button onClick={() => setSelected(null)} className="modal-close" aria-label="Fermer" title="Fermer">
                 <X className="w-6 h-6" />
               </button>
 

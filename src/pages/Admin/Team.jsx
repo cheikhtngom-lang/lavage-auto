@@ -390,7 +390,7 @@ export default function Team() {
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative"
             >
-              <button onClick={() => setShowInvite(false)} className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+              <button onClick={() => setShowInvite(false)} className="modal-close" aria-label="Fermer" title="Fermer">
                 <X className="w-6 h-6" />
               </button>
               <h2 className="text-xl font-bold text-white mb-1">Inviter un collaborateur</h2>
@@ -455,7 +455,7 @@ export default function Team() {
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
-              <button onClick={() => setRoleModal(null)} className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+              <button onClick={() => setRoleModal(null)} className="modal-close" aria-label="Fermer" title="Fermer">
                 <X className="w-6 h-6" />
               </button>
               <h2 className="text-xl font-bold text-white mb-5">

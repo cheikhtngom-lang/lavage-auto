@@ -572,7 +572,7 @@ export default function Settings() {
       {showConversionConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
-            <button onClick={() => !conversionBusy && setShowConversionConfirm(false)} className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+            <button onClick={() => !conversionBusy && setShowConversionConfirm(false)} className="modal-close" aria-label="Fermer" title="Fermer"><X className="w-6 h-6" /></button>
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2.5 bg-amber-500/20 rounded-xl"><AlertTriangle className="w-5 h-5 text-amber-400" /></div>
               <h2 className="text-xl font-bold text-white">Confirmer la conversion</h2>
@@ -602,7 +602,7 @@ export default function Settings() {
       {showPaymentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
-            <button onClick={closePaymentModal} className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+            <button onClick={closePaymentModal} className="modal-close" aria-label="Fermer" title="Fermer"><X className="w-6 h-6" /></button>
 
             {paymentJustSubmitted ? (
               <div className="text-center py-6">

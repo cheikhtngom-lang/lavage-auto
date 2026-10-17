@@ -196,7 +196,7 @@ function AffiliateModal({ onClose, onSave }) {
         role="dialog" aria-modal="true" aria-labelledby="affiliate-title"
         className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
       >
-        <button onClick={onClose} disabled={busy} aria-label="Fermer" className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+        <button onClick={onClose} disabled={busy} aria-label="Fermer" className="modal-close"><X className="w-6 h-6" /></button>
         <h2 id="affiliate-title" className="text-2xl font-bold text-white mb-1">Ajouter un affilié</h2>
         <p className="text-sm text-neutral-400 mb-6">Un partenaire (influenceur, ambassadeur, page amie…) qui partage son propre lien : vous voyez ce qu’il vous apporte.</p>
         <form onSubmit={submit} className="space-y-4">

@@ -108,7 +108,7 @@ export default function Garage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
             >
-              <button onClick={closeModal} className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+              <button onClick={closeModal} className="modal-close" aria-label="Fermer" title="Fermer">
                 <X className="w-6 h-6" />
               </button>
               <h2 className="text-2xl font-bold text-white mb-6">🚗 Ajouter un véhicule</h2>

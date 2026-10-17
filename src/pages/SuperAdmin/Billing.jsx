@@ -52,7 +52,7 @@ function FreeAccessModal({ station, planLabel, onClose, onGrant }) {
         role="dialog" aria-modal="true" aria-labelledby="free-access-title"
         className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
       >
-        <button onClick={onClose} disabled={busy} aria-label="Fermer" className="absolute top-4 right-4 text-neutral-400 hover:text-white">
+        <button onClick={onClose} disabled={busy} aria-label="Fermer" className="modal-close">
           <X className="w-6 h-6" />
         </button>
         <div className="p-3 rounded-xl bg-purple-500/10 w-fit mb-4"><Gift className="w-6 h-6 text-purple-400" /></div>

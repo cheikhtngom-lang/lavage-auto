@@ -68,7 +68,7 @@ export default function StudioPhotoModal({ source, onUse, onClose }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
       <div className="bg-neutral-900 border border-white/10 rounded-2xl p-5 w-full max-w-lg shadow-2xl relative max-h-[92vh] overflow-y-auto">
-        <button type="button" onClick={onClose} className="absolute top-4 right-4 text-neutral-400 hover:text-white" aria-label="Fermer">
+        <button type="button" onClick={onClose} className="modal-close" aria-label="Fermer">
           <X className="w-6 h-6" />
         </button>
         <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-400" /> Photo studio</h2>

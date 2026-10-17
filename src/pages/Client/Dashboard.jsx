@@ -720,7 +720,7 @@ export default function ClientOverview() {
         {reviewingTx && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative">
-              <button onClick={() => setReviewingTx(null)} className="absolute top-4 right-4 text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+              <button onClick={() => setReviewingTx(null)} className="modal-close" aria-label="Fermer" title="Fermer"><X className="w-6 h-6" /></button>
               <h2 className="text-xl font-bold text-white mb-1">Votre avis</h2>
               <p className="text-neutral-400 text-sm mb-6">{reviewingTx.stationName}</p>
               <div className="flex justify-center mb-6"><StarRatingInput value={reviewRating} onChange={setReviewRating} /></div>
