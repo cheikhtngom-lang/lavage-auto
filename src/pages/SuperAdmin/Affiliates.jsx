@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Share2, Eye, Mail, MessageCircle, UserPlus, Search, X, Plus, Copy, Check, Link2, Trash2,
+  Share2, Eye, Mail, MessageCircle, UserPlus, Search, Plus, Copy, Check, Link2, Trash2,
   CheckCircle2, RotateCcw, Info, Smartphone, Monitor, Tablet, Megaphone, AlertTriangle, Reply,
+  Users, Fingerprint, BadgeCheck, Percent, Star, Facebook,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -10,26 +11,34 @@ import PeriodFilter from '../../components/ui/PeriodFilter';
 import Pagination from '../../components/ui/Pagination';
 import { AreaChart, Donut, Legend } from '../../components/ui/charts';
 import { sourceInfo, LINK_NETWORKS, trackedLink, slugCode, normalizeRef } from '../../lib/trafficSources';
+import {
+  Card, KpiCard, Modal, SchemaNotice, SourceChip, StatTile, ago, dateFr, fmt, inputCls, isMissingSchema,
+  pct, plural, rate, tones, useCopy,
+} from '../../components/marketing/shared';
+import InfluencersPanel, { DEFAULT_COMMISSION } from '../../components/marketing/InfluencersPanel';
+import FacebookAdsPanel from '../../components/marketing/FacebookAdsPanel';
 
 // Super Admin > Affiliés : d'où viennent les visiteurs du site public et ceux
 // qui écrivent (formulaire Contact, WhatsApp, appel) ou s'inscrivent — réseaux
 // sociaux, recherche, liens d'affiliés. Données : site_traffic_stats(),
 // contact_messages, affiliates (add_affiliates_tracking.sql) ; collecte :
-// src/visit-tracker.js et lib/attribution.js.
+// src/visit-tracker.js et lib/attribution.js. Affiliés enrichis, Influenceurs
+// et Facebook Ads : marketing_stats() (add_influencers_facebook_ads.sql).
 
 const TABS = [
   { key: 'provenance', label: 'Provenance', icon: Share2 },
   { key: 'messages', label: 'Messages', icon: Mail },
   { key: 'liens', label: 'Liens & affiliés', icon: Link2 },
+  { key: 'influenceurs', label: 'Influenceurs & cashout', icon: Star },
+  { key: 'facebook', label: 'Facebook Ads', icon: Facebook },
 ];
+// Onglets chiffrés depuis le début (soldes, coût total d'une campagne) : pas de filtre de période.
+const ALL_TIME_TABS = ['influenceurs', 'facebook'];
 
 const MONTHS_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const pad2 = (n) => String(n).padStart(2, '0');
 const dayKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const monthKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
-const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
-const pct = (part, total) => (total > 0 ? Math.round((part / total) * 100) : 0);
-const plural = (n, one, many) => `${fmt(n)} ${n > 1 ? many : one}`;
 
 const MESSAGE_STATUS = {
   nouveau: { label: 'À traiter', className: 'bg-blue-500/10 text-blue-300 border-blue-500/20' },
@@ -99,75 +108,12 @@ const slotKeyOf = (iso, group) => {
   return dayKey(d);
 };
 
-// Base pas encore à jour (script add_affiliates_tracking.sql non exécuté).
-const isMissingSchema = (error) => ['PGRST202', '42883', '42P01', 'PGRST205', '42703'].includes(error?.code);
-
-function useCopy() {
-  const [copied, setCopied] = useState(null);
-  const copy = useCallback(async (text, id = text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const el = document.createElement('textarea');
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      try { document.execCommand('copy'); } catch { /* rien */ }
-      el.remove();
-    }
-    setCopied(id);
-    setTimeout(() => setCopied((c) => (c === id ? null : c)), 2000);
-  }, []);
-  return [copied, copy];
-}
-
-function SourceChip({ source, className = '' }) {
-  const info = sourceInfo(source);
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full bg-white/[0.05] border border-white/10 px-2.5 py-0.5 text-xs font-medium text-neutral-200 ${className}`}>
-      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: info.color, boxShadow: `0 0 6px ${info.color}88` }} />
-      {info.label}
-    </span>
-  );
-}
-
-function KpiCard({ icon: Icon, tone, title, value, detail, index }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06 }}
-      className="glass-card rounded-2xl p-6 border border-white/5 bg-white/[0.02]"
-    >
-      <div className={`p-3 rounded-xl w-fit mb-4 ${tone.bg}`}><Icon className={`w-6 h-6 ${tone.text}`} /></div>
-      <p className="text-neutral-400 text-sm font-medium mb-1">{title}</p>
-      <h3 className="text-3xl font-bold text-white tabular-nums">{fmt(value)}</h3>
-      {detail && <p className="text-xs text-neutral-500 mt-1.5 leading-relaxed">{detail}</p>}
-    </motion.div>
-  );
-}
-
-function Card({ title, subtitle, children, className = '', right }) {
-  return (
-    <div className={`glass-card rounded-2xl p-6 border border-white/5 bg-white/[0.02] ${className}`}>
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-        <div>
-          <h2 className="text-lg font-bold text-white">{title}</h2>
-          {subtitle && <p className="text-sm text-neutral-500 mt-0.5">{subtitle}</p>}
-        </div>
-        {right}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-const inputCls = 'w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-purple-500';
-
 // ─── Fenêtre « Ajouter un affilié » ─────────────────────────────────────
-function AffiliateModal({ onClose, onSave }) {
+function AffiliateModal({ onClose, onSave, influencerSchema, initialInfluencer = false }) {
   const [form, setForm] = useState({ name: '', code: '', network: 'facebook', contact: '', note: '' });
   const [codeTouched, setCodeTouched] = useState(false);
+  const [influencer, setInfluencer] = useState(initialInfluencer);
+  const [commission, setCommission] = useState(String(DEFAULT_COMMISSION));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -176,12 +122,17 @@ function AffiliateModal({ onClose, onSave }) {
     e.preventDefault();
     const name = form.name.trim();
     const code = normalizeRef(form.code);
+    const commissionRate = Number(String(commission).replace(',', '.'));
     if (name.length < 2) return setError('Indiquez le nom de l’affilié.');
     if (!code) return setError('Le code doit faire 2 à 30 caractères : lettres minuscules, chiffres, « - » ou « _ ».');
+    if (influencer && !(commissionRate >= 0 && commissionRate <= 100)) return setError('La commission doit être comprise entre 0 et 100 %.');
     setBusy(true);
     setError('');
     try {
-      await onSave({ name, code, network: form.network, contact: form.contact.trim() || null, note: form.note.trim() || null });
+      await onSave({
+        name, code, network: form.network, contact: form.contact.trim() || null, note: form.note.trim() || null,
+        ...(influencer ? { is_influencer: true, commission_rate: Math.round(commissionRate * 100) / 100 } : {}),
+      });
       onClose();
     } catch (err) {
       setError(err.message);
@@ -190,15 +141,8 @@ function AffiliateModal({ onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-        role="dialog" aria-modal="true" aria-labelledby="affiliate-title"
-        className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
-      >
-        <button onClick={onClose} disabled={busy} aria-label="Fermer" className="modal-close"><X className="w-6 h-6" /></button>
-        <h2 id="affiliate-title" className="text-2xl font-bold text-white mb-1">Ajouter un affilié</h2>
-        <p className="text-sm text-neutral-400 mb-6">Un partenaire (influenceur, ambassadeur, page amie…) qui partage son propre lien : vous voyez ce qu’il vous apporte.</p>
+    <Modal id="affiliate-title" title="Ajouter un affilié" onClose={onClose} busy={busy}
+      intro="Un partenaire (influenceur, ambassadeur, page amie…) qui partage son propre lien : vous voyez ce qu’il vous apporte.">
         <form onSubmit={submit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-neutral-400 mb-1" htmlFor="aff-name">Nom</label>
@@ -223,8 +167,25 @@ function AffiliateModal({ onClose, onSave }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-neutral-400 mb-1" htmlFor="aff-note">Note (facultatif)</label>
-            <textarea id="aff-note" rows={2} className={inputCls} value={form.note} maxLength={300} placeholder="Ex. commission convenue, page Facebook…" onChange={set('note')} />
+            <textarea id="aff-note" rows={2} className={inputCls} value={form.note} maxLength={300} placeholder="Ex. page Facebook, accord passé…" onChange={set('note')} />
           </div>
+          {influencerSchema && (
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={influencer} onChange={(e) => setInfluencer(e.target.checked)} className="mt-1 accent-purple-500" />
+                <span>
+                  <span className="block text-sm font-bold text-white">Influenceur (commission)</span>
+                  <span className="block text-xs text-neutral-500">Il touche un pourcentage des paiements des stations inscrites par son lien, pendant 3 mois après leur 1er paiement.</span>
+                </span>
+              </label>
+              {influencer && (
+                <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1" htmlFor="aff-commission">Commission (%)</label>
+                  <input id="aff-commission" inputMode="decimal" className={inputCls} value={commission} onChange={(e) => setCommission(e.target.value)} />
+                </div>
+              )}
+            </div>
+          )}
           {error && <p className="text-sm text-red-400">{error}</p>}
           <div className="pt-4 border-t border-white/10">
             <button type="submit" disabled={busy} className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2">
@@ -232,8 +193,7 @@ function AffiliateModal({ onClose, onSave }) {
             </button>
           </div>
         </form>
-      </motion.div>
-    </div>
+    </Modal>
   );
 }
 
@@ -296,6 +256,27 @@ export default function Affiliates() {
     })();
     return () => { cancelled = true; };
   }, [fromIso, toIso, period.bucket]);
+
+  // Affiliés enrichis, influenceurs, Facebook Ads (chargés à part : sans le
+  // script add_influencers_facebook_ads.sql, les autres onglets restent utilisables).
+  const [marketing, setMarketing] = useState(null);
+  const [marketingError, setMarketingError] = useState(null); // null | 'schema' | message
+  const [marketingTick, setMarketingTick] = useState(0);
+  const reloadMarketing = () => setMarketingTick((t) => t + 1);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.rpc('marketing_stats', { p_from: fromIso, p_to: toIso }).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        console.error('Marketing :', error);
+        setMarketingError(isMissingSchema(error) ? 'schema' : (error.message || 'Chargement impossible.'));
+        return;
+      }
+      setMarketingError(null);
+      setMarketing(data || {});
+    });
+    return () => { cancelled = true; };
+  }, [fromIso, toIso, marketingTick]);
 
   // ─── Agrégats par provenance ──────────────────────────────────────────
   const bySource = useMemo(() => {
@@ -389,12 +370,17 @@ export default function Affiliates() {
   const [linkNetwork, setLinkNetwork] = useState('facebook');
   const [linkCampaign, setLinkCampaign] = useState('');
   const [copied, copy] = useCopy();
-  const [showAffiliateModal, setShowAffiliateModal] = useState(false);
+  const [affiliateModal, setAffiliateModal] = useState(null); // null | { influencer: bool }
   const generatedLink = trackedLink(origin, { source: linkNetwork, campaign: linkCampaign });
 
+  // Par affilié : visites / contacts / inscriptions (site_traffic_stats) et, si
+  // le script marketing est en place, uniques, stations payantes, dernier clic.
   const affiliateStats = useMemo(() => {
     const map = new Map();
-    const row = (id) => { if (!map.has(id)) map.set(id, { visite: 0, contacts: 0, inscriptions: 0 }); return map.get(id); };
+    const row = (id) => {
+      if (!map.has(id)) map.set(id, { visite: 0, contacts: 0, inscriptions: 0, uniques: null, signups: null, paying: null, lastClick: null });
+      return map.get(id);
+    };
     for (const e of stats?.affiliates || []) {
       const r = row(e.affiliate_id);
       if (e.kind === 'visite') r.visite += e.count;
@@ -402,14 +388,23 @@ export default function Affiliates() {
       else r.contacts += e.count;
     }
     for (const m of stats?.affiliate_messages || []) row(m.affiliate_id).contacts += m.count;
+    for (const m of marketing?.affiliates || []) {
+      const r = row(m.affiliate_id);
+      Object.assign(r, { uniques: m.uniques, signups: m.signups, paying: m.paying, lastClick: m.last_click });
+    }
     return map;
-  }, [stats]);
+  }, [stats, marketing]);
+  const marketingReady = Boolean(marketing) && !marketingError;
+  const aTotals = marketing?.affiliate_totals || {};
+  const activeAffiliates = affiliates.filter((a) => a.active).length;
 
   const addAffiliate = async (fields) => {
     const { data, error } = await supabase.from('affiliates').insert(fields).select().single();
     if (error) throw new Error(error.code === '23505' ? 'Ce code est déjà utilisé par un autre affilié.' : error.message);
     setAffiliates((prev) => [data, ...prev]);
+    if (fields.is_influencer) reloadMarketing();
   };
+  const replaceAffiliate = (row) => setAffiliates((prev) => prev.map((x) => (x.id === row.id ? row : x)));
   const toggleAffiliate = async (a) => {
     const { error } = await supabase.from('affiliates').update({ active: !a.active }).eq('id', a.id);
     if (error) { window.alert(error.message); return; }
@@ -418,15 +413,13 @@ export default function Affiliates() {
   const deleteAffiliate = async (a) => {
     if (!window.confirm(`Supprimer l'affilié ${a.name} ? Son lien ne sera plus reconnu ; les visites déjà comptées restent dans les totaux.`)) return;
     const { error } = await supabase.from('affiliates').delete().eq('id', a.id);
-    if (error) { window.alert(error.message); return; }
+    if (error) {
+      window.alert(error.code === '23503'
+        ? `${a.name} a déjà reçu des versements : désactivez-le plutôt, pour garder l’historique.`
+        : error.message);
+      return;
+    }
     setAffiliates((prev) => prev.filter((x) => x.id !== a.id));
-  };
-
-  const tones = {
-    purple: { bg: 'bg-purple-500/10', text: 'text-purple-400' },
-    blue: { bg: 'bg-blue-500/10', text: 'text-blue-400' },
-    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
-    amber: { bg: 'bg-amber-500/10', text: 'text-amber-400' },
   };
 
   return (
@@ -452,18 +445,22 @@ export default function Affiliates() {
             </button>
           ))}
         </div>
-        <PeriodFilter
-          accent="purple"
-          segment={segment}
-          onSegmentChange={setSegment}
-          day={day}
-          onDayChange={(v) => v && setDay(v)}
-          month={month}
-          onMonthChange={setMonth}
-          year={year}
-          onYearChange={setYear}
-          yearOptions={yearOptions}
-        />
+        {ALL_TIME_TABS.includes(tab) ? (
+          <p className="text-sm text-neutral-500">Chiffres depuis le début</p>
+        ) : (
+          <PeriodFilter
+            accent="purple"
+            segment={segment}
+            onSegmentChange={setSegment}
+            day={day}
+            onDayChange={(v) => v && setDay(v)}
+            month={month}
+            onMonthChange={setMonth}
+            year={year}
+            onYearChange={setYear}
+            yearOptions={yearOptions}
+          />
+        )}
       </div>
 
       {schemaMissing ? (
@@ -671,50 +668,55 @@ export default function Affiliates() {
 
           {tab === 'liens' && (
             <>
-              <Card title="Créer un lien de suivi" subtitle="À coller dans vos publications : chaque visite par ce lien est comptée pour le bon réseau, même depuis WhatsApp ou TikTok." className="mb-8">
-                <div className="flex flex-wrap gap-2 mb-4" role="radiogroup" aria-label="Réseau du lien">
-                  {LINK_NETWORKS.map((n) => (
-                    <button key={n.key} type="button" role="radio" aria-checked={linkNetwork === n.key} onClick={() => setLinkNetwork(n.key)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors ${linkNetwork === n.key ? 'border-purple-500 bg-purple-500/15 text-white' : 'border-white/10 bg-white/[0.03] text-neutral-400 hover:text-white'}`}>
-                      <span className="w-2 h-2 rounded-full" style={{ background: n.color }} /> {n.label}
-                    </button>
-                  ))}
+              {marketingReady && (
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+                  <StatTile icon={Users} tone={tones.purple} label="Affiliés" value={fmt(affiliates.length)}
+                    detail={`${plural(activeAffiliates, 'actif', 'actifs')} · ${plural(affiliates.filter((a) => a.is_influencer).length, 'influenceur', 'influenceurs')}`} />
+                  <StatTile icon={Eye} tone={tones.blue} label="Clics (visites)" value={fmt(aTotals.visits)} detail="Arrivées par un lien ?ref=" />
+                  <StatTile icon={Fingerprint} tone={tones.cyan} label="Visiteurs uniques" value={fmt(aTotals.uniques)}
+                    detail={aTotals.visits > 0 ? `${(aTotals.visits / Math.max(1, aTotals.uniques)).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} visite(s) par visiteur` : 'Sur la période'} />
+                  <StatTile icon={UserPlus} tone={tones.amber} label="Stations inscrites" value={fmt(aTotals.signups)}
+                    detail={`${rate(aTotals.signups, aTotals.uniques)} des visiteurs uniques`} />
+                  <StatTile icon={BadgeCheck} tone={tones.emerald} label="Stations payantes" value={fmt(aTotals.paying)}
+                    detail={`${plural(Math.max(0, (aTotals.signups || 0) - (aTotals.paying || 0)), 'gratuite', 'gratuites')} (essai ou sans paiement)`} />
+                  <StatTile icon={Percent} tone={tones.pink} label="Conversion moyenne" value={rate(aTotals.paying, aTotals.signups)}
+                    detail="Payantes / inscrites" />
                 </div>
-                <label className="block text-sm font-medium text-neutral-400 mb-1" htmlFor="link-campaign">Nom de campagne (facultatif)</label>
-                <input id="link-campaign" className={`${inputCls} md:w-1/2 mb-4`} value={linkCampaign} maxLength={60} placeholder="Ex. promo-octobre, statut-whatsapp-lundi"
-                  onChange={(e) => setLinkCampaign(e.target.value)} />
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <code className="flex-1 min-w-0 rounded-xl bg-neutral-950 border border-white/10 px-4 py-3 text-sm text-purple-200 [overflow-wrap:anywhere]">{generatedLink}</code>
-                  <button type="button" onClick={() => copy(generatedLink, 'generated')}
-                    className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold transition-colors flex-shrink-0">
-                    {copied === 'generated' ? <><Check className="w-4 h-4" /> Copié</> : <><Copy className="w-4 h-4" /> Copier</>}
-                  </button>
-                </div>
-              </Card>
+              )}
 
               <Card
                 title="Affiliés"
-                subtitle="Partenaires qui partagent leur propre lien — chiffres sur la période choisie"
+                subtitle="Partenaires qui partagent leur propre lien — chiffres sur la période choisie (dernier clic : depuis le début)"
+                className="mb-8"
                 right={(
-                  <button type="button" onClick={() => setShowAffiliateModal(true)}
+                  <button type="button" onClick={() => setAffiliateModal({ influencer: false })}
                     className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-purple-500/20 flex items-center gap-2 text-sm">
                     <Plus className="w-4 h-4" /> Ajouter un affilié
                   </button>
                 )}
               >
+                {marketingError === 'schema' && (
+                  <p className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-3 text-sm text-amber-200">
+                    Visiteurs uniques, stations payantes et dernier clic apparaîtront après l’exécution du script <code>add_influencers_facebook_ads.sql</code>.
+                  </p>
+                )}
                 {affiliates.length === 0 ? (
                   <p className="text-neutral-500 text-sm py-6 text-center">Aucun affilié pour le moment. Ajoutez un partenaire pour lui donner un lien personnel et suivre ce qu’il vous apporte.</p>
                 ) : (
                   <div className="overflow-x-auto -mx-6">
-                    <table className="w-full text-left border-collapse min-w-[860px]">
+                    <table className="w-full text-left border-collapse min-w-[1120px] text-sm">
                       <thead>
-                        <tr className="border-b border-white/10 text-sm">
+                        <tr className="border-b border-white/10">
                           <th className="px-6 py-3 font-semibold text-neutral-400">Affilié</th>
-                          <th className="px-4 py-3 font-semibold text-neutral-400">Réseau</th>
-                          <th className="px-4 py-3 font-semibold text-neutral-400">Lien</th>
-                          <th className="px-4 py-3 font-semibold text-neutral-400 text-right">Visites</th>
-                          <th className="px-4 py-3 font-semibold text-neutral-400 text-right">Contacts</th>
-                          <th className="px-4 py-3 font-semibold text-neutral-400 text-right">Inscriptions</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400">Lien</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400 text-right">Clics</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400 text-right">Uniques</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400 text-right" title="Messages, clics WhatsApp et appels">Contacts</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400 text-right">Stations inscrites</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400 text-right">Payantes</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400 text-right">Gratuites</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400 text-right" title="Payantes / inscrites, et inscrites / visiteurs uniques">Conversion</th>
+                          <th className="px-3 py-3 font-semibold text-neutral-400">Dernier clic</th>
                           <th className="px-6 py-3 font-semibold text-neutral-400 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -722,23 +724,49 @@ export default function Affiliates() {
                         {affiliates.map((a) => {
                           const st = affiliateStats.get(a.id) || { visite: 0, contacts: 0, inscriptions: 0 };
                           const link = trackedLink(origin, { ref: a.code });
+                          const signups = st.signups ?? null;
+                          const paying = st.paying ?? null;
+                          const num = (n) => (n == null ? <span className="text-neutral-600">—</span> : fmt(n));
                           return (
                             <tr key={a.id} className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors ${a.active ? '' : 'opacity-50'}`}>
                               <td className="px-6 py-3">
-                                <p className="font-bold text-white">{a.name}</p>
-                                <p className="text-xs text-neutral-500">{[a.contact, a.note].filter(Boolean).join(' · ') || `code ${a.code}`}</p>
+                                <p className="font-bold text-white flex flex-wrap items-center gap-2">
+                                  {a.name}
+                                  {a.is_influencer && (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-200">
+                                      <Star className="w-3 h-3" /> {Number(a.commission_rate).toLocaleString('fr-FR')} %
+                                    </span>
+                                  )}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                  <SourceChip source={a.network} />
+                                  {(a.contact || a.note) && <span className="text-xs text-neutral-500">{[a.contact, a.note].filter(Boolean).join(' · ')}</span>}
+                                </div>
                               </td>
-                              <td className="px-4 py-3"><SourceChip source={a.network} /></td>
-                              <td className="px-4 py-3">
+                              <td className="px-3 py-3">
                                 <button type="button" onClick={() => copy(link, a.id)} title={link}
                                   className="flex items-center gap-1.5 text-xs font-medium text-purple-300 hover:text-purple-200">
                                   {copied === a.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                   {copied === a.id ? 'Copié' : `?ref=${a.code}`}
                                 </button>
                               </td>
-                              <td className="px-4 py-3 text-right tabular-nums text-white">{fmt(st.visite)}</td>
-                              <td className="px-4 py-3 text-right tabular-nums text-white">{fmt(st.contacts)}</td>
-                              <td className="px-4 py-3 text-right tabular-nums text-white">{fmt(st.inscriptions)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-white">{fmt(st.visite)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-neutral-300">{num(st.uniques)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-neutral-300">{fmt(st.contacts)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-white">{num(signups)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-emerald-400 font-medium">{num(paying)}</td>
+                              <td className="px-3 py-3 text-right tabular-nums text-neutral-300">{signups == null ? num(null) : fmt(Math.max(0, signups - paying))}</td>
+                              <td className="px-3 py-3 text-right tabular-nums">
+                                {signups == null ? num(null) : (
+                                  <>
+                                    <span className="text-white font-medium">{rate(paying, signups)}</span>
+                                    {st.uniques > 0 && <span className="block text-[11px] text-neutral-500">{rate(signups, st.uniques)} des uniques</span>}
+                                  </>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-neutral-300 whitespace-nowrap" title={st.lastClick ? dateFr(st.lastClick, { dateStyle: 'medium', timeStyle: 'short' }) : ''}>
+                                {marketingReady ? ago(st.lastClick) : '—'}
+                              </td>
                               <td className="px-6 py-3">
                                 <div className="flex justify-end gap-2">
                                   <button type="button" onClick={() => toggleAffiliate(a)}
@@ -758,14 +786,58 @@ export default function Affiliates() {
                     </table>
                   </div>
                 )}
+                <p className="text-xs text-neutral-500 mt-4 leading-relaxed">
+                  Clics = visites arrivées par le lien (une par onglet). Uniques = navigateurs différents (avec l’accord cookies du visiteur ; sinon une fois par jour).
+                  Stations payantes = inscrites par le lien sur la période et qui ont payé au moins une fois la plateforme (abonnement ou publicité).
+                </p>
+              </Card>
+
+              <Card title="Créer un lien de suivi" subtitle="À coller dans vos publications : chaque visite par ce lien est comptée pour le bon réseau, même depuis WhatsApp ou TikTok.">
+                <div className="flex flex-wrap gap-2 mb-4" role="radiogroup" aria-label="Réseau du lien">
+                  {LINK_NETWORKS.map((n) => (
+                    <button key={n.key} type="button" role="radio" aria-checked={linkNetwork === n.key} onClick={() => setLinkNetwork(n.key)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition-colors ${linkNetwork === n.key ? 'border-purple-500 bg-purple-500/15 text-white' : 'border-white/10 bg-white/[0.03] text-neutral-400 hover:text-white'}`}>
+                      <span className="w-2 h-2 rounded-full" style={{ background: n.color }} /> {n.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="block text-sm font-medium text-neutral-400 mb-1" htmlFor="link-campaign">Nom de campagne (facultatif)</label>
+                <input id="link-campaign" className={`${inputCls} md:w-1/2 mb-1`} value={linkCampaign} maxLength={60} placeholder="Ex. promo-octobre, statut-whatsapp-lundi"
+                  onChange={(e) => setLinkCampaign(e.target.value)} />
+                <p className="text-xs text-neutral-500 mb-4">Pour une publicité Facebook payante, notez ensuite la dépense sous ce nom (onglet Facebook Ads).</p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <code className="flex-1 min-w-0 rounded-xl bg-neutral-950 border border-white/10 px-4 py-3 text-sm text-purple-200 [overflow-wrap:anywhere]">{generatedLink}</code>
+                  <button type="button" onClick={() => copy(generatedLink, 'generated')}
+                    className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold transition-colors flex-shrink-0">
+                    {copied === 'generated' ? <><Check className="w-4 h-4" /> Copié</> : <><Copy className="w-4 h-4" /> Copier</>}
+                  </button>
+                </div>
               </Card>
             </>
+          )}
+
+          {tab === 'influenceurs' && (
+            marketingError === 'schema' ? <SchemaNotice file="add_influencers_facebook_ads.sql" />
+              : marketingError ? <div className="glass-card rounded-2xl p-8 border border-red-500/20 bg-red-500/[0.04] text-red-300">Chargement impossible : {marketingError}</div>
+                : (
+                  <InfluencersPanel affiliates={affiliates} marketing={marketing} onAffiliateUpdated={replaceAffiliate}
+                    onReload={reloadMarketing} onCreateAffiliate={() => setAffiliateModal({ influencer: true })} />
+                )
+          )}
+
+          {tab === 'facebook' && (
+            marketingError === 'schema' ? <SchemaNotice file="add_influencers_facebook_ads.sql" />
+              : marketingError ? <div className="glass-card rounded-2xl p-8 border border-red-500/20 bg-red-500/[0.04] text-red-300">Chargement impossible : {marketingError}</div>
+                : <FacebookAdsPanel marketing={marketing} onReload={reloadMarketing} onShowLinks={() => setTab('liens')} />
           )}
         </div>
       )}
 
       <AnimatePresence>
-        {showAffiliateModal && <AffiliateModal onClose={() => setShowAffiliateModal(false)} onSave={addAffiliate} />}
+        {affiliateModal && (
+          <AffiliateModal onClose={() => setAffiliateModal(null)} onSave={addAffiliate}
+            influencerSchema={marketingReady} initialInfluencer={affiliateModal.influencer} />
+        )}
       </AnimatePresence>
     </div>
   );

@@ -42,7 +42,7 @@
       + 'font-family:Inter,system-ui,-apple-system,sans-serif;color:#d4d4d4;font-size:13px;';
     el.innerHTML =
       '<p style="margin:0;flex:1;min-width:240px;max-width:640px;line-height:1.5;">'
-      + "Nous utilisons des cookies de mesure d'audience (Google Analytics) pour comprendre l'utilisation du site et l'améliorer. "
+      + "Nous utilisons des cookies de mesure d'audience (Google Analytics et notre propre compteur de visiteurs) pour comprendre l'utilisation du site et l'améliorer. "
       + '<a href="/confidentialite.html#cookies" style="color:#60a5fa;text-decoration:underline;">En savoir plus</a>'
       + '</p>'
       + '<div style="display:flex;gap:8px;flex-shrink:0;">'

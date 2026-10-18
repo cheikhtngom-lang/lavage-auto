@@ -32,7 +32,15 @@ function triggerWelcomeEmail(profileId) {
 // record_site_event() ; jamais bloquant pour l'inscription.
 function recordSignupSource(kind) {
   if (!canRecord()) return;
-  supabase.rpc('record_site_event', siteEventArgs(`inscription_${kind}`)).then(() => {}, () => {});
+  const args = siteEventArgs(`inscription_${kind}`);
+  supabase.rpc('record_site_event', args).then(({ error }) => {
+    // Base sans p_visitor (add_influencers_facebook_ads.sql pas encore exécuté).
+    if (error?.code === 'PGRST202' && args.p_visitor) {
+      const { p_visitor, ...rest } = args; // eslint-disable-line no-unused-vars
+      return supabase.rpc('record_site_event', rest);
+    }
+    return null;
+  }).then(() => {}, () => {});
 }
 
 // ─── Inscription ────────────────────────────────────────────────────────

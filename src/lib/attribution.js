@@ -11,7 +11,10 @@
 //     mesure d'audience (bannière cookies, clé ccg_cookie_consent) ; sinon elle
 //     ne dure que le temps de l'onglet (sessionStorage).
 // Aucune donnée personnelle ici : identifiant d'onglet aléatoire, source,
-// campagne, page d'arrivée.
+// campagne, page d'arrivée. Pour compter les visiteurs UNIQUES, un identifiant
+// de visiteur tiré au hasard (ccg_visitor_id, sans lien avec l'identité) est
+// gardé dans le navigateur, uniquement avec l'accord de mesure d'audience ;
+// sans accord, le serveur compte le même visiteur une fois par jour.
 //
 // Sans dépendance lourde (pas de client Supabase : simple fetch) — chargé par
 // la page d'accueil via src/visit-tracker.js.
@@ -20,10 +23,13 @@ import { classifyLanding, deviceOf } from './trafficSources.js';
 const KEY = 'ccg_attribution';
 const SID_KEY = 'ccg_visit_sid';
 const VISIT_KEY = 'ccg_visit_sent';
+const VISITOR_KEY = 'ccg_visitor_id';
 const TTL_MS = 30 * 86400000;
 const OWN_HOSTS = ['galsenautocleaner.com'];
 const APP_PATHS = /^\/(admin|superadmin|dashboard|groupe)(\/|$)/;
 const BOT_UA = /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|facebookexternalhit|embedly|whatsapp\//i;
+
+const randomId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
 
 const consentGranted = () => {
   try { return localStorage.getItem('ccg_cookie_consent') === 'granted'; } catch { return false; }
@@ -62,13 +68,27 @@ export function sessionId() {
   try {
     let sid = sessionStorage.getItem(SID_KEY);
     if (!sid) {
-      sid = (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`).replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
+      sid = randomId();
       sessionStorage.setItem(SID_KEY, sid);
     }
     return sid;
   } catch {
     return `${Date.now()}${Math.floor(Math.random() * 1e9)}`;
   }
+}
+
+// Identifiant de visiteur anonyme (null sans accord de mesure d'audience :
+// l'éventuel identifiant gardé est alors effacé).
+export function visitorId() {
+  try {
+    if (!consentGranted()) { localStorage.removeItem(VISITOR_KEY); return null; }
+    let id = localStorage.getItem(VISITOR_KEY);
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(id || '')) {
+      id = randomId();
+      localStorage.setItem(VISITOR_KEY, id);
+    }
+    return id;
+  } catch { return null; }
 }
 
 // À appeler à chaque chargement de page publique : renvoie l'arrivée de cette
@@ -127,7 +147,14 @@ export function siteEventArgs(kind, from) {
     p_referrer_host: a.referrerHost || null,
     p_landing_path: a.landingPath || null,
     p_device: deviceOf(navigator.userAgent, window.innerWidth),
+    p_visitor: visitorId(),
   };
+}
+
+// Base pas encore à jour (add_influencers_facebook_ads.sql non exécuté) :
+// record_site_event() sans p_visitor. Renvoie les paramètres à réessayer, sinon null.
+function argsWithoutVisitor(args, status) {
+  return (status === 404 || status === 300) && args.p_visitor ? { ...args, p_visitor: undefined } : null;
 }
 
 // Envoi anonyme (clé publique), sans attendre la réponse : ne bloque jamais la page.
@@ -135,12 +162,18 @@ export function sendSiteEvent(kind, from) {
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
   if (!url || !key) return;
+  const post = (args) => fetch(`${url}/rest/v1/rpc/record_site_event`, {
+    method: 'POST',
+    keepalive: true,
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
   try {
-    fetch(`${url}/rest/v1/rpc/record_site_event`, {
-      method: 'POST',
-      keepalive: true,
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(siteEventArgs(kind, from)),
+    const args = siteEventArgs(kind, from);
+    post(args).then((res) => {
+      const retry = argsWithoutVisitor(args, res.status);
+      if (retry) return post(retry);
+      return null;
     }).catch(() => {});
   } catch { /* rien */ }
 }
