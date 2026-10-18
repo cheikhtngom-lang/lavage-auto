@@ -79,11 +79,12 @@ export async function createStationAccount({ name, address, city, quartier, regi
   });
   if (profileError) throw new Error(profileError.message);
 
-  // handle_new_station() crée la ligne station_billing en « à payer », offre
-  // Starter par défaut (remove_station_trial.sql) : on enregistre l'offre
-  // choisie sur la page de tarifs / le formulaire, une fois le profil créé
-  // (la fonction s'appuie sur la station du compte connecté). Elle sera
-  // proposée par défaut sur l'écran de paiement (/admin/renouveler).
+  // handle_new_station() crée la ligne station_billing en essai gratuit de
+  // 7 jours, offre Starter par défaut (restore_station_trial.sql) : on
+  // enregistre l'offre choisie sur la page de tarifs / le formulaire, une fois
+  // le profil créé (la fonction s'appuie sur la station du compte connecté).
+  // Elle sera proposée par défaut sur l'écran de paiement à la fin de l'essai
+  // (/admin/renouveler).
   if (plan) {
     const { error: planError } = await supabase.rpc('set_pending_station_plan', { p_plan: plan });
     if (planError) console.error('set_pending_station_plan:', planError);
