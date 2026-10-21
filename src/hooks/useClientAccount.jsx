@@ -83,6 +83,8 @@ export function ClientAccountProvider({ children }) {
         loadClientAnnouncements();
         const refresh = () => { loadActivity(account.id, account.phone); loadSuperUserSub(account.id); loadClientAnnouncements(); };
         window.addEventListener('focus', refresh);
+        const onVisible = () => { if (!document.hidden) refresh(); };
+        document.addEventListener('visibilitychange', onVisible);
         // `reservations`/`transactions` sont dans la publication supabase_realtime
         // (voir schema.sql) : la position en file/le passage en lavage arrivent en
         // direct dès qu'une station modifie SA réservation, sans sonder toutes les
@@ -128,8 +130,8 @@ export function ClientAccountProvider({ children }) {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `client_id=eq.${account.id}` }, refresh)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, notifyAnnouncement)
             .subscribe();
-        const interval = setInterval(refresh, 45000);
-        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); supabase.removeChannel(channel); };
+        const interval = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
+        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', onVisible); supabase.removeChannel(channel); };
     }, [account?.id, account?.phone, loadActivity, loadSuperUserSub, loadClientAnnouncements]);
 
     const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id, account.phone); }, [account?.id, account?.phone, loadActivity]);

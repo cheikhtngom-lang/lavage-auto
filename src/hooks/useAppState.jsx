@@ -571,6 +571,8 @@ export function AppStateProvider({ children }) {
         };
         const refreshAll = () => { loadReservations(); loadTransactions(); loadExpenses(); loadReviews(); loadEmployees(); loadPumps(); loadCustomVehicleTypes(); loadShiftTemplates(); loadStationAds(); loadSubscriptions(); loadLavagePayments(); loadVidangeBookings(); loadShopOrders(); loadReceivedAnnouncements(); loadSentAnnouncements(); };
         window.addEventListener('focus', refresh);
+        const onVisible = () => { if (!document.hidden) refresh(); };
+        document.addEventListener('visibilitychange', onVisible);
         // `reservations`/`transactions`/`employees`/`expenses`/`station_reviews`
         // sont dans la publication supabase_realtime (voir schema.sql) : un
         // client qui réserve depuis son propre appareil, un pointage/assignation
@@ -599,8 +601,8 @@ export function AppStateProvider({ children }) {
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => { loadReceivedAnnouncements(); loadSentAnnouncements(); })
                 .subscribe()
             : null;
-        const interval = setInterval(refresh, 45000);
-        return () => { clearInterval(interval); timers.forEach(clearTimeout); window.removeEventListener('focus', refresh); if (channel) supabase.removeChannel(channel); };
+        const interval = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
+        return () => { clearInterval(interval); timers.forEach(clearTimeout); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', onVisible); if (channel) supabase.removeChannel(channel); };
     }, [loadReservations, loadTransactions, loadExpenses, loadReviews, loadEmployees, loadPumps, loadCustomVehicleTypes, loadShiftTemplates, loadStationAds, loadLavagePayments, loadVidangeBookings, loadShopOrders, loadReceivedAnnouncements, loadSentAnnouncements, stationId]);
 
     // Le profil de la station (nom, adresse, horaires...) est la même donnée

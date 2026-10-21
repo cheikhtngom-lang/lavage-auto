@@ -418,6 +418,8 @@ export function SuperAdminStateProvider({ children }) {
             if (isSuperAdmin) { loadClientAccounts(); loadDisputes(); loadAuditLog(); loadSuperUserSubscriptions(); loadLavagePayments(); loadStationTransactions(); loadAnnouncements(); }
         };
         window.addEventListener('focus', refresh);
+        const onVisible = () => { if (!document.hidden) refresh(); };
+        document.addEventListener('visibilitychange', onVisible);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
         // (voir schema.sql) : un changement pendant qu'un autre onglet Super
         // Admin regarde l'écran (nouvelle station, litige, paiement Super User...)
@@ -467,9 +469,9 @@ export function SuperAdminStateProvider({ children }) {
         // Filet de sécurité (reconnexion Realtime manquée) — plus espacé
         // maintenant que le direct fait le gros du travail, même logique que
         // useAppState.jsx.
-        const interval = setInterval(refresh, 45000);
+        const interval = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
         return () => {
-            window.removeEventListener('focus', refresh);
+            window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', onVisible);
             clearInterval(interval);
             if (queueReloadTimer.current) clearTimeout(queueReloadTimer.current);
             supabase.removeChannel(channel);
