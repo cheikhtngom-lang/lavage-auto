@@ -62,11 +62,21 @@ export function receiptText(r, station) {
   ].join('\n');
 }
 
-// Comme sur Depann'Afrik, le reçu part sur WhatsApp en vrai fichier (image ou
-// PDF), pas en texte : il s'ouvre dans sa fenêtre, qui prépare les fichiers
-// tout de suite pour que le partage parte directement du clic.
+// Numéro WhatsApp : chiffres seuls, indicatif 221 ajouté à un numéro sénégalais à 9 chiffres.
+export function waNumber(phone) {
+  const d = String(phone || '').replace(/\D/g, '').replace(/^00/, '');
+  return d.length === 9 ? `221${d}` : d.length >= 8 ? d : '';
+}
+
+// Comme les commandes d'Anrif Shop et de Racha Store : numéro du client connu,
+// WhatsApp s'ouvre directement sur sa discussion, le reçu déjà rédigé, dès le
+// clic. Numéro inconnu : la fenêtre du reçu s'ouvre pour le saisir, ou pour
+// partager le reçu en image / PDF (comme sur Depann'Afrik).
 export function sendReceiptWhatsApp(r, station, onPhone) {
-  printReceipt(r, station, onPhone);
+  const to = waNumber(r.phone);
+  if (!to) { printReceipt(r, station, onPhone); return; }
+  const url = `https://wa.me/${to}?text=${encodeURIComponent(receiptText(r, station))}`;
+  if (!window.open(url, '_blank')) window.location.href = url;
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -136,8 +146,8 @@ export function printReceipt(r, station, onPhone) {
   </head><body>
   <div class="bar">
     <input class="phone" id="phone" type="tel" inputmode="tel" placeholder="WhatsApp du client" aria-label="Numéro WhatsApp du client" value="${esc(r.phone)}">
-    <button class="btn btn--wa" type="button" id="waImg" disabled>WhatsApp (image)</button>
-    <button class="btn btn--wa" type="button" id="waPdf" disabled>WhatsApp (PDF)</button>
+    <button class="btn btn--wa" type="button" id="waImg">WhatsApp (image)</button>
+    <button class="btn btn--wa" type="button" id="waPdf">WhatsApp (PDF)</button>
     <button class="btn" type="button" onclick="window.print()">Imprimer</button>
     <button class="btn btn--primary" type="button" id="pdfBtn">Enregistrer en PDF</button>
     <p class="hint" id="hint">Préparation du reçu…</p>
@@ -175,6 +185,7 @@ export function printReceipt(r, station, onPhone) {
   <script>
     var NAME = 'recu-${esc(r.ref)}';
     var TEXT = ${captionJs};
+    var FULL_TEXT = ${JSON.stringify(receiptText(r, station)).replace(/</g, '\\u003c')};
     var INITIAL_PHONE = ${JSON.stringify(r.phone || '').replace(/</g, '\\u003c')};
     var opts = { margin: 0, filename: NAME + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { format: 'a5' } };
     var files = {};
@@ -203,7 +214,7 @@ export function printReceipt(r, station, onPhone) {
         })
         .catch(function () { hint.textContent = 'Le reçu n’a pas pu être préparé sur cet appareil : utilisez « Imprimer ».'; });
     }
-    // Numéro saisi : chiffres seuls, indicatif 221 ajouté à un numéro sénégalais à 9 chiffres.
+    // Même règle que waNumber() : chiffres seuls, indicatif 221 pour un numéro sénégalais à 9 chiffres.
     function digits() {
       var d = document.getElementById('phone').value.replace(/\\D/g, '').replace(/^00/, '');
       return d.length === 9 ? '221' + d : d;
@@ -214,13 +225,21 @@ export function printReceipt(r, station, onPhone) {
       try { var m = JSON.parse(localStorage.getItem('${PHONES_KEY}') || '{}'); m['${esc(r.ref)}'] = v; localStorage.setItem('${PHONES_KEY}', JSON.stringify(m)); } catch (e) { /* sans effet */ }
       if (v !== INITIAL_PHONE && typeof window.ccgOnPhone === 'function') { INITIAL_PHONE = v; try { window.ccgOnPhone(v); } catch (e) { /* sans effet */ } }
     }
-    // Numéro du client connu : le reçu est téléchargé et WhatsApp s'ouvre directement sur sa discussion.
-    // Sinon, téléphone : feuille de partage (WhatsApp, puis la discussion du client) ;
+    // Numéro du client connu : WhatsApp s'ouvre d'abord (dans le clic, sinon le navigateur
+    // le bloque) directement sur sa discussion, le reçu rédigé ; le fichier est ensuite
+    // téléchargé pour pouvoir le joindre. Sinon, téléphone : feuille de partage ;
     // ordinateur sans partage de fichiers : le reçu est téléchargé et WhatsApp s'ouvre pour l'y joindre.
     function send(kind) {
       var f = files[kind];
-      if (!f) return;
-      if (digits().length >= 8) { remember(); fallback(f, digits()); return; }
+      if (digits().length >= 8) {
+        remember();
+        var url = 'https://wa.me/' + digits() + '?text=' + encodeURIComponent(FULL_TEXT);
+        if (!window.open(url, '_blank')) { location.href = url; return; }
+        if (f) saveFile(f);
+        hint.textContent = 'WhatsApp ouvert sur la discussion du client. Le reçu ' + (kind === 'pdf' ? 'PDF' : 'image') + ' est aussi téléchargé si vous voulez le joindre.';
+        return;
+      }
+      if (!f) { hint.textContent = 'Reçu en préparation… réessayez dans une seconde, ou saisissez le numéro du client.'; return; }
       if (navigator.canShare && navigator.canShare({ files: [f] })) {
         navigator.share({ files: [f], text: TEXT }).catch(function (err) { if (!err || err.name !== 'AbortError') fallback(f); });
         return;
