@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Loader2, Search, ShoppingCart, Undo2, Receipt, CalendarDays, Package } from 'lucide-react';
+import { Loader2, Search, ShoppingCart, Undo2, Receipt, CalendarDays, Package, Printer, MessageCircle } from 'lucide-react';
 import { Card, CardContent } from './Card';
 import Pagination from './Pagination';
 import { loadShopSales, cancelShopSale } from '../../lib/shop';
+import { toReceipt, printReceipt, sendReceiptWhatsApp } from '../../lib/shopReceipt';
+import { useAppState } from '../../hooks/useAppState';
 
 // Onglet « Ventes sur place » : les ventes saisies par la station, avec les
 // totaux du jour / du mois. Une vente annulée reste visible (barrée) : ses
 // articles sont revenus en stock et sa recette a quitté la Comptabilité.
 // `refreshKey` change à chaque nouvelle vente pour recharger la liste.
+// Chaque vente a son reçu : à imprimer ou à envoyer au client sur WhatsApp.
 
 const fcfa = (n) => `${(Number(n) || 0).toLocaleString('fr-FR')} FCFA`;
 const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -15,6 +18,7 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: '2-
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 
 export default function ShopSales({ stationId, refreshKey, onChanged }) {
+  const { stationProfile } = useAppState();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -121,6 +125,14 @@ export default function ShopSales({ stationId, refreshKey, onChanged }) {
                   </div>
                   <span className="text-xs font-medium px-3 py-1 rounded-full border bg-white/5 text-neutral-300 border-white/10">{s.payment_method}</span>
                   <p className={`text-white font-bold w-32 text-right ${cancelled ? 'line-through' : ''}`}>{fcfa(s.amount)}</p>
+                  <button type="button" onClick={() => printReceipt(toReceipt(s), stationProfile)} title="Imprimer le reçu"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-neutral-300 rounded-lg transition-colors text-xs font-bold">
+                      <Printer className="w-4 h-4" /> Reçu
+                    </button>
+                  <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(s), stationProfile)} title="Envoyer le reçu sur WhatsApp"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-neutral-300 rounded-lg transition-colors text-xs font-bold">
+                      <MessageCircle className="w-4 h-4" /> WhatsApp
+                    </button>
                   {!cancelled && (
                     <button onClick={() => handleCancel(s)} disabled={cancelling === s.id} title="Annuler la vente"
                       className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 disabled:opacity-60 text-red-400 rounded-lg transition-colors text-xs font-bold">

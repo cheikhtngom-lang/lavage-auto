@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Loader2, Search, Plus, Minus, Trash2, Store, ShoppingCart, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { X, Loader2, Search, Plus, Minus, Trash2, Store, ShoppingCart, CheckCircle2, AlertTriangle, Printer, MessageCircle } from 'lucide-react';
 import { productPricing, stockLevel, recordShopSale, SALE_PAYMENT_METHODS } from '../../lib/shop';
+import { toReceipt, printReceipt, sendReceiptWhatsApp } from '../../lib/shopReceipt';
+import { useAppState } from '../../hooks/useAppState';
 
 // Saisie d'une vente sur place (le client est venu acheter en station) :
 // produits + quantités + prix + moyen de paiement. Le serveur
@@ -19,6 +21,7 @@ function stockLabel(p) {
 }
 
 export default function ShopSaleModal({ products, initialProductId, onClose, onSaved }) {
+  const { stationProfile } = useAppState();
   const lineFor = (p) => ({ productId: p.id, quantity: '1', unitPrice: String(productPricing(p).effective) });
   const initialLines = () => {
     const p = products.find((x) => x.id === initialProductId);
@@ -109,6 +112,16 @@ export default function ShopSaleModal({ products, initialProductId, onClose, onS
               ))}
             </ul>
             <p className="text-neutral-500 text-sm mb-6">Le stock est mis à jour et la recette est ajoutée à la Comptabilité.</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center mb-3">
+              <button type="button" onClick={() => printReceipt(toReceipt(done, { method: done.method, clientName, note }), stationProfile)}
+                className="px-6 py-3 rounded-xl font-bold bg-white/5 text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+                <Printer className="w-5 h-5" /> Imprimer le reçu
+              </button>
+              <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(done, { method: done.method, clientName, note }), stationProfile)}
+                className="px-6 py-3 rounded-xl font-bold bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25 transition-colors flex items-center justify-center gap-2">
+                <MessageCircle className="w-5 h-5" /> Reçu WhatsApp
+              </button>
+            </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button onClick={startNewSale}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
