@@ -75,6 +75,7 @@ export default defineConfig({
         // copiées depuis public/ avec le CDN cdn.tailwindcss.com.
         notFound: resolve(__dirname, '404.html'),
         merci: resolve(__dirname, 'merci.html'),
+        recu: resolve(__dirname, 'recu.html'),
         confidentialite: resolve(__dirname, 'confidentialite.html'),
         conditionsGenerales: resolve(__dirname, 'conditions-generales.html'),
         mentionsLegales: resolve(__dirname, 'mentions-legales.html'),

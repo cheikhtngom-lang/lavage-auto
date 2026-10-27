@@ -26,6 +26,7 @@ export function toReceipt(sale, extra = {}) {
   const ref = saleRef(sale.id || sale.sale_id);
   if (extra.phone) rememberReceiptPhone(ref, extra.phone);
   return {
+    id: sale.id || sale.sale_id,
     ref,
     phone: extra.phone?.trim() || sale.client_phone || readPhones()[ref] || '',
     date: sale.created_at || new Date().toISOString(),
@@ -62,6 +63,16 @@ export function receiptText(r, station) {
   ].join('\n');
 }
 
+// Reçu en ligne (/recu.html, add_shop_public_receipt.sql) : le client l'ouvre depuis WhatsApp.
+export const receiptLink = (r) => `${window.location.origin}/recu.html?v=${encodeURIComponent(r.id)}`;
+
+export function receiptLinkMessage(r, station) {
+  const first = (r.client || '').trim().split(/\s+/)[0];
+  return `Bonjour${first ? ` ${first}` : ''}, merci pour votre achat chez ${station?.name || 'nous'} !
+Votre reçu de paiement n° ${r.ref} (${fcfa(r.amount)}) :
+${receiptLink(r)}`;
+}
+
 // Numéro WhatsApp : chiffres seuls, indicatif 221 ajouté à un numéro sénégalais à 9 chiffres.
 export function waNumber(phone) {
   const d = String(phone || '').replace(/\D/g, '').replace(/^00/, '');
@@ -69,19 +80,19 @@ export function waNumber(phone) {
 }
 
 // Comme les commandes d'Anrif Shop et de Racha Store : numéro du client connu,
-// WhatsApp s'ouvre directement sur sa discussion, le reçu déjà rédigé, dès le
-// clic. Numéro inconnu : la fenêtre du reçu s'ouvre pour le saisir, ou pour
+// WhatsApp s'ouvre directement sur sa discussion, dès le clic, avec le lien du
+// reçu de paiement en ligne (même mise en page que le reçu imprimé). Numéro inconnu : la fenêtre du reçu s'ouvre pour le saisir, ou pour
 // partager le reçu en image / PDF (comme sur Depann'Afrik).
 export function sendReceiptWhatsApp(r, station, onPhone) {
   const to = waNumber(r.phone);
   if (!to) { printReceipt(r, station, onPhone); return; }
-  const url = `https://wa.me/${to}?text=${encodeURIComponent(receiptText(r, station))}`;
+  const url = `https://wa.me/${to}?text=${encodeURIComponent(receiptLinkMessage(r, station))}`;
   if (!window.open(url, '_blank')) window.location.href = url;
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
-const RECEIPT_CSS = `
+export const RECEIPT_CSS = `
   :root { --ink: #16161A; --muted: #6B6B75; --line: #E7E5E0; --accent: #2563EB; --ok: #0E8A55; }
   * { box-sizing: border-box; }
   body { margin: 0; background: #EFEDE8; color: var(--ink); font: 15px/1.5 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -126,18 +137,52 @@ const RECEIPT_CSS = `
   @media print { body { background: #fff; } .bar { display: none; } .sheet { box-shadow: none; margin: 0 auto; border-radius: 0; } }
 `;
 
+// Le reçu lui-même (même mise en page que le reçu Depann'Afrik), sans les boutons.
+export function receiptSheet(r, station) {
+  const place = stationLine(station);
+  const rows = r.items
+    .map((it) => `<tr><td>${esc(it.name)}<small>${it.quantity} × ${esc(fcfa(it.unitPrice))}</small></td><td class="num">${esc(fcfa(it.amount))}</td></tr>`)
+    .join('');
+  return `<article class="sheet" id="receipt">
+  <div class="band"></div>
+  <div class="inner">
+    <header class="head">
+      <div>
+        <p class="kicker">Reçu de paiement</p>
+        <h1>N° ${esc(r.ref)}</h1>
+      </div>
+      <div class="meta">
+        <p>Date : <strong>${esc(formatDate(r.date))}</strong></p>
+        <p>${r.cancelled ? '<span class="paid paid--off">Vente annulée</span>' : '<span class="paid">✓ Paiement reçu</span>'}</p>
+      </div>
+    </header>
+    <section class="issuer">
+      <p class="kicker">Émis par</p>
+      <strong>${esc(station?.name || 'Boutique')}</strong>
+      <p class="job">Boutique de la station</p>
+      ${place ? `<p>${esc(place)}</p>` : ''}
+      ${station?.phone ? `<p>Tél. ${esc(station.phone)}</p>` : ''}
+    </section>
+    <dl class="rows">
+      <div><dt>Reçu de</dt><dd>${esc(r.client || 'Client en station')}</dd></div>
+      <div><dt>Payé par</dt><dd>${esc(r.method)}</dd></div>
+      ${r.note ? `<div><dt>Note</dt><dd>${esc(r.note)}</dd></div>` : ''}
+    </dl>
+    <table class="items"><thead><tr><th>Article</th><th class="num">Montant</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="total${r.cancelled ? ' total--off' : ''}"><span>Montant payé</span><strong>${esc(fcfa(r.amount))}</strong></div>
+    <p class="foot">Ce reçu a été établi par la station ci-dessus avec l’outil de gestion de <strong>Clean Car Galsen</strong>. Pour toute question sur votre achat, contactez directement la station.<br><a href="https://galsenautocleaner.com">galsenautocleaner.com</a></p>
+  </div>
+</article>`;
+}
+
 // Reçu de paiement dans une nouvelle fenêtre : envoi sur WhatsApp en image ou
 // en PDF, « Imprimer » ou « Enregistrer en PDF » (A5). `onPhone(numéro)` est
 // appelé quand un nouveau numéro est saisi dans la fenêtre (enregistrement en base).
 export function printReceipt(r, station, onPhone) {
   const win = window.open('', '_blank');
   if (!win) return;
-  const place = stationLine(station);
   const caption = `Reçu ${r.ref} — ${station?.name || 'Boutique'} — ${fcfa(r.amount)}. Merci pour votre achat !`;
   const captionJs = JSON.stringify(caption).replace(/</g, '\\u003c');
-  const rows = r.items
-    .map((it) => `<tr><td>${esc(it.name)}<small>${it.quantity} × ${esc(fcfa(it.unitPrice))}</small></td><td class="num">${esc(fcfa(it.amount))}</td></tr>`)
-    .join('');
   win.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Reçu de paiement ${esc(r.ref)} — ${esc(station?.name || 'Boutique')}</title>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -152,40 +197,11 @@ export function printReceipt(r, station, onPhone) {
     <button class="btn btn--primary" type="button" id="pdfBtn">Enregistrer en PDF</button>
     <p class="hint" id="hint">Préparation du reçu…</p>
   </div>
-  <article class="sheet" id="receipt">
-    <div class="band"></div>
-    <div class="inner">
-      <header class="head">
-        <div>
-          <p class="kicker">Reçu de paiement</p>
-          <h1>N° ${esc(r.ref)}</h1>
-        </div>
-        <div class="meta">
-          <p>Date : <strong>${esc(formatDate(r.date))}</strong></p>
-          <p>${r.cancelled ? '<span class="paid paid--off">Vente annulée</span>' : '<span class="paid">✓ Paiement reçu</span>'}</p>
-        </div>
-      </header>
-      <section class="issuer">
-        <p class="kicker">Émis par</p>
-        <strong>${esc(station?.name || 'Boutique')}</strong>
-        <p class="job">Boutique de la station</p>
-        ${place ? `<p>${esc(place)}</p>` : ''}
-        ${station?.phone ? `<p>Tél. ${esc(station.phone)}</p>` : ''}
-      </section>
-      <dl class="rows">
-        <div><dt>Reçu de</dt><dd>${esc(r.client || 'Client en station')}</dd></div>
-        <div><dt>Payé par</dt><dd>${esc(r.method)}</dd></div>
-        ${r.note ? `<div><dt>Note</dt><dd>${esc(r.note)}</dd></div>` : ''}
-      </dl>
-      <table class="items"><thead><tr><th>Article</th><th class="num">Montant</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="total${r.cancelled ? ' total--off' : ''}"><span>Montant payé</span><strong>${esc(fcfa(r.amount))}</strong></div>
-      <p class="foot">Ce reçu a été établi par la station ci-dessus avec l’outil de gestion de <strong>Clean Car Galsen</strong>. Pour toute question sur votre achat, contactez directement la station.<br><a href="https://galsenautocleaner.com">galsenautocleaner.com</a></p>
-    </div>
-  </article>
+  ${receiptSheet(r, station)}
   <script>
     var NAME = 'recu-${esc(r.ref)}';
     var TEXT = ${captionJs};
-    var FULL_TEXT = ${JSON.stringify(receiptText(r, station)).replace(/</g, '\\u003c')};
+    var FULL_TEXT = ${JSON.stringify(receiptLinkMessage(r, station)).replace(/</g, '\\u003c')};
     var INITIAL_PHONE = ${JSON.stringify(r.phone || '').replace(/</g, '\\u003c')};
     var opts = { margin: 0, filename: NAME + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { format: 'a5' } };
     var files = {};
