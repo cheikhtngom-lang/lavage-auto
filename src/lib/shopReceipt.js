@@ -49,9 +49,11 @@ export function receiptText(r, station) {
   ].join('\n');
 }
 
-// WhatsApp s'ouvre avec le reçu rédigé ; la station choisit le contact du client.
+// Comme sur Depann'Afrik, le reçu part sur WhatsApp en vrai fichier (image ou
+// PDF), pas en texte : il s'ouvre dans sa fenêtre, qui prépare les fichiers
+// tout de suite pour que le partage parte directement du clic.
 export function sendReceiptWhatsApp(r, station) {
-  window.open(`https://wa.me/?text=${encodeURIComponent(receiptText(r, station))}`, '_blank', 'noopener');
+  printReceipt(r, station);
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -63,6 +65,9 @@ const RECEIPT_CSS = `
   .bar { position: sticky; top: 0; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 12px; background: #0B0D10; z-index: 2; }
   .btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 11px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06); color: #F4F4F5; font: 600 .88rem 'Inter', sans-serif; cursor: pointer; }
   .btn--primary { background: linear-gradient(120deg, #60A5FA, #2563EB 55%, #1E40AF); color: #fff; border-color: transparent; }
+  .btn--wa { background: #25D366; color: #0B0D10; border-color: transparent; }
+  .btn:disabled { opacity: .5; cursor: wait; }
+  .hint { width: 100%; margin: 0; text-align: center; color: #B4B4BD; font-size: .8rem; }
   .sheet { width: min(640px, calc(100% - 24px)); margin: 24px auto 48px; background: #fff; border-radius: 20px; box-shadow: 0 30px 80px -30px rgba(0,0,0,.35); overflow: hidden; }
   .band { height: 8px; background: linear-gradient(90deg, #60A5FA, #2563EB 55%, #1E40AF); }
   .inner { padding: clamp(22px, 5vw, 44px); }
@@ -97,11 +102,14 @@ const RECEIPT_CSS = `
   @media print { body { background: #fff; } .bar { display: none; } .sheet { box-shadow: none; margin: 0 auto; border-radius: 0; } }
 `;
 
-// Reçu de paiement dans une nouvelle fenêtre : « Imprimer » ou « Enregistrer en PDF » (A5).
+// Reçu de paiement dans une nouvelle fenêtre : envoi sur WhatsApp en image ou
+// en PDF, « Imprimer » ou « Enregistrer en PDF » (A5).
 export function printReceipt(r, station) {
   const win = window.open('', '_blank');
   if (!win) return;
   const place = stationLine(station);
+  const caption = `Reçu ${r.ref} — ${station?.name || 'Boutique'} — ${fcfa(r.amount)}. Merci pour votre achat !`;
+  const captionJs = JSON.stringify(caption).replace(/</g, '\\u003c');
   const rows = r.items
     .map((it) => `<tr><td>${esc(it.name)}<small>${it.quantity} × ${esc(fcfa(it.unitPrice))}</small></td><td class="num">${esc(fcfa(it.amount))}</td></tr>`)
     .join('');
@@ -112,8 +120,11 @@ export function printReceipt(r, station) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha384-Yv5O+t3uE3hunW8uyrbpPW3iw6/5/Y7HitWJBLgqfMoA36NogMmy+8wWZMpn3HWc" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
   </head><body>
   <div class="bar">
+    <button class="btn btn--wa" type="button" id="waImg" disabled>WhatsApp (image)</button>
+    <button class="btn btn--wa" type="button" id="waPdf" disabled>WhatsApp (PDF)</button>
     <button class="btn" type="button" onclick="window.print()">Imprimer</button>
     <button class="btn btn--primary" type="button" id="pdfBtn">Enregistrer en PDF</button>
+    <p class="hint" id="hint">Préparation du reçu…</p>
   </div>
   <article class="sheet" id="receipt">
     <div class="band"></div>
@@ -146,11 +157,59 @@ export function printReceipt(r, station) {
     </div>
   </article>
   <script>
+    var NAME = 'recu-${esc(r.ref)}';
+    var TEXT = ${captionJs};
+    var opts = { margin: 0, filename: NAME + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { format: 'a5' } };
+    var files = {};
+    var hint = document.getElementById('hint');
+    var sheet = function () { return document.getElementById('receipt'); };
+    function saveFile(f) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(f); a.download = f.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    // Image et PDF préparés dès l'ouverture : le partage doit partir directement du clic
+    function prepare() {
+      if (!window.html2pdf) { setTimeout(prepare, 200); return; }
+      window.html2pdf().set(opts).from(sheet()).toCanvas().get('canvas')
+        .then(function (c) { return new Promise(function (ok) { c.toBlob(ok, 'image/png'); }); })
+        .then(function (png) {
+          files.png = new File([png], NAME + '.png', { type: 'image/png' });
+          document.getElementById('waImg').disabled = false;
+          return window.html2pdf().set(opts).from(sheet()).outputPdf('blob');
+        })
+        .then(function (pdf) {
+          files.pdf = new File([pdf], NAME + '.pdf', { type: 'application/pdf' });
+          document.getElementById('waPdf').disabled = false;
+          hint.textContent = 'Reçu prêt : choisissez WhatsApp, puis la discussion du client.';
+        })
+        .catch(function () { hint.textContent = 'Le reçu n’a pas pu être préparé sur cet appareil : utilisez « Imprimer ».'; });
+    }
+    // Téléphone : feuille de partage (WhatsApp, puis la discussion du client).
+    // Ordinateur sans partage de fichiers : le reçu est téléchargé et WhatsApp s'ouvre pour l'y joindre.
+    function send(kind) {
+      var f = files[kind];
+      if (!f) return;
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], text: TEXT }).catch(function (err) { if (!err || err.name !== 'AbortError') fallback(f); });
+        return;
+      }
+      fallback(f);
+    }
+    function fallback(f) {
+      saveFile(f);
+      window.open('https://wa.me/?text=' + encodeURIComponent(TEXT), '_blank', 'noopener');
+      hint.textContent = 'Reçu téléchargé (' + (f.type === 'application/pdf' ? 'PDF' : 'image') + ') : dans WhatsApp, joignez-le à la discussion avec le trombone.';
+    }
+    document.getElementById('waImg').addEventListener('click', function () { send('png'); });
+    document.getElementById('waPdf').addEventListener('click', function () { send('pdf'); });
     document.getElementById('pdfBtn').addEventListener('click', function () {
+      if (files.pdf) { saveFile(files.pdf); return; }
       if (!window.html2pdf) { window.print(); return; }
-      window.html2pdf().set({ margin: 0, filename: 'recu-${esc(r.ref)}.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { format: 'a5' } })
-        .from(document.getElementById('receipt')).save();
+      window.html2pdf().set(opts).from(sheet()).save();
     });
+    window.addEventListener('load', function () { (document.fonts ? document.fonts.ready : Promise.resolve()).then(prepare); });
   </script>
   </body></html>`);
   win.document.close();
