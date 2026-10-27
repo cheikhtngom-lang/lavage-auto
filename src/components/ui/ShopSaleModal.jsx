@@ -32,6 +32,7 @@ export default function ShopSaleModal({ products, initialProductId, onClose, onS
   const [search, setSearch] = useState('');
   const [method, setMethod] = useState('Espèces');
   const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState(''); // WhatsApp du client : le reçu s'ouvre directement sur sa discussion
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -89,7 +90,7 @@ export default function ShopSaleModal({ products, initialProductId, onClose, onS
   };
 
   const startNewSale = () => {
-    setDone(null); setLines([]); setSearch(''); setClientName(''); setNote(''); setMethod('Espèces'); setError('');
+    setDone(null); setLines([]); setSearch(''); setClientName(''); setClientPhone(''); setNote(''); setMethod('Espèces'); setError('');
   };
 
   return (
@@ -113,11 +114,11 @@ export default function ShopSaleModal({ products, initialProductId, onClose, onS
             </ul>
             <p className="text-neutral-500 text-sm mb-6">Le stock est mis à jour et la recette est ajoutée à la Comptabilité.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center mb-3">
-              <button type="button" onClick={() => printReceipt(toReceipt(done, { method: done.method, clientName, note }), stationProfile)}
+              <button type="button" onClick={() => printReceipt(toReceipt(done, { method: done.method, clientName, note, phone: clientPhone }), stationProfile)}
                 className="px-6 py-3 rounded-xl font-bold bg-white/5 text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
                 <Printer className="w-5 h-5" /> Imprimer le reçu
               </button>
-              <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(done, { method: done.method, clientName, note }), stationProfile)}
+              <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(done, { method: done.method, clientName, note, phone: clientPhone }), stationProfile)}
                 className="px-6 py-3 rounded-xl font-bold bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25 transition-colors flex items-center justify-center gap-2">
                 <MessageCircle className="w-5 h-5" /> Reçu WhatsApp
               </button>
@@ -234,6 +235,11 @@ export default function ShopSaleModal({ products, initialProductId, onClose, onS
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1">Client <span className="text-neutral-600">(optionnel)</span></label>
                   <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client de passage" maxLength={80}
+                    className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1">WhatsApp du client <span className="text-neutral-600">(pour le reçu)</span></label>
+                  <input type="tel" inputMode="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="77 123 45 67" maxLength={20}
                     className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>

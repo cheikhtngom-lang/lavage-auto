@@ -10,11 +10,23 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: '2-
 // Numéro court lisible à partir de l'identifiant de la vente.
 const saleRef = (id) => `V-${String(id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
+// WhatsApp du client : la vente ne le stocke pas en base, il est gardé sur cet
+// appareil (par n° de reçu) pour renvoyer le reçu plus tard depuis l'historique.
+const PHONES_KEY = 'ccg-receipt-phones';
+const readPhones = () => { try { return JSON.parse(localStorage.getItem(PHONES_KEY) || '{}'); } catch { return {}; } };
+export function rememberReceiptPhone(ref, phone) {
+  if (!ref || !phone?.trim()) return;
+  try { localStorage.setItem(PHONES_KEY, JSON.stringify({ ...readPhones(), [ref]: phone.trim() })); } catch { /* stockage indisponible : sans effet */ }
+}
+
 // Une vente de l'historique (loadShopSales) ou le résultat de recordShopSale,
 // ramenés à la même forme.
 export function toReceipt(sale, extra = {}) {
+  const ref = saleRef(sale.id || sale.sale_id);
+  if (extra.phone) rememberReceiptPhone(ref, extra.phone);
   return {
-    ref: saleRef(sale.id || sale.sale_id),
+    ref,
+    phone: extra.phone?.trim() || readPhones()[ref] || '',
     date: sale.created_at || new Date().toISOString(),
     items: (sale.items || []).map((it) => ({
       name: it.name,
@@ -68,6 +80,7 @@ const RECEIPT_CSS = `
   .btn--wa { background: #25D366; color: #0B0D10; border-color: transparent; }
   .btn:disabled { opacity: .5; cursor: wait; }
   .hint { width: 100%; margin: 0; text-align: center; color: #B4B4BD; font-size: .8rem; }
+  .phone { height: 40px; width: 190px; padding: 0 12px; border-radius: 11px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.06); color: #F4F4F5; font: 500 .88rem 'Inter', sans-serif; }
   .sheet { width: min(640px, calc(100% - 24px)); margin: 24px auto 48px; background: #fff; border-radius: 20px; box-shadow: 0 30px 80px -30px rgba(0,0,0,.35); overflow: hidden; }
   .band { height: 8px; background: linear-gradient(90deg, #60A5FA, #2563EB 55%, #1E40AF); }
   .inner { padding: clamp(22px, 5vw, 44px); }
@@ -120,6 +133,7 @@ export function printReceipt(r, station) {
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha384-Yv5O+t3uE3hunW8uyrbpPW3iw6/5/Y7HitWJBLgqfMoA36NogMmy+8wWZMpn3HWc" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
   </head><body>
   <div class="bar">
+    <input class="phone" id="phone" type="tel" inputmode="tel" placeholder="WhatsApp du client" aria-label="Numéro WhatsApp du client" value="${esc(r.phone)}">
     <button class="btn btn--wa" type="button" id="waImg" disabled>WhatsApp (image)</button>
     <button class="btn btn--wa" type="button" id="waPdf" disabled>WhatsApp (PDF)</button>
     <button class="btn" type="button" onclick="window.print()">Imprimer</button>
@@ -186,20 +200,32 @@ export function printReceipt(r, station) {
         })
         .catch(function () { hint.textContent = 'Le reçu n’a pas pu être préparé sur cet appareil : utilisez « Imprimer ».'; });
     }
-    // Téléphone : feuille de partage (WhatsApp, puis la discussion du client).
-    // Ordinateur sans partage de fichiers : le reçu est téléchargé et WhatsApp s'ouvre pour l'y joindre.
+    // Numéro saisi : chiffres seuls, indicatif 221 ajouté à un numéro sénégalais à 9 chiffres.
+    function digits() {
+      var d = document.getElementById('phone').value.replace(/\\D/g, '').replace(/^00/, '');
+      return d.length === 9 ? '221' + d : d;
+    }
+    function remember() {
+      var v = document.getElementById('phone').value.trim();
+      if (!v) return;
+      try { var m = JSON.parse(localStorage.getItem('${PHONES_KEY}') || '{}'); m['${esc(r.ref)}'] = v; localStorage.setItem('${PHONES_KEY}', JSON.stringify(m)); } catch (e) { /* sans effet */ }
+    }
+    // Numéro du client connu : le reçu est téléchargé et WhatsApp s'ouvre directement sur sa discussion.
+    // Sinon, téléphone : feuille de partage (WhatsApp, puis la discussion du client) ;
+    // ordinateur sans partage de fichiers : le reçu est téléchargé et WhatsApp s'ouvre pour l'y joindre.
     function send(kind) {
       var f = files[kind];
       if (!f) return;
+      if (digits().length >= 8) { remember(); fallback(f, digits()); return; }
       if (navigator.canShare && navigator.canShare({ files: [f] })) {
         navigator.share({ files: [f], text: TEXT }).catch(function (err) { if (!err || err.name !== 'AbortError') fallback(f); });
         return;
       }
       fallback(f);
     }
-    function fallback(f) {
+    function fallback(f, to) {
       saveFile(f);
-      window.open('https://wa.me/?text=' + encodeURIComponent(TEXT), '_blank', 'noopener');
+      window.open('https://wa.me/' + (to || '') + '?text=' + encodeURIComponent(TEXT), '_blank', 'noopener');
       hint.textContent = 'Reçu téléchargé (' + (f.type === 'application/pdf' ? 'PDF' : 'image') + ') : dans WhatsApp, joignez-le à la discussion avec le trombone.';
     }
     document.getElementById('waImg').addEventListener('click', function () { send('png'); });
