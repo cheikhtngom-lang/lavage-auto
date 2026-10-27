@@ -10,8 +10,9 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: '2-
 // Numéro court lisible à partir de l'identifiant de la vente.
 const saleRef = (id) => `V-${String(id || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 
-// WhatsApp du client : la vente ne le stocke pas en base, il est gardé sur cet
-// appareil (par n° de reçu) pour renvoyer le reçu plus tard depuis l'historique.
+// WhatsApp du client : enregistré en base sur la vente (shop_sales.client_phone,
+// add_shop_sale_client_phone.sql) ; aussi gardé sur cet appareil (par n° de
+// reçu) au cas où l'enregistrement en base échoue.
 const PHONES_KEY = 'ccg-receipt-phones';
 const readPhones = () => { try { return JSON.parse(localStorage.getItem(PHONES_KEY) || '{}'); } catch { return {}; } };
 export function rememberReceiptPhone(ref, phone) {
@@ -26,7 +27,7 @@ export function toReceipt(sale, extra = {}) {
   if (extra.phone) rememberReceiptPhone(ref, extra.phone);
   return {
     ref,
-    phone: extra.phone?.trim() || readPhones()[ref] || '',
+    phone: extra.phone?.trim() || sale.client_phone || readPhones()[ref] || '',
     date: sale.created_at || new Date().toISOString(),
     items: (sale.items || []).map((it) => ({
       name: it.name,
@@ -64,8 +65,8 @@ export function receiptText(r, station) {
 // Comme sur Depann'Afrik, le reçu part sur WhatsApp en vrai fichier (image ou
 // PDF), pas en texte : il s'ouvre dans sa fenêtre, qui prépare les fichiers
 // tout de suite pour que le partage parte directement du clic.
-export function sendReceiptWhatsApp(r, station) {
-  printReceipt(r, station);
+export function sendReceiptWhatsApp(r, station, onPhone) {
+  printReceipt(r, station, onPhone);
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -116,8 +117,9 @@ const RECEIPT_CSS = `
 `;
 
 // Reçu de paiement dans une nouvelle fenêtre : envoi sur WhatsApp en image ou
-// en PDF, « Imprimer » ou « Enregistrer en PDF » (A5).
-export function printReceipt(r, station) {
+// en PDF, « Imprimer » ou « Enregistrer en PDF » (A5). `onPhone(numéro)` est
+// appelé quand un nouveau numéro est saisi dans la fenêtre (enregistrement en base).
+export function printReceipt(r, station, onPhone) {
   const win = window.open('', '_blank');
   if (!win) return;
   const place = stationLine(station);
@@ -173,6 +175,7 @@ export function printReceipt(r, station) {
   <script>
     var NAME = 'recu-${esc(r.ref)}';
     var TEXT = ${captionJs};
+    var INITIAL_PHONE = ${JSON.stringify(r.phone || '').replace(/</g, '\\u003c')};
     var opts = { margin: 0, filename: NAME + '.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { format: 'a5' } };
     var files = {};
     var hint = document.getElementById('hint');
@@ -209,6 +212,7 @@ export function printReceipt(r, station) {
       var v = document.getElementById('phone').value.trim();
       if (!v) return;
       try { var m = JSON.parse(localStorage.getItem('${PHONES_KEY}') || '{}'); m['${esc(r.ref)}'] = v; localStorage.setItem('${PHONES_KEY}', JSON.stringify(m)); } catch (e) { /* sans effet */ }
+      if (v !== INITIAL_PHONE && typeof window.ccgOnPhone === 'function') { INITIAL_PHONE = v; try { window.ccgOnPhone(v); } catch (e) { /* sans effet */ } }
     }
     // Numéro du client connu : le reçu est téléchargé et WhatsApp s'ouvre directement sur sa discussion.
     // Sinon, téléphone : feuille de partage (WhatsApp, puis la discussion du client) ;
@@ -239,4 +243,6 @@ export function printReceipt(r, station) {
   </script>
   </body></html>`);
   win.document.close();
+  // Même origine : la fenêtre du reçu rappelle l'appli pour enregistrer un numéro saisi
+  if (onPhone) win.ccgOnPhone = onPhone;
 }

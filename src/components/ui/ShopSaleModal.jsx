@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Loader2, Search, Plus, Minus, Trash2, Store, ShoppingCart, CheckCircle2, AlertTriangle, Printer, MessageCircle } from 'lucide-react';
-import { productPricing, stockLevel, recordShopSale, SALE_PAYMENT_METHODS } from '../../lib/shop';
+import { productPricing, stockLevel, recordShopSale, setSalePhone, SALE_PAYMENT_METHODS } from '../../lib/shop';
 import { toReceipt, printReceipt, sendReceiptWhatsApp } from '../../lib/shopReceipt';
 import { useAppState } from '../../hooks/useAppState';
 
@@ -81,6 +81,8 @@ export default function ShopSaleModal({ products, initialProductId, onClose, onS
         paymentMethod: method, clientName, note,
       });
       setDone({ ...result, method });
+      // Le numéro n'empêche jamais la vente : en cas d'échec, il reste gardé sur cet appareil
+      if (clientPhone.trim()) setSalePhone(result.sale_id, clientPhone).catch(() => {});
       onSaved?.(result);
     } catch (err) {
       setError(err.message || 'Enregistrement impossible.');
@@ -114,11 +116,11 @@ export default function ShopSaleModal({ products, initialProductId, onClose, onS
             </ul>
             <p className="text-neutral-500 text-sm mb-6">Le stock est mis à jour et la recette est ajoutée à la Comptabilité.</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center mb-3">
-              <button type="button" onClick={() => printReceipt(toReceipt(done, { method: done.method, clientName, note, phone: clientPhone }), stationProfile)}
+              <button type="button" onClick={() => printReceipt(toReceipt(done, { method: done.method, clientName, note, phone: clientPhone }), stationProfile, (p) => setSalePhone(done.sale_id, p).catch(() => {}))}
                 className="px-6 py-3 rounded-xl font-bold bg-white/5 text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
                 <Printer className="w-5 h-5" /> Imprimer le reçu
               </button>
-              <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(done, { method: done.method, clientName, note, phone: clientPhone }), stationProfile)}
+              <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(done, { method: done.method, clientName, note, phone: clientPhone }), stationProfile, (p) => setSalePhone(done.sale_id, p).catch(() => {}))}
                 className="px-6 py-3 rounded-xl font-bold bg-[#25D366]/15 text-[#25D366] hover:bg-[#25D366]/25 transition-colors flex items-center justify-center gap-2">
                 <MessageCircle className="w-5 h-5" /> Reçu WhatsApp
               </button>

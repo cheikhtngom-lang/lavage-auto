@@ -157,6 +157,13 @@ export async function recordShopSale({ items, paymentMethod, clientName, note })
   return data;
 }
 
+// WhatsApp du client sur une vente (add_shop_sale_client_phone.sql) : le reçu
+// s'ouvre ensuite directement sur sa discussion, depuis n'importe quel appareil.
+export async function setSalePhone(saleId, phone) {
+  const { error } = await supabase.rpc('shop_set_sale_phone', { p_sale_id: saleId, p_phone: phone?.trim() || null });
+  if (error) throw new Error(friendlyShopError(error));
+}
+
 export async function cancelShopSale(id, reason) {
   const { error } = await supabase.rpc('shop_cancel_sale', { p_sale_id: id, p_reason: reason?.trim() || null });
   if (error) throw new Error(friendlyShopError(error));
@@ -181,7 +188,7 @@ export async function setProductStock(productId, stock, note) {
 export async function loadShopSales(stationId, limit = 1000) {
   const { data, error } = await supabase
     .from('shop_sales')
-    .select('id, items, amount, payment_method, note, status, cancel_reason, cancelled_at, created_at, transactions(client_name)')
+    .select('id, items, amount, payment_method, note, client_phone, status, cancel_reason, cancelled_at, created_at, transactions(client_name)')
     .eq('station_id', stationId)
     .order('created_at', { ascending: false })
     .limit(limit);

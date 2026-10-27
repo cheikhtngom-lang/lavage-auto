@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2, Search, ShoppingCart, Undo2, Receipt, CalendarDays, Package, Printer, MessageCircle } from 'lucide-react';
 import { Card, CardContent } from './Card';
 import Pagination from './Pagination';
-import { loadShopSales, cancelShopSale } from '../../lib/shop';
+import { loadShopSales, cancelShopSale, setSalePhone } from '../../lib/shop';
 import { toReceipt, printReceipt, sendReceiptWhatsApp } from '../../lib/shopReceipt';
 import { useAppState } from '../../hooks/useAppState';
 
@@ -34,6 +34,9 @@ export default function ShopSales({ stationId, refreshKey, onChanged }) {
   }, [stationId]);
   useEffect(() => { refresh(); }, [refresh, refreshKey]);
   useEffect(() => { setPage(1); }, [search, pageSize]);
+
+  // Numéro saisi dans la fenêtre du reçu : enregistré sur la vente, puis la liste est relue
+  const savePhone = (s) => (p) => setSalePhone(s.id, p).then(refresh).catch(() => {});
 
   const handleCancel = async (s) => {
     const reason = window.prompt(
@@ -125,11 +128,11 @@ export default function ShopSales({ stationId, refreshKey, onChanged }) {
                   </div>
                   <span className="text-xs font-medium px-3 py-1 rounded-full border bg-white/5 text-neutral-300 border-white/10">{s.payment_method}</span>
                   <p className={`text-white font-bold w-32 text-right ${cancelled ? 'line-through' : ''}`}>{fcfa(s.amount)}</p>
-                  <button type="button" onClick={() => printReceipt(toReceipt(s), stationProfile)} title="Imprimer le reçu"
+                  <button type="button" onClick={() => printReceipt(toReceipt(s), stationProfile, savePhone(s))} title="Imprimer le reçu"
                       className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-neutral-300 rounded-lg transition-colors text-xs font-bold">
                       <Printer className="w-4 h-4" /> Reçu
                     </button>
-                  <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(s), stationProfile)} title="Envoyer le reçu sur WhatsApp"
+                  <button type="button" onClick={() => sendReceiptWhatsApp(toReceipt(s), stationProfile, savePhone(s))} title="Envoyer le reçu sur WhatsApp"
                       className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-neutral-300 rounded-lg transition-colors text-xs font-bold">
                       <MessageCircle className="w-4 h-4" /> WhatsApp
                     </button>
