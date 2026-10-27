@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Loader2, PackagePlus, ClipboardCheck, Boxes } from 'lucide-react';
+import { X, Loader2, PackagePlus, PackageMinus, ClipboardCheck, Boxes } from 'lucide-react';
 import { stockLevel, addStockEntry, setProductStock, loadStockMovements, STOCK_MOVEMENTS, DEFAULT_LOW_STOCK_THRESHOLD } from '../../lib/shop';
 
-// Stock d'UN produit : réapprovisionnement (entrée), correction après
+// Stock d'UN produit : réapprovisionnement (entrée), sortie (casse, usage
+// station, transfert… notée comme correction avec son motif), correction après
 // inventaire (quantité comptée), début / arrêt du suivi, et ses derniers
 // mouvements. `product` est la version à jour (le parent recharge le
 // catalogue après chaque changement via onChanged).
@@ -24,7 +25,7 @@ const formatDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { day: '2-
 
 export default function ShopStockModal({ product, stationId, onClose, onChanged }) {
   const tracked = product.stock != null;
-  const [mode, setMode] = useState('entree'); // 'entree' | 'correction'
+  const [mode, setMode] = useState('entree'); // 'entree' | 'sortie' | 'correction'
   const [qty, setQty] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -41,10 +42,11 @@ export default function ShopStockModal({ product, stationId, onClose, onChanged 
   useEffect(() => { refreshMovements(); }, [refreshMovements]);
 
   const n = parseInt(qty, 10);
-  const valid = tracked && mode === 'entree' ? n >= 1 : n >= 0;
+  const valid = !tracked ? n >= 0 : mode === 'entree' ? n >= 1 : mode === 'sortie' ? n >= 1 && n <= product.stock : n >= 0;
   const preview = !valid ? null
     : !tracked ? `Le stock suivi démarrera à ${n}.`
     : mode === 'entree' ? `Nouveau stock : ${product.stock + n}`
+    : mode === 'sortie' ? `Nouveau stock : ${product.stock - n}`
     : `Écart : ${n - product.stock > 0 ? '+' : ''}${n - product.stock} (stock ${product.stock} → ${n})`;
 
   const run = async (fn, okMessage) => {
@@ -67,6 +69,7 @@ export default function ShopStockModal({ product, stationId, onClose, onChanged 
     if (!valid || saving) return;
     if (!tracked) return run(() => setProductStock(product.id, n, note || 'Début du suivi du stock'), (s) => `Suivi du stock démarré : ${s}.`);
     if (mode === 'entree') return run(() => addStockEntry(product.id, n, note), (s) => `Entrée enregistrée. Stock : ${s}.`);
+    if (mode === 'sortie') return run(() => setProductStock(product.id, product.stock - n, `Sortie de stock${note.trim() ? ` : ${note.trim()}` : ''}`), (s) => `Sortie enregistrée. Stock : ${s}.`);
     return run(() => setProductStock(product.id, n, note), (s) => `Stock corrigé : ${s}.`);
   };
 
@@ -105,10 +108,11 @@ export default function ShopStockModal({ product, stationId, onClose, onChanged 
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {tracked && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'entree', label: 'Réapprovisionner', icon: PackagePlus },
-                { id: 'correction', label: 'Corriger (inventaire)', icon: ClipboardCheck },
+                { id: 'entree', label: 'Entrée', icon: PackagePlus },
+                { id: 'sortie', label: 'Sortie', icon: PackageMinus },
+                { id: 'correction', label: 'Inventaire', icon: ClipboardCheck },
               ].map((m) => (
                 <button key={m.id} type="button" onClick={() => { setMode(m.id); setQty(''); setError(''); setSuccess(''); }}
                   className={`flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-bold transition-colors ${mode === m.id ? 'bg-blue-600 border-blue-500 text-white' : 'bg-neutral-950 border-white/10 text-neutral-400 hover:text-white'}`}>
@@ -120,20 +124,20 @@ export default function ShopStockModal({ product, stationId, onClose, onChanged 
 
           <div>
             <label className="block text-sm font-medium text-neutral-400 mb-1">
-              {!tracked ? 'Quantité en stock aujourd\'hui' : mode === 'entree' ? 'Quantité reçue' : 'Quantité comptée en stock'}
+              {!tracked ? 'Quantité en stock aujourd\'hui' : mode === 'entree' ? 'Quantité reçue' : mode === 'sortie' ? `Quantité sortie (${product.stock} en stock)` : 'Quantité comptée en stock'}
             </label>
-            <input type="number" min={tracked && mode === 'entree' ? 1 : 0} inputMode="numeric" required value={qty} onChange={(e) => setQty(e.target.value)}
-              placeholder={tracked && mode === 'entree' ? 'Ex : 10' : 'Ex : 8'}
+            <input type="number" min={tracked && mode !== 'correction' ? 1 : 0} max={tracked && mode === 'sortie' ? product.stock : undefined} inputMode="numeric" required value={qty} onChange={(e) => setQty(e.target.value)}
+              placeholder={tracked && mode === 'entree' ? 'Ex : 10' : tracked && mode === 'sortie' ? 'Ex : 2' : 'Ex : 8'}
               className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
             {preview && <p className="text-neutral-400 text-xs mt-1.5">{preview}</p>}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-neutral-400 mb-1">
-              {tracked && mode === 'correction' ? 'Motif' : 'Note'} <span className="text-neutral-600">(optionnel)</span>
+              {tracked && mode !== 'entree' ? 'Motif' : 'Note'} <span className="text-neutral-600">(optionnel)</span>
             </label>
             <input type="text" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200}
-              placeholder={tracked && mode === 'correction' ? 'Ex : inventaire, casse, perte' : 'Ex : fournisseur, bon de livraison'}
+              placeholder={tracked && mode === 'sortie' ? 'Ex : casse, usage station, transfert' : tracked && mode === 'correction' ? 'Ex : inventaire, casse, perte' : 'Ex : fournisseur, bon de livraison'}
               className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500" />
           </div>
 
@@ -143,7 +147,7 @@ export default function ShopStockModal({ product, stationId, onClose, onChanged 
           <button type="submit" disabled={!valid || saving}
             className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {!tracked ? 'Commencer le suivi du stock' : mode === 'entree' ? 'Enregistrer l\'entrée' : 'Corriger le stock'}
+            {!tracked ? 'Commencer le suivi du stock' : mode === 'entree' ? 'Enregistrer l\'entrée' : mode === 'sortie' ? 'Enregistrer la sortie' : 'Corriger le stock'}
           </button>
         </form>
 

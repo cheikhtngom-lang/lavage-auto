@@ -397,15 +397,15 @@ export default function Shop() {
                     className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold transition-colors">
                     <ShoppingCart className="w-4 h-4" /> Vendre
                   </button>
-                  <button onClick={() => setStockProductId(p.id)} title="Réapprovisionner ou corriger le stock"
+                  <button onClick={() => setStockProductId(p.id)} title="Entrée, sortie ou inventaire du stock"
                     className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 text-xs font-bold transition-colors">
                     <Boxes className="w-4 h-4" /> Stock
                   </button>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => toggleActive(p)} title={p.active ? 'Masquer' : 'Publier'}
-                    className="p-2 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 transition-colors">
-                    {p.active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  <button onClick={() => toggleActive(p)} title={p.active ? 'Retirer de la vente (masqué aux clients)' : 'Remettre en ligne'}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-colors ${p.active ? 'bg-white/5 text-neutral-300 hover:bg-white/10' : 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25'}`}>
+                    {p.active ? <><EyeOff className="w-4 h-4" /> Retirer</> : <><Eye className="w-4 h-4" /> Remettre en ligne</>}
                   </button>
                   <button onClick={() => openEdit(p)} title="Modifier"
                     className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors">
