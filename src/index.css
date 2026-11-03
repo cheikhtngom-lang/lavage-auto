@@ -83,8 +83,22 @@
     @apply relative inline-flex overflow-hidden rounded-xl p-[1px] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-neutral-950 active:scale-95 transition-transform;
   }
   
+  /* Calque tournant des boutons à bord lumineux : un carré de 1,5 fois la
+     largeur du bouton, centré (la marge verticale en % se calcule aussi sur
+     la largeur). Avant : inset -1000 %, un calque 21 fois plus grand que le
+     bouton, repeint à chaque image — très lourd sur iPhone et tablette. */
+  .spin-layer {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 150%;
+    aspect-ratio: 1 / 1;
+    margin-left: -75%;
+    margin-top: -75%;
+  }
+
   .btn-premium-shimmer {
-    @apply absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#3b82f6_0%,#10b981_50%,#3b82f6_100%)];
+    @apply spin-layer animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#3b82f6_0%,#10b981_50%,#3b82f6_100%)];
   }
   
   .btn-premium-content {
@@ -148,6 +162,19 @@
 @keyframes foam-bob {
   0%, 100% { transform: translateY(0) scaleX(1); opacity: 0.6; }
   50% { transform: translateY(-4px) scaleX(1.04); opacity: 0.9; }
+}
+
+/* Écrans tactiles (iPhone, iPad, Android) : aucun flou d'arrière-plan ni
+   halo flouté. Safari recalcule chaque backdrop-filter à chaque image dès que
+   ce qui est dessous bouge (défilement, changement de rubrique, bordure
+   animée) : c'était la principale cause de lenteur sur iPhone. Sur ce fond
+   sombre, le rendu reste quasiment le même. */
+@media (hover: none) {
+  *, *::before, *::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .shell-glow { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

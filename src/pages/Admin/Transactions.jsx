@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -62,7 +61,8 @@ export default function AdminTransactions() {
   const currentPage = Math.min(page, totalPages);
   const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const exportTransactionsToExcel = () => {
+  const exportTransactionsToExcel = async () => {
+    const XLSX = await import('xlsx'); // chargé au clic seulement (≈ 270 ko)
     const rows = [
       ['Date & Heure', 'Client', 'Service', 'Méthode', 'Montant (FCFA)'],
       ...filteredTransactions.map(t => [t.date, t.client, t.service, t.method, t.amount]),

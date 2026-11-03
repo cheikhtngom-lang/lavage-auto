@@ -24,15 +24,41 @@ import PageSuspense from './components/ui/PageSuspense';
 // Après un déploiement, un onglet resté ouvert réclame d'anciens fichiers qui
 // n'existent plus sur le serveur : on recharge la page une fois (garde en
 // sessionStorage contre une boucle) pour récupérer la nouvelle version.
-const lazyPage = (load) => lazy(() => load().then((mod) => {
-  try { sessionStorage.removeItem('ccg_chunk_reload'); } catch { /* stockage indisponible */ }
-  return mod;
-}).catch((err) => {
-  let reloaded = false;
-  try { reloaded = sessionStorage.getItem('ccg_chunk_reload') === '1'; sessionStorage.setItem('ccg_chunk_reload', '1'); } catch { /* idem */ }
-  if (!reloaded) { window.location.reload(); return new Promise(() => {}); }
-  throw err;
-}));
+const lazyPage = (load) => {
+  const Page = lazy(() => load().then((mod) => {
+    try { sessionStorage.removeItem('ccg_chunk_reload'); } catch { /* stockage indisponible */ }
+    return mod;
+  }).catch((err) => {
+    let reloaded = false;
+    try { reloaded = sessionStorage.getItem('ccg_chunk_reload') === '1'; sessionStorage.setItem('ccg_chunk_reload', '1'); } catch { /* idem */ }
+    if (!reloaded) { window.location.reload(); return new Promise(() => {}); }
+    throw err;
+  }));
+  // Téléchargement anticipé (PrefetchPages) : même import, mis en cache par
+  // le navigateur, donc la page s'affiche ensuite sans attendre le réseau.
+  Page.preload = () => load().catch(() => {});
+  return Page;
+};
+
+// Une fois un espace affiché, ses autres rubriques se téléchargent en tâche
+// de fond, une à la fois : changer de rubrique n'attend plus le réseau (sur
+// iPhone en 4G, chaque première visite d'une rubrique affichait une roue de
+// chargement). Rien en mode « économie de données » ni en 2G.
+function PrefetchPages({ pages }) {
+  useEffect(() => {
+    const conn = typeof navigator !== 'undefined' ? navigator.connection : null;
+    if (conn?.saveData || /2g/.test(conn?.effectiveType || '')) return undefined;
+    let cancelled = false;
+    let timer = null;
+    const next = (i) => {
+      if (cancelled || i >= pages.length) return;
+      timer = setTimeout(() => { pages[i].preload().finally(() => next(i + 1)); }, 150);
+    };
+    timer = setTimeout(() => next(0), 1500); // laisse d'abord la page demandée finir
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [pages]);
+  return null;
+}
 // Pages Client
 const ClientOverview = lazyPage(() => import('./pages/Client/Dashboard'));
 const ClientLoyalty = lazyPage(() => import('./pages/Client/Loyalty'));
@@ -86,6 +112,11 @@ const SuperAdminFuel = lazyPage(() => import('./pages/SuperAdmin/Fuel'));
 const SuperAdminSupport = lazyPage(() => import('./pages/SuperAdmin/Support'));
 const SuperAdminAffiliates = lazyPage(() => import('./pages/SuperAdmin/Affiliates'));
 const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'));
+
+const CLIENT_PAGES = [ClientOverview, Stations, MyStations, ClientLoyalty, ClientShop, ClientGarage, ClientSettings];
+const ADMIN_PAGES = [StationDashboard, AdminTransactions, Subscriptions, Washers, Settings, Analytics, Accounting, AdminPayouts, AdminReminders, Team, Pompistes, Vidange, Bilan, Shop, AdminAnnouncements];
+const GROUP_PAGES = [GroupDashboard, GroupStations, GroupAccounting, GroupAnalysis, GroupOrder, GroupBilling, GroupSettings];
+const SUPER_ADMIN_PAGES = [SuperAdminDashboard, SuperAdminStations, SuperAdminBilling, SuperAdminMotorists, SuperAdminSuperUsers, SuperAdminAnalytics, SuperAdminPayouts, SuperAdminReminders, SuperAdminGroups, SuperAdminModules, SuperAdminAds, SuperAdminAnnouncements, SuperAdminTicker, SuperAdminFuel, SuperAdminBilan, SuperAdminSupport, SuperAdminAffiliates, SuperAdminSettings];
 
 // Mock Home/Login Pages
 const Home = () => (
@@ -181,7 +212,7 @@ function App() {
               </Route>
 
               {/* Espace Automobiliste */}
-              <Route path="/dashboard" element={<ClientLayout />}>
+              <Route path="/dashboard" element={<><PrefetchPages pages={CLIENT_PAGES} /><ClientLayout /></>}>
                 <Route index element={<ClientOverview />} />
                 <Route path="fidelite" element={<ClientLoyalty />} />
                 <Route path="garage" element={<ClientGarage />} />
@@ -196,7 +227,7 @@ function App() {
                   (voir SubscriptionEnded.jsx et le redirect dans AdminLayout.jsx) */}
               <Route path="/admin/renouveler" element={<PageSuspense><SubscriptionEnded /></PageSuspense>} />
 
-              <Route path="/admin" element={<AdminLayout />}>
+              <Route path="/admin" element={<><PrefetchPages pages={ADMIN_PAGES} /><AdminLayout /></>}>
                 <Route index element={<Navigate to="/admin/queue" replace />} />
                 <Route path="queue" element={<StationDashboard />} />
                 <Route path="transactions" element={<RequirePerm perm="transactions.view"><AdminTransactions /></RequirePerm>} />
@@ -216,7 +247,7 @@ function App() {
               </Route>
 
               {/* Espace chef d'entreprise (offre Sur mesure) */}
-              <Route path="/groupe" element={<GroupLayout />}>
+              <Route path="/groupe" element={<><PrefetchPages pages={GROUP_PAGES} /><GroupLayout /></>}>
                 <Route index element={<GroupDashboard />} />
                 <Route path="stations" element={<GroupStations />} />
                 <Route path="comptabilite" element={<GroupAccounting />} />
@@ -227,7 +258,7 @@ function App() {
               </Route>
 
               {/* Routes Super Admin */}
-              <Route path="/superadmin" element={<SuperAdminLayout />}>
+              <Route path="/superadmin" element={<><PrefetchPages pages={SUPER_ADMIN_PAGES} /><SuperAdminLayout /></>}>
                 <Route index element={<SuperAdminDashboard />} />
                 <Route path="annonces" element={<SuperAdminAnnouncements />} />
                 <Route path="analytics" element={<SuperAdminAnalytics />} />

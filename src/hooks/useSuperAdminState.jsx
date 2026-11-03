@@ -417,8 +417,17 @@ export function SuperAdminStateProvider({ children }) {
             if (needsQueueData) loadQueueSnapshot();
             if (isSuperAdmin) { loadClientAccounts(); loadDisputes(); loadAuditLog(); loadSuperUserSubscriptions(); loadLavagePayments(); loadStationTransactions(); loadAnnouncements(); }
         };
-        window.addEventListener('focus', refresh);
-        const onVisible = () => { if (!document.hidden) refresh(); };
+        // Retour sur l'onglet : `focus` + `visibilitychange` arrivent ensemble
+        // (sur iPhone, `focus` aussi au moindre clavier) — au plus une
+        // relecture complète toutes les 15 s par ce chemin.
+        let lastReturnRefresh = Date.now();
+        const refreshOnReturn = () => {
+            if (Date.now() - lastReturnRefresh < 15000) return;
+            lastReturnRefresh = Date.now();
+            refresh();
+        };
+        window.addEventListener('focus', refreshOnReturn);
+        const onVisible = () => { if (!document.hidden) refreshOnReturn(); };
         document.addEventListener('visibilitychange', onVisible);
         // Toutes ces tables sont maintenant dans la publication supabase_realtime
         // (voir schema.sql) : un changement pendant qu'un autre onglet Super
@@ -471,7 +480,7 @@ export function SuperAdminStateProvider({ children }) {
         // useAppState.jsx.
         const interval = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
         return () => {
-            window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', refreshOnReturn); document.removeEventListener('visibilitychange', onVisible);
             clearInterval(interval);
             if (queueReloadTimer.current) clearTimeout(queueReloadTimer.current);
             supabase.removeChannel(channel);
@@ -613,6 +622,41 @@ export function SuperAdminStateProvider({ children }) {
         logAction(`Accès gratuit de ${days} jours offert à ${station.name} (jusqu'au ${plan.until.toLocaleDateString('fr-FR')})`);
     };
 
+    // Abonnement payé hors ligne (espèces, Wave/OM reçu directement) : N mois
+    // à partir de l'échéance en cours (ou d'aujourd'hui), paiement enregistré
+    // en CONFIRMED pour compter dans les revenus encaissés — voir
+    // add_cash_payment_trial_purge.sql. `start` (AAAA-MM-JJ) force le début.
+    const recordStationPayment = async (id, { months, amount, method, start }) => {
+        const station = stations.find((s) => s.id === id);
+        const { data, error } = await supabase.rpc('superadmin_record_station_payment', {
+            p_station_id: id, p_months: months, p_amount: amount, p_method: method || 'Espèces', p_start: start || null,
+        });
+        if (error) throw new Error(error.code === 'PGRST202' ? 'Fonction absente : exécutez add_cash_payment_trial_purge.sql.' : error.message);
+        const next = data?.next_billing_date;
+        setStations((prev) => prev.map((s) => (s.id === id ? { ...s, subscriptionStatus: 'a_jour', nextBillingDate: next } : s)));
+        loadStationRenewalPayments();
+        if (station) logAction(`Paiement de ${months} mois encaissé (${method || 'Espèces'}, ${(amount || 0).toLocaleString('fr-FR')} FCFA) : ${station.name}, échéance au ${new Date(next).toLocaleDateString('fr-FR')}`);
+        return data;
+    };
+
+    // Données saisies pendant l'essai (lavages, transactions, dépenses,
+    // boutique, pointages…) : comptage pour l'aperçu, puis effacement. Refusé
+    // en base dès que la station a payé ou a un accès illimité.
+    const getTrialDataCounts = async (id) => {
+        const { data, error } = await supabase.rpc('superadmin_trial_data_counts', { p_station_id: id });
+        if (error) throw new Error(error.code === 'PGRST202' ? 'Fonction absente : exécutez add_cash_payment_trial_purge.sql.' : error.message);
+        return data;
+    };
+
+    const purgeTrialData = async (id) => {
+        const station = stations.find((s) => s.id === id);
+        const { data, error } = await supabase.rpc('superadmin_purge_trial_data', { p_station_id: id });
+        if (error) throw new Error(error.code === 'PGRST202' ? 'Fonction absente : exécutez add_cash_payment_trial_purge.sql.' : error.message);
+        loadStationTransactions();
+        if (station) logAction(`Données d'essai vidées : ${station.name}`);
+        return data;
+    };
+
     // Confirme un paiement Super User (ligne PENDING -> ACTIVE) une fois
     // l'argent réellement reçu (Wave/OM) — jamais déclenché automatiquement au
     // clic "Payer" côté client, voir src/lib/superUser.js. Abonnement d'1 mois
@@ -750,6 +794,7 @@ export function SuperAdminStateProvider({ children }) {
             stations: pricedStations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
             addStation, updateStation, setStationStatus, deleteStation, setStationPlan, toggleStationModule,
             markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess, grantFreeAccess,
+            recordStationPayment, getTrialDataCounts, purgeTrialData,
             addDispute, resolveDispute, refundDispute, logAction,
             updatePlan, resetPlans,
             superUserSubscriptions, confirmSuperUserPayment, rejectSuperUserPayment,

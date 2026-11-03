@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import WorkedTimeCell from '../../components/ui/WorkedTimeCell';
@@ -422,6 +421,7 @@ export default function Pompistes() {
   // pompe » et « Détail par jour ». Un pompiste retiré depuis, mais qui a
   // travaillé ce mois-là, reste inclus.
   const exportToExcel = async () => {
+    const XLSX = await import('xlsx'); // chargé au clic seulement (≈ 270 ko)
     const [yStr, mStr] = exportMonth.split('-');
     const year = Number(yStr);
     const month = Number(mStr) - 1;

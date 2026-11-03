@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { CheckCircle2, Clock, XCircle, Search, Droplets, Calendar, Loader2, ChevronLeft, ChevronRight, Settings2, FileSpreadsheet, Edit2, Trash2, X, Eye } from 'lucide-react';
@@ -111,7 +110,8 @@ export default function Washers() {
 
   // Feuille Excel (.xlsx, via SheetJS) : une ligne par laveur, une colonne par
   // jour de la période affichée à l'écran (semaine ou mois).
-  const exportPlanningToExcel = () => {
+  const exportPlanningToExcel = async () => {
+    const XLSX = await import('xlsx'); // chargé au clic seulement (≈ 270 ko)
     const header = ['Laveur', ...periodDates.map(d => d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' }))];
     const rows = [header];
     washersList.forEach(w => {
@@ -236,6 +236,7 @@ export default function Washers() {
   // passés = instantané enregistré ce jour-là. Un employé supprimé depuis
   // mais qui a pointé ce mois-là reste inclus (nom/rôle figés dans la table).
   const exportAttendanceToExcel = async () => {
+    const XLSX = await import('xlsx'); // chargé au clic seulement (≈ 270 ko)
     const [yStr, mStr] = exportMonth.split('-');
     const year = Number(yStr);
     const month = Number(mStr) - 1;

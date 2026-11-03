@@ -82,8 +82,18 @@ export function ClientAccountProvider({ children }) {
         loadSuperUserSub(account.id);
         loadClientAnnouncements();
         const refresh = () => { loadActivity(account.id, account.phone); loadSuperUserSub(account.id); loadClientAnnouncements(); };
-        window.addEventListener('focus', refresh);
-        const onVisible = () => { if (!document.hidden) refresh(); };
+        // Sur iPhone, `focus` et `visibilitychange` partent ensemble à chaque
+        // retour sur l'onglet (et `focus` au moindre clavier) : 6 requêtes en
+        // double. Au plus une relecture toutes les 15 s par ce chemin — le
+        // direct (Realtime) et le filet de 45 s ne sont pas concernés.
+        let lastReturnRefresh = Date.now();
+        const refreshOnReturn = () => {
+            if (Date.now() - lastReturnRefresh < 15000) return;
+            lastReturnRefresh = Date.now();
+            refresh();
+        };
+        window.addEventListener('focus', refreshOnReturn);
+        const onVisible = () => { if (!document.hidden) refreshOnReturn(); };
         document.addEventListener('visibilitychange', onVisible);
         // `reservations`/`transactions` sont dans la publication supabase_realtime
         // (voir schema.sql) : la position en file/le passage en lavage arrivent en
@@ -131,7 +141,7 @@ export function ClientAccountProvider({ children }) {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, notifyAnnouncement)
             .subscribe();
         const interval = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
-        return () => { clearInterval(interval); window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', onVisible); supabase.removeChannel(channel); };
+        return () => { clearInterval(interval); window.removeEventListener('focus', refreshOnReturn); document.removeEventListener('visibilitychange', onVisible); supabase.removeChannel(channel); };
     }, [account?.id, account?.phone, loadActivity, loadSuperUserSub, loadClientAnnouncements]);
 
     const refreshActivity = useCallback(() => { if (account?.id) loadActivity(account.id, account.phone); }, [account?.id, account?.phone, loadActivity]);

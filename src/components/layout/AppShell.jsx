@@ -153,7 +153,7 @@ export default function AppShell({
       {overlays}
 
       {mode === 'drawer' && (
-        <div className="absolute top-0 left-0 right-0 h-16 bg-neutral-950/80 backdrop-blur-xl border-b border-white/10 z-30 flex items-center gap-3 px-4">
+        <div className="absolute top-0 left-0 right-0 h-16 bg-neutral-950/95 backdrop-blur-xl border-b border-white/10 z-30 flex items-center gap-3 px-4">
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
@@ -368,8 +368,8 @@ export default function AppShell({
       <main className={cn('flex-1 min-w-0 relative overflow-y-auto overflow-x-hidden', mode === 'drawer' && 'pt-16')}>
         {glows && (
           <>
-            <div className={cn('absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] pointer-events-none', glows[0])} />
-            <div className={cn('absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] pointer-events-none', glows[1])} />
+            <div className={cn('shell-glow absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] pointer-events-none', glows[0])} />
+            <div className={cn('shell-glow absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[120px] pointer-events-none', glows[1])} />
           </>
         )}
 

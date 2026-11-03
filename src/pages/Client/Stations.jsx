@@ -380,9 +380,11 @@ export default function Stations() {
   // Titre de page dédié pour la version publique (/stations, servie via
   // dashboard.html — voir vite.config.js) : sinon les moteurs de recherche ne
   // voient que le titre générique "Clean Car Galsen - Dashboards" partagé par
-  // tout le SPA. Inutile en contexte connecté (/dashboard/stations, non indexé).
+  // tout le SPA. En contexte connecté (/dashboard/stations, non indexé), titre
+  // court comme les autres rubriques — sinon l'onglet gardait celui de la
+  // rubrique précédente (« Boutique », « Mon garage »…).
   useEffect(() => {
-    if (!isDashboardContext) document.title = 'Trouver une station de lavage - Clean Car Galsen';
+    document.title = isDashboardContext ? 'Trouver une station · Clean Car Galsen' : 'Trouver une station de lavage - Clean Car Galsen';
   }, [isDashboardContext]);
 
   const handleSearch = () => setAppliedSearch({ query: searchInput.trim().toLowerCase(), region: regionInput });

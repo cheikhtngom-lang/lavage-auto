@@ -6,7 +6,6 @@
 // coordonnées) à gauche, bloc "Reçu N°/Date" à droite, tableau des
 // prestations, ligne TOTAL mise en évidence, cachet de l'entreprise en pied
 // de page si configuré.
-import jsPDF from 'jspdf';
 
 const BLUE = [37, 99, 235];   // Tailwind blue-600 — couleur d'accent de l'app
 const DARK = [23, 23, 23];
@@ -62,6 +61,9 @@ export async function downloadReceiptPdf({
   stationName, stationAddress, stationPhone, stationLogo, stationCachet,
   receiptId, date, client, items = [], method, total,
 }) {
+  // jsPDF (≈ 380 ko) n'est téléchargé qu'au premier reçu demandé, pas à
+  // l'ouverture des pages qui proposent le bouton.
+  const { default: jsPDF } = await import('jspdf');
   const pageW = 148, pageH = 210; // A5 portrait — plus de place qu'un ticket, rendu plus soigné
   const marginX = 14;
   const contentW = pageW - marginX * 2;
