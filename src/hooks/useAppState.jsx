@@ -527,12 +527,14 @@ export function AppStateProvider({ children }) {
         return error;
     };
 
-    const generateSubscriptionInvoice = async (sub, billingMonth) => {
+    // `amount` : montant tapé par la station pour ce mois (un ancien abonné
+    // peut payer autre chose que son prix de départ) ; par défaut, son prix.
+    const generateSubscriptionInvoice = async (sub, billingMonth, amount = sub.price) => {
         if (!stationId || stationId === 'default') return;
         const { error } = await supabase.from('station_subscription_invoices').insert({
             station_id: stationId, subscription_id: sub.id, client_id: sub.clientId,
             client_name: sub.clientName, client_phone: sub.clientPhone,
-            amount: sub.price, billing_month: billingMonth, status: 'a_payer'
+            amount, billing_month: billingMonth, status: 'a_payer'
         });
         if (!error) await loadSubscriptions();
         return error;
@@ -541,6 +543,22 @@ export function AppStateProvider({ children }) {
     const markSubscriptionInvoicePaid = async (invoiceId) => {
         await supabase.from('station_subscription_invoices').update({ status: 'paye', paid_at: new Date().toISOString() }).eq('id', invoiceId);
         await loadSubscriptions();
+    };
+
+    // Facture en double ou faite par erreur : 'annule' la sort de la
+    // comptabilité (seules les factures 'paye' y comptent) sans l'effacer.
+    const cancelSubscriptionInvoice = async (invoiceId) => {
+        const { error } = await supabase.from('station_subscription_invoices').update({ status: 'annule' }).eq('id', invoiceId);
+        await loadSubscriptions();
+        return error;
+    };
+
+    // Nouveau prix mensuel d'un abonné (renouvellement à un autre tarif) :
+    // les factures déjà faites gardent leur montant.
+    const updateSubscriptionPrice = async (subId, price) => {
+        const { error } = await supabase.from('station_client_subscriptions').update({ price }).eq('id', subId);
+        await loadSubscriptions();
+        return error;
     };
 
     useEffect(() => {
@@ -1827,6 +1845,7 @@ export function AppStateProvider({ children }) {
             shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate,
             scheduleByDate, loadScheduleRange, setShiftForDay,
             clientSubscriptions, clientSubscriptionInvoices, addClientSubscription, deleteClientSubscription, updateSubscriptionStatus, generateSubscriptionInvoice, markSubscriptionInvoicePaid, rechargeSubscription,
+            cancelSubscriptionInvoice, updateSubscriptionPrice,
             stationAds, loadStationAds,
             lavagePayments,
             vidangePricingConfig, updateVidangePricing, updateVidangeSettings,
