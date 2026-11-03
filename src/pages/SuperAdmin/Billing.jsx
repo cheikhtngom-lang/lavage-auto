@@ -1,20 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search, Gift, X, Banknote, Eraser, Loader2 } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertTriangle, Bell, Clock, Infinity as InfinityIcon, XCircle, Smartphone, Search, Gift, X, Banknote, Eraser, Loader2, ChevronDown, Check } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { trialDaysRemaining, trialProgressPercent, trialUrgency, trialLabel, FREE_ACCESS_OPTIONS, freeAccessPlan } from '../../lib/stationTrial';
-import { stationDueDate } from '../../lib/subscriptionReminders';
+import { trialDaysRemaining, trialProgressPercent, trialLabel, FREE_ACCESS_OPTIONS, freeAccessPlan } from '../../lib/stationTrial';
+import { daysUntil, REMINDER_DAYS } from '../../lib/subscriptionReminders';
 import { validatedMRR, validatedStations, modulesMRR, stationPrice } from '../../lib/platformRevenue';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import Pagination from '../../components/ui/Pagination';
-
-const SUB_STATUS = {
-  a_jour: { label: 'À jour', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  en_retard: { label: 'Impayé', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  essai: { label: 'Essai gratuit', className: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-  illimite: { label: 'Accès illimité', className: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
-  a_payer: { label: 'En attente de paiement', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-};
 
 const frDate = (d) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -402,6 +395,271 @@ function PurgeTrialModal({ station, onClose, onCount, onPurge }) {
   );
 }
 
+// ─── Liste des stations ────────────────────────────────────────────────
+
+// « 16 oct. » (année ajoutée si ce n'est pas l'année en cours).
+const shortDate = (d) => {
+  const x = new Date(d);
+  const sameYear = x.getFullYear() === new Date().getFullYear();
+  return x.toLocaleDateString('fr-FR', sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+};
+// Retard depuis une date passée : « Depuis 18 jours » (la date est sur la jauge).
+const sinceLabel = (end, now) => {
+  const n = -daysUntil(end, now);
+  return n <= 0 ? "Depuis aujourd'hui" : `Depuis ${n} jour${n > 1 ? 's' : ''}`;
+};
+
+// Couleur d'une situation : point, texte, jauge et liseré de la ligne.
+const TONES = {
+  emerald: { dot: 'bg-emerald-400', text: 'text-emerald-300', rgb: '52,211,153' },
+  sky: { dot: 'bg-sky-400', text: 'text-sky-300', rgb: '56,189,248' },
+  amber: { dot: 'bg-amber-400', text: 'text-amber-300', rgb: '251,191,36' },
+  red: { dot: 'bg-red-400', text: 'text-red-300', rgb: '248,113,113' },
+  violet: { dot: 'bg-violet-300', text: 'text-violet-300', rgb: '196,181,253' },
+};
+
+// Où en est la station dans sa période (essai ou mois payé) : libellé, détail
+// daté, jauge, et `due` quand un paiement est attendu maintenant (essai
+// terminé, échéance dépassée, impayé, premier paiement).
+function cycleOf(s, now = new Date()) {
+  const status = s.subscriptionStatus;
+  if (status === 'illimite') return { tone: 'violet', title: 'Accès illimité', detail: 'Offert, sans échéance' };
+  if (status === 'a_payer') {
+    return { tone: 'amber', title: 'Premier paiement attendu', detail: s.joinedAt ? `Inscrite le ${shortDate(s.joinedAt)}` : 'Offre jamais activée', due: true };
+  }
+  if (status === 'essai') {
+    const offered = !!s.trialStartedAt;
+    if (!s.trialEndsAt) return { tone: 'sky', title: trialLabel(offered), detail: 'Sans date de fin' };
+    const end = new Date(s.trialEndsAt);
+    const start = new Date(s.trialStartedAt || s.joinedAt || end);
+    const left = trialDaysRemaining(s.trialEndsAt);
+    if (left <= 0) {
+      return {
+        tone: 'amber', title: offered ? 'Accès gratuit terminé' : 'Essai terminé', detail: sinceLabel(end, now),
+        gauge: { from: start, to: end, over: Math.max(0, -daysUntil(end, now)) }, due: true,
+      };
+    }
+    return {
+      tone: 'sky', title: trialLabel(offered), detail: `Encore ${left} j, jusqu'au ${shortDate(end)}`,
+      gauge: { from: start, to: end, pct: trialProgressPercent(s.trialEndsAt, s.trialStartedAt || s.joinedAt) },
+    };
+  }
+  const end = s.nextBillingDate ? new Date(s.nextBillingDate) : null;
+  const start = end ? addMonths(end, -1) : null;
+  if (status === 'en_retard') {
+    const late = end && end < now;
+    return {
+      tone: 'red', title: 'Impayé', detail: late ? sinceLabel(end, now) : 'Paiement non reçu',
+      gauge: late ? { from: start, to: end, over: Math.max(0, -daysUntil(end, now)) } : null, due: true,
+    };
+  }
+  if (!end) return { tone: 'emerald', title: 'Payé', detail: "Sans date d'échéance" };
+  if (isPastDue(s)) {
+    return {
+      tone: 'red', title: 'Échéance dépassée', detail: sinceLabel(end, now),
+      gauge: { from: start, to: end, over: Math.max(0, -daysUntil(end, now)) }, due: true,
+    };
+  }
+  const pct = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
+  const left = daysUntil(end, now);
+  if (left <= REMINDER_DAYS) {
+    return { tone: 'amber', title: 'Échéance proche', detail: left <= 0 ? "Aujourd'hui" : `Dans ${left} j, le ${shortDate(end)}`, gauge: { from: start, to: end, pct } };
+  }
+  return { tone: 'emerald', title: 'Payé', detail: `Jusqu'au ${shortDate(end)}`, gauge: { from: start, to: end, pct } };
+}
+
+// Jauge de la période : remplie jusqu'à aujourd'hui ; une fois l'échéance
+// passée, la période se fige à gauche du repère et le retard s'affiche en
+// hachures au-delà.
+function CycleGauge({ gauge, tone }) {
+  if (!gauge) return null;
+  const t = TONES[tone];
+  if (gauge.over != null) {
+    return (
+      <div className="mt-2.5 max-w-[280px]" aria-hidden="true">
+        <div className="flex h-1.5 items-center gap-[3px]">
+          <div className="h-full basis-[66%] rounded-l-full bg-white/[0.13]" />
+          <div className="h-3.5 w-[2px] shrink-0 rounded-full bg-white/50" />
+          <div
+            className="h-full flex-1 rounded-r-full"
+            style={{ backgroundImage: `repeating-linear-gradient(-45deg, rgba(${t.rgb},0.95) 0 3px, rgba(${t.rgb},0.22) 3px 6px)` }}
+          />
+        </div>
+        <div className="relative mt-1.5 h-4 text-[11px] tabular-nums text-neutral-500">
+          <span className="absolute left-0">{shortDate(gauge.from)}</span>
+          <span className="absolute left-[66%] -translate-x-1/2 text-neutral-300">{shortDate(gauge.to)}</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2.5 max-w-[280px]" aria-hidden="true">
+      <div className="relative h-1.5 rounded-full bg-white/[0.07]">
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full ${t.dot}`}
+          style={{ width: `${Math.max(gauge.pct, 4)}%`, boxShadow: `0 0 12px rgba(${t.rgb},0.45)` }}
+        />
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-neutral-500">
+        <span>{shortDate(gauge.from)}</span>
+        <span>{shortDate(gauge.to)}</span>
+      </div>
+    </div>
+  );
+}
+
+const initials = (name) => (name || '?').split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+
+function StationMark({ station }) {
+  const [broken, setBroken] = useState(false);
+  if (station.logo && !broken) {
+    return <img src={station.logo} alt="" loading="lazy" onError={() => setBroken(true)} className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-white/10" />;
+  }
+  return (
+    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] font-display text-[13px] font-bold tracking-wide text-neutral-200 ring-1 ring-inset ring-white/10">
+      {initials(station.name)}
+    </span>
+  );
+}
+
+const BTN_BASE = 'inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-950';
+const BTN_STRONG = `${BTN_BASE} bg-emerald-400 text-emerald-950 hover:bg-emerald-300 focus-visible:ring-emerald-300/70`;
+const BTN_QUIET = `${BTN_BASE} bg-white/[0.04] text-neutral-200 ring-1 ring-inset ring-white/10 hover:bg-white/[0.08] hover:text-white focus-visible:ring-white/40`;
+
+// Menu « Gérer » d'une ligne : rendu dans <body> pour ne pas être coupé par
+// la liste, ouvert vers le haut quand la place manque en bas de l'écran.
+function ManageMenu({ label, items }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const close = useCallback((focusBack) => {
+    setOpen(false);
+    setPos(null);
+    if (focusBack) btnRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !menuRef.current || !btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const { offsetWidth: w, offsetHeight: h } = menuRef.current;
+    const below = window.innerHeight - r.bottom >= h + 12 || r.top < h + 12;
+    setPos({
+      top: below ? r.bottom + 6 : r.top - h - 6,
+      left: Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)),
+      up: !below,
+    });
+  }, [open]);
+
+  useEffect(() => {
+    // preventScroll : sans lui, Chrome fait glisser <main> (qui déborde à
+    // cause du halo d'AppShell) au moment du focus.
+    if (open && pos) menuRef.current?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+  }, [open, pos]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => { if (!menuRef.current?.contains(e.target) && !btnRef.current?.contains(e.target)) close(false); };
+    const onScroll = (e) => { if (!(e.target instanceof Node) || !menuRef.current?.contains(e.target)) close(false); };
+    const onResize = () => close(false);
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(true); } };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [open, close]);
+
+  const onMenuKey = (e) => {
+    const list = [...menuRef.current.querySelectorAll('[role="menuitem"]')];
+    const i = list.indexOf(document.activeElement);
+    const go = (n) => { e.preventDefault(); list[(n + list.length) % list.length]?.focus({ preventScroll: true }); };
+    if (e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowUp') go(i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(list.length - 1);
+    else if (e.key === 'Tab') close(false);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => (open ? close(false) : setOpen(true))}
+        className={`${BTN_QUIET} ${open ? 'bg-white/[0.08] text-white' : ''}`}
+      >
+        Gérer <ChevronDown className={`h-4 w-4 text-neutral-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              ref={menuRef}
+              role="menu"
+              aria-label={label}
+              onKeyDown={onMenuKey}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.1 } }}
+              transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+              style={{
+                position: 'fixed',
+                zIndex: 60,
+                transformOrigin: pos?.up ? 'bottom right' : 'top right',
+                ...(pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0, visibility: 'hidden' }),
+              }}
+              className="w-72 rounded-xl border border-white/10 bg-neutral-900 p-1.5 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.75),inset_0_1px_0_rgba(255,255,255,0.05)]"
+            >
+              {items.map((item, i) => (item.separator ? (
+                <div key={`sep-${i}`} role="separator" className="my-1.5 h-px bg-white/[0.07]" />
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => { close(false); item.onSelect(); }}
+                  className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left outline-none transition-colors ${item.danger ? 'hover:bg-amber-400/10 focus:bg-amber-400/10' : 'hover:bg-white/[0.06] focus:bg-white/[0.06]'}`}
+                >
+                  <item.icon className={`mt-0.5 h-4 w-4 shrink-0 ${item.danger ? 'text-amber-300' : 'text-neutral-400'}`} />
+                  <span className="min-w-0">
+                    <span className={`block text-sm font-medium ${item.danger ? 'text-amber-200' : 'text-neutral-100'}`}>{item.label}</span>
+                    <span className="block text-xs text-neutral-500">{item.hint}</span>
+                  </span>
+                </button>
+              )))}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+// Filtres au-dessus de la liste. « À encaisser » = un paiement est attendu
+// maintenant (voir cycleOf).
+const FILTERS = [
+  { key: 'toutes', label: 'Toutes', test: () => true },
+  { key: 'encaisser', label: 'À encaisser', test: (s, c) => c.due },
+  { key: 'essai', label: 'En essai', test: (s, c) => s.subscriptionStatus === 'essai' && !c.due },
+  { key: 'payees', label: 'Payées', test: (s, c) => s.subscriptionStatus === 'a_jour' && !c.due },
+  { key: 'illimite', label: 'Illimité', test: (s) => s.subscriptionStatus === 'illimite' },
+];
+
+// Grille partagée : en colonnes sur grand écran, en carte sur téléphone.
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] gap-x-6 gap-y-3 [grid-template-areas:'station_amount'_'cycle_cycle'_'actions_actions'] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.85fr)_minmax(0,1.5fr)_13rem] lg:items-center lg:[grid-template-areas:'station_amount_cycle_actions']";
+
 export default function Billing() {
   useDocumentTitle('Facturation');
   const {
@@ -416,12 +674,18 @@ export default function Billing() {
   const pendingRenewals = stationRenewalPayments.filter((p) => p.status === 'PENDING');
 
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('toutes');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const now = new Date();
+  const cycles = Object.fromEntries(stations.map((s) => [s.id, cycleOf(s, now)]));
+  const filterCounts = Object.fromEntries(FILTERS.map((f) => [f.key, stations.filter((s) => f.test(s, cycles[s.id])).length]));
+  const activeFilter = FILTERS.find((f) => f.key === filter) || FILTERS[0];
   const filteredStations = stations.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) || (s.city || '').toLowerCase().includes(search.toLowerCase())
+    activeFilter.test(s, cycles[s.id])
+    && (s.name.toLowerCase().includes(search.toLowerCase()) || (s.city || '').toLowerCase().includes(search.toLowerCase()))
   );
-  useEffect(() => { setPage(1); }, [search]);
+  useEffect(() => { setPage(1); }, [search, filter]);
   const totalPages = Math.max(1, Math.ceil(filteredStations.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginatedStations = filteredStations.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -444,101 +708,108 @@ export default function Billing() {
     setTimeout(() => setReminded(prev => ({ ...prev, [id]: false })), 3000);
   };
 
-  const renderAmount = (s) => (s.subscriptionStatus === 'illimite'
-    ? <span className="text-purple-400 font-medium">Gratuit</span>
-    : `${stationPrice(PLANS, s).toLocaleString('fr-FR')} FCFA`);
-
-  const renderStatus = (s) => (
-    <>
-      <span className={`text-xs font-medium px-3 py-1 rounded-full border ${SUB_STATUS[s.subscriptionStatus]?.className}`}>
-        {s.subscriptionStatus === 'essai' ? trialLabel(!!s.trialStartedAt) : (SUB_STATUS[s.subscriptionStatus]?.label || s.subscriptionStatus)}
-      </span>
-      {s.subscriptionStatus === 'essai' && s.trialEndsAt && (() => {
-        const remaining = trialDaysRemaining(s.trialEndsAt);
-        const percent = trialProgressPercent(s.trialEndsAt, s.trialStartedAt || s.joinedAt);
-        const urgency = trialUrgency(s.trialEndsAt, s.trialStartedAt || s.joinedAt);
-        const textClass = urgency === 'danger' ? 'text-red-400' : urgency === 'warning' ? 'text-orange-400' : 'text-neutral-500';
-        const barClass = urgency === 'danger' ? 'bg-red-400' : urgency === 'warning' ? 'bg-orange-400' : 'bg-emerald-400';
-        return (
-          <div className="mt-2 max-w-[140px]">
-            <p className={`text-xs mb-1 ${textClass}`}>
-              {remaining <= 0 ? (s.trialStartedAt ? 'Accès gratuit terminé' : 'Essai terminé') : `${remaining} j restants`}
-            </p>
-            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-              <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percent}%` }} />
-            </div>
-          </div>
-        );
-      })()}
-    </>
-  );
-
-  // « À jour » ne repasse jamais seul en impayé : une échéance dépassée est
-  // signalée ici, pour encaisser le mois suivant.
-  const renderDue = (s) => {
-    const due = stationDueDate(s);
-    if (!due) return <span className="text-neutral-500">—</span>;
-    const late = isPastDue(s);
+  const amountCell = (s) => {
+    const price = stationPrice(PLANS, s);
+    const plan = PLANS[s.plan]?.label || s.plan;
+    if (s.subscriptionStatus === 'illimite') {
+      return (
+        <div className="min-w-0 text-right lg:text-left">
+          <p className="whitespace-nowrap font-display text-lg font-semibold text-violet-300">
+            Offert <s className="font-sans text-xs font-medium tabular-nums text-neutral-500">{price.toLocaleString('fr-FR')} FCFA</s>
+          </p>
+          <p className="text-xs text-neutral-500">Offre {plan}</p>
+        </div>
+      );
+    }
     return (
-      <span className={late ? 'text-red-400' : 'text-neutral-400'}>
-        {late && <span className="block text-[11px] font-semibold uppercase tracking-wide text-red-400">Échéance dépassée</span>}
-        {new Date(due).toLocaleDateString('fr-FR')}
-      </span>
+      <div className="min-w-0 text-right lg:text-left">
+        <p className="whitespace-nowrap font-display text-lg font-semibold tabular-nums text-white">
+          {price.toLocaleString('fr-FR')} <span className="font-sans text-xs font-medium text-neutral-500">FCFA/mois</span>
+        </p>
+        <p className="text-xs text-neutral-500">Offre {plan}</p>
+      </div>
     );
   };
 
-  const iconBtn = 'p-2 bg-white/5 text-neutral-400 rounded-lg transition-colors';
-  const renderActions = (s, alignEnd = false) => (
-    <div className={`flex flex-wrap items-center gap-2 ${alignEnd ? 'justify-end' : ''}`}>
-      {s.subscriptionStatus === 'illimite' ? (
-        <button
-          onClick={() => { if (window.confirm(`Retirer l'accès illimité de ${s.name} et revenir à un abonnement normal ?`)) revokeUnlimitedAccess(s.id); }}
-          className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors text-xs font-bold"
-          title="Retirer l'accès illimité"
-        >
-          <InfinityIcon className="w-4 h-4" /> Retirer l'illimité
-        </button>
-      ) : (
-        <>
-          <button
-            onClick={() => setPaymentFor(s)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 rounded-lg transition-colors text-xs font-bold"
-            title="Paiement reçu en espèces, Wave ou Orange Money : activer un ou plusieurs mois"
-          >
-            <Banknote className="w-4 h-4" /> Encaisser
-          </button>
-          <button
-            onClick={() => { if (window.confirm(`Donner un accès illimité (gratuit) à ${s.name} ?`)) grantUnlimitedAccess(s.id); }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 rounded-lg transition-colors text-xs font-bold"
-            title="Donner un accès illimité (gratuit)"
-          >
-            <InfinityIcon className="w-4 h-4" /> Illimité
-          </button>
-          {canPurgeTrial(s) && (
+  const menuItems = (s) => [
+    { icon: InfinityIcon, label: 'Passer en accès illimité', hint: 'Gratuit, sans échéance', onSelect: () => { if (window.confirm(`Donner un accès illimité (gratuit) à ${s.name} ?`)) grantUnlimitedAccess(s.id); } },
+    { icon: Gift, label: 'Offrir un accès gratuit', hint: '1 semaine, 10 jours ou 1 mois', onSelect: () => setFreeAccessFor(s) },
+    { separator: true },
+    { icon: Bell, label: 'Envoyer une relance', hint: 'Rappel de paiement à la station', onSelect: () => handleRemind(s.id) },
+    ...(s.subscriptionStatus !== 'en_retard'
+      ? [{ icon: AlertTriangle, label: 'Marquer comme impayé', hint: 'La station passe en impayé', onSelect: () => markSubscriptionOverdue(s.id) }]
+      : []),
+    ...(canPurgeTrial(s)
+      ? [{ separator: true }, { icon: Eraser, label: "Vider les données d'essai", hint: 'Efface les saisies faites pendant le test', danger: true, onSelect: () => setPurgeFor(s) }]
+      : []),
+  ];
+
+  const renderRow = (s) => {
+    const c = cycles[s.id];
+    const t = TONES[c.tone];
+    const second = s.city || (s.joinedAt ? `Inscrite le ${shortDate(s.joinedAt)}` : '');
+    return (
+      <li
+        key={s.id}
+        className={`relative px-4 py-4 transition-colors hover:bg-white/[0.02] lg:px-6 lg:py-[18px] ${ROW_GRID}`}
+        style={c.due ? { backgroundImage: `linear-gradient(90deg, rgba(${t.rgb},0.06), transparent 45%)` } : undefined}
+      >
+        {c.due && <span aria-hidden="true" className={`absolute bottom-3 left-0 top-3 w-[3px] rounded-r-full ${t.dot}`} />}
+
+        <div className="flex min-w-0 items-center gap-3 [grid-area:station]">
+          <StationMark station={s} />
+          <div className="min-w-0">
+            <p className="line-clamp-2 break-words font-display text-[15px] font-semibold leading-snug text-white" title={s.name}>{s.name}</p>
+            {second && <p className="truncate text-xs text-neutral-500">{second}</p>}
+          </div>
+        </div>
+
+        <div className="[grid-area:amount]">{amountCell(s)}</div>
+
+        <div className="min-w-0 [grid-area:cycle] max-lg:rounded-xl max-lg:bg-white/[0.025] max-lg:p-3">
+          <p className="flex items-center gap-2 text-sm font-medium text-white">
+            <span
+              aria-hidden="true"
+              className={`h-2 w-2 shrink-0 rounded-full ${t.dot}`}
+              style={c.due ? { boxShadow: `0 0 0 4px rgba(${t.rgb},0.16)` } : undefined}
+            />
+            {c.title}
+          </p>
+          <p className={`mt-0.5 pl-4 text-xs ${c.due ? t.text : 'text-neutral-400'}`}>{c.detail}</p>
+          <div className="pl-4"><CycleGauge gauge={c.gauge} tone={c.tone} /></div>
+          {reminded[s.id] && (
+            <p role="status" className="mt-1.5 flex items-center gap-1 pl-4 text-xs font-medium text-emerald-300">
+              <Check className="h-3.5 w-3.5" /> Relance envoyée
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 [grid-area:actions] lg:justify-end">
+          {s.subscriptionStatus === 'illimite' ? (
             <button
-              onClick={() => setPurgeFor(s)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg transition-colors text-xs font-bold"
-              title="Effacer les données saisies pendant l'essai"
+              type="button"
+              onClick={() => { if (window.confirm(`Retirer l'accès illimité de ${s.name} et revenir à un abonnement normal ?`)) revokeUnlimitedAccess(s.id); }}
+              className={`${BTN_QUIET} max-lg:flex-1`}
             >
-              <Eraser className="w-4 h-4" /> Vider l'essai
+              <InfinityIcon className="h-4 w-4 text-violet-300" /> Retirer l'illimité
             </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setPaymentFor(s)}
+                className={`${c.due ? BTN_STRONG : BTN_QUIET} max-lg:flex-1`}
+                title="Paiement reçu en espèces, Wave ou Orange Money : activer un ou plusieurs mois"
+              >
+                <Banknote className="h-4 w-4" /> Encaisser
+              </button>
+              <ManageMenu label={`Gérer ${s.name}`} items={menuItems(s)} />
+            </>
           )}
-          {s.subscriptionStatus !== 'en_retard' && (
-            <button onClick={() => markSubscriptionOverdue(s.id)} className={`${iconBtn} hover:bg-red-500/20 hover:text-red-400`} title="Marquer comme impayé" aria-label={`Marquer ${s.name} comme impayé`}>
-              <AlertTriangle className="w-4 h-4" />
-            </button>
-          )}
-          <button onClick={() => handleRemind(s.id)} className={`${iconBtn} hover:bg-blue-500/20 hover:text-blue-400`} title="Envoyer une relance" aria-label={`Relancer ${s.name}`}>
-            <Bell className="w-4 h-4" />
-          </button>
-          {reminded[s.id] && <span className="text-xs text-blue-400">Envoyée ✓</span>}
-          <button onClick={() => setFreeAccessFor(s)} className={`${iconBtn} hover:bg-purple-500/20 hover:text-purple-400`} title="Offrir un accès gratuit (1 semaine, 10 jours, 1 mois)" aria-label={`Offrir un accès gratuit à ${s.name}`}>
-            <Gift className="w-4 h-4" />
-          </button>
-        </>
-      )}
-    </div>
-  );
+        </div>
+      </li>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
@@ -612,79 +883,72 @@ export default function Billing() {
       )}
 
       {stations.length > 0 && (
-        <div className="relative w-full md:w-1/3 mb-6">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
-          <input
-            type="text"
-            placeholder="Rechercher une station ou une ville..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
-          />
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full lg:max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+            <input
+              type="search"
+              placeholder="Rechercher une station ou une ville"
+              aria-label="Rechercher une station ou une ville"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.03] pl-9 pr-3 text-sm text-white placeholder:text-neutral-500 transition-colors focus:border-white/25 focus:bg-white/[0.05] focus:outline-none"
+            />
+          </div>
+          <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:px-0 [&::-webkit-scrollbar]:hidden">
+            <div className="inline-flex gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-1" role="group" aria-label="Filtrer les stations">
+              {FILTERS.map((f) => {
+                const active = f.key === activeFilter.key;
+                const count = filterCounts[f.key];
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setFilter(f.key)}
+                    className={`relative flex h-8 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 ${active ? 'text-white' : 'text-neutral-400 hover:text-neutral-200'}`}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="billing-filter"
+                        transition={{ type: 'spring', duration: 0.35, bounce: 0.15 }}
+                        className="absolute inset-0 rounded-lg bg-white/[0.09] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                      />
+                    )}
+                    <span className="relative">{f.label}</span>
+                    <span className={`relative text-xs tabular-nums ${f.key === 'encaisser' && count > 0 ? 'font-semibold text-red-300' : 'text-neutral-500'}`}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
       {filteredStations.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
-          <CreditCard className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">{stations.length === 0 ? 'Aucune station à facturer' : 'Aucune station trouvée'}</h3>
-          <p className="text-neutral-400">{stations.length === 0 ? "Ajoutez des stations partenaires depuis l'onglet Stations." : 'Ajustez votre recherche.'}</p>
+        <div className="rounded-2xl border-2 border-dashed border-white/10 p-12 text-center">
+          <CreditCard className="mx-auto mb-4 h-12 w-12 text-neutral-600" />
+          <h3 className="mb-2 text-xl font-bold text-white">
+            {stations.length === 0 ? 'Aucune station à facturer' : search ? 'Aucune station trouvée' : 'Aucune station dans ce filtre'}
+          </h3>
+          <p className="text-neutral-400">
+            {stations.length === 0 ? "Ajoutez des stations partenaires depuis l'onglet Stations." : search ? 'Ajustez votre recherche.' : 'Rien à traiter ici pour le moment.'}
+          </p>
+          {stations.length > 0 && activeFilter.key !== 'toutes' && (
+            <button type="button" onClick={() => setFilter('toutes')} className={`${BTN_QUIET} mt-5`}>Voir toutes les stations</button>
+          )}
         </div>
       ) : (
-        <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
-          {/* Téléphone et tablette en portrait : une carte par station, actions
-              visibles sans défilement horizontal (dans le tableau, elles
-              étaient hors de l'écran, à droite). */}
-          <ul className="lg:hidden divide-y divide-white/5">
-            {paginatedStations.map((s) => (
-              <li key={s.id} className="p-4">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <p className="font-bold text-white truncate">{s.name}</p>
-                    <p className="text-xs text-neutral-500">{[s.city, PLANS[s.plan]?.label || s.plan].filter(Boolean).join(' · ')}</p>
-                  </div>
-                  <p className="text-sm text-neutral-300 whitespace-nowrap">{renderAmount(s)}</p>
-                </div>
-                <div className="flex flex-wrap items-start gap-x-4 gap-y-2 mb-3">
-                  <div>{renderStatus(s)}</div>
-                  <div className="text-xs">{renderDue(s)}</div>
-                </div>
-                {renderActions(s)}
-              </li>
-            ))}
-          </ul>
-
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="p-5 font-semibold text-neutral-400">Station</th>
-                  <th className="p-5 font-semibold text-neutral-400">Plan</th>
-                  <th className="p-5 font-semibold text-neutral-400">Montant</th>
-                  <th className="p-5 font-semibold text-neutral-400">Statut</th>
-                  <th className="p-5 font-semibold text-neutral-400">Prochaine échéance</th>
-                  <th className="p-5 font-semibold text-neutral-400 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedStations.map((s) => (
-                  <tr key={s.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="p-5">
-                      <p className="font-bold text-white">{s.name}</p>
-                      <p className="text-xs text-neutral-500">{s.city}</p>
-                    </td>
-                    <td className="p-5">
-                      <span className="bg-white/5 text-neutral-300 px-3 py-1 rounded-md text-sm border border-white/10">{PLANS[s.plan]?.label || s.plan}</span>
-                    </td>
-                    <td className="p-5 text-neutral-300">{renderAmount(s)}</td>
-                    <td className="p-5">{renderStatus(s)}</td>
-                    <td className="p-5 text-sm">{renderDue(s)}</td>
-                    <td className="p-5">{renderActions(s, true)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-neutral-950/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_24px_60px_-30px_rgba(0,0,0,0.8)]">
+          <div aria-hidden="true" className={`hidden border-b border-white/[0.07] px-6 py-3 text-xs font-medium text-neutral-500 lg:grid ${ROW_GRID}`}>
+            <span className="[grid-area:station]">Station</span>
+            <span className="[grid-area:amount]">Abonnement</span>
+            <span className="[grid-area:cycle]">Période en cours</span>
+            <span className="[grid-area:actions] text-right">Actions</span>
           </div>
+          <ul className="divide-y divide-white/[0.06]">
+            {paginatedStations.map(renderRow)}
+          </ul>
           <Pagination
             page={currentPage}
             pageSize={pageSize}
