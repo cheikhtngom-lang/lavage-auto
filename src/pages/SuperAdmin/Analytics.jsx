@@ -11,7 +11,7 @@ import LineChart from '../../components/ui/LineChart';
 import { Donut } from '../../components/ui/charts';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
-const PLAN_COLORS = ['#a855f7', '#3b82f6', '#f59e0b', '#10b981', '#ec4899'];
+const PLAN_COLORS = ['#4f78d0', '#12a8dc', '#f59e0b', '#10b981', '#ec4899'];
 
 const MRR_PERIODS = [
   { key: 'trimestre', label: 'Trimestre', months: 3 },

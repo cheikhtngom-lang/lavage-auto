@@ -96,15 +96,15 @@ export default function SuperAdminLayout() {
 
   return (
     <AppShell
-      accent="purple"
+      accent="blue"
       activeLayoutId="activeSuperAdminTab"
       nav={navigation}
       user={accountName ? { name: accountName, subtitle: 'Super Admin' } : null}
       onLogout={handleLogout}
       actions={<SuperUserNotifBell />}
-      glows={['bg-purple-600/10', 'bg-blue-600/10']}
+      glows={['bg-blue-600/10', 'bg-emerald-600/10']}
       brandIcon={(
-        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-purple-500/20 overflow-hidden">
+        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-lg shadow-blue-500/20 overflow-hidden">
           <img src="/icons/icon-192.png" alt="Clean Car Galsen" className="w-full h-full object-cover" />
         </div>
       )}
@@ -115,7 +115,7 @@ export default function SuperAdminLayout() {
       )}
       brandSub={(
         <span className="flex items-center gap-1.5 text-[11.5px] text-neutral-400 min-w-0">
-          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-purple-400" />
+          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-blue-400" />
           <span className="truncate">Plateforme · {plural((stations || []).length, 'station', 'stations')}</span>
         </span>
       )}

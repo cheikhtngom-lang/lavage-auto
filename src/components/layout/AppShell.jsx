@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Menu, X, ChevronsLeft, ChevronsRight } from 'lucide-react';
@@ -22,22 +22,12 @@ const RAIL_W = 80;
 const FULL_W = 272;
 const COLLAPSED_KEY = 'ccg_sidebar_collapsed';
 
+// Thème « Lagon » (index.css) : la rubrique active est remplie de la couleur
+// d'accent, texte et icône blancs, comme sur le tableau de bord de référence.
 const ACCENTS = {
-  blue: {
-    activeIcon: 'text-emerald-400',
-    bar: 'from-blue-400 to-emerald-400',
-    glow: 'shadow-[0_0_24px_-6px_rgba(59,130,246,0.45)]',
-  },
-  purple: {
-    activeIcon: 'text-purple-300',
-    bar: 'from-purple-400 to-fuchsia-400',
-    glow: 'shadow-[0_0_24px_-6px_rgba(168,85,247,0.45)]',
-  },
-  emerald: {
-    activeIcon: 'text-emerald-400',
-    bar: 'from-emerald-400 to-teal-300',
-    glow: 'shadow-[0_0_24px_-6px_rgba(16,185,129,0.4)]',
-  },
+  blue: { activeIcon: 'text-white', fill: 'lagon-active' },
+  purple: { activeIcon: 'text-white', fill: 'lagon-active' },
+  emerald: { activeIcon: 'text-white', fill: 'lagon-active--emerald' },
 };
 
 const BADGE_TONES = {
@@ -100,6 +90,15 @@ export default function AppShell({
   const [tip, setTip] = useState(null); // info-bulle du mode icônes : { label, top, left }
   const a = ACCENTS[accent] || ACCENTS.blue;
 
+  // Couleurs « Lagon » sur <html> tant qu'un espace connecté est affiché : les
+  // fenêtres ouvertes en portail (hors de ce cadre) en profitent aussi. Avant
+  // l'affichage (useLayoutEffect), pour ne jamais montrer les anciens gris.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('theme-lagon');
+    return () => root.classList.remove('theme-lagon');
+  }, []);
+
   // Rotation de la tablette / redimensionnement : on repart menu replié.
   useEffect(() => { setOpen(false); setTip(null); }, [mode]);
   useEffect(() => { setOpen(false); setTip(null); }, [location.pathname]);
@@ -149,7 +148,7 @@ export default function AppShell({
   const focusRing = 'outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 focus-visible:ring-offset-0';
 
   return (
-    <div className="app-shell flex bg-neutral-950 text-white overflow-hidden font-sans">
+    <div className="app-shell flex text-white overflow-hidden font-sans">
       {overlays}
 
       {mode === 'drawer' && (
@@ -186,9 +185,9 @@ export default function AppShell({
         className={cn(
           'fixed z-50 flex flex-col overflow-hidden transition-[width,transform] duration-300 ease-out',
           mode === 'drawer'
-            ? 'top-0 left-0 bottom-0 max-w-[85vw] border-r border-white/[0.08] bg-neutral-950 shadow-2xl shadow-black/60'
+            ? 'top-0 left-0 bottom-0 max-w-[85vw] border-r border-white/[0.08] lagon-side lagon-side--solid shadow-2xl shadow-black/60'
             : 'top-4 left-4 bottom-4 rounded-[24px] border border-white/[0.08] backdrop-blur-2xl shadow-2xl shadow-black/50',
-          mode !== 'drawer' && (floating ? 'bg-neutral-900/95' : 'bg-neutral-900/60'),
+          mode !== 'drawer' && (floating ? 'lagon-side lagon-side--solid' : 'lagon-side'),
           mode === 'drawer' && !open ? '-translate-x-full' : 'translate-x-0',
         )}
       >
@@ -243,7 +242,7 @@ export default function AppShell({
           {groups.map((group, gi) => (
             <div key={group.title || gi} className={cn(gi > 0 && (compact ? 'mt-2.5 pt-2.5 border-t border-white/[0.06]' : group.title ? 'mt-4' : 'mt-2.5'))}>
               {group.title && !compact && (
-                <p className="px-3 mb-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-neutral-500 select-none">{group.title}</p>
+                <p className="px-3 mb-1 text-[10.5px] font-semibold uppercase tracking-[0.14em] text-neutral-400/80 select-none">{group.title}</p>
               )}
               <ul className="space-y-0.5">
                 {group.items.map((item) => {
@@ -262,23 +261,20 @@ export default function AppShell({
                         className={cn(
                           'relative flex items-center rounded-xl text-[13.5px] font-medium transition-colors duration-200 group',
                           compact ? 'justify-center h-10' : 'h-9 px-3 gap-3',
-                          active ? 'text-white' : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]',
+                          active ? 'text-white' : 'text-neutral-300/90 hover:text-white hover:bg-white/[0.08]',
                           focusRing,
                         )}
                       >
                         {active && (
                           <motion.span
                             layoutId={activeLayoutId}
-                            className={cn('absolute inset-0 rounded-xl bg-white/[0.07] ring-1 ring-inset ring-white/[0.08]', a.glow)}
+                            className={cn('absolute inset-0 rounded-xl ring-1 ring-inset ring-white/20', a.fill)}
                             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                          >
-                            {/* Barre d'accent, dans la marge gauche de la liste */}
-                            <span className={cn('absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-gradient-to-b', a.bar)} />
-                          </motion.span>
+                          />
                         )}
 
                         <span className="relative z-10 flex-shrink-0">
-                          <item.icon className={cn('w-[18px] h-[18px] transition-colors', active ? a.activeIcon : 'text-neutral-500 group-hover:text-neutral-200')} strokeWidth={active ? 2.2 : 1.9} />
+                          <item.icon className={cn('w-[18px] h-[18px] transition-colors', active ? a.activeIcon : 'text-neutral-400 group-hover:text-neutral-100')} strokeWidth={active ? 2.2 : 1.9} />
                           {compact && badges.length > 0 && (
                             <span className={cn('absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-2 ring-neutral-900', DOT_TONES[urgentTone(badges)])} />
                           )}
@@ -377,7 +373,7 @@ export default function AppShell({
             au lieu de flotter par-dessus, la clochette ne recouvre jamais un
             bouton de page. Sur petit écran, `actions` va dans l'en-tête mobile. */}
         {mode !== 'drawer' && actions && (
-          <div className="flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/80 backdrop-blur-xl border-b border-white/5">
+          <div className="flex items-center justify-end gap-3 h-16 px-8 sticky top-0 z-20 bg-neutral-950/60 backdrop-blur-xl border-b border-white/[0.06]">
             {actions}
           </div>
         )}

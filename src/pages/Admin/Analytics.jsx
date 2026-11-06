@@ -67,7 +67,7 @@ function revenueByService(transactions) {
   return map;
 }
 
-const DONUT_COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'];
+const DONUT_COLORS = ['#12a8dc', '#10b981', '#4f78d0', '#f59e0b', '#ef4444', '#06b6d4'];
 const VEHICLE_CATEGORIES = [
   { key: 'Particulier', color: 'bg-blue-500', text: 'text-blue-400' },
   { key: 'Moto', color: 'bg-emerald-500', text: 'text-emerald-400' },
@@ -446,7 +446,7 @@ export default function Analytics() {
             ) : (
               <AreaChart
                 data={frequencyData}
-                series={[{ key: 'count', label: '', color: '#a855f7' }]}
+                series={[{ key: 'count', label: '', color: '#4f78d0' }]}
                 height={300} integer
                 formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`}
                 formatTick={(v) => String(Math.round(v))}

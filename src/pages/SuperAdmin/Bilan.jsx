@@ -265,23 +265,23 @@ export default function SuperAdminBilan() {
           <AreaLine
             data={trend}
             keys={[
-              { key: 'subscription', color: '#3b82f6', label: 'Abonnements (est.)' },
+              { key: 'subscription', color: '#12a8dc', label: 'Abonnements (est.)' },
               { key: 'modules', color: '#6366f1', label: 'Modules (est.)' },
               { key: 'ads', color: '#f59e0b', label: 'Publicités' },
-              { key: 'superUser', color: '#a855f7', label: 'Super User' },
+              { key: 'superUser', color: '#4f78d0', label: 'Super User' },
               { key: 'washCommission', color: '#10b981', label: 'Commission lavages' },
             ]}
             formatValue={fcfaCompact}
           />
           <div className="flex flex-wrap gap-4 mt-3 text-xs">
-            {[['Abonnements (est.)', '#3b82f6'], ['Modules (est.)', '#6366f1'], ['Publicités', '#f59e0b'], ['Super User', '#a855f7'], ['Commission lavages', '#10b981']].map(([l, c]) => (
+            {[['Abonnements (est.)', '#12a8dc'], ['Modules (est.)', '#6366f1'], ['Publicités', '#f59e0b'], ['Super User', '#4f78d0'], ['Commission lavages', '#10b981']].map(([l, c]) => (
               <span key={l} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} /><span className="text-neutral-400">{l}</span></span>
             ))}
           </div>
         </Section>
 
         <Section title={`Période vs ${prevLabel}`} subtitle="Comparaison directe">
-          <GroupedBars groups={compareGroups} labelA="Cette période" labelB={prevLabel} colorA="#a855f7" colorB="#525252" formatValue={fcfaCompact} />
+          <GroupedBars groups={compareGroups} labelA="Cette période" labelB={prevLabel} colorA="#4f78d0" colorB="#3a647a" formatValue={fcfaCompact} />
         </Section>
       </div>
 
@@ -367,7 +367,7 @@ export default function SuperAdminBilan() {
           {topCities.length === 0 ? (
             <p className="text-neutral-500 text-sm">Aucune donnée pour le moment.</p>
           ) : (
-            <Bars data={topCities} color="#3b82f6" formatValue={(v) => String(v)} />
+            <Bars data={topCities} color="#12a8dc" formatValue={(v) => String(v)} />
           )}
         </Section>
       </div>

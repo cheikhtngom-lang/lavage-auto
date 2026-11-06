@@ -10,7 +10,7 @@ import { formatMinutesToHM, formatWorkedTime, parseDurationToMinutes, dateKey, t
 import WorkedTimeCell from '../../components/ui/WorkedTimeCell';
 
 // ─── Planning de poste (prévisionnel, indépendant du pointage ci-dessus) ──
-const SHIFT_COLOR_PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#a855f7', '#ef4444', '#06b6d4'];
+const SHIFT_COLOR_PALETTE = ['#12a8dc', '#10b981', '#f59e0b', '#4f78d0', '#ef4444', '#06b6d4'];
 
 // Lundi comme premier jour de semaine.
 function startOfWeek(d) {

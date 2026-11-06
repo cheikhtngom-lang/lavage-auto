@@ -129,9 +129,9 @@ export default function Dashboard() {
   const kpis = [
     { title: "Chiffre d'affaires", value: Math.round(cur.revenue), suffix: ' FCFA', icon: Banknote, color: 'text-emerald-400', bg: 'bg-emerald-500/10', spark: kpiSpark.revenue, sparkColor: '#10b981', d: deltas.revenue,
       detail: `Somme des encaissements de la période sur les stations sélectionnées. Période précédente : ${fcfa(prev.revenue)}.` },
-    { title: 'Lavages', value: cur.washes, icon: Droplets, color: 'text-blue-400', bg: 'bg-blue-500/10', spark: kpiSpark.washes, sparkColor: '#3b82f6', d: deltas.washes,
+    { title: 'Lavages', value: cur.washes, icon: Droplets, color: 'text-blue-400', bg: 'bg-blue-500/10', spark: kpiSpark.washes, sparkColor: '#12a8dc', d: deltas.washes,
       detail: `Véhicules lavés (lavages terminés) sur la période. Période précédente : ${prev.washes}.` },
-    { title: 'Panier moyen', value: Math.round(cur.avgTicket), suffix: ' FCFA', icon: Receipt, color: 'text-purple-400', bg: 'bg-purple-500/10', spark: kpiSpark.ticket, sparkColor: '#a855f7', d: deltas.avgTicket,
+    { title: 'Panier moyen', value: Math.round(cur.avgTicket), suffix: ' FCFA', icon: Receipt, color: 'text-purple-400', bg: 'bg-purple-500/10', spark: kpiSpark.ticket, sparkColor: '#4f78d0', d: deltas.avgTicket,
       detail: `Montant moyen d'une transaction (chiffre d'affaires ÷ nombre de transactions). Période précédente : ${fcfa(prev.avgTicket)}.` },
     { title: 'Dépenses', value: Math.round(cur.expenses), suffix: ' FCFA', icon: Wallet, color: 'text-amber-400', bg: 'bg-amber-500/10', spark: kpiSpark.expenses, sparkColor: '#f59e0b', d: deltas.expenses, invert: true,
       detail: `Dépenses enregistrées par les stations (salaires, produits, charges…). Période précédente : ${fcfa(prev.expenses)}.` },
@@ -146,7 +146,7 @@ export default function Dashboard() {
   const trend = (data?.trend || []).map((t) => ({ ...t, label: bucketLabel(t.label, bucket), net: num(t.revenue) - num(t.expenses) }));
   const metricSeries = {
     revenue: [{ key: 'revenue', label: "Chiffre d'affaires", color: '#10b981' }, { key: 'expenses', label: 'Dépenses', color: '#f59e0b' }],
-    washes: [{ key: 'washes', label: 'Lavages', color: '#3b82f6' }],
+    washes: [{ key: 'washes', label: 'Lavages', color: '#12a8dc' }],
     net: [{ key: 'net', label: 'Résultat', color: '#14b8a6' }],
   }[metric];
 
@@ -285,7 +285,7 @@ export default function Dashboard() {
             <Section title="Chiffre d’affaires par station" subtitle="Cette période comparée à la précédente">
               <BarChart
                 groups={stations.map((st) => ({ label: shortName(st.name), values: { cur: st.revenue, prev: num(st.prev_revenue) } }))}
-                series={[{ key: 'cur', label: 'Cette période', color: '#10b981' }, { key: 'prev', label: 'Période précédente', color: '#525252' }]}
+                series={[{ key: 'cur', label: 'Cette période', color: '#10b981' }, { key: 'prev', label: 'Période précédente', color: '#3a647a' }]}
                 height={240} formatValue={fcfa} formatTick={fcfaCompact} minColWidth={72}
               />
             </Section>
@@ -384,7 +384,7 @@ export default function Dashboard() {
 
           <Section title="Productivité des laveurs" subtitle="Les 10 laveurs les plus productifs du groupe — un lavage à plusieurs crédite chacun">
             {(data.washers || []).length === 0 ? <p className="text-sm text-neutral-500">Aucun lavage attribué à un laveur sur la période.</p> : (
-              <Bars data={data.washers.slice(0, 10).map((w) => ({ label: `${w.name} · ${w.station}`, value: num(w.washes) }))} color="#a855f7" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
+              <Bars data={data.washers.slice(0, 10).map((w) => ({ label: `${w.name} · ${w.station}`, value: num(w.washes) }))} color="#4f78d0" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
             )}
           </Section>
 

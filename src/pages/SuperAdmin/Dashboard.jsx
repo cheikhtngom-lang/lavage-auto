@@ -68,7 +68,7 @@ export default function SuperAdminDashboard() {
   };
 
   const stats = [
-    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10", spark: cumulativeByMonth(activeStations, 'joinedAt'), sparkColor: '#3b82f6', detail: "Stations avec un compte validé et opérationnel sur la plateforme (tous statuts d'abonnement confondus)." },
+    { title: "Stations Actives", value: activeStations.length, icon: Building2, color: "text-blue-400", bg: "bg-blue-500/10", spark: cumulativeByMonth(activeStations, 'joinedAt'), sparkColor: '#12a8dc', detail: "Stations avec un compte validé et opérationnel sur la plateforme (tous statuts d'abonnement confondus)." },
     { title: "Automobilistes inscrits", value: totalClients, icon: Users, color: "text-emerald-400", bg: "bg-emerald-500/10", spark: cumulativeByMonth(clientAccounts, 'createdAt'), sparkColor: '#10b981', detail: "Nombre réel de comptes automobilistes créés sur la plateforme, toutes stations confondues." },
     { title: "En attente de validation", value: pendingStations.length, icon: Clock, color: "text-orange-400", bg: "bg-orange-500/10", detail: "Nouvelles inscriptions de stations en attente de validation manuelle avant activation." },
     { title: "Revenu Récurrent (MRR)", value: mrr, suffix: " FCFA", icon: CreditCard, color: "text-purple-400", bg: "bg-purple-500/10", detail: `${paidStations.length} abonnement(s) validé(s) (paiement à jour) × prix du plan. Hors essais gratuits, impayés et accès illimités.${modMrr > 0 ? ` Modules & add-ons en sus : +${modMrr.toLocaleString('fr-FR')} FCFA/mois.` : ''}` }
@@ -80,7 +80,7 @@ export default function SuperAdminDashboard() {
   const planEntries = Object.entries(PLANS).sort((a, b) => a[1].price - b[1].price);
   const PLAN_BAR_COLORS = ['bg-emerald-400', 'bg-purple-500', 'bg-amber-400', 'bg-blue-400'];
   // Mêmes teintes en hexadécimal, pour l'anneau de répartition (même ordre que ci-dessus).
-  const PLAN_HEX = ['#34d399', '#a855f7', '#fbbf24', '#60a5fa'];
+  const PLAN_HEX = ['#34d399', '#4f78d0', '#fbbf24', '#60a5fa'];
 
   // Croissance réelle : nouvelles stations inscrites, groupées selon la
   // granularité choisie (jour/semaine/mois/année) — même logique de buckets
@@ -470,7 +470,7 @@ export default function SuperAdminDashboard() {
           </div>
         </div>
 
-        <ColumnChart points={newStationsPoints} color="#a855f7" height={260} formatValue={(v) => `${v} nouvelle${v > 1 ? 's' : ''}`} />
+        <ColumnChart points={newStationsPoints} color="#4f78d0" height={260} formatValue={(v) => `${v} nouvelle${v > 1 ? 's' : ''}`} />
       </motion.div>
 
       {/* Dernières stations inscrites */}

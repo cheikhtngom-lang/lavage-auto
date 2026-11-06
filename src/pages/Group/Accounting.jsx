@@ -90,7 +90,7 @@ export default function GroupAccounting() {
     return {
       cur: both.cur, prev: both.prev, deltas: both.deltas,
       trend: combineTrends(data?.trend, fuel?.trend).map((t) => ({ label: t.label, revenue: t.revenue, expenses: t.expenses })),
-      revenueLabel: 'Encaissements', color: '#3b82f6',
+      revenueLabel: 'Encaissements', color: '#12a8dc',
     };
   }, [activeTab, lav, fu, both, data, fuel]);
 

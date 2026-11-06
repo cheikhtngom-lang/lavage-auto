@@ -327,7 +327,7 @@ export default function Affiliates() {
     return slots;
   }, [stats, period]);
   const chartSeries = [
-    { key: 'total', label: 'Toutes les visites', color: '#a855f7' },
+    { key: 'total', label: 'Toutes les visites', color: '#4f78d0' },
     ...topSources.map((k) => ({ key: k, label: sourceInfo(k).label, color: sourceInfo(k).color })),
   ];
   const donutData = bySource.filter((r) => r.visite > 0).map((r) => ({ label: sourceInfo(r.key).label, value: r.visite, color: sourceInfo(r.key).color }));

@@ -5,7 +5,7 @@ import { AreaChart } from './charts';
 // (inspirée de Bklit UI) il s'appuie sur AreaChart de charts.jsx : courbe lissée avec
 // dégradé et halo, réticule et infobulle animée au survol, échelle graduée. Même
 // appel qu'avant : <LineChart points color height formatValue />.
-export default function LineChart({ points, color = '#a855f7', height = 240, formatValue = (v) => String(v) }) {
+export default function LineChart({ points, color = '#4f78d0', height = 240, formatValue = (v) => String(v) }) {
   const data = useMemo(() => (points || []).map((p) => ({ label: p.label, value: p.value })), [points]);
   const integer = data.every((d) => Number.isInteger(d.value));
   return (

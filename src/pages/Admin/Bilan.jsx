@@ -223,19 +223,19 @@ export default function Bilan() {
             keys={[
               { key: 'revenue', color: '#10b981', label: 'CA' },
               { key: 'expenses', color: '#f59e0b', label: 'Dépenses' },
-              { key: 'net', color: '#3b82f6', label: 'Résultat' },
+              { key: 'net', color: '#12a8dc', label: 'Résultat' },
             ]}
             formatValue={fcfaCompact}
           />
           <div className="flex flex-wrap gap-4 mt-3 text-xs">
-            {[['CA', '#10b981'], ['Dépenses', '#f59e0b'], ['Résultat net', '#3b82f6']].map(([l, c]) => (
+            {[['CA', '#10b981'], ['Dépenses', '#f59e0b'], ['Résultat net', '#12a8dc']].map(([l, c]) => (
               <span key={l} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: c }} /><span className="text-neutral-400">{l}</span></span>
             ))}
           </div>
         </Section>
 
         <Section title={`Période vs ${prevLabel}`} subtitle="Comparaison directe">
-          <GroupedBars groups={compareGroups} labelA="Cette période" labelB={prevLabel} colorA="#3b82f6" colorB="#525252" formatValue={fcfaCompact} />
+          <GroupedBars groups={compareGroups} labelA="Cette période" labelB={prevLabel} colorA="#12a8dc" colorB="#3a647a" formatValue={fcfaCompact} />
         </Section>
       </div>
 
@@ -271,7 +271,7 @@ export default function Bilan() {
             <p className="text-neutral-600 text-sm py-6 text-center">Aucun lavage assigné à un laveur sur cette période.</p>
           ) : (
             <div className="grid md:grid-cols-2 gap-8">
-              <Bars data={cur.washers.slice(0, 6).map((w) => ({ label: w.name, value: w.washes }))} color="#a855f7" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
+              <Bars data={cur.washers.slice(0, 6).map((w) => ({ label: w.name, value: w.washes }))} color="#4f78d0" formatValue={(v) => `${v} lavage${v > 1 ? 's' : ''}`} />
               <div className="space-y-3">
                 {cur.washers.slice(0, 6).map((w, i) => (
                   <div key={w.name} className="flex items-center justify-between text-sm border-b border-white/5 pb-2 last:border-0">
@@ -350,7 +350,7 @@ export default function Bilan() {
         <div className="mt-6">
           <Section title="2 derniers mois complets" subtitle={`${monthA.label} vs ${monthB.label} — le mois en cours n'est jamais inclus, ses chiffres sont partiels`}>
             <div className="grid sm:grid-cols-[1fr_auto] gap-6 items-center">
-              <GroupedBars groups={twoMonthsMoneyGroups} labelA={monthB.label} labelB={monthA.label} colorA="#3b82f6" colorB="#525252" formatValue={fcfaCompact} />
+              <GroupedBars groups={twoMonthsMoneyGroups} labelA={monthB.label} labelB={monthA.label} colorA="#12a8dc" colorB="#3a647a" formatValue={fcfaCompact} />
               <div className="sm:border-l sm:border-white/5 sm:pl-6 text-center">
                 <p className="text-xs text-neutral-500 mb-3">Lavages</p>
                 <div className="flex items-center gap-4 justify-center">

@@ -430,7 +430,7 @@ export default function Accounting() {
                         transition={{ duration: 0.6 }}
                         d={line}
                         fill="none"
-                        stroke="#3b82f6"
+                        stroke="#12a8dc"
                         strokeWidth="3"
                         vectorEffect="non-scaling-stroke"
                         filter="url(#glow)"

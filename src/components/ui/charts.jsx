@@ -12,7 +12,7 @@ import { motion } from 'framer-motion';
 // Legend, Bars, GroupedBars, VerticalBars, AreaLine, Gauge — sont conservés :
 // Bilan, Analytics et les tableaux de bord en profitent sans changement d'appel.
 
-export const CHART_COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
+export const CHART_COLORS = ['#12a8dc', '#10b981', '#4f78d0', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
 // ─── Utilitaires ─────────────────────────────────────────────────────
 const compactFmt = (() => {
@@ -226,7 +226,7 @@ export function AreaChart({
                 initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, ease: 'easeOut' }}
               />
               {(n <= 14 || n === 1) && pts.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r="2.6" fill="#0a0a0a" stroke={s.color} strokeWidth="1.6" />
+                <circle key={i} cx={p.x} cy={p.y} r="2.6" fill="#062131" stroke={s.color} strokeWidth="1.6" />
               ))}
             </g>
           );
@@ -240,7 +240,7 @@ export function AreaChart({
               return (
                 <g key={s.key}>
                   <circle cx={xOf(active)} cy={y} r="9" fill={s.color} opacity="0.2" />
-                  <circle cx={xOf(active)} cy={y} r="4.5" fill="#0a0a0a" stroke={s.color} strokeWidth="2.25" />
+                  <circle cx={xOf(active)} cy={y} r="4.5" fill="#062131" stroke={s.color} strokeWidth="2.25" />
                 </g>
               );
             })}
@@ -380,7 +380,7 @@ export function BarChart({
 }
 
 // Colonnes simples pour une série de points { label, value } (ex. « nouvelles stations »).
-export function ColumnChart({ points, color = '#a855f7', height = 240, formatValue = (v) => String(v), integer }) {
+export function ColumnChart({ points, color = '#4f78d0', height = 240, formatValue = (v) => String(v), integer }) {
   const pts = points || [];
   const groups = pts.map((p) => ({ label: p.label, values: { value: p.value } }));
   return (
@@ -471,7 +471,7 @@ export function Legend({ data, formatValue = (v) => v.toLocaleString('fr-FR') })
 }
 
 // ─── Barres horizontales (classement) ────────────────────────────────
-export function Bars({ data, color = '#3b82f6', formatValue = (v) => String(v) }) {
+export function Bars({ data, color = '#12a8dc', formatValue = (v) => String(v) }) {
   const items = data || [];
   const max = Math.max(1, ...items.map((d) => d.value));
   if (items.length === 0) return <EmptyBox />;
@@ -501,7 +501,7 @@ export function Bars({ data, color = '#3b82f6', formatValue = (v) => String(v) }
 }
 
 // ─── Barres groupées (comparaison N vs N-1) ──────────────────────────
-export function GroupedBars({ groups, labelA, labelB, colorA = '#3b82f6', colorB = '#6b7280', formatValue = (v) => v.toLocaleString('fr-FR') }) {
+export function GroupedBars({ groups, labelA, labelB, colorA = '#12a8dc', colorB = '#688c9e', formatValue = (v) => v.toLocaleString('fr-FR') }) {
   const g = groups || [];
   const max = Math.max(...g.flatMap((x) => [Math.abs(x.a), Math.abs(x.b)]), 0);
   if (g.length === 0 || max === 0) return <EmptyBox height={200} />;
@@ -521,7 +521,7 @@ export function GroupedBars({ groups, labelA, labelB, colorA = '#3b82f6', colorB
 }
 
 // ─── Barres verticales (une série, beaucoup de catégories — ex. 24h) ──
-export function VerticalBars({ data, color = '#3b82f6', height = 150, formatValue = (v) => String(v) }) {
+export function VerticalBars({ data, color = '#12a8dc', height = 150, formatValue = (v) => String(v) }) {
   const items = data || [];
   if (items.length === 0 || items.every((d) => d.value === 0)) return <EmptyBox height={height} />;
   return (
