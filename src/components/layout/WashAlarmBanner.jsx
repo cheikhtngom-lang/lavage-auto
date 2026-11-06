@@ -1,18 +1,70 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BellRing, BellOff, ArrowRight } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
+import { ringingWashes } from '../../lib/washAlarm';
+import { installAudioUnlock, playWashChime } from '../../lib/washAlarmSound';
 
 const hhmm = (ms) => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const ALERT_TITLE = 'Temps de lavage écoulé';
+const VERIFY_TIMEOUT_MS = 4000;
 
-// Bandeau fixe, visible sur toutes les pages de l'espace station tant que
-// l'appli bipe : il dit quel véhicule a dépassé son temps et permet d'arrêter
-// le son. Le bip et ce bandeau vont toujours ensemble (voir useAppState et
-// lib/washAlarm.js) : plus de bip sans rien à l'écran.
-export default function WashAlarmBanner() {
+// Bandeau fixe, visible sur toutes les pages de l'espace station, qui dit
+// quel véhicule a dépassé son temps et permet d'arrêter le son. C'est lui
+// qui joue le bip, et seulement pendant qu'il est affiché : pas de son sans
+// bandeau à l'écran (voir useAppState et lib/washAlarm.js).
+// `paused` : écran « session expirée » affiché (SessionLockOverlay) — il a sa
+// propre alerte, lue sur les données publiques à jour ; ici les données ne se
+// rafraîchissent plus, on se tait.
+export default function WashAlarmBanner({ paused = false }) {
   const navigate = useNavigate();
-  const { overdueWashes, silencedWashIds, silenceWashAlarm } = useAppState();
-  const ringing = (overdueWashes || []).filter((w) => !w.stale && !(silencedWashIds || []).includes(w.id));
+  const { overdueWashes, silencedWashIds, silenceWashAlarm, refreshReservations } = useAppState();
+  const ringing = paused ? [] : ringingWashes(overdueWashes, silencedWashIds);
+  const ringingKey = ringing.map((w) => w.id).join(',');
+
+  useEffect(() => { installAudioUnlock(); }, []);
+
+  // Avant le premier bip, on relit la file sur le serveur : un lavage terminé
+  // depuis un autre appareil (caisse, téléphone d'un laveur) ne doit pas faire
+  // biper celui-ci. Puis une salve toutes les 5 s, et une relecture par minute
+  // tant que ça sonne (la relecture habituelle est suspendue quand l'onglet
+  // est en arrière-plan).
+  const refreshRef = useRef(refreshReservations);
+  refreshRef.current = refreshReservations;
+  useEffect(() => {
+    if (!ringingKey) return undefined;
+    let cancelled = false;
+    let beep = null;
+    let verify = null;
+    const verifyNow = () => Promise.race([
+      Promise.resolve().then(() => refreshRef.current?.()),
+      new Promise((resolve) => { setTimeout(resolve, VERIFY_TIMEOUT_MS); }), // réseau lent : on alerte quand même
+    ]).catch(() => {});
+    verifyNow().then(() => {
+      if (cancelled) return;
+      playWashChime();
+      beep = setInterval(playWashChime, 5000);
+      verify = setInterval(verifyNow, 60000);
+    });
+    return () => { cancelled = true; clearInterval(beep); clearInterval(verify); };
+  }, [ringingKey]);
+
+  // Titre de l'onglet qui clignote : on sait quel onglet sonne quand plusieurs
+  // sites sont ouverts. Le titre de la page en cours est repris à chaque tour
+  // (il change si le gérant change de rubrique).
+  useEffect(() => {
+    if (!ringingKey) return undefined;
+    let base = document.title;
+    const id = setInterval(() => {
+      if (document.title !== ALERT_TITLE) base = document.title;
+      document.title = document.title === ALERT_TITLE ? base : ALERT_TITLE;
+    }, 1000);
+    return () => {
+      clearInterval(id);
+      if (document.title === ALERT_TITLE) document.title = base;
+    };
+  }, [ringingKey]);
+
   if (!ringing.length) return null;
 
   const ids = ringing.map((w) => w.id);

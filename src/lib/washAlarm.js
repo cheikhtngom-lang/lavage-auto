@@ -41,6 +41,13 @@ export function findOverdueWashes(activeWashes, durationConfig, now = Date.now()
     .sort((a, b) => a.dueAt - b.dueAt);
 }
 
+// Lavages pour lesquels l'appli doit biper (et afficher le bandeau) : temps
+// écoulé aujourd'hui, son pas encore coupé par le gérant.
+export function ringingWashes(overdueWashes, silencedWashIds) {
+  const silenced = silencedWashIds || [];
+  return (overdueWashes || []).filter((w) => !w.stale && !silenced.includes(w.id));
+}
+
 // Même liste (mêmes lavages, même état) : évite de redessiner tout l'espace
 // station toutes les 5 secondes quand rien n'a changé.
 export function sameOverdueList(a, b) {
@@ -50,13 +57,14 @@ export function sameOverdueList(a, b) {
 
 // Lavages dont le gérant a coupé le son (« Voir » ou « Couper le son » sur le
 // bandeau) : gardés dans le navigateur pour qu'un rechargement ne refasse pas
-// biper. Les identifiants de réservation sont uniques : pas besoin de les
-// purger, on garde simplement les 50 derniers.
-const SILENCED_KEY = 'ccg_wash_alarm_silenced';
+// biper, et partagés entre les onglets (événement « storage », voir
+// useAppState). Les identifiants de réservation sont uniques : pas besoin de
+// les purger, on garde simplement les 50 derniers.
+export const SILENCED_WASH_IDS_KEY = 'ccg_wash_alarm_silenced';
 
 export function readSilencedWashIds() {
   try {
-    const ids = JSON.parse(localStorage.getItem(SILENCED_KEY) || '[]');
+    const ids = JSON.parse(localStorage.getItem(SILENCED_WASH_IDS_KEY) || '[]');
     return Array.isArray(ids) ? ids : [];
   } catch {
     return [];
@@ -65,6 +73,6 @@ export function readSilencedWashIds() {
 
 export function writeSilencedWashIds(ids) {
   const kept = ids.slice(-50);
-  try { localStorage.setItem(SILENCED_KEY, JSON.stringify(kept)); } catch { /* stockage indisponible : le son reviendra au rechargement */ }
+  try { localStorage.setItem(SILENCED_WASH_IDS_KEY, JSON.stringify(kept)); } catch { /* stockage indisponible : le son reviendra au rechargement */ }
   return kept;
 }

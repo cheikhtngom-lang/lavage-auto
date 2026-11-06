@@ -19,6 +19,10 @@ export default function SessionLockOverlay({ stationName }) {
   const durMapRef = useRef(null);
   const audioRef = useRef(null);
   const baseTitleRef = useRef(typeof document !== 'undefined' ? document.title : '');
+  // Relu après le premier affichage : le bandeau d'alerte (WashAlarmBanner),
+  // qui se tait à cet instant, a d'abord remis le vrai titre de la page à la
+  // place de « Temps de lavage écoulé ».
+  useEffect(() => { baseTitleRef.current = document.title; }, []);
 
   // Débloque l'AudioContext à la première interaction (un navigateur bloque le
   // son tant qu'aucun geste utilisateur n'a eu lieu).

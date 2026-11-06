@@ -30,6 +30,21 @@ import { renderSiteFooter, renderContactModal, renderLegalNav } from './src/lib/
 // chaque déploiement, donc ne ment jamais sur la fraîcheur du site.
 const BUILD_VERSION = 'v' + new Date().toISOString().slice(0, 10).replace(/-/g, '.')
 
+// Identifiant propre à CHAQUE déploiement (commit Vercel, sinon horodatage),
+// écrit dans /version.json et injecté dans le code (__BUILD_ID__) : un onglet
+// resté ouvert compare les deux pour se mettre à jour (src/lib/appVersion.js).
+const BUILD_ID = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 12) || `local-${Date.now().toString(36)}`
+
+function versionFile() {
+  return {
+    name: 'version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ id: BUILD_ID }) })
+    },
+  }
+}
+
 // Footer, fenêtre Contact et navigation légale : une seule source
 // (src/lib/siteFooter.js) injectée dans chaque page HTML à la place des
 // marqueurs <!--@site-footer-->, <!--@contact-modal--> et <!--@legal-nav-->.
@@ -53,8 +68,8 @@ function htmlPartials() {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), reactAppDevFallback(), htmlPartials(), removeConsole()],
-  define: { __BUILD_VERSION__: JSON.stringify(BUILD_VERSION) },
+  plugins: [react(), reactAppDevFallback(), htmlPartials(), removeConsole(), versionFile()],
+  define: { __BUILD_VERSION__: JSON.stringify(BUILD_VERSION), __BUILD_ID__: JSON.stringify(BUILD_ID) },
   base: '/',           // URLs absolues pour le déploiement web
   publicDir: 'public', // Dossier des fichiers statiques (sitemap.xml, robots.txt)
   // Détourage des photos produit (src/lib/studioWorker.js) : worker en module ES,
