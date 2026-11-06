@@ -45,7 +45,7 @@ export default function MainLayout() {
             </button>
             <a href="/login.html" className="hidden md:flex relative inline-flex overflow-hidden rounded-xl p-[1px] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-neutral-950 active:scale-95 transition-transform group">
               <span className="spin-layer animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#3b82f6_0%,#10b981_50%,#3b82f6_100%)] opacity-0 group-hover:opacity-100 transition-opacity duration-500"></span>
-              <span className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-neutral-950 px-6 py-2.5 text-sm font-bold text-white backdrop-blur-3xl border border-white/10 group-hover:border-transparent transition-all">
+              <span className="relative z-0 inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-neutral-950 px-6 py-2.5 text-sm font-bold text-white backdrop-blur-3xl border border-white/10 group-hover:border-transparent transition-all">
                 Se Connecter
               </span>
             </a>

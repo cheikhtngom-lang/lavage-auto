@@ -598,7 +598,7 @@ export default function StationDashboard() {
                     className="w-full relative inline-flex overflow-hidden rounded-xl p-[1px] focus:outline-none focus:ring-2 focus:ring-emerald-400 active:scale-95 transition-transform"
                   >
                     <span className="spin-layer animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#047857_0%,#34d399_50%,#047857_100%)]"></span>
-                    <span className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-neutral-950 px-6 py-3 text-sm font-bold text-white backdrop-blur-3xl hover:bg-neutral-900 transition-colors">
+                    <span className="relative z-0 inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-neutral-950 px-6 py-3 text-sm font-bold text-white backdrop-blur-3xl hover:bg-neutral-900 transition-colors">
                       <CheckCircle2 className="w-5 h-5 mr-2 text-emerald-400" /> 
                       Terminer le lavage
                     </span>

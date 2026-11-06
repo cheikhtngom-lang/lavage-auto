@@ -101,8 +101,12 @@
     @apply spin-layer animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#3b82f6_0%,#10b981_50%,#3b82f6_100%)];
   }
   
+  /* Texte des boutons à bord lumineux : « relative z-0 » le garde au-dessus
+     du calque tournant. Le flou d'arrière-plan le faisait par effet de bord ;
+     sur écran tactile il est retiré (voir plus bas) et, sans cette ligne, le
+     calque vert recouvrait le texte (iPad, iPhone). */
   .btn-premium-content {
-    @apply inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-neutral-950 px-6 py-3 text-sm font-bold text-white backdrop-blur-3xl transition-colors hover:bg-neutral-900;
+    @apply relative z-0 inline-flex h-full w-full cursor-pointer items-center justify-center rounded-xl bg-neutral-950 px-6 py-3 text-sm font-bold text-white backdrop-blur-3xl transition-colors hover:bg-neutral-900;
   }
 
   /* Effet de lavage — superposé sur les cartes "En Lavage" du tableau de bord */
