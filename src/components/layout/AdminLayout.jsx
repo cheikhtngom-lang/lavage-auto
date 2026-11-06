@@ -10,6 +10,7 @@ import { isSubscriptionEnded } from '../../lib/stationRenewal';
 import { setSessionExpiredHandler } from '../../lib/idleTimeout';
 import StationOnboarding from '../onboarding/StationOnboarding';
 import SessionLockOverlay from '../SessionLockOverlay';
+import WashAlarmBanner from './WashAlarmBanner';
 import TrialBanner from './TrialBanner';
 import StationTransferBanner from './StationTransferBanner';
 import GroupStationBanners from './GroupStationBanners';
@@ -212,6 +213,7 @@ export default function AdminLayout() {
       glows={['bg-blue-600/10', 'bg-emerald-600/10']}
       overlays={(
         <>
+          <WashAlarmBanner />
           {sessionLocked && <SessionLockOverlay stationName={stationProfile?.name} />}
           {/* Onboarding station : uniquement pour le propriétaire (role='admin'),
               jamais pour un collaborateur 'staff'. */}

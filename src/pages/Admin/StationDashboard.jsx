@@ -4,10 +4,11 @@ import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plus, X, ChevronsDown, Timer, UserCheck, AlertCircle, Calendar, UserPlus, ArrowRight, LineChart, Hourglass } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBrands';
 import { normalizeService } from '../../lib/washDefaults';
+import { washDurationMinutes, startedBeforeToday } from '../../lib/washAlarm';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
 import { isPastClosingTime, findVehicleOwnerByPlate, hoursForDate } from '../../lib/stationData';
@@ -214,10 +215,34 @@ export default function StationDashboard() {
   const navigate = useNavigate();
   const { queue, waitlist, admitWaitlisted, activeWashes, completedWashes, startWash, endWash, skipWash, pushBackOnePosition, validatePayment, addWash, washAmountFor, requestFullReservationHistory, employees, pricingConfig, durationConfig, stationProfile, clientSubscriptions, customVehicleTypes, addCustomVehicleType } = useAppState();
 
-  const getDurationMinutes = (item) => {
-    const cat = item?.category || 'Particulier';
-    return durationConfig?.[cat]?.[item?.service] ?? 30;
-  };
+  // Même durée que le bip et le bandeau d'alerte (lib/washAlarm.js).
+  const getDurationMinutes = (item) => washDurationMinutes(durationConfig, item);
+
+  // « Voir » sur le bandeau d'alerte (WashAlarmBanner) : on fait défiler la
+  // file jusqu'à la carte du véhicule et on l'encadre quelques secondes.
+  const location = useLocation();
+  const [highlightedWashId, setHighlightedWashId] = React.useState(null);
+  const highlightTimerRef = React.useRef(null);
+  React.useEffect(() => () => clearTimeout(highlightTimerRef.current), []);
+  React.useEffect(() => {
+    const id = location.state?.focusWashId;
+    if (!id) return undefined;
+    let tries = 0;
+    let retry;
+    const focus = () => {
+      const el = document.getElementById(`wash-card-${id}`);
+      if (!el) { if (++tries < 15) retry = setTimeout(focus, 150); return; }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedWashId(id);
+      clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = setTimeout(() => setHighlightedWashId(null), 3000);
+      // Demande consommée : un rechargement de la page n'y revient pas.
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    };
+    focus();
+    return () => clearTimeout(retry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
 
   const [showAddModal, setShowAddModal] = React.useState(false);
   const [newWash, setNewWash] = React.useState({ client: DEFAULT_CLIENT_NAME, vehicle: '', category: 'Particulier', service: 'Lavage Simple', paid: false, plate: '', clientId: null });
@@ -539,7 +564,8 @@ export default function StationDashboard() {
                 className="relative"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 blur-xl rounded-2xl -z-10"></div>
-                <div className="glass-card rounded-2xl p-6 border-t border-t-emerald-400/50 relative overflow-hidden"
+                <div id={`wash-card-${item.id}`}
+                  className={`glass-card rounded-2xl p-6 border-t border-t-emerald-400/50 relative overflow-hidden scroll-mt-24 transition-shadow duration-500 ${highlightedWashId === item.id ? 'ring-2 ring-orange-400' : ''}`}
                   style={item.reservationGroupId ? { borderLeft: `4px solid ${groupAccentColors(item.reservationGroupId).solid}` } : undefined}>
                   <div className="absolute top-0 right-0 p-4 opacity-10">
                     <Droplets className="w-24 h-24 text-emerald-500" />
@@ -564,6 +590,12 @@ export default function StationDashboard() {
                         {item.client}
                         <GroupBadge item={item} />
                       </div>
+                      {startedBeforeToday(item.startedAt) && (
+                        <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-orange-300">
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          En cours depuis le {new Date(item.startedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} à {new Date(item.startedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} : terminez-le
+                        </p>
+                      )}
                     </div>
                     <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 px-3 py-1 animate-pulse">
                       En cours

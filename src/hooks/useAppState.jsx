@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { getCurrentStationId, getCurrentRole } from '../lib/accounts';
 import { supabase } from '../lib/supabaseClient';
 import { DEFAULT_PRICING, DEFAULT_DURATION, normalizeService } from '../lib/washDefaults';
+import { findOverdueWashes, sameOverdueList, readSilencedWashIds, writeSilencedWashIds } from '../lib/washAlarm';
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
 import { closingDateFor, hoursForDate } from '../lib/stationData';
 import { nozzleLabel, nozzleKey, sortNozzles, normalizeLines } from '../lib/pompistes';
@@ -883,13 +884,17 @@ export function AppStateProvider({ children }) {
         await loadShopOrders();
     };
 
-    // Alerte sonore : bipe en boucle tant qu'un lavage en cours dépasse sa
+    // Alerte sonore : bipe en boucle dès qu'un lavage en cours dépasse sa
     // durée estimée, pour prévenir le gérant même s'il n'a pas l'onglet "File
     // d'attente" ouvert (ce provider tourne sur toutes les pages admin, pas
-    // seulement StationDashboard). Volontairement PAS "une seule fois" — le
-    // gérant a demandé que ça ne s'arrête pas tant qu'il n'a pas cliqué
-    // "Terminer le lavage" (qui fait sortir l'id de activeWashes, seule façon
-    // dont la boucle s'arrête).
+    // seulement StationDashboard). Le bip ne s'arrête pas tout seul (demande
+    // du gérant) mais il est toujours accompagné du bandeau WashAlarmBanner,
+    // qui nomme le véhicule et permet de couper le son (« Voir » ou « Couper
+    // le son ») ; « Terminer le lavage » l'arrête aussi. Avant (6/11/2026), le
+    // bip sonnait sans rien d'affiché : la carte dépassée était hors de
+    // l'écran, ou c'était un lavage oublié la veille, qui bipait dès
+    // l'ouverture de l'appli. Ces lavages oubliés ne bipent plus (voir
+    // lib/washAlarm.js).
     //
     // Un AudioContext créé (et jamais débloqué par un clic) démarre "suspended"
     // dans la plupart des navigateurs — un son déclenché depuis un simple
@@ -912,55 +917,70 @@ export function AppStateProvider({ children }) {
         return () => ['click', 'touchstart', 'keydown'].forEach((evt) => document.removeEventListener(evt, unlock));
     }, []);
 
-    useEffect(() => {
-        // Bips courts, aigus (onde carrée, plus perçante qu'un sinus) et répétés
-        // par salves — pensé pour porter à travers la vitre d'un véhicule,
-        // pas pour être agréable (un "ding" doux ne s'entend pas de dehors).
-        const playCompletionChime = () => {
-            try {
-                const ctx = getAudioCtx();
-                if (!ctx) return;
-                ctx.resume().catch(() => {});
-                const now = ctx.currentTime;
-                const freq = 2800;
-                const beepDuration = 0.1;
-                const beepGap = 0.08;
-                const beepsPerRound = 3;
-                const roundGap = 0.3;
-                const rounds = 2;
-                for (let round = 0; round < rounds; round++) {
-                    for (let beep = 0; beep < beepsPerRound; beep++) {
-                        const t = now + round * (beepsPerRound * (beepDuration + beepGap) + roundGap) + beep * (beepDuration + beepGap);
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.type = 'square';
-                        osc.frequency.value = freq;
-                        gain.gain.setValueAtTime(0, t);
-                        gain.gain.linearRampToValueAtTime(0.5, t + 0.008);
-                        gain.gain.setValueAtTime(0.5, t + beepDuration - 0.015);
-                        gain.gain.linearRampToValueAtTime(0, t + beepDuration);
-                        osc.connect(gain).connect(ctx.destination);
-                        osc.start(t);
-                        osc.stop(t + beepDuration + 0.01);
-                    }
+    // Bips courts, aigus (onde carrée, plus perçante qu'un sinus) et répétés
+    // par salves — pensé pour porter à travers la vitre d'un véhicule,
+    // pas pour être agréable (un "ding" doux ne s'entend pas de dehors).
+    const playCompletionChime = () => {
+        try {
+            const ctx = getAudioCtx();
+            if (!ctx) return;
+            ctx.resume().catch(() => {});
+            const now = ctx.currentTime;
+            const freq = 2800;
+            const beepDuration = 0.1;
+            const beepGap = 0.08;
+            const beepsPerRound = 3;
+            const roundGap = 0.3;
+            const rounds = 2;
+            for (let round = 0; round < rounds; round++) {
+                for (let beep = 0; beep < beepsPerRound; beep++) {
+                    const t = now + round * (beepsPerRound * (beepDuration + beepGap) + roundGap) + beep * (beepDuration + beepGap);
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0, t);
+                    gain.gain.linearRampToValueAtTime(0.5, t + 0.008);
+                    gain.gain.setValueAtTime(0.5, t + beepDuration - 0.015);
+                    gain.gain.linearRampToValueAtTime(0, t + beepDuration);
+                    osc.connect(gain).connect(ctx.destination);
+                    osc.start(t);
+                    osc.stop(t + beepDuration + 0.01);
                 }
-            } catch { /* AudioContext indisponible — pas bloquant */ }
-        };
+            }
+        } catch { /* AudioContext indisponible — pas bloquant */ }
+    };
 
-        const checkCompletions = () => {
-            activeWashes.forEach((item) => {
-                if (!item.startedAt) return;
-                const cat = item.category || 'Particulier';
-                const minutes = (durationConfig[cat] && durationConfig[cat][item.service]) ? durationConfig[cat][item.service] : 30;
-                const totalSeconds = Math.max(0, Math.round(minutes * 60));
-                const elapsed = Math.floor((Date.now() - new Date(item.startedAt).getTime()) / 1000);
-                if (elapsed >= totalSeconds) playCompletionChime();
-            });
+    // Lavages au temps écoulé, recalculés toutes les 5 s (même règle que le
+    // minuteur de la carte). L'état ne change que si la liste change.
+    const [overdueWashes, setOverdueWashes] = useState([]);
+    useEffect(() => {
+        const check = () => {
+            const next = findOverdueWashes(activeWashes, durationConfig);
+            setOverdueWashes((prev) => (sameOverdueList(prev, next) ? prev : next));
         };
-        checkCompletions();
-        const interval = setInterval(checkCompletions, 5000);
+        check();
+        const interval = setInterval(check, 5000);
         return () => clearInterval(interval);
     }, [activeWashes, durationConfig]);
+
+    const [silencedWashIds, setSilencedWashIds] = useState(readSilencedWashIds);
+    const silenceWashAlarm = useCallback((ids) => {
+        setSilencedWashIds((prev) => writeSilencedWashIds([...prev.filter((id) => !ids.includes(id)), ...ids]));
+    }, []);
+
+    // Bipe (une salve toutes les 5 s, quel que soit le nombre de véhicules)
+    // tant qu'un lavage du jour a dépassé son temps et que le son n'a pas été
+    // coupé pour lui.
+    const ringingWashes = overdueWashes.filter((w) => !w.stale && !silencedWashIds.includes(w.id));
+    const ringingKey = ringingWashes.map((w) => w.id).join(',');
+    useEffect(() => {
+        if (!ringingKey) return undefined;
+        playCompletionChime();
+        const interval = setInterval(playCompletionChime, 5000);
+        return () => clearInterval(interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ringingKey]);
 
     // Signale au minuteur d'inactivité (lib/idleTimeout.js) qu'un lavage est
     // en cours : tant que le départ le plus récent est frais, la session ne
@@ -1837,6 +1857,7 @@ export function AppStateProvider({ children }) {
     return (
         <AppStateContext.Provider value={{
             queue, activeWashes, employees, transactions, expenses, addExpense, reviews, pricingConfig, durationConfig, promoConfig, stationProfile, stationProfileLoaded, stationBilling, completedWashes, requestFullReservationHistory,
+            overdueWashes, silencedWashIds, silenceWashAlarm,
             myPermissions, myRoleName,
             attendanceHistory, recordDailyAttendance, savePumpReading, assignPump, loadAttendanceForDate, loadAttendanceForMonth,
             pumps, addPump, renamePump, setPumpActive, setPumpNozzles,

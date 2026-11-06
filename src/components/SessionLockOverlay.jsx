@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Lock, RefreshCw, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { clearSession, getCurrentStationId } from '../lib/accounts';
+import { DEFAULT_DURATION } from '../lib/washDefaults';
+import { findOverdueWashes } from '../lib/washAlarm';
 
 // Écran affiché à la place de la redirection quand la session d'une station
 // expire pour inactivité (voir setSessionExpiredHandler dans lib/idleTimeout.js).
@@ -11,7 +13,6 @@ import { clearSession, getCurrentStationId } from '../lib/accounts';
 // on fait clignoter le titre de l'onglet — le gérant sait qu'il doit se
 // reconnecter pour cliquer « Terminer le lavage ».
 const POLL_MS = 15000;
-const DEFAULT_DURATION_MIN = 30;
 
 export default function SessionLockOverlay({ stationName }) {
   const [overdue, setOverdue] = useState(0);
@@ -67,7 +68,9 @@ export default function SessionLockOverlay({ stationName }) {
         .from('wash_pricing')
         .select('category, service, duration_minutes')
         .eq('station_id', stationId);
+      // Durées par défaut complétées par celles de la station, comme useAppState.
       const map = {};
+      Object.keys(DEFAULT_DURATION).forEach((cat) => { map[cat] = { ...DEFAULT_DURATION[cat] }; });
       (data || []).forEach((r) => { (map[r.category] ||= {})[r.service] = r.duration_minutes; });
       durMapRef.current = map;
       return map;
@@ -80,12 +83,12 @@ export default function SessionLockOverlay({ stationName }) {
         const mine = (data || []).filter(
           (r) => r.station_id === stationId && r.status === 'en_cours' && r.started_at,
         );
-        let n = 0;
-        for (const w of mine) {
-          const mins = map?.[w.category]?.[w.service] ?? DEFAULT_DURATION_MIN;
-          const elapsed = (Date.now() - new Date(w.started_at).getTime()) / 1000;
-          if (elapsed >= mins * 60) n += 1;
-        }
+        // Même règle que le bandeau d'alerte : un lavage oublié depuis un jour
+        // précédent ne compte pas (voir lib/washAlarm.js).
+        const n = findOverdueWashes(
+          mine.map((w) => ({ id: w.id, category: w.category, service: w.service, startedAt: w.started_at })),
+          map,
+        ).filter((w) => !w.stale).length;
         if (!cancelled) setOverdue(n);
       } catch { /* réseau : nouvelle tentative au prochain tick */ }
     };
