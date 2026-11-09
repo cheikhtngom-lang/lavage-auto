@@ -39,7 +39,7 @@ export default function NewVersionBanner() {
         hidden: document.hidden,
         idleForMs: Date.now() - lastInteractionRef.current,
         typing: !!active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName),
-        // Fenêtre ouverte (saisie, encaissement, écran « session expirée »…).
+        // Fenêtre ouverte (saisie, encaissement…).
         dialogOpen: !!document.querySelector('[role="dialog"], [aria-modal="true"], .fixed.inset-0'),
       });
       if (silent) {

@@ -195,8 +195,9 @@ function RequireMarketingAccess({ children }) {
 }
 
 function App() {
-  // Expiration de session : déconnexion après 1 h sans interaction
-  // (voir lib/idleTimeout.js). Ne touche pas aux visiteurs anonymes de /stations.
+  // Expiration de session : déconnexion après 3 h sans interaction, et retour
+  // à la connexion dès que la session est perdue (voir lib/idleTimeout.js).
+  // Ne touche pas aux visiteurs anonymes de /stations.
   useEffect(() => startIdleWatch(), []);
 
   return (

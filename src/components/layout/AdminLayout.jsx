@@ -7,9 +7,7 @@ import { visibleNav } from '../../lib/adminNav';
 import AnnouncementBell from '../ui/AnnouncementBell';
 import AppShell from './AppShell';
 import { isSubscriptionEnded } from '../../lib/stationRenewal';
-import { setSessionExpiredHandler } from '../../lib/idleTimeout';
 import StationOnboarding from '../onboarding/StationOnboarding';
-import SessionLockOverlay from '../SessionLockOverlay';
 import WashAlarmBanner from './WashAlarmBanner';
 import NewVersionBanner from './NewVersionBanner';
 import TrialBanner from './TrialBanner';
@@ -32,7 +30,6 @@ const SUBSCRIPTION_STATUS = {
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [sessionLocked, setSessionLocked] = useState(false);
   const {
     stationProfile, stationProfileLoaded, stationBilling, myPermissions, myRoleName, hiddenMenu,
     receivedAnnouncements, dismissedAnnouncementIds, dismissAnnouncement,
@@ -42,13 +39,6 @@ export default function AdminLayout() {
   const [stockAlerts, setStockAlerts] = useState(0);
   const closure = useMyClosure(); // station (ou compte) en cours de fermeture : accès suspendu
 
-  // La session station qui expire pour inactivité n'éjecte plus vers la page
-  // de connexion : on affiche un écran verrouillé qui continue de surveiller
-  // la file et de biper (voir SessionLockOverlay + lib/idleTimeout.js).
-  useEffect(() => {
-    setSessionExpiredHandler(() => setSessionLocked(true));
-    return () => setSessionExpiredHandler(null);
-  }, []);
   const isConfigured = stationProfile?.name && stationProfile.name.trim() !== '';
   // Tant que le profil n'a pas fini de charger, ne JAMAIS afficher "⚙️
   // Configurer" — le nom vide par défaut ne veut pas dire "non configurée",
@@ -214,11 +204,10 @@ export default function AdminLayout() {
       glows={['bg-blue-600/10', 'bg-emerald-600/10']}
       overlays={(
         <>
-          {/* Bip + bandeau « temps écoulé » ; muet pendant l'écran « session
-              expirée », qui a sa propre alerte (données publiques à jour). */}
-          <WashAlarmBanner paused={sessionLocked} />
+          {/* Bip + bandeau « temps écoulé ». Session expirée : retour direct
+              à la page de connexion (lib/idleTimeout.js). */}
+          <WashAlarmBanner />
           <NewVersionBanner />
-          {sessionLocked && <SessionLockOverlay stationName={stationProfile?.name} />}
           {/* Onboarding station : uniquement pour le propriétaire (role='admin'),
               jamais pour un collaborateur 'staff'. */}
           {getCurrentRole() === 'admin' && <StationOnboarding />}

@@ -1,6 +1,6 @@
 // Alerte « temps de lavage écoulé » : une seule règle pour le minuteur de la
-// carte (File d'attente), le bip et le bandeau de l'espace station, et l'écran
-// verrouillé (SessionLockOverlay). Avant, chacun refaisait son calcul.
+// carte (File d'attente), le bip et le bandeau de l'espace station. Avant,
+// chacun refaisait son calcul.
 
 export const DEFAULT_WASH_MINUTES = 30;
 

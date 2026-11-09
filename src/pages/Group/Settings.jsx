@@ -13,7 +13,7 @@ import CloseAccountCard from '../../components/account/CloseAccountCard';
 // Même limites que la photo de profil automobiliste (Client/Settings.jsx).
 const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024;
 const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp'];
-const IDLE_CHOICES = [15, 30, 60, 120, 240];
+const IDLE_CHOICES = [15, 30, 60, 120, 180, 240];
 
 const inputCls = 'w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors';
 const cardCls = 'glass-card rounded-2xl p-6 md:p-8 border border-white/10 bg-white/[0.02] mb-6';

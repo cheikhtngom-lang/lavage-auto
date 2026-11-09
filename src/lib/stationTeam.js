@@ -102,12 +102,14 @@ export async function setMemberStatus(memberId, status) {
   if (error) throw new Error(error.message);
 }
 
-// Supprime le membre + sa fiche laveur liée (best-effort). Ne touche pas au
-// compte auth : un profil 'staff' orphelin ne peut plus rien faire (aucune
-// ligne station_members active), et le propriétaire peut réinviter la personne.
+// Supprime le membre et retire sa fiche laveur liée (best-effort). Ne touche
+// pas au compte auth : un profil 'staff' orphelin ne peut plus rien faire
+// (aucune ligne station_members active), et le propriétaire peut réinviter la
+// personne. La fiche est archivée, pas effacée : effacer la ligne `employees`
+// effaçait aussi son pointage passé (attendance_records, ON DELETE CASCADE).
 export async function deleteMember(member) {
   if (member.employee_id) {
-    await supabase.from('employees').delete().eq('id', member.employee_id);
+    await supabase.from('employees').update({ status: 'Archivé', daily_status: 'repos' }).eq('id', member.employee_id);
   }
   const { error } = await supabase.from('station_members').delete().eq('id', member.id);
   if (error) throw new Error(error.message);

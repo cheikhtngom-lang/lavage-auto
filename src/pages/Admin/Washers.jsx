@@ -38,7 +38,7 @@ const STATUS_LETTER = { repos: 'R', conge: 'C', maladie: 'M', absent: 'A' };
 export default function Washers() {
   useDocumentTitle('Laveurs');
   const {
-    employees, updateEmployee, resumeEmployee, finishService, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
+    employees, activeWashes, updateEmployee, resumeEmployee, finishService, attendanceHistory, recordDailyAttendance, loadAttendanceForDate, loadAttendanceForMonth,
     shiftTemplates, addShiftTemplate, updateShiftTemplate, deleteShiftTemplate, scheduleByDate, loadScheduleRange, setShiftForDay, stationProfile
   } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,7 +57,9 @@ export default function Washers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, isToday]);
 
-  const washersList = (employees || []).filter(e => e?.role === 'Laveur');
+  // Laveurs supprimés (statut 'Archivé', voir removeWasher) : hors de la liste,
+  // du planning et du choix des laveurs, mais leur historique reste.
+  const washersList = (employees || []).filter(e => e?.role === 'Laveur' && e?.status !== 'Archivé');
 
   // ─── Planning de poste (prévisionnel) ────────────────────────────────────
   const [planningView, setPlanningView] = useState('week'); // 'week' | 'month'
@@ -183,6 +185,30 @@ export default function Washers() {
     recordDailyAttendance(id, patch);
   };
 
+  // Laveur parti (démission, renvoi) : retiré de la liste comme un pompiste
+  // (statut 'Archivé', voir PompistesSetup). Rien n'est effacé en base : son
+  // pointage passé, ses lavages et l'export Excel du mois le gardent.
+  const removeWasher = (washer) => {
+    const washing = (activeWashes || []).some((w) =>
+      w.assignedTo === washer.name || (w.assignedWasherNames || []).includes(washer.name));
+    if (washing) {
+      alert(`${washer.name} a un lavage en cours. Terminez ce lavage avant de le supprimer.`);
+      return;
+    }
+    if (!window.confirm(`Supprimer ${washer.name} de la liste des laveurs ?
+
+Son historique de pointage et ses lavages passés sont conservés.`)) return;
+    const patch = { status: 'Archivé', dailyStatus: 'repos' };
+    if (washer.dailyStatus === 'present' && washer.clockInAt && !washer.clockOutAt) {
+      // Encore en poste aujourd'hui : sa descente est enregistrée maintenant.
+      const now = new Date();
+      const clockOut = { status: 'Terminé', clockOut: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), clockOutAt: now.toISOString(), totalTime: formatWorkedTime(washer.clockInAt, now) };
+      recordDailyAttendance(washer.id, clockOut);
+      Object.assign(patch, { clockOut: clockOut.clockOut, clockOutAt: clockOut.clockOutAt, totalTime: clockOut.totalTime });
+    }
+    updateEmployee(washer.id, patch);
+  };
+
   // Colonne « Statut » du pointage (tableau sur tablette/ordinateur, carte sur
   // téléphone) : boutons d'action aujourd'hui, simple badge pour une date passée.
   const renderPointageStatus = (member, pointageStatus) => {
@@ -264,7 +290,7 @@ export default function Washers() {
     const known = new Map((employees || []).map((e) => [e.id, e]));
     const staff = [];
     (employees || []).forEach((e) => {
-      if (e.role === 'Laveur') staff.push({ id: e.id, name: e.name, role: e.role, live: e });
+      if (e.role === 'Laveur' && e.status !== 'Archivé') staff.push({ id: e.id, name: e.name, role: e.role, live: e });
     });
     Object.keys(monthData).forEach((id) => {
       if (staff.some((s) => s.id === id)) return;
@@ -452,7 +478,7 @@ export default function Washers() {
         <Card className="h-fit">
           <CardContent className="p-4 sm:p-6">
             <h2 className="text-xl font-bold text-white mb-2 sm:mb-4">Base de Laveurs</h2>
-            <p className="text-sm text-neutral-400 mb-4 sm:mb-6">Cochez les laveurs de garde pour la journée d'aujourd'hui.</p>
+            <p className="text-sm text-neutral-400 mb-4 sm:mb-6">Cochez les laveurs de garde pour la journée d'aujourd'hui. Un laveur qui part se supprime avec la corbeille.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 gap-3">
               {filteredWashers.map(washer => { const shownStatus = rosterDailyStatus(washer); return (
@@ -480,6 +506,15 @@ export default function Washers() {
                     <option value="maladie" className="bg-neutral-900 text-white">Maladie</option>
                     <option value="absent" className="bg-neutral-900 text-white">Absent (Injustifié)</option>
                   </select>
+                  <button
+                    type="button"
+                    onClick={() => removeWasher(washer)}
+                    title={`Supprimer ${washer.name}`}
+                    aria-label={`Supprimer ${washer.name}`}
+                    className="flex-shrink-0 p-2 rounded-lg bg-white/5 text-neutral-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               ); })}
             </div>

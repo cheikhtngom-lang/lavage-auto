@@ -503,7 +503,7 @@ export default function StationDashboard() {
           que de laisser le nouvel admin découvrir le blocage seul via une alerte.
           Plafonnée à 3 connexions (voir [[design_onboarding_backlog]]) : au-delà,
           plus de relance même si le blocage persiste — pas de visite guidée perpétuelle. */}
-      {employees.filter(e => e.role !== 'Pompiste').length === 0 && getLoginCount('admin', getCurrentStationId()) <= 3 && (
+      {employees.filter(e => e.role !== 'Pompiste' && e.status !== 'Archivé').length === 0 && getLoginCount('admin', getCurrentStationId()) <= 3 && (
         <button
           onClick={() => navigate('/admin/team')}
           className="w-full mb-8 flex items-center gap-4 bg-blue-950/40 border border-blue-500/20 rounded-2xl px-5 py-4 hover:bg-blue-950/60 transition-colors text-left"

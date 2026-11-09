@@ -13,13 +13,10 @@ const VERIFY_TIMEOUT_MS = 4000;
 // quel véhicule a dépassé son temps et permet d'arrêter le son. C'est lui
 // qui joue le bip, et seulement pendant qu'il est affiché : pas de son sans
 // bandeau à l'écran (voir useAppState et lib/washAlarm.js).
-// `paused` : écran « session expirée » affiché (SessionLockOverlay) — il a sa
-// propre alerte, lue sur les données publiques à jour ; ici les données ne se
-// rafraîchissent plus, on se tait.
-export default function WashAlarmBanner({ paused = false }) {
+export default function WashAlarmBanner() {
   const navigate = useNavigate();
   const { overdueWashes, silencedWashIds, silenceWashAlarm, refreshReservations } = useAppState();
-  const ringing = paused ? [] : ringingWashes(overdueWashes, silencedWashIds);
+  const ringing = ringingWashes(overdueWashes, silencedWashIds);
   const ringingKey = ringing.map((w) => w.id).join(',');
 
   useEffect(() => { installAudioUnlock(); }, []);
