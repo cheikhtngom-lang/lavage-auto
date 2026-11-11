@@ -14,7 +14,7 @@
 -- 2. superadmin_trial_data_counts / superadmin_purge_trial_data : efface ce
 --    que la station a saisi pendant son essai (lavages, file, transactions,
 --    dépenses, ventes et mouvements de la boutique, pointages, abonnements
---    clients, vidanges, avis). Gardés : la station, son offre, ses tarifs,
+--    clients, vidanges, dépôts de tapis, avis). Gardés : la station, son offre, ses tarifs,
 --    son équipe, son catalogue (stocks remis à 0), ses pompes, et tout ce qui
 --    a transité par la plateforme (paiements PayDunya, pubs, renouvellements).
 --    Refusé dès que la station a un abonnement payé ou illimité.
@@ -96,6 +96,8 @@ as $$
     'attendance_records', (select count(*) from public.attendance_records where station_id = p_station_id),
     'client_subscriptions', (select count(*) from public.station_client_subscriptions where station_id = p_station_id),
     'vidange_bookings', (select count(*) from public.vidange_bookings where station_id = p_station_id and payment_method is distinct from 'PayDunya'),
+    -- Tapis et moquettes (add_carpet_cleaning.sql, à exécuter avant ce fichier) : jamais payés en ligne.
+    'carpet_orders', (select count(*) from public.carpet_orders where station_id = p_station_id),
     'reviews', (select count(*) from public.station_reviews where station_id = p_station_id),
     'products_with_stock', (select count(*) from public.shop_products where station_id = p_station_id and coalesce(stock, 0) <> 0)
   );
@@ -156,6 +158,8 @@ begin
   delete from public.shop_sales where station_id = p_station_id;
   delete from public.shop_orders where station_id = p_station_id and payment_method is distinct from 'PayDunya';
   update public.shop_products set stock = 0, updated_at = now() where station_id = p_station_id and coalesce(stock, 0) <> 0;
+  -- Dépôts de tapis avant les transactions (carpet_orders.transaction_id).
+  delete from public.carpet_orders where station_id = p_station_id;
   delete from public.transactions where station_id = p_station_id and method is distinct from 'PayDunya';
   delete from public.reservations where station_id = p_station_id;
   delete from public.expenses where station_id = p_station_id;
