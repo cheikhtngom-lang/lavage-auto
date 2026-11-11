@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone, Droplets, Store, PieChart } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone, Droplets, Store, PieChart, Layers } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useShopSales } from '../../hooks/useShopSales';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { stationHasPompistes } from '../../lib/pompistes';
 import { stationHasShop } from '../../lib/shop';
-import { onlineOrderRevenue, soldLines, topProducts, splitRevenue } from '../../lib/shopStats';
+import { onlineOrderRevenue, soldLines, topProducts, splitRevenue, isCarpetRevenueEntry } from '../../lib/shopStats';
 import TopProducts from '../../components/ui/TopProducts';
 
 const EXPENSE_CATEGORIES = ['Savon', 'Eau', 'Électricité', 'Matériel', 'Autre'];
@@ -150,7 +150,12 @@ export default function Accounting() {
   const splitRange = periodRange(splitPeriod, now);
   const split = splitRevenue(transactions.filter((tx) => inRange(tx.createdAt, splitRange)));
   const splitTop = topProducts(soldLines(shopSales, shopOrders).filter((l) => inRange(l.createdAt, splitRange)));
-  const showShopSplit = hasShop || transactions.some((tx) => tx.service === 'Boutique');
+  const showShopPart = hasShop || transactions.some((tx) => tx.service === 'Boutique');
+  // Tapis et moquettes (rubrique Tapis) : la carte n'apparaît qu'à partir du premier encaissement.
+  const showCarpetPart = transactions.some(isCarpetRevenueEntry);
+  const showShopSplit = showShopPart || showCarpetPart;
+  const revenueMix = ['Lavage', showShopPart && 'boutique', showCarpetPart && 'tapis'].filter(Boolean).join(' + ');
+  const splitTitle = `Revenus : ${['lavage', showShopPart && 'boutique', showCarpetPart && 'tapis'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' et $1')}`;
   const splitLabel = SPLIT_PERIODS.find((p) => p.id === splitPeriod)?.label;
 
   const weekDays = Array.from({ length: 7 }).map((_, i) => {
@@ -213,7 +218,7 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Revenus d'aujourd'hui</p>
             <h3 className="text-3xl font-bold text-white">{todayRevenue.toLocaleString('fr-FR')} FCFA</h3>
-            {showShopSplit && <p className="text-neutral-500 text-xs mt-2">Lavage + boutique</p>}
+            {showShopSplit && <p className="text-neutral-500 text-xs mt-2">{revenueMix}</p>}
           </CardContent>
         </Card>
 
@@ -228,7 +233,7 @@ export default function Accounting() {
             </div>
             <p className="text-neutral-400 text-sm font-medium mb-1">Revenus de la semaine</p>
             <h3 className="text-3xl font-bold text-white">{weekRevenue.toLocaleString('fr-FR')} FCFA</h3>
-            {showShopSplit && <p className="text-neutral-500 text-xs mt-2">Lavage + boutique</p>}
+            {showShopSplit && <p className="text-neutral-500 text-xs mt-2">{revenueMix}</p>}
           </CardContent>
         </Card>
 
@@ -265,7 +270,7 @@ export default function Accounting() {
       {showShopSplit && (
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2"><PieChart className="w-5 h-5 text-blue-400" /> Revenus : lavage et boutique</h2>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2"><PieChart className="w-5 h-5 text-blue-400" /> {splitTitle}</h2>
             <div role="tablist" aria-label="Période" className="flex gap-1 overflow-x-auto bg-white/5 border border-white/10 rounded-xl p-1 self-start md:self-auto max-w-full">
               {SPLIT_PERIODS.map((p) => (
                 <button key={p.id} type="button" role="tab" aria-selected={splitPeriod === p.id} onClick={() => setSplitPeriod(p.id)}
@@ -277,7 +282,7 @@ export default function Accounting() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2 border-white/5 bg-gradient-to-br from-blue-900/10 to-black relative overflow-hidden">
+            <Card className={`${showShopPart ? 'lg:col-span-2' : 'lg:col-span-3'} border-white/5 bg-gradient-to-br from-blue-900/10 to-black relative overflow-hidden`}>
               <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
               <CardContent className="p-6 relative z-10">
                 <p className="text-neutral-400 text-sm font-medium mb-1">Revenu global · {splitLabel}</p>
@@ -285,16 +290,17 @@ export default function Accounting() {
 
                 {/* Barre de répartition lavage / boutique */}
                 <div className="mt-6 h-3 w-full rounded-full bg-neutral-900 overflow-hidden flex" role="img"
-                  aria-label={`Lavage ${pct(split.lavage, split.total)} %, boutique ${pct(split.boutique, split.total)} %`}>
+                  aria-label={`Lavage ${pct(split.lavage, split.total)} %${showShopPart ? `, boutique ${pct(split.boutique, split.total)} %` : ''}${showCarpetPart ? `, tapis ${pct(split.tapis, split.total)} %` : ''}`}>
                   {split.total > 0 && (
                     <>
                       <motion.div initial={{ width: 0 }} animate={{ width: `${(split.lavage / split.total) * 100}%` }} transition={{ duration: 0.8 }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400" />
                       <motion.div initial={{ width: 0 }} animate={{ width: `${(split.boutique / split.total) * 100}%` }} transition={{ duration: 0.8, delay: 0.1 }} className="h-full bg-gradient-to-r from-emerald-500 to-teal-300" />
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${(split.tapis / split.total) * 100}%` }} transition={{ duration: 0.8, delay: 0.2 }} className="h-full bg-gradient-to-r from-amber-500 to-amber-300" />
                     </>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+                <div className={`grid grid-cols-1 gap-4 mt-5 ${showShopPart && showCarpetPart ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                   <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Droplets className="w-4 h-4 text-blue-400" /> Lavage</span>
@@ -303,6 +309,7 @@ export default function Accounting() {
                     <p className="text-2xl font-bold text-white">{split.lavage.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
                     <p className="text-neutral-500 text-xs mt-1">{split.lavageCount} encaissement{split.lavageCount > 1 ? 's' : ''}</p>
                   </div>
+                  {showShopPart && (
                   <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Store className="w-4 h-4 text-emerald-400" /> Boutique</span>
@@ -314,11 +321,22 @@ export default function Accounting() {
                       {split.boutiqueOnline > 0 && ` · dont ${split.boutiqueOnline.toLocaleString('fr-FR')} FCFA en ligne`}
                     </p>
                   </div>
+                  )}
+                  {showCarpetPart && (
+                    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Layers className="w-4 h-4 text-amber-400" /> Tapis</span>
+                        <span className="text-xs font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md">{pct(split.tapis, split.total)} %</span>
+                      </div>
+                      <p className="text-2xl font-bold text-white">{split.tapis.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
+                      <p className="text-neutral-500 text-xs mt-1">{split.tapisCount} dépôt{split.tapisCount > 1 ? 's' : ''} encaissé{split.tapisCount > 1 ? 's' : ''}</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
-            <TopProducts products={splitTop} periodLabel={splitLabel} />
+            {showShopPart && <TopProducts products={splitTop} periodLabel={splitLabel} />}
           </div>
         </div>
       )}

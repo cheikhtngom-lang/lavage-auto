@@ -67,6 +67,7 @@ const ClientSettings = lazyPage(() => import('./pages/Client/Settings'));
 const Stations = lazyPage(() => import('./pages/Client/Stations'));
 const MyStations = lazyPage(() => import('./pages/Client/MyStations'));
 const ClientShop = lazyPage(() => import('./pages/Client/Shop'));
+const ClientCarpets = lazyPage(() => import('./pages/Client/Carpets'));
 
 // Pages Admin (Station)
 const StationDashboard = lazyPage(() => import('./pages/Admin/StationDashboard'));
@@ -79,6 +80,7 @@ const Team = lazyPage(() => import('./pages/Admin/Team'));
 const Washers = lazyPage(() => import('./pages/Admin/Washers'));
 const Pompistes = lazyPage(() => import('./pages/Admin/Pompistes'));
 const Vidange = lazyPage(() => import('./pages/Admin/Vidange'));
+const Carpets = lazyPage(() => import('./pages/Admin/Carpets'));
 const Settings = lazyPage(() => import('./pages/Admin/Settings'));
 const Subscriptions = lazyPage(() => import('./pages/Admin/Subscriptions'));
 const Bilan = lazyPage(() => import('./pages/Admin/Bilan'));
@@ -113,8 +115,8 @@ const SuperAdminSupport = lazyPage(() => import('./pages/SuperAdmin/Support'));
 const SuperAdminAffiliates = lazyPage(() => import('./pages/SuperAdmin/Affiliates'));
 const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'));
 
-const CLIENT_PAGES = [ClientOverview, Stations, MyStations, ClientLoyalty, ClientShop, ClientGarage, ClientSettings];
-const ADMIN_PAGES = [StationDashboard, AdminTransactions, Subscriptions, Washers, Settings, Analytics, Accounting, AdminPayouts, AdminReminders, Team, Pompistes, Vidange, Bilan, Shop, AdminAnnouncements];
+const CLIENT_PAGES = [ClientOverview, Stations, MyStations, ClientLoyalty, ClientShop, ClientCarpets, ClientGarage, ClientSettings];
+const ADMIN_PAGES = [StationDashboard, AdminTransactions, Subscriptions, Washers, Settings, Analytics, Accounting, AdminPayouts, AdminReminders, Team, Pompistes, Vidange, Carpets, Bilan, Shop, AdminAnnouncements];
 const GROUP_PAGES = [GroupDashboard, GroupStations, GroupAccounting, GroupAnalysis, GroupOrder, GroupBilling, GroupSettings];
 const SUPER_ADMIN_PAGES = [SuperAdminDashboard, SuperAdminStations, SuperAdminBilling, SuperAdminMotorists, SuperAdminSuperUsers, SuperAdminAnalytics, SuperAdminPayouts, SuperAdminReminders, SuperAdminGroups, SuperAdminModules, SuperAdminAds, SuperAdminAnnouncements, SuperAdminTicker, SuperAdminFuel, SuperAdminBilan, SuperAdminSupport, SuperAdminAffiliates, SuperAdminSettings];
 
@@ -220,6 +222,7 @@ function App() {
                 <Route path="stations" element={<Stations />} />
                 <Route path="mes-stations" element={<MyStations />} />
                 <Route path="boutique" element={<ClientShop />} />
+                <Route path="tapis" element={<ClientCarpets />} />
                 <Route path="parametres" element={<ClientSettings />} />
               </Route>
 
@@ -241,6 +244,7 @@ function App() {
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
                 <Route path="pompistes" element={<RequirePompistesAccess><Pompistes /></RequirePompistesAccess>} />
                 <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
+                <Route path="tapis" element={<RequirePerm perm="dashboard"><Carpets /></RequirePerm>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="relances" element={<RequirePerm perm="subscriptions.manage"><AdminReminders /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />

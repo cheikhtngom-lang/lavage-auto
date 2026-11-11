@@ -91,6 +91,8 @@ export default defineConfig({
         notFound: resolve(__dirname, '404.html'),
         merci: resolve(__dirname, 'merci.html'),
         recu: resolve(__dirname, 'recu.html'),
+        // Lien de suivi des tapis envoyé par la station (src/tapis.js).
+        tapis: resolve(__dirname, 'tapis.html'),
         confidentialite: resolve(__dirname, 'confidentialite.html'),
         conditionsGenerales: resolve(__dirname, 'conditions-generales.html'),
         mentionsLegales: resolve(__dirname, 'mentions-legales.html'),

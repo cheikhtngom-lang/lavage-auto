@@ -126,6 +126,7 @@ export default function AdminLayout() {
   // rendu, donc aucun flash.
   const baseNav = visibleNav({ permissions: myPermissions, billing: stationBilling, hiddenMenu });
   const showsShop = baseNav.some((item) => item.key === 'shop');
+  const showsCarpets = baseNav.some((item) => item.key === 'tapis');
 
   // Nom du compte connecté (carte en pied de menu).
   useEffect(() => {
@@ -152,12 +153,38 @@ export default function AdminLayout() {
     return () => { cancelled = true; };
   }, [showsShop, location.pathname]);
 
-  // Pastilles : véhicules en attente, commandes boutique à traiter, alertes de stock.
+  // Tapis (pastilles « Tapis ») : dépôts en retard sur la date promise, et
+  // dépôts prêts que le client n'a pas encore récupérés. Relu à chaque
+  // changement de page, comme les alertes de stock.
+  const [carpetAlerts, setCarpetAlerts] = useState({ late: 0, ready: 0 });
+  useEffect(() => {
+    const stationId = getCurrentStationId();
+    if (!showsCarpets || !stationId || stationId === 'default') { setCarpetAlerts({ late: 0, ready: 0 }); return undefined; }
+    let cancelled = false;
+    supabase.from('carpet_orders').select('status, promised_at').eq('station_id', stationId).in('status', ['depose', 'lavage', 'sechage', 'pret'])
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        const now = Date.now();
+        setCarpetAlerts({
+          late: (data || []).filter((o) => o.status !== 'pret' && new Date(o.promised_at).getTime() < now).length,
+          ready: (data || []).filter((o) => o.status === 'pret').length,
+        });
+      });
+    return () => { cancelled = true; };
+  }, [showsCarpets, location.pathname]);
+
+  // Pastilles : véhicules en attente, commandes boutique à traiter, alertes de stock, tapis.
   const waitingCount = (queue || []).length;
   const ordersToHandle = (shopOrders || []).filter((o) => o.status === 'confirmee').length;
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
   const navigation = baseNav.map((item) => {
     if (item.key === 'queue') return { ...item, badges: [{ count: waitingCount, tone: 'blue', label: plural(waitingCount, 'véhicule en attente', 'véhicules en attente') }] };
+    if (item.key === 'tapis') {
+      return { ...item, badges: [
+        { count: carpetAlerts.late, tone: 'red', label: plural(carpetAlerts.late, 'dépôt en retard', 'dépôts en retard') },
+        { count: carpetAlerts.ready, tone: 'emerald', label: plural(carpetAlerts.ready, 'prêt à récupérer', 'prêts à récupérer') },
+      ] };
+    }
     if (item.key === 'shop') {
       return { ...item, badges: [
         { count: ordersToHandle, tone: 'blue', label: plural(ordersToHandle, 'commande à traiter', 'commandes à traiter') },

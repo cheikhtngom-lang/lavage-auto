@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
-import { Clock, Users, Car, Target, TrendingUp, TrendingDown, Banknote, Receipt, Calendar, Store, Droplets } from 'lucide-react';
+import { Clock, Users, Car, Target, TrendingUp, TrendingDown, Banknote, Receipt, Calendar, Store, Droplets, Layers } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useShopSales } from '../../hooks/useShopSales';
 import { stationHasShop } from '../../lib/shop';
@@ -316,7 +316,7 @@ export default function Analytics() {
               </div>
             </div>
             <div className="flex flex-wrap items-stretch gap-3">
-              {showShop && (
+              {(showShop || revenueSplit.tapis > 0) && (
                 <>
                   <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
                     <Droplets className="w-5 h-5 text-blue-400" />
@@ -325,6 +325,7 @@ export default function Analytics() {
                       <p className="text-xs text-neutral-500">Lavage · {totalRevenue > 0 ? Math.round((revenueSplit.lavage / totalRevenue) * 100) : 0} %</p>
                     </div>
                   </div>
+                  {showShop && (
                   <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
                     <Store className="w-5 h-5 text-emerald-400" />
                     <div>
@@ -332,6 +333,16 @@ export default function Analytics() {
                       <p className="text-xs text-neutral-500">Boutique · {totalRevenue > 0 ? Math.round((revenueSplit.boutique / totalRevenue) * 100) : 0} %</p>
                     </div>
                   </div>
+                  )}
+                  {revenueSplit.tapis > 0 && (
+                    <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
+                      <Layers className="w-5 h-5 text-amber-400" />
+                      <div>
+                        <p className="text-xl font-bold text-white">{revenueSplit.tapis.toLocaleString('fr-FR')} <span className="text-xs font-medium text-neutral-500">F</span></p>
+                        <p className="text-xs text-neutral-500">Tapis · {totalRevenue > 0 ? Math.round((revenueSplit.tapis / totalRevenue) * 100) : 0} %</p>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
               <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">

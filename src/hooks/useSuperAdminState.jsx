@@ -314,9 +314,10 @@ export function SuperAdminStateProvider({ children }) {
             .select('id, station_id, service, amount, created_at, stations(name)')
             .gte('created_at', since.toISOString())
             .order('created_at', { ascending: false });
-        // Ventes boutique sur place (add_shop_stock_sales.sql) : pas des lavages,
-        // elles fausseraient le chiffre d'affaires et le nombre de « lavages encaissés ».
-        setStationTransactions((data || []).filter((row) => row.service !== 'Boutique').map(rowToStationTransaction));
+        // Ventes boutique sur place (add_shop_stock_sales.sql) et tapis déposés
+        // (add_carpet_cleaning.sql) : pas des lavages, ils fausseraient le chiffre
+        // d'affaires et le nombre de « lavages encaissés ».
+        setStationTransactions((data || []).filter((row) => row.service !== 'Boutique' && row.service !== 'Tapis').map(rowToStationTransaction));
     }, []);
 
     // Annonces diffusées à toutes les stations (add_announcements.sql) —

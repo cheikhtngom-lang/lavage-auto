@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import PageSuspense from '../ui/PageSuspense';
-import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, Droplets, Crown, Gift, ShoppingBag } from 'lucide-react';
+import { LayoutDashboard, Car, MapPin, Building2, Settings as SettingsIcon, Droplets, Crown, Gift, ShoppingBag, Layers } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import ClosurePendingScreen, { useMyClosure } from '../account/ClosurePendingScreen';
@@ -12,6 +12,7 @@ import SuperUserWelcomeOverlay from '../client/SuperUserWelcomeOverlay';
 import AnnouncementBell from '../ui/AnnouncementBell';
 import AnnouncementPopup from '../ui/AnnouncementPopup';
 import AppShell from './AppShell';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function ClientLayout() {
   const { account, loading, superUserStatus, stationAnnouncements, dismissAnnouncement } = useClientAccount();
@@ -28,11 +29,24 @@ export default function ClientLayout() {
     }
   }, [loading, account]);
 
+  // Pastille « Mes tapis » : dépôts prêts à récupérer (add_carpet_cleaning.sql),
+  // relue à chaque changement de page.
+  const location = useLocation();
+  const [carpetsReady, setCarpetsReady] = useState(0);
+  useEffect(() => {
+    if (!account?.id) return undefined;
+    let cancelled = false;
+    supabase.from('carpet_orders').select('id', { count: 'exact', head: true }).eq('client_id', account.id).eq('status', 'pret')
+      .then(({ count, error }) => { if (!cancelled && !error) setCarpetsReady(count || 0); });
+    return () => { cancelled = true; };
+  }, [account?.id, location.pathname]);
+
   const navigation = [
     { name: "Vue d'ensemble", href: '/dashboard', icon: LayoutDashboard, tourId: 'client-nav-overview' },
     { name: 'Fidélité', href: '/dashboard/fidelite', icon: Gift },
     { name: 'Mes Stations', href: '/dashboard/mes-stations', icon: Building2 },
     { name: 'Boutique', href: '/dashboard/boutique', icon: ShoppingBag },
+    { name: 'Mes tapis', href: '/dashboard/tapis', icon: Layers, badges: [{ count: carpetsReady, tone: 'emerald', label: `${carpetsReady} prêt${carpetsReady > 1 ? 's' : ''} à récupérer` }] },
     { name: 'Trouver une station', href: '/dashboard/stations', icon: MapPin, tourId: 'client-nav-stations' },
     { name: 'Mon Parking', href: '/dashboard/garage', icon: Car, tourId: 'client-nav-garage' },
     { name: 'Paramètres', href: '/dashboard/parametres', icon: SettingsIcon, tourId: 'client-nav-settings' },

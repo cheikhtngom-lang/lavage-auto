@@ -620,12 +620,20 @@
 
         // ============ INIT ============
         let returnToReserve = false; // true si on vient de "Réserver" sans être connecté
+        // Lien de suivi des tapis (tapis.html) : le jeton attend dans le navigateur
+        // et « Mes tapis » le rattache au compte après la connexion / l'inscription.
+        let returnToCarpets = false;
 
         function init() {
             const params = new URLSearchParams(window.location.search);
             const mode = params.get('mode');
             const role = params.get('role'); // 'agence' ou 'automobiliste'
             returnToReserve = params.get('returnTo') === 'reserve';
+            const carpetToken = params.get('tapis');
+            if (carpetToken && /^[0-9a-f-]{36}$/i.test(carpetToken)) {
+                try { localStorage.setItem('ccg_carpet_claim', carpetToken); } catch { /* stockage indisponible */ }
+                returnToCarpets = true;
+            }
             const sessionExpired = params.get('expired') === '1';
 
             // Pré-sélectionne l'offre si on arrive depuis un bouton de la page
@@ -661,6 +669,7 @@
                 const subtitle = document.getElementById('page-subtitle');
                 if (subtitle) subtitle.textContent = 'Créez votre compte pour finaliser votre réservation.';
             }
+
         }
 
         // ============ NAVIGATION ENTRE VUES ============
@@ -673,6 +682,8 @@
 
             const subtitle = document.getElementById('page-subtitle');
             if (!subtitle) return;
+            if (returnToCarpets && view === 'login') { subtitle.textContent = 'Connectez-vous pour suivre vos tapis dans votre espace.'; return; }
+            if (returnToCarpets && view === 'register') { subtitle.textContent = 'Créez votre compte gratuit pour suivre vos tapis.'; return; }
             if (view === 'choice') subtitle.textContent = 'Bienvenue, que voulez-vous faire ?';
             else if (view === 'login') subtitle.textContent = 'Connectez-vous à votre espace Clean Car Galsen.';
             else if (view === 'register') subtitle.textContent = 'Rejoignez Clean Car Galsen gratuitement.';
@@ -764,7 +775,9 @@
                     stationId: (profile.role === 'admin' || profile.role === 'staff') && !profile.is_group_owner ? profile.station_id : undefined,
                     groupOwner: !!profile.is_group_owner,
                 });
-                const dest = profile.is_group_owner ? '/groupe' : (profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role]);
+                const dest = profile.is_group_owner ? '/groupe'
+                    : profile.role === 'automobiliste' && returnToCarpets ? '/dashboard/tapis'
+                    : (profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role]);
                 window.location.href = dest || '/dashboard';
             } catch (err) {
                 console.error('signIn failed:', err);
@@ -800,7 +813,7 @@
             try {
                 const account = await createClientAccount({ firstName, lastName, email, phone, password });
                 setSession({ role: 'automobiliste', remember: true, clientId: account.id });
-                window.location.href = returnToReserve ? '/stations' : '/dashboard';
+                window.location.href = returnToCarpets ? '/dashboard/tapis' : (returnToReserve ? '/stations' : '/dashboard');
             } catch (err) {
                 console.error('createClientAccount failed:', err);
                 errorEl.textContent = err.message || "Erreur lors de la création du compte. Vérifiez vos informations.";

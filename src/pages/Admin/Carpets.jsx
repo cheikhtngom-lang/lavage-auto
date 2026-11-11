@@ -1,0 +1,574 @@
+// Rubrique station « Tapis » : tapis de salon et moquettes déposés par les
+// clients. Enregistrer un dépôt, le faire avancer (lavage, séchage, prêt,
+// récupéré), l'encaisser (transaction « Tapis » en Comptabilité) et envoyer
+// au client le lien de suivi sur WhatsApp. Voir add_carpet_cleaning.sql.
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
+import {
+  Layers, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, Minus, AlertTriangle,
+} from 'lucide-react';
+import { Card, CardContent } from '../../components/ui/Card';
+import { useAppState } from '../../hooks/useAppState';
+import { useStationCarpets } from '../../hooks/useStationCarpets';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { cn } from '../../lib/utils';
+import {
+  CARPET_KINDS, CARPET_DELAYS, DEFAULT_CARPET_DELAY, CARPET_STEPS, CARPET_STATUS, NEXT_STATUS, NEXT_ACTION_LABEL,
+  isOpenCarpet, isLateCarpet, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel, carpetTrackingUrl,
+  depositMessage, readyMessage, carpetWhatsAppLink, createCarpetOrder, setCarpetStatus, updateCarpetOrder,
+  recordCarpetPayment, isCarpetRevenue,
+} from '../../lib/carpets';
+
+const METHODS = ['Espèces', 'Wave', 'Orange Money', 'Carte'];
+const PREV_STATUS = { lavage: 'depose', sechage: 'lavage', pret: 'sechage', recupere: 'pret' };
+const inputCls = 'w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-neutral-600 focus:outline-none focus:border-blue-500';
+
+// Heure pleine suivante + délai : « prêt sous 48 h » déposé à 14 h 37 = 15 h dans 2 jours.
+function promiseFromDelay(hours, from = new Date()) {
+  const d = new Date(from);
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1 + hours);
+  return d;
+}
+const toLocalInput = (date) => {
+  const d = new Date(date);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const delayLabel = (h) => (h % 24 === 0 && h > 48 ? `${h / 24} jours` : `${h} h`);
+
+const TONE = {
+  neutral: 'bg-white/5 text-neutral-300 border-white/10',
+  blue: 'bg-blue-500/10 text-blue-300 border-blue-500/25',
+  cyan: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25',
+  emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
+  red: 'bg-red-500/10 text-red-300 border-red-500/25',
+};
+
+// Rendue dans <body> : la page est un contexte d'empilement (relative z-10),
+// une fenêtre restée dedans passerait sous le menu et le bandeau d'essai.
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-black/70" role="dialog" aria-modal="true" aria-label={title}>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+        className="bg-neutral-900 border border-white/10 rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 w-full sm:max-w-lg shadow-2xl relative max-h-[92dvh] overflow-y-auto"
+      >
+        <button onClick={onClose} className="modal-close" aria-label="Fermer" title="Fermer"><X className="w-6 h-6" /></button>
+        <h2 className="text-xl font-bold text-white mb-5 pr-10">{title}</h2>
+        {children}
+      </motion.div>
+    </div>,
+    document.body,
+  );
+}
+
+function Stepper({ status }) {
+  const idx = stepIndex(status);
+  const cancelled = status === 'annule';
+  return (
+    <ol className="flex items-center gap-1.5" aria-label={`Étape : ${CARPET_STATUS[status]?.label}`}>
+      {CARPET_STEPS.map((s, i) => (
+        <li key={s.key} className="flex items-center gap-1.5">
+          <span
+            title={s.label}
+            className={cn('h-1.5 w-7 rounded-full', cancelled ? 'bg-white/10' : i <= idx ? (idx === CARPET_STEPS.length - 1 ? 'bg-emerald-400' : 'bg-blue-400') : 'bg-white/10')}
+          />
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ShareLink({ order, stationName, ready }) {
+  const [copied, setCopied] = useState(false);
+  const wa = carpetWhatsAppLink(order, ready ? readyMessage(order, stationName) : depositMessage(order, stationName));
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(carpetTrackingUrl(order.publicToken)); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* presse-papiers refusé */ }
+  };
+  return (
+    <div className="flex flex-col sm:flex-row gap-2">
+      {wa ? (
+        <a href={wa} target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 rounded-xl transition-colors">
+          <MessageCircle className="w-4 h-4" /> {ready ? 'Prévenir sur WhatsApp' : 'Envoyer le lien sur WhatsApp'}
+        </a>
+      ) : (
+        <p className="flex-1 text-sm text-neutral-400 bg-white/5 rounded-xl px-4 py-3">Pas de numéro WhatsApp : copiez le lien et envoyez-le au client.</p>
+      )}
+      <button type="button" onClick={copy} className="inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-4 py-3 rounded-xl transition-colors">
+        {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Link2 className="w-4 h-4" />} {copied ? 'Lien copié' : 'Copier le lien'}
+      </button>
+    </div>
+  );
+}
+
+function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
+  const [form, setForm] = useState({ clientName: '', clientPhone: '', amount: '', note: '', paidNow: false, method: 'Espèces' });
+  const [qty, setQty] = useState({ 'Tapis de salon': 1 });
+  const [delay, setDelay] = useState(DEFAULT_CARPET_DELAY);
+  const [customDate, setCustomDate] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(null);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const bump = (kind, d) => setQty((q) => ({ ...q, [kind]: Math.max(0, Math.min(99, (q[kind] || 0) + d)) }));
+  const pieces = Object.values(qty).reduce((s, n) => s + n, 0);
+  const promise = delay === 'custom' ? (customDate ? new Date(customDate) : null) : promiseFromDelay(delay);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!form.clientName.trim()) { setError('Indiquez le nom du client.'); return; }
+    if (pieces < 1) { setError('Ajoutez au moins une pièce.'); return; }
+    if (!promise || Number.isNaN(promise.getTime())) { setError('Choisissez la date à laquelle ce sera prêt.'); return; }
+    if (form.paidNow && !(parseInt(form.amount, 10) > 0)) { setError('Indiquez le montant encaissé.'); return; }
+    setSaving(true);
+    try {
+      let order = await createCarpetOrder(stationId, {
+        clientName: form.clientName, clientPhone: form.clientPhone,
+        items: CARPET_KINDS.map((kind) => ({ kind, qty: qty[kind] || 0 })),
+        amount: form.amount, promisedAt: promise.toISOString(), note: form.note,
+      });
+      if (form.paidNow) {
+        await recordCarpetPayment(order.id, form.method, form.amount);
+        order = { ...order, paid: true, paymentMethod: form.method };
+      }
+      onSaved(order);
+      setSaved(order);
+    } catch (err) {
+      setError(err.message || "Le dépôt n'a pas pu être enregistré.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (saved) {
+    return (
+      <Modal title="Dépôt enregistré" onClose={onClose}>
+        <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-5 mb-5">
+          <p className="text-neutral-400 text-sm">Ticket</p>
+          <p className="text-4xl font-bold text-white tabular-nums">n° {saved.ticketNo}</p>
+          <p className="text-white mt-3 font-medium">{saved.clientName}</p>
+          <p className="text-neutral-400 text-sm">{itemsSummary(saved.items, saved.pieceCount)}</p>
+          <p className="text-neutral-300 text-sm mt-3">Prêt au plus tard le <strong className="text-white">{formatPromise(saved.promisedAt)}</strong></p>
+        </div>
+        <p className="text-sm text-neutral-400 mb-3">Le client suit l'avancement avec ce lien et peut créer son compte pour retrouver ses dépôts dans « Mes tapis ».</p>
+        <ShareLink order={saved} stationName={stationName} />
+        <button type="button" onClick={onClose} className="w-full mt-3 text-neutral-400 hover:text-white py-2 text-sm">Fermer</button>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title="Nouveau dépôt" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-5">
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="cp-name" className="block text-sm font-medium text-neutral-400 mb-1">Nom du client</label>
+            <input id="cp-name" className={inputCls} value={form.clientName} onChange={(e) => set('clientName', e.target.value)} placeholder="Ex : Awa Diop" autoComplete="off" required />
+          </div>
+          <div>
+            <label htmlFor="cp-phone" className="block text-sm font-medium text-neutral-400 mb-1">WhatsApp du client</label>
+            <input id="cp-phone" className={inputCls} type="tel" inputMode="tel" value={form.clientPhone} onChange={(e) => set('clientPhone', e.target.value)} placeholder="77 123 45 67" autoComplete="off" />
+          </div>
+        </div>
+
+        <fieldset>
+          <legend className="block text-sm font-medium text-neutral-400 mb-2">Pièces déposées</legend>
+          <div className="rounded-xl border border-white/10 divide-y divide-white/5">
+            {CARPET_KINDS.map((kind) => (
+              <div key={kind} className="flex items-center justify-between px-4 py-2.5">
+                <span className={cn('text-sm', qty[kind] ? 'text-white font-medium' : 'text-neutral-400')}>{kind}</span>
+                <div className="flex items-center gap-1">
+                  <button type="button" onClick={() => bump(kind, -1)} disabled={!qty[kind]} aria-label={`Retirer : ${kind}`} className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 flex items-center justify-center text-white"><Minus className="w-4 h-4" /></button>
+                  <span className="w-8 text-center text-white font-bold tabular-nums">{qty[kind] || 0}</span>
+                  <button type="button" onClick={() => bump(kind, 1)} aria-label={`Ajouter : ${kind}`} className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white"><Plus className="w-4 h-4" /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="block text-sm font-medium text-neutral-400 mb-2">Prêt sous</legend>
+          <div className="flex flex-wrap gap-2">
+            {CARPET_DELAYS.map((h) => (
+              <button key={h} type="button" onClick={() => setDelay(h)} aria-pressed={delay === h}
+                className={cn('px-4 py-2 rounded-lg text-sm font-medium border transition-colors', delay === h ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10')}>
+                {delayLabel(h)}
+              </button>
+            ))}
+            <button type="button" onClick={() => { setDelay('custom'); if (!customDate) setCustomDate(toLocalInput(promiseFromDelay(DEFAULT_CARPET_DELAY))); }} aria-pressed={delay === 'custom'}
+              className={cn('px-4 py-2 rounded-lg text-sm font-medium border transition-colors', delay === 'custom' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10')}>
+              Autre date
+            </button>
+          </div>
+          {delay === 'custom' && (
+            <input type="datetime-local" className={cn(inputCls, 'mt-2')} value={customDate} min={toLocalInput(new Date())} onChange={(e) => setCustomDate(e.target.value)} aria-label="Date et heure promises" />
+          )}
+          {promise && !Number.isNaN(promise.getTime()) && (
+            <p className="text-sm text-neutral-400 mt-2">Annoncé au client : prêt au plus tard le <span className="text-white font-medium">{formatPromise(promise)}</span>.</p>
+          )}
+        </fieldset>
+
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="cp-amount" className="block text-sm font-medium text-neutral-400 mb-1">Prix total (FCFA)</label>
+            <input id="cp-amount" className={inputCls} type="number" min="0" step="100" inputMode="numeric" value={form.amount} onChange={(e) => set('amount', e.target.value)} placeholder="Vide = fixé au retrait" />
+          </div>
+          <div>
+            <label htmlFor="cp-note" className="block text-sm font-medium text-neutral-400 mb-1">Note interne</label>
+            <input id="cp-note" className={inputCls} value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Taches, dimensions…" />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-white/10 p-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" className="w-5 h-5 accent-blue-500" checked={form.paidNow} onChange={(e) => set('paidNow', e.target.checked)} />
+            <span className="text-white text-sm font-medium">Le client paie maintenant</span>
+          </label>
+          {form.paidNow && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {METHODS.map((m) => (
+                <button key={m} type="button" onClick={() => set('method', m)} aria-pressed={form.method === m}
+                  className={cn('px-3 py-1.5 rounded-lg text-sm border transition-colors', form.method === m ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10')}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+        <button type="submit" disabled={saving} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
+          {saving ? 'Enregistrement…' : `Enregistrer le dépôt${pieces ? ` (${pieces} pièce${pieces > 1 ? 's' : ''})` : ''}`}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function PayModal({ order, onClose, onDone }) {
+  const [amount, setAmount] = useState(order.amount ? String(order.amount) : '');
+  const [method, setMethod] = useState('Espèces');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!(parseInt(amount, 10) > 0)) { setError('Indiquez le montant.'); return; }
+    setSaving(true);
+    try { await recordCarpetPayment(order.id, method, amount); onDone(); onClose(); } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+  return (
+    <Modal title={`Encaisser le ticket n° ${order.ticketNo}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-neutral-400">{order.clientName} · {itemsSummary(order.items, order.pieceCount)}</p>
+        <div>
+          <label htmlFor="pay-amount" className="block text-sm font-medium text-neutral-400 mb-1">Montant (FCFA)</label>
+          <input id="pay-amount" className={inputCls} type="number" min="0" step="100" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {METHODS.map((m) => (
+            <button key={m} type="button" onClick={() => setMethod(m)} aria-pressed={method === m}
+              className={cn('px-3 py-2 rounded-lg text-sm border transition-colors', method === m ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-white/5 border-white/10 text-neutral-300 hover:bg-white/10')}>
+              {m}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-neutral-500">La recette apparaît dans Transactions et en Comptabilité, rubrique Tapis.</p>
+        {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+        <button type="submit" disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
+          {saving ? 'Encaissement…' : `Encaisser ${parseInt(amount, 10) > 0 ? fcfa(amount) : ''}`}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function EditModal({ order, onClose, onSaved }) {
+  const [promisedAt, setPromisedAt] = useState(toLocalInput(order.promisedAt));
+  const [amount, setAmount] = useState(order.amount ? String(order.amount) : '');
+  const [phone, setPhone] = useState(order.clientPhone || '');
+  const [note, setNote] = useState(order.note || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const patch = { promisedAt: new Date(promisedAt).toISOString(), clientPhone: phone, note };
+      if (!order.paid) patch.amount = amount;
+      onSaved(await updateCarpetOrder(order.id, patch));
+      onClose();
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+  return (
+    <Modal title={`Modifier le ticket n° ${order.ticketNo}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <label htmlFor="ed-date" className="block text-sm font-medium text-neutral-400 mb-1">Prêt au plus tard le</label>
+          <input id="ed-date" type="datetime-local" className={inputCls} value={promisedAt} onChange={(e) => setPromisedAt(e.target.value)} required />
+        </div>
+        {!order.paid && (
+          <div>
+            <label htmlFor="ed-amount" className="block text-sm font-medium text-neutral-400 mb-1">Prix total (FCFA)</label>
+            <input id="ed-amount" type="number" min="0" step="100" className={inputCls} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </div>
+        )}
+        <div>
+          <label htmlFor="ed-phone" className="block text-sm font-medium text-neutral-400 mb-1">WhatsApp du client</label>
+          <input id="ed-phone" type="tel" className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="ed-note" className="block text-sm font-medium text-neutral-400 mb-1">Note interne</label>
+          <input id="ed-note" className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+        <button type="submit" disabled={saving} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, busy }) {
+  const [menu, setMenu] = useState(false);
+  const status = CARPET_STATUS[order.status] || CARPET_STATUS.depose;
+  const late = isLateCarpet(order);
+  const open = isOpenCarpet(order);
+  const next = NEXT_STATUS[order.status];
+  return (
+    <div className="p-4 sm:p-5 border-b border-white/5 last:border-0">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+        <div className="w-16 shrink-0">
+          <p className="text-[11px] uppercase tracking-wide text-neutral-500">Ticket</p>
+          <p className="text-2xl font-bold text-white tabular-nums leading-tight">{order.ticketNo}</p>
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <p className="font-bold text-white truncate">{order.clientName}</p>
+          <p className="text-neutral-400 text-sm">{itemsSummary(order.items, order.pieceCount)}</p>
+          {order.clientPhone && <p className="text-neutral-500 text-xs mt-0.5 tabular-nums">{order.clientPhone}</p>}
+          {order.note && <p className="text-neutral-500 text-xs mt-1 italic">« {order.note} »</p>}
+        </div>
+        <div className="min-w-[190px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className={cn('text-xs font-medium px-2.5 py-0.5 rounded-md border', TONE[status.tone])}>{status.label}</span>
+            {order.clientId && <span className="text-[11px] text-neutral-500" title="Le client suit ce dépôt depuis son espace">suivi par le client</span>}
+          </div>
+          <Stepper status={order.status} />
+          {open && order.status !== 'pret' && (
+            <p className={cn('text-xs mt-1.5 flex items-center gap-1', late ? 'text-red-400 font-medium' : 'text-neutral-400')}>
+              <Clock className="w-3.5 h-3.5" /> Promis {formatPromise(order.promisedAt)} · {timeLeftLabel(order.promisedAt)}
+            </p>
+          )}
+          {order.status === 'pret' && order.readyAt && <p className="text-xs mt-1.5 text-emerald-400">Prêt depuis le {formatPromise(order.readyAt)}</p>}
+          {order.status === 'recupere' && order.pickedUpAt && <p className="text-xs mt-1.5 text-neutral-500">Récupéré le {formatPromise(order.pickedUpAt)}</p>}
+        </div>
+        <div className="sm:text-right min-w-[110px]">
+          <p className="text-white font-bold tabular-nums">{order.amount ? fcfa(order.amount) : '—'}</p>
+          <p className={cn('text-xs mt-0.5', order.paid ? 'text-emerald-400' : 'text-amber-400')}>{order.paid ? `Payé (${order.paymentMethod || 'Espèces'})` : order.status === 'annule' ? 'Non encaissé' : 'À encaisser'}</p>
+        </div>
+      </div>
+
+      {order.status !== 'annule' && (
+        <div className="flex flex-wrap items-center gap-2 mt-3 sm:pl-[84px]">
+          {next && (
+            <button type="button" onClick={() => onAdvance(order, next)} disabled={busy}
+              className={cn('inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-60',
+                next === 'pret' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-blue-600 hover:bg-blue-500 text-white')}>
+              <Check className="w-4 h-4" /> {NEXT_ACTION_LABEL[order.status]}
+            </button>
+          )}
+          {!order.paid && (
+            <button type="button" onClick={() => onPay(order)} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors">
+              <Coins className="w-4 h-4 text-amber-400" /> Encaisser
+            </button>
+          )}
+          {open && (
+            <button type="button" onClick={() => onShare(order)} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors">
+              <MessageCircle className="w-4 h-4 text-emerald-400" /> {order.status === 'pret' ? 'Prévenir' : 'Lien de suivi'}
+            </button>
+          )}
+          <div className="relative">
+            <button type="button" onClick={() => setMenu((m) => !m)} aria-expanded={menu} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+              Plus <ChevronDown className="w-4 h-4" />
+            </button>
+            {menu && (
+              <>
+                <button type="button" aria-label="Fermer le menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setMenu(false)} />
+                <div className="absolute z-20 mt-1 left-0 w-56 rounded-xl bg-neutral-900 border border-white/10 shadow-2xl py-1">
+                  <button type="button" onClick={() => { setMenu(false); onEdit(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Pencil className="w-4 h-4" /> Modifier délai, prix, note</button>
+                  {PREV_STATUS[order.status] && (
+                    <button type="button" onClick={() => { setMenu(false); onBack(order, PREV_STATUS[order.status]); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Undo2 className="w-4 h-4" /> Revenir à « {CARPET_STATUS[PREV_STATUS[order.status]].label} »</button>
+                  )}
+                  {open && !order.paid && (
+                    <button type="button" onClick={() => { setMenu(false); onCancel(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10"><Ban className="w-4 h-4" /> Annuler le dépôt</button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TABS = [
+  { id: 'cours', label: 'En cours' },
+  { id: 'prets', label: 'Prêts' },
+  { id: 'historique', label: 'Historique' },
+];
+
+export default function Carpets() {
+  useDocumentTitle('Tapis');
+  const { stationProfile, transactions } = useAppState();
+  const { stationId, orders, loaded, error, reload, upsertLocal } = useStationCarpets();
+  const stationName = stationProfile?.name || '';
+  const [tab, setTab] = useState('cours');
+  const [query, setQuery] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [paying, setPaying] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [sharing, setSharing] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState('');
+
+  const now = new Date();
+  const inProgress = orders.filter((o) => ['depose', 'lavage', 'sechage'].includes(o.status));
+  const ready = orders.filter((o) => o.status === 'pret');
+  const late = inProgress.filter((o) => isLateCarpet(o, now));
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthRevenue = (transactions || []).filter((t) => isCarpetRevenue(t) && new Date(t.createdAt) >= monthStart).reduce((s, t) => s + (parseInt(t.amount, 10) || 0), 0);
+  const toCollect = orders.filter((o) => isOpenCarpet(o) && !o.paid).reduce((s, o) => s + (o.amount || 0), 0);
+
+  const list = useMemo(() => {
+    const base = tab === 'cours'
+      ? [...inProgress].sort((a, b) => new Date(a.promisedAt) - new Date(b.promisedAt))
+      : tab === 'prets' ? ready : orders.filter((o) => !isOpenCarpet(o));
+    const q = query.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter((o) => String(o.ticketNo) === q.replace(/^n°\s*/, '') || (o.clientName || '').toLowerCase().includes(q) || (o.clientPhone || '').replace(/\s/g, '').includes(q.replace(/\s/g, '')));
+  }, [tab, orders, query]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const counts = { cours: inProgress.length, prets: ready.length, historique: orders.length - inProgress.length - ready.length };
+
+  const changeStatus = async (order, status) => {
+    if (status === 'recupere' && !order.paid && order.amount > 0 && !window.confirm(`Ticket n° ${order.ticketNo} pas encore encaissé (${fcfa(order.amount)}). Le marquer quand même comme remis ?`)) return;
+    setBusyId(order.id);
+    setActionError('');
+    try {
+      const updated = await setCarpetStatus(order.id, status);
+      upsertLocal(updated);
+      if (status === 'pret') setSharing(updated); // proposer tout de suite de prévenir le client
+    } catch (err) { setActionError(err.message); } finally { setBusyId(null); }
+  };
+  const cancelOrder = (order) => {
+    if (window.confirm(`Annuler le dépôt n° ${order.ticketNo} de ${order.clientName} ?`)) changeStatus(order, 'annule');
+  };
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
+            <Layers className="w-8 h-8 text-blue-400" /> Tapis et moquettes
+          </h1>
+          <p className="text-neutral-400 text-base sm:text-lg">Dépôts des clients, avancement du lavage et lien de suivi.</p>
+        </div>
+        <button type="button" onClick={() => setShowNew(true)} className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl font-bold transition-colors">
+          <Plus className="w-5 h-5" /> Nouveau dépôt
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5 mb-8">
+        <Card className="border-white/5 bg-white/[0.02]"><CardContent className="p-4 sm:p-6">
+          <p className="text-neutral-400 text-sm font-medium mb-1">En cours</p>
+          <p className="text-3xl font-bold text-white tabular-nums">{inProgress.length}</p>
+        </CardContent></Card>
+        <Card className="border-white/5 bg-white/[0.02]"><CardContent className="p-4 sm:p-6">
+          <p className="text-neutral-400 text-sm font-medium mb-1">Prêts à récupérer</p>
+          <p className="text-3xl font-bold text-emerald-400 tabular-nums">{ready.length}</p>
+        </CardContent></Card>
+        <Card className={cn('border-white/5 bg-white/[0.02]', late.length > 0 && 'border-red-500/30 bg-red-500/[0.04]')}><CardContent className="p-4 sm:p-6">
+          <p className="text-neutral-400 text-sm font-medium mb-1">En retard</p>
+          <p className={cn('text-3xl font-bold tabular-nums', late.length ? 'text-red-400' : 'text-white')}>{late.length}</p>
+        </CardContent></Card>
+        <Card className="border-white/5 bg-white/[0.02]"><CardContent className="p-4 sm:p-6">
+          <p className="text-neutral-400 text-sm font-medium mb-1">Encaissé ce mois</p>
+          <p className="text-2xl sm:text-3xl font-bold text-white tabular-nums">{fcfa(monthRevenue)}</p>
+          {toCollect > 0 && <p className="text-xs text-amber-400 mt-1">{fcfa(toCollect)} à encaisser</p>}
+        </CardContent></Card>
+      </div>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10 w-full sm:w-auto" role="tablist">
+          {TABS.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+              className={cn('flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors', tab === t.id ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white')}>
+              {t.label} <span className="tabular-nums opacity-70">{counts[t.id]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="relative sm:w-72">
+          <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nom, téléphone ou n° de ticket" aria-label="Rechercher un dépôt"
+            className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-blue-500" />
+        </div>
+      </div>
+
+      {(error || actionError) && (
+        <p className="mb-4 text-sm text-red-400 flex items-center gap-2" role="alert"><AlertTriangle className="w-4 h-4" /> {actionError || "Les dépôts n'ont pas pu être lus. Rechargez la page."}</p>
+      )}
+
+      {!loaded ? (
+        <div className="glass-card rounded-2xl h-40 border border-white/5 bg-white/[0.02] animate-pulse" />
+      ) : list.length === 0 ? (
+        <div className="glass-card rounded-2xl p-10 text-center border-dashed border-2 border-white/10">
+          <Layers className="w-12 h-12 text-neutral-600 mx-auto mb-3" />
+          {orders.length === 0 ? (
+            <>
+              <p className="text-white font-bold mb-1">Aucun dépôt pour l'instant</p>
+              <p className="text-neutral-400 text-sm max-w-md mx-auto">Enregistrez les tapis et moquettes déposés par vos clients. Ils reçoivent un lien pour suivre le lavage et savoir quand passer les récupérer.</p>
+              <button type="button" onClick={() => setShowNew(true)} className="mt-5 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl font-bold transition-colors"><Plus className="w-5 h-5" /> Premier dépôt</button>
+            </>
+          ) : (
+            <p className="text-neutral-400">{query ? 'Aucun dépôt ne correspond à la recherche.' : tab === 'prets' ? 'Aucun dépôt prêt en attente du client.' : tab === 'cours' ? 'Aucun dépôt en cours.' : 'Aucun dépôt terminé.'}</p>
+          )}
+        </div>
+      ) : (
+        <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
+          {list.map((o) => (
+            <OrderRow key={o.id} order={o} busy={busyId === o.id}
+              onAdvance={changeStatus} onBack={changeStatus} onCancel={cancelOrder}
+              onPay={setPaying} onEdit={setEditing} onShare={setSharing} />
+          ))}
+        </div>
+      )}
+
+      {showNew && <NewDepositModal stationId={stationId} stationName={stationName} onClose={() => setShowNew(false)} onSaved={(o) => { upsertLocal(o); setTab('cours'); }} />}
+      {paying && <PayModal order={paying} onClose={() => setPaying(null)} onDone={reload} />}
+      {editing && <EditModal order={editing} onClose={() => setEditing(null)} onSaved={upsertLocal} />}
+      {sharing && (
+        <Modal title={sharing.status === 'pret' ? `Ticket n° ${sharing.ticketNo} prêt` : `Lien de suivi · ticket n° ${sharing.ticketNo}`} onClose={() => setSharing(null)}>
+          <p className="text-sm text-neutral-400 mb-4">
+            {sharing.status === 'pret'
+              ? `Prévenez ${sharing.clientName} que son dépôt est prêt. S'il a créé son compte, il le voit déjà dans « Mes tapis ».`
+              : `${sharing.clientName} suit l'avancement avec ce lien et peut créer son compte pour être prévenu.`}
+          </p>
+          <ShareLink order={sharing} stationName={stationName} ready={sharing.status === 'pret'} />
+        </Modal>
+      )}
+    </div>
+  );
+}
