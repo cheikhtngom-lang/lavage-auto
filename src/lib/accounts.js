@@ -6,6 +6,7 @@
 // Module sans dépendance React : importable aussi bien depuis login.html
 // (script type="module") que depuis les hooks React.
 import { supabase } from './supabaseClient';
+import { clearPermsCache } from './stationCache';
 import { canRecord, siteEventArgs } from './attribution';
 
 // signUp() ne renvoie pas toujours une session active immédiatement (selon
@@ -305,6 +306,9 @@ export function setSession({ role, remember, clientId, stationId, groupOwner }) 
 }
 
 export function clearSession() {
+  // Droits du collaborateur gardés pour le menu : un autre compte sur le même
+  // appareil ne doit pas en hériter (lib/stationCache.js).
+  clearPermsCache();
   ['isLoggedIn', 'userRole', 'currentClientId', 'currentStationId', 'isGroupOwner',
    'ccg_last_activity', 'ccg_session_expired'].forEach((k) => {
     localStorage.removeItem(k);

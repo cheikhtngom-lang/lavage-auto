@@ -6,6 +6,7 @@ import { findOverdueWashes, sameOverdueList, readSilencedWashIds, writeSilencedW
 import { DEFAULT_PROMO, applyDiscount } from '../lib/promoDefaults';
 import { closingDateFor, hoursForDate } from '../lib/stationData';
 import { nozzleLabel, nozzleKey, sortNozzles, normalizeLines } from '../lib/pompistes';
+import { readStationCache, writeStationCache, hiddenMenuKey, readPermsCache, writePermsCache } from '../lib/stationCache';
 import { loadPlatformAnnouncements, sendStationAnnouncement as sendStationAnnouncementApi, loadStationKnownClients as loadStationKnownClientsApi, retireAnnouncement } from '../lib/announcements';
 
 // Chaque station a ses propres données, séparées des autres (file d'attente,
@@ -68,6 +69,46 @@ const defaultStationProfile = {
     cachet: null, // Data URL du cachet/tampon officiel — apposé sur les reçus
     dailyRevenueTarget: 50000, // Objectif de revenus journalier affiché dans Accounting.jsx
 };
+
+const rowToProfile = (row) => ({
+    name: row?.name || '',
+    phone: row?.owner_phone || '',
+    address: row?.address || '',
+    quartier: row?.quartier || '',
+    region: row?.region || '',
+    country: row?.country || 'SN',
+    openTime: row?.open_time || '08:00',
+    closeTime: row?.close_time || '20:00',
+    // Samedi et dimanche, facultatif (add_weekend_hours.sql) : null = même horaire.
+    weekendOpenTime: row?.weekend_open_time || null,
+    weekendCloseTime: row?.weekend_close_time || null,
+    logo: row?.logo_url || null,
+    cachet: row?.cachet_url || null,
+    dailyRevenueTarget: row?.daily_revenue_target ?? 50000,
+    vidangeEnabled: !!row?.vidange_enabled,
+    vidangeSlotMinutes: row?.vidange_slot_minutes || 60,
+    vidangeDailyCapacity: row?.vidange_daily_capacity || 1,
+    vidangeFiltreHuilePrice: row?.vidange_filtre_huile_price ?? null,
+    vidangeFiltreAirPrice: row?.vidange_filtre_air_price ?? null,
+});
+const rowToBilling = (row) => ({
+    plan: row?.plan || 'Starter',
+    activeModules: row?.active_modules || [],
+    subscriptionStatus: row?.subscription_status || 'essai',
+    trialEndsAt: row?.trial_ends_at || null,
+    nextBillingDate: row?.next_billing_date || null,
+    paydunyaAlias: row?.paydunya_account_alias || null,
+});
+// Offre de la station telle qu'utilisée partout (menu, bandeau d'essai...).
+// `fromCache` : valeur relue dans le navigateur (lib/stationCache.js), pas
+// encore confirmée par la base — AdminLayout ne s'en sert pas pour bloquer.
+function billingFromRow(row, fromCache = false) {
+    // Début de l'essai = création de la station (barre d'essai, lib/stationTrial.js),
+    // ou début de l'accès gratuit offert par le Super Admin (trial_started_at).
+    const offeredFrom = row?.station_billing?.trial_started_at || null;
+    return { ...rowToBilling(row?.station_billing), trialStartedAt: offeredFrom || row?.created_at || null, freeAccessOffered: !!offeredFrom, ...(fromCache ? { fromCache: true } : {}) };
+}
+const promoFromRow = (row) => (row?.promo_config && Object.keys(row.promo_config).length > 0 ? row.promo_config : DEFAULT_PROMO);
 
 // ─── Identifiants des données fictives à supprimer ───────────────────────────
 // Ce sont les noms exacts utilisés dans le code de démo d'origine.
@@ -628,24 +669,26 @@ export function AppStateProvider({ children }) {
     // que le registre Super Admin (table `stations`) — plus de copie locale
     // séparée, pour ne jamais désynchroniser ce que voit l'admin de ce que
     // voit le registre/l'annuaire public (voir supabase/schema.sql).
-    const [stationProfile, setStationProfile] = useState(defaultStationProfile);
+    // Partent de la dernière copie connue (lib/stationCache.js) : menu et en-tête
+    // complets dès la connexion, la base les confirme juste après.
+    const [stationProfile, setStationProfile] = useState(() => { const c = readStationCache(stationId); return c ? rowToProfile(c) : defaultStationProfile; });
     // Bandeau promo / réduction / code promo — même principe : colonne
     // `promo_config` de la même ligne `stations`, plus de copie locale séparée.
-    const [promoConfig, setPromoConfig] = useState(DEFAULT_PROMO);
+    const [promoConfig, setPromoConfig] = useState(() => { const c = readStationCache(stationId); return c ? promoFromRow(c) : DEFAULT_PROMO; });
     // Facturation SaaS de la station (plan, essai, statut) — table séparée
     // `station_billing` (voir supabase/schema.sql), jamais lue avant : sert
     // à afficher la bannière d'essai (AdminLayout.jsx).
-    const [stationBilling, setStationBilling] = useState(null);
+    const [stationBilling, setStationBilling] = useState(() => { const c = readStationCache(stationId); return c ? billingFromRow(c, true) : null; });
     // Distinct de `!stationProfile.name` : sans ça, AdminLayout.jsx affiche
     // brièvement "⚙️ Configurer" (nom vide = état par défaut) le temps que la
     // requête Supabase réponde, même pour une station déjà configurée —
     // un vrai bug rapporté par l'utilisateur, pas juste un flash inoffensif.
-    const [stationProfileLoaded, setStationProfileLoaded] = useState(false);
+    const [stationProfileLoaded, setStationProfileLoaded] = useState(() => !!readStationCache(stationId));
     // Rubriques masquées du menu latéral (Paramètres > Menu, voir lib/adminNav.js
     // et add_station_menu_prefs.sql). null = pas encore chargé -> valeur par
     // défaut. Recopié dans localStorage pour que le menu s'affiche du premier
     // coup sans que des rubriques n'apparaissent puis ne disparaissent.
-    const hiddenMenuCacheKey = `ccg_hidden_menu_${stationId}`;
+    const hiddenMenuCacheKey = hiddenMenuKey(stationId);
     const [hiddenMenu, setHiddenMenu] = useState(() => {
         try { const raw = localStorage.getItem(hiddenMenuCacheKey); return raw ? JSON.parse(raw) : null; } catch { return null; }
     });
@@ -653,37 +696,19 @@ export function AppStateProvider({ children }) {
         setHiddenMenu(list);
         try { localStorage.setItem(hiddenMenuCacheKey, JSON.stringify(list)); } catch { /* stockage indisponible : sans effet */ }
     };
-    const rowToProfile = (row) => ({
-        name: row?.name || '',
-        phone: row?.owner_phone || '',
-        address: row?.address || '',
-        quartier: row?.quartier || '',
-        region: row?.region || '',
-        country: row?.country || 'SN',
-        openTime: row?.open_time || '08:00',
-        closeTime: row?.close_time || '20:00',
-        // Samedi et dimanche, facultatif (add_weekend_hours.sql) : null = même horaire.
-        weekendOpenTime: row?.weekend_open_time || null,
-        weekendCloseTime: row?.weekend_close_time || null,
-        logo: row?.logo_url || null,
-        cachet: row?.cachet_url || null,
-        dailyRevenueTarget: row?.daily_revenue_target ?? 50000,
-        vidangeEnabled: !!row?.vidange_enabled,
-        vidangeSlotMinutes: row?.vidange_slot_minutes || 60,
-        vidangeDailyCapacity: row?.vidange_daily_capacity || 1,
-        vidangeFiltreHuilePrice: row?.vidange_filtre_huile_price ?? null,
-        vidangeFiltreAirPrice: row?.vidange_filtre_air_price ?? null,
-    });
-    const rowToBilling = (row) => ({
-        plan: row?.plan || 'Starter',
-        activeModules: row?.active_modules || [],
-        subscriptionStatus: row?.subscription_status || 'essai',
-        trialEndsAt: row?.trial_ends_at || null,
-        nextBillingDate: row?.next_billing_date || null,
-        paydunyaAlias: row?.paydunya_account_alias || null,
-    });
+    const applyStationRow = (row, fromCache) => {
+        setStationProfile(rowToProfile(row));
+        setPromoConfig(promoFromRow(row));
+        setStationBilling(billingFromRow(row, fromCache));
+        if (Array.isArray(row?.hidden_menu)) rememberHiddenMenu(row.hidden_menu);
+        setStationProfileLoaded(true);
+    };
     useEffect(() => {
-        setStationProfileLoaded(false);
+        // Changement de station (patron Sur mesure) : copie locale de la
+        // nouvelle station si elle existe, sinon attente de la base.
+        const cached = readStationCache(stationId);
+        if (cached) applyStationRow(cached, true);
+        else setStationProfileLoaded(false);
         if (!stationId || stationId === 'default') { setStationProfile(defaultStationProfile); setPromoConfig(DEFAULT_PROMO); setStationBilling(null); setStationProfileLoaded(true); return; }
         // Un échec (onglet resté inactif : session en cours de renouvellement,
         // réseau coupé, requête bloquée) n'écrase plus rien : avant, la station
@@ -717,14 +742,8 @@ export function AppStateProvider({ children }) {
             }
             loaded = true;
             attempts = 0;
-            setStationProfile(rowToProfile(data));
-            setPromoConfig(data?.promo_config && Object.keys(data.promo_config).length > 0 ? data.promo_config : DEFAULT_PROMO);
-            // Début de l'essai = création de la station (barre d'essai, lib/stationTrial.js),
-            // ou début de l'accès gratuit offert par le Super Admin (trial_started_at).
-            const offeredFrom = data?.station_billing?.trial_started_at || null;
-            setStationBilling({ ...rowToBilling(data?.station_billing), trialStartedAt: offeredFrom || data?.created_at || null, freeAccessOffered: !!offeredFrom });
-            if (Array.isArray(data?.hidden_menu)) rememberHiddenMenu(data.hidden_menu);
-            setStationProfileLoaded(true);
+            applyStationRow(data, false);
+            writeStationCache(stationId, data);
         };
         load();
         const onBack = () => { if (!loaded && document.visibilityState === 'visible') { attempts = 0; load(); } };
@@ -744,7 +763,9 @@ export function AppStateProvider({ children }) {
     // permissions de son rôle station. null = encore en chargement.
     const initialPerms = () => {
         const r = getCurrentRole();
-        return (r === 'admin' || r === 'super_admin') ? ['*'] : null;
+        if (r === 'admin' || r === 'super_admin') return ['*'];
+        // Collaborateur : derniers droits connus sur cet appareil, relus juste après.
+        return r === 'staff' ? (readPermsCache(stationId)?.permissions || null) : null;
     };
     const [myPermissions, setMyPermissions] = useState(initialPerms);
     const [myRoleName, setMyRoleName] = useState('');
@@ -765,6 +786,7 @@ export function AppStateProvider({ children }) {
             if (!data || data.status !== 'active') { setMyPermissions([]); setMyRoleName(''); return; }
             setMyPermissions(data.station_roles?.permissions || []);
             setMyRoleName(data.station_roles?.name || '');
+            writePermsCache(stationId, data.station_roles?.permissions, data.station_roles?.name);
         })();
         return () => { cancelled = true; };
     }, [stationId]);

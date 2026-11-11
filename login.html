@@ -495,6 +495,7 @@
             createClientAccount, createStationAccount, signIn, setSession,
         } from '/src/lib/accounts.js';
         import { geocodeQuartierRegion } from '/src/lib/geocoding.js';
+        import { prefetchStationForLogin } from '/src/lib/stationCache.js';
         import { COUNTRIES, regionsOf, isKnownCountry, DEFAULT_COUNTRY } from '/src/lib/countries.js';
         import { detectCountry } from '/src/lib/userCountry.js';
 
@@ -775,6 +776,9 @@
                     stationId: (profile.role === 'admin' || profile.role === 'staff') && !profile.is_group_owner ? profile.station_id : undefined,
                     groupOwner: !!profile.is_group_owner,
                 });
+                // Station : copie de l'offre et du menu prête avant l'ouverture du
+                // tableau de bord (lib/stationCache.js), 1,5 s au plus.
+                await prefetchStationForLogin(profile);
                 const dest = profile.is_group_owner ? '/groupe'
                     : profile.role === 'automobiliste' && returnToCarpets ? '/dashboard/tapis'
                     : (profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role]);

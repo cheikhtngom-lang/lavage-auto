@@ -113,8 +113,10 @@ export default function AdminLayout() {
   // au tableau de bord tant qu'elle n'a pas renouvelé (voir SubscriptionEnded.jsx
   // et isSubscriptionEnded, lib/stationRenewal.js). `stationBilling` démarre à
   // null le temps du chargement — on attend qu'il soit chargé avant de juger.
+  // Jamais sur la copie locale (fromCache, lib/stationCache.js) : une station
+  // qui vient de renouveler serait renvoyée à tort vers le renouvellement.
   useEffect(() => {
-    if (stationBilling && isSubscriptionEnded(stationBilling)) {
+    if (stationBilling && !stationBilling.fromCache && isSubscriptionEnded(stationBilling)) {
       navigate('/admin/renouveler', { replace: true });
     }
   }, [stationBilling, navigate]);
