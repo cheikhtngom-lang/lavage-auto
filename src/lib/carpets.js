@@ -155,6 +155,12 @@ export function rowToCarpet(row) {
     paymentMethod: row.payment_method,
     status: row.status,
     promisedAt: row.promised_at,
+    // Stations partenaires (add_carpet_partner_stations.sql) : sur un dépôt
+    // apporté par une autre station, sa station et son dépôt d'origine ; sur
+    // un dépôt confié, le dépôt créé chez la station partenaire.
+    fromStationId: row.from_station_id || null,
+    fromOrderId: row.from_order_id || null,
+    partnerOrderId: row.partner_order_id || null,
     readyAt: row.ready_at,
     pickedUpAt: row.picked_up_at,
     // Notes internes : table carpet_order_notes, lue par la station seule
@@ -190,7 +196,7 @@ const piecesToItems = (pieces) => (pieces || []).map((p) => ({
 const piecesToNotes = (pieces) => Object.fromEntries((pieces || []).filter((p) => p.note && String(p.note).trim()).map((p) => [p.id, String(p.note).trim()]));
 
 // `pieces` : [{ id, kind, size, price, note }] — le total est la somme des prix.
-export async function createCarpetOrder(stationId, { clientName, clientPhone, pieces, promisedAt, note }) {
+export async function createCarpetOrder(stationId, { clientName, clientPhone, pieces, promisedAt, note, fromStationId }) {
   const items = piecesToItems(pieces);
   const { data, error } = await supabase.from('carpet_orders').insert({
     station_id: stationId,
@@ -201,6 +207,8 @@ export async function createCarpetOrder(stationId, { clientName, clientPhone, pi
     piece_count: Math.max(1, countPieces(items)),
     amount: piecesTotal(items),
     promised_at: promisedAt,
+    // Client = une station Galsen : elle suit le dépôt et son paiement devient une dépense chez elle.
+    ...(fromStationId ? { from_station_id: fromStationId } : {}),
   }).select('*').single();
   if (error) throw new Error(error.message);
   const notes = await saveNotes(data.id, stationId, note, piecesToNotes(pieces));
@@ -255,3 +263,26 @@ export async function claimPendingCarpet() {
   try { localStorage.removeItem(PENDING_CLAIM_KEY); } catch { /* idem */ }
   return error ? { error: error.message } : { ok: true };
 }
+
+// ─── Stations partenaires ──────────────────────────────────────────────
+// Stations Galsen actives (annuaire public, RLS stations_select), sauf la sienne.
+export async function loadPartnerStations(myStationId) {
+  const { data, error } = await supabase.from('stations').select('id, name, owner_phone, quartier, city, region').eq('status', 'active').order('name');
+  if (error) throw new Error(error.message);
+  return (data || []).filter((st) => st.id !== myStationId && (st.name || '').trim());
+}
+export const stationPlace = (st) => [...new Set([st?.quartier, st?.city].map((v) => (v || '').trim()).filter(Boolean))].join(', ');
+
+export async function outsourceCarpet(orderId, partnerStationId, promisedAt) {
+  const { data, error } = await supabase.rpc('carpet_outsource', { p_order_id: orderId, p_partner_station_id: partnerStationId, p_promised_at: promisedAt || null });
+  if (error) throw new Error(error.message);
+  return data;
+}
+export async function cancelOutsource(orderId) {
+  const { error } = await supabase.rpc('carpet_outsource_cancel', { p_order_id: orderId });
+  if (error) throw new Error(error.message);
+}
+
+// Dépôts de la station chez ses partenaires (lus grâce à from_station_id).
+export const SENT_CARPET_SELECT = '*, partner:stations!carpet_orders_station_id_fkey(name, owner_phone, quartier, city, lat, lng)';
+export const rowToSentCarpet = (row) => ({ ...rowToCarpet(row), partner: row.partner || null });

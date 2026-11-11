@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
-  Layers, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, AlertTriangle, Trash2,
+  Layers, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, AlertTriangle, Trash2, Building2, Send, Phone,
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { useAppState } from '../../hooks/useAppState';
@@ -18,7 +18,9 @@ import {
   isOpenCarpet, isLateCarpet, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel, carpetTrackingUrl,
   depositMessage, readyMessage, carpetWhatsAppLink, createCarpetOrder, setCarpetStatus, updateCarpetOrder,
   recordCarpetPayment, isCarpetRevenue, newPiece, pieceLines, pieceLabel, piecesTotal, piecesWithoutPrice, orderToPieces,
+  loadPartnerStations, stationPlace, outsourceCarpet, cancelOutsource,
 } from '../../lib/carpets';
+import { whatsappLink } from '../../lib/subscriptionReminders';
 
 const METHODS = ['Espèces', 'Wave', 'Orange Money', 'Carte'];
 const PREV_STATUS = { lavage: 'depose', sechage: 'lavage', pret: 'sechage', recupere: 'pret' };
@@ -199,9 +201,137 @@ function PieceList({ order, showNotes = false }) {
   );
 }
 
+// Liste des stations Galsen (sauf la sienne), avec recherche.
+function StationPicker({ myStationId, value, onChange }) {
+  const [stations, setStations] = useState(null);
+  const [q, setQ] = useState('');
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    loadPartnerStations(myStationId).then((list) => { if (!cancelled) setStations(list); }).catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [myStationId]);
+  const needle = q.trim().toLowerCase();
+  const shown = (stations || []).filter((st) => !needle || `${st.name} ${stationPlace(st)}`.toLowerCase().includes(needle)).slice(0, 30);
+  if (failed) return <p className="text-sm text-red-400">La liste des stations n'a pas pu être lue. Réessayez.</p>;
+  return (
+    <div>
+      <div className="relative mb-2">
+        <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom ou quartier de la station" aria-label="Rechercher une station"
+          className={cn(inputCls, 'pl-9')} />
+      </div>
+      <div className="rounded-xl border border-white/10 max-h-56 overflow-y-auto divide-y divide-white/5" role="listbox" aria-label="Stations">
+        {stations == null ? (
+          <p className="px-4 py-4 text-sm text-neutral-500">Chargement des stations…</p>
+        ) : shown.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-neutral-500">Aucune station trouvée.</p>
+        ) : shown.map((st) => (
+          <button key={st.id} type="button" role="option" aria-selected={value?.id === st.id} onClick={() => onChange(st)}
+            className={cn('w-full text-left px-4 py-3 flex items-center gap-3 transition-colors', value?.id === st.id ? 'bg-blue-600/20' : 'hover:bg-white/5')}>
+            <Building2 className={cn('w-4 h-4 shrink-0', value?.id === st.id ? 'text-blue-300' : 'text-neutral-500')} />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-white truncate">{st.name}</span>
+              {stationPlace(st) && <span className="block text-xs text-neutral-500 truncate">{stationPlace(st)}</span>}
+            </span>
+            {value?.id === st.id && <Check className="w-4 h-4 text-blue-300 ml-auto shrink-0" />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OutsourceModal({ order, myStationId, onClose, onDone }) {
+  const [partner, setPartner] = useState(null);
+  // Date promise au client par défaut ; déjà passée (dépôt en retard) : dans 48 h.
+  const [promisedAt, setPromisedAt] = useState(() => toLocalInput(new Date(order.promisedAt) > new Date() ? order.promisedAt : promiseFromDelay(DEFAULT_CARPET_DELAY)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!partner) { setError('Choisissez la station qui lavera ces pièces.'); return; }
+    setSaving(true);
+    setError('');
+    try { await outsourceCarpet(order.id, partner.id, new Date(promisedAt).toISOString()); onDone(); onClose(); } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+  return (
+    <Modal title={`Confier le ticket n° ${order.ticketNo} à une autre station`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-neutral-400">
+          {order.clientName} · {itemsSummary(order.items, order.pieceCount)}. La station choisie reçoit le dépôt dans sa rubrique Tapis, à votre nom ; elle fixe son prix.
+        </p>
+        <StationPicker myStationId={myStationId} value={partner} onChange={setPartner} />
+        <div>
+          <label htmlFor="out-date" className="block text-sm font-medium text-neutral-400 mb-1">À rendre au plus tard le</label>
+          <input id="out-date" type="datetime-local" className={inputCls} value={promisedAt} onChange={(e) => setPromisedAt(e.target.value)} required />
+        </div>
+        <ul className="text-xs text-neutral-500 space-y-1 list-disc pl-4">
+          <li>L'avancement chez elle se recopie sur le dépôt de votre client : il le voit sur son lien.</li>
+          <li>Quand vous récupérez les tapis chez elle, le dépôt de votre client passe à « Prêt ».</li>
+          <li>Ce que vous lui payez s'ajoute à vos dépenses (« Tapis (station partenaire) »).</li>
+        </ul>
+        {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+        <button type="submit" disabled={saving || !partner} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
+          {saving ? 'Envoi…' : partner ? `Confier à ${partner.name}` : 'Choisissez une station'}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+// Dépôt de la station chez une station partenaire (onglet « Chez un partenaire »).
+function SentRow({ order, ownOrder, onTakeBack, busy }) {
+  const status = CARPET_STATUS[order.status] || CARPET_STATUS.depose;
+  const partner = order.partner || {};
+  const call = partner.owner_phone ? `tel:${String(partner.owner_phone).replace(/[^\d+]/g, '')}` : null;
+  const wa = whatsappLink(partner.owner_phone, `Bonjour, je viens aux nouvelles de nos tapis (ticket n° ${order.ticketNo} chez vous).`);
+  const open = isOpenCarpet(order);
+  return (
+    <div className={cn('p-4 sm:p-5 border-b border-white/5 last:border-0', !open && 'opacity-70')}>
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+        <div className="flex-1 min-w-[200px]">
+          <p className="font-bold text-white flex items-center gap-2"><Building2 className="w-4 h-4 text-blue-400 shrink-0" /> {partner.name || 'Station partenaire'}</p>
+          <p className="text-neutral-500 text-xs mt-0.5">Ticket n° {order.ticketNo} chez elle{stationPlace(partner) ? ` · ${stationPlace(partner)}` : ''}</p>
+          <p className="text-neutral-400 text-sm mt-1">{itemsSummary(order.items, order.pieceCount)}</p>
+          {ownOrder && <p className="text-neutral-500 text-xs mt-1">Pour votre ticket n° {ownOrder.ticketNo} · {ownOrder.clientName}</p>}
+        </div>
+        <div className="min-w-[190px]">
+          <span className={cn('inline-block text-xs font-medium px-2.5 py-0.5 rounded-md border mb-1.5', TONE[status.tone])}>{order.status === 'pret' ? 'Prêt : à récupérer chez elle' : status.label}</span>
+          <Stepper status={order.status} />
+          {['depose', 'lavage', 'sechage'].includes(order.status) && (
+            <p className={cn('text-xs mt-1.5 flex items-center gap-1', isLateCarpet(order) ? 'text-red-400 font-medium' : 'text-neutral-400')}>
+              <Clock className="w-3.5 h-3.5" /> Promis {formatPromise(order.promisedAt)} · {timeLeftLabel(order.promisedAt)}
+            </p>
+          )}
+        </div>
+        <div className="sm:text-right min-w-[110px]">
+          <p className="text-white font-bold tabular-nums">{order.amount ? fcfa(order.amount) : '—'}</p>
+          <p className={cn('text-xs mt-0.5', order.paid ? 'text-emerald-400' : 'text-neutral-500')}>{order.paid ? 'Payé (dans vos dépenses)' : order.amount ? 'À lui payer' : 'Prix fixé par elle'}</p>
+        </div>
+      </div>
+      {open && (
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          {call && <a href={call} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"><Phone className="w-4 h-4" /> Appeler</a>}
+          {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"><MessageCircle className="w-4 h-4 text-emerald-400" /> WhatsApp</a>}
+          {ownOrder && order.status === 'depose' && (
+            <button type="button" onClick={() => onTakeBack(ownOrder)} disabled={busy} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-red-300 hover:bg-red-500/10 transition-colors disabled:opacity-60">
+              <Undo2 className="w-4 h-4" /> Reprendre
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
   const [form, setForm] = useState({ clientName: '', clientPhone: '', paidNow: false, method: 'Espèces' });
   const [pieces, setPieces] = useState([]);
+  // Client = une autre station Galsen : elle suivra le dépôt et son paiement sera une dépense chez elle.
+  const [clientStation, setClientStation] = useState(null);
+  const [isStationClient, setIsStationClient] = useState(false);
+  const pickStation = (st) => { setClientStation(st); setForm((f) => ({ ...f, clientName: st.name, clientPhone: st.owner_phone || '' })); };
   const [delay, setDelay] = useState(DEFAULT_CARPET_DELAY);
   const [customDate, setCustomDate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -215,6 +345,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+    if (isStationClient && !clientStation) { setError('Choisissez la station cliente.'); return; }
     if (!form.clientName.trim()) { setError('Indiquez le nom du client.'); return; }
     if (pieces.length < 1) { setError('Ajoutez au moins une pièce.'); return; }
     if (!promise || Number.isNaN(promise.getTime())) { setError('Choisissez la date à laquelle ce sera prêt.'); return; }
@@ -224,6 +355,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
       let order = await createCarpetOrder(stationId, {
         clientName: form.clientName, clientPhone: form.clientPhone,
         pieces, promisedAt: promise.toISOString(),
+        fromStationId: isStationClient ? clientStation?.id : null,
       });
       if (form.paidNow) {
         await recordCarpetPayment(order.id, form.method, total);
@@ -261,6 +393,21 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
   return (
     <Modal title="Nouveau dépôt" onClose={onClose}>
       <form onSubmit={submit} className="space-y-5">
+        <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10" role="radiogroup" aria-label="Type de client">
+          {[[false, 'Un particulier'], [true, 'Une station Galsen']].map(([v, label]) => (
+            <button key={label} type="button" role="radio" aria-checked={isStationClient === v}
+              onClick={() => { setIsStationClient(v); if (!v) { setClientStation(null); setForm((f) => ({ ...f, clientName: '', clientPhone: '' })); } }}
+              className={cn('flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors', isStationClient === v ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white')}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {isStationClient && (
+          <div>
+            <p className="text-sm text-neutral-400 mb-2">Station qui vous apporte ses tapis : elle suit le dépôt dans sa rubrique Tapis, et ce qu'elle vous paie s'ajoute à ses dépenses.</p>
+            <StationPicker myStationId={stationId} value={clientStation} onChange={pickStation} />
+          </div>
+        )}
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <label htmlFor="cp-name" className="block text-sm font-medium text-neutral-400 mb-1">Nom du client</label>
@@ -401,7 +548,7 @@ function EditModal({ order, onClose, onSaved }) {
   );
 }
 
-function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, busy }) {
+function OrderRow({ order, partnerOrder, onAdvance, onBack, onCancel, onPay, onEdit, onShare, onOutsource, onTakeBack, busy }) {
   const [menu, setMenu] = useState(false);
   const [details, setDetails] = useState(false);
   const status = CARPET_STATUS[order.status] || CARPET_STATUS.depose;
@@ -417,6 +564,7 @@ function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, 
         </div>
         <div className="flex-1 min-w-[180px]">
           <p className="font-bold text-white truncate">{order.clientName}</p>
+          {order.fromStationId && <p className="text-[11px] text-blue-300 flex items-center gap-1"><Building2 className="w-3 h-3" /> Station partenaire</p>}
           <button type="button" onClick={() => setDetails((d) => !d)} aria-expanded={details}
             className="text-neutral-400 hover:text-white text-sm inline-flex items-center gap-1 text-left">
             {itemsSummary(order.items, order.pieceCount)} <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 transition-transform', details && 'rotate-180')} />
@@ -424,6 +572,11 @@ function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, 
           {details && <div className="mt-2 max-w-sm"><PieceList order={order} showNotes /></div>}
           {order.clientPhone && <p className="text-neutral-500 text-xs mt-0.5 tabular-nums">{order.clientPhone}</p>}
           {order.note && <p className="text-neutral-500 text-xs mt-1 italic">« {order.note} »</p>}
+          {partnerOrder && partnerOrder.status !== 'annule' && (
+            <p className="text-xs mt-1.5 text-blue-300 flex items-center gap-1">
+              <Send className="w-3 h-3 shrink-0" /> Confié à {partnerOrder.partner?.name || 'une station partenaire'} · {partnerOrder.status === 'pret' ? 'prêt, à récupérer chez elle' : (CARPET_STATUS[partnerOrder.status]?.label || '').toLowerCase()}
+            </p>
+          )}
         </div>
         <div className="min-w-[190px]">
           <div className="flex items-center gap-2 mb-1.5">
@@ -476,6 +629,12 @@ function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, 
                   {PREV_STATUS[order.status] && (
                     <button type="button" onClick={() => { setMenu(false); onBack(order, PREV_STATUS[order.status]); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Undo2 className="w-4 h-4" /> Revenir à « {CARPET_STATUS[PREV_STATUS[order.status]].label} »</button>
                   )}
+                  {['depose', 'lavage', 'sechage'].includes(order.status) && !order.fromStationId && (!partnerOrder || partnerOrder.status === 'annule') && (
+                    <button type="button" onClick={() => { setMenu(false); onOutsource(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Send className="w-4 h-4" /> Confier à une autre station</button>
+                  )}
+                  {partnerOrder && partnerOrder.status === 'depose' && (
+                    <button type="button" onClick={() => { setMenu(false); onTakeBack(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Undo2 className="w-4 h-4" /> Reprendre chez {partnerOrder.partner?.name || 'la station'}</button>
+                  )}
                   {open && !order.paid && (
                     <button type="button" onClick={() => { setMenu(false); onCancel(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10"><Ban className="w-4 h-4" /> Annuler le dépôt</button>
                   )}
@@ -492,13 +651,18 @@ function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, 
 const TABS = [
   { id: 'cours', label: 'En cours' },
   { id: 'prets', label: 'Prêts' },
+  { id: 'partenaires', label: 'Chez un partenaire' },
   { id: 'historique', label: 'Historique' },
 ];
 
 export default function Carpets() {
   useDocumentTitle('Tapis');
   const { stationProfile, transactions } = useAppState();
-  const { stationId, orders, loaded, error, reload, upsertLocal } = useStationCarpets();
+  const { stationId, orders, sent, loaded, error, reload, upsertLocal } = useStationCarpets();
+  const [outsourcing, setOutsourcing] = useState(null);
+  const sentById = useMemo(() => new Map(sent.map((o) => [o.id, o])), [sent]);
+  const ownById = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
+  const sentOpen = sent.filter(isOpenCarpet);
   const stationName = stationProfile?.name || '';
   const [tab, setTab] = useState('cours');
   const [query, setQuery] = useState('');
@@ -526,7 +690,15 @@ export default function Carpets() {
     return base.filter((o) => String(o.ticketNo) === q.replace(/^n°\s*/, '') || (o.clientName || '').toLowerCase().includes(q) || (o.clientPhone || '').replace(/\s/g, '').includes(q.replace(/\s/g, '')));
   }, [tab, orders, query]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const counts = { cours: inProgress.length, prets: ready.length, historique: orders.length - inProgress.length - ready.length };
+  const counts = { cours: inProgress.length, prets: ready.length, partenaires: sentOpen.length, historique: orders.length - inProgress.length - ready.length };
+  const sentList = [...sentOpen, ...sent.filter((o) => !isOpenCarpet(o))];
+
+  const takeBack = async (ownOrder) => {
+    if (!window.confirm(`Reprendre le ticket n° ${ownOrder.ticketNo} ? La station partenaire ne l'aura plus dans sa liste.`)) return;
+    setBusyId(ownOrder.id);
+    setActionError('');
+    try { await cancelOutsource(ownOrder.id); await reload(); } catch (err) { setActionError(err.message); } finally { setBusyId(null); }
+  };
 
   const changeStatus = async (order, status) => {
     if (status === 'recupere' && !order.paid && order.amount > 0 && !window.confirm(`Ticket n° ${order.ticketNo} pas encore encaissé (${fcfa(order.amount)}). Le marquer quand même comme remis ?`)) return;
@@ -549,7 +721,7 @@ export default function Carpets() {
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
             <Layers className="w-8 h-8 text-blue-400" /> Tapis et moquettes
           </h1>
-          <p className="text-neutral-400 text-base sm:text-lg">Dépôts des clients, avancement du lavage et lien de suivi.</p>
+          <p className="text-neutral-400 text-base sm:text-lg">Dépôts des clients et des stations partenaires, avancement du lavage et lien de suivi.</p>
         </div>
         <button type="button" onClick={() => setShowNew(true)} className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl font-bold transition-colors">
           <Plus className="w-5 h-5" /> Nouveau dépôt
@@ -577,10 +749,10 @@ export default function Carpets() {
       </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10 w-full sm:w-auto" role="tablist">
-          {TABS.map((t) => (
+        <div className="flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10 w-full sm:w-auto overflow-x-auto" role="tablist">
+          {TABS.filter((t) => t.id !== 'partenaires' || sent.length > 0).map((t) => (
             <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-              className={cn('flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-medium transition-colors', tab === t.id ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white')}>
+              className={cn('flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors', tab === t.id ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white')}>
               {t.label} <span className="tabular-nums opacity-70">{counts[t.id]}</span>
             </button>
           ))}
@@ -598,6 +770,17 @@ export default function Carpets() {
 
       {!loaded ? (
         <div className="glass-card rounded-2xl h-40 border border-white/5 bg-white/[0.02] animate-pulse" />
+      ) : tab === 'partenaires' ? (
+        sentList.length === 0 ? (
+          <div className="glass-card rounded-2xl p-10 text-center border-dashed border-2 border-white/10">
+            <Building2 className="w-12 h-12 text-neutral-600 mx-auto mb-3" />
+            <p className="text-neutral-400 text-sm max-w-md mx-auto">Aucun dépôt chez une autre station. Pour en confier un : « Plus », puis « Confier à une autre station ».</p>
+          </div>
+        ) : (
+          <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
+            {sentList.map((o) => <SentRow key={o.id} order={o} ownOrder={o.fromOrderId ? ownById.get(o.fromOrderId) : null} onTakeBack={takeBack} busy={busyId === o.fromOrderId} />)}
+          </div>
+        )
       ) : list.length === 0 ? (
         <div className="glass-card rounded-2xl p-10 text-center border-dashed border-2 border-white/10">
           <Layers className="w-12 h-12 text-neutral-600 mx-auto mb-3" />
@@ -614,14 +797,15 @@ export default function Carpets() {
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden border border-white/5 bg-white/[0.02]">
           {list.map((o) => (
-            <OrderRow key={o.id} order={o} busy={busyId === o.id}
+            <OrderRow key={o.id} order={o} busy={busyId === o.id} partnerOrder={o.partnerOrderId ? sentById.get(o.partnerOrderId) : null}
               onAdvance={changeStatus} onBack={changeStatus} onCancel={cancelOrder}
-              onPay={setPaying} onEdit={setEditing} onShare={setSharing} />
+              onPay={setPaying} onEdit={setEditing} onShare={setSharing} onOutsource={setOutsourcing} onTakeBack={takeBack} />
           ))}
         </div>
       )}
 
       {showNew && <NewDepositModal stationId={stationId} stationName={stationName} onClose={() => setShowNew(false)} onSaved={(o) => { upsertLocal(o); setTab('cours'); }} />}
+      {outsourcing && <OutsourceModal order={outsourcing} myStationId={stationId} onClose={() => setOutsourcing(null)} onDone={async () => { await reload(); setTab('partenaires'); }} />}
       {paying && <PayModal order={paying} onClose={() => setPaying(null)} onDone={reload} />}
       {editing && <EditModal order={editing} onClose={() => setEditing(null)} onSaved={upsertLocal} />}
       {sharing && (
