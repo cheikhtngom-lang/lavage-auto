@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
-  Layers, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, Minus, AlertTriangle,
+  Layers, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, AlertTriangle, Trash2,
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { useAppState } from '../../hooks/useAppState';
@@ -17,7 +17,7 @@ import {
   CARPET_KINDS, CARPET_DELAYS, DEFAULT_CARPET_DELAY, CARPET_STEPS, CARPET_STATUS, NEXT_STATUS, NEXT_ACTION_LABEL,
   isOpenCarpet, isLateCarpet, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel, carpetTrackingUrl,
   depositMessage, readyMessage, carpetWhatsAppLink, createCarpetOrder, setCarpetStatus, updateCarpetOrder,
-  recordCarpetPayment, isCarpetRevenue,
+  recordCarpetPayment, isCarpetRevenue, newPiece, pieceLines, pieceLabel, piecesTotal, piecesWithoutPrice, orderToPieces,
 } from '../../lib/carpets';
 
 const METHODS = ['Espèces', 'Wave', 'Orange Money', 'Carte'];
@@ -110,9 +110,98 @@ function ShareLink({ order, stationName, ready }) {
   );
 }
 
+// Pièces une par une : chaque type touché ajoute une pièce avec sa taille, son
+// prix et sa note interne ; le total est la somme des prix.
+function PiecesEditor({ pieces, onChange, lockPrices = false, fallbackTotal = 0 }) {
+  const [focusId, setFocusId] = useState(null);
+  const add = (kind) => {
+    const piece = newPiece(kind);
+    onChange([...pieces, piece]);
+    setFocusId(piece.id);
+  };
+  const patch = (id, field, value) => onChange(pieces.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+  const remove = (id) => onChange(pieces.filter((p) => p.id !== id));
+  const total = piecesTotal(pieces);
+  const missing = piecesWithoutPrice(pieces);
+  return (
+    <fieldset>
+      <legend className="block text-sm font-medium text-neutral-400 mb-2">Pièces déposées</legend>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {CARPET_KINDS.map((kind) => (
+          <button key={kind} type="button" onClick={() => add(kind)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors">
+            <Plus className="w-4 h-4 text-blue-400" /> {kind}
+          </button>
+        ))}
+      </div>
+
+      {pieces.length === 0 ? (
+        <p className="text-sm text-neutral-500 rounded-xl border border-dashed border-white/10 px-4 py-5 text-center">Touchez le type de pièce pour l'ajouter. Chaque pièce a sa taille, son prix et sa note.</p>
+      ) : (
+        <ol className="space-y-3">
+          {pieces.map((p, i) => (
+            <li key={p.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <p className="text-sm font-bold text-white"><span className="text-neutral-500 font-medium tabular-nums">Pièce {i + 1} · </span>{p.kind}</p>
+                <button type="button" onClick={() => remove(p.id)} aria-label={`Retirer la pièce ${i + 1}`} title="Retirer cette pièce"
+                  className="w-9 h-9 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label htmlFor={`size-${p.id}`} className="block text-xs text-neutral-500 mb-1">Taille</label>
+                  <input id={`size-${p.id}`} className={inputCls} value={p.size} onChange={(e) => patch(p.id, 'size', e.target.value)} placeholder="2 x 3 m" autoComplete="off"
+                    autoFocus={focusId === p.id} />
+                </div>
+                <div>
+                  <label htmlFor={`price-${p.id}`} className="block text-xs text-neutral-500 mb-1">Prix (FCFA)</label>
+                  <input id={`price-${p.id}`} className={cn(inputCls, 'tabular-nums')} type="number" min="0" step="100" inputMode="numeric" value={p.price}
+                    onChange={(e) => patch(p.id, 'price', e.target.value)} placeholder="5000" disabled={lockPrices} />
+                </div>
+              </div>
+              <label htmlFor={`note-${p.id}`} className="block text-xs text-neutral-500 mt-2 mb-1">Note interne (jamais vue par le client)</label>
+              <input id={`note-${p.id}`} className={inputCls} value={p.note} onChange={(e) => patch(p.id, 'note', e.target.value)} placeholder="Taches, franges abîmées…" autoComplete="off" />
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {pieces.length > 0 && (
+        <div className="flex items-baseline justify-between gap-3 mt-3 px-1">
+          <span className="text-sm text-neutral-400">
+            Prix total{missing > 0 ? <span className="text-amber-400"> · {missing} pièce{missing > 1 ? 's' : ''} sans prix</span> : null}
+          </span>
+          <span className="text-xl font-bold text-white tabular-nums">{fcfa(total || fallbackTotal)}</span>
+        </div>
+      )}
+      {!total && fallbackTotal > 0 && (
+        <p className="text-xs text-neutral-500 mt-1 px-1">Total saisi avant le détail par pièce. Il reste tel quel tant qu'aucun prix de pièce n'est indiqué.</p>
+      )}
+    </fieldset>
+  );
+}
+
+function PieceList({ order, showNotes = false }) {
+  const lines = pieceLines(order.items);
+  return (
+    <ul className="space-y-1">
+      {lines.map((p) => (
+        <li key={p.id} className="text-sm">
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="text-neutral-300 min-w-0">{pieceLabel(p)}</span>
+            <span className="text-neutral-400 tabular-nums shrink-0">{p.price ? fcfa(p.price) : order.amount > 0 ? '' : 'prix à fixer'}</span>
+          </span>
+          {showNotes && order.pieceNotes?.[p.id] && <span className="block text-xs text-neutral-500 italic">« {order.pieceNotes[p.id]} »</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
-  const [form, setForm] = useState({ clientName: '', clientPhone: '', amount: '', note: '', paidNow: false, method: 'Espèces' });
-  const [qty, setQty] = useState({ 'Tapis de salon': 1 });
+  const [form, setForm] = useState({ clientName: '', clientPhone: '', paidNow: false, method: 'Espèces' });
+  const [pieces, setPieces] = useState([]);
   const [delay, setDelay] = useState(DEFAULT_CARPET_DELAY);
   const [customDate, setCustomDate] = useState('');
   const [saving, setSaving] = useState(false);
@@ -120,26 +209,24 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
   const [saved, setSaved] = useState(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const bump = (kind, d) => setQty((q) => ({ ...q, [kind]: Math.max(0, Math.min(99, (q[kind] || 0) + d)) }));
-  const pieces = Object.values(qty).reduce((s, n) => s + n, 0);
+  const total = piecesTotal(pieces);
   const promise = delay === 'custom' ? (customDate ? new Date(customDate) : null) : promiseFromDelay(delay);
 
   const submit = async (e) => {
     e.preventDefault();
     setError('');
     if (!form.clientName.trim()) { setError('Indiquez le nom du client.'); return; }
-    if (pieces < 1) { setError('Ajoutez au moins une pièce.'); return; }
+    if (pieces.length < 1) { setError('Ajoutez au moins une pièce.'); return; }
     if (!promise || Number.isNaN(promise.getTime())) { setError('Choisissez la date à laquelle ce sera prêt.'); return; }
-    if (form.paidNow && !(parseInt(form.amount, 10) > 0)) { setError('Indiquez le montant encaissé.'); return; }
+    if (form.paidNow && !(total > 0)) { setError('Indiquez le prix des pièces pour encaisser maintenant.'); return; }
     setSaving(true);
     try {
       let order = await createCarpetOrder(stationId, {
         clientName: form.clientName, clientPhone: form.clientPhone,
-        items: CARPET_KINDS.map((kind) => ({ kind, qty: qty[kind] || 0 })),
-        amount: form.amount, promisedAt: promise.toISOString(), note: form.note,
+        pieces, promisedAt: promise.toISOString(),
       });
       if (form.paidNow) {
-        await recordCarpetPayment(order.id, form.method, form.amount);
+        await recordCarpetPayment(order.id, form.method, total);
         order = { ...order, paid: true, paymentMethod: form.method };
       }
       onSaved(order);
@@ -157,8 +244,11 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
         <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-5 mb-5">
           <p className="text-neutral-400 text-sm">Ticket</p>
           <p className="text-4xl font-bold text-white tabular-nums">n° {saved.ticketNo}</p>
-          <p className="text-white mt-3 font-medium">{saved.clientName}</p>
-          <p className="text-neutral-400 text-sm">{itemsSummary(saved.items, saved.pieceCount)}</p>
+          <p className="text-white mt-3 mb-2 font-medium">{saved.clientName}</p>
+          <PieceList order={saved} />
+          {saved.amount > 0 && (
+            <p className="flex justify-between text-sm mt-2 pt-2 border-t border-white/10"><span className="text-neutral-400">Total{saved.paid ? ' (payé)' : ''}</span><span className="text-white font-bold tabular-nums">{fcfa(saved.amount)}</span></p>
+          )}
           <p className="text-neutral-300 text-sm mt-3">Prêt au plus tard le <strong className="text-white">{formatPromise(saved.promisedAt)}</strong></p>
         </div>
         <p className="text-sm text-neutral-400 mb-3">Le client suit l'avancement avec ce lien et peut créer son compte pour retrouver ses dépôts dans « Mes tapis ».</p>
@@ -182,21 +272,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
           </div>
         </div>
 
-        <fieldset>
-          <legend className="block text-sm font-medium text-neutral-400 mb-2">Pièces déposées</legend>
-          <div className="rounded-xl border border-white/10 divide-y divide-white/5">
-            {CARPET_KINDS.map((kind) => (
-              <div key={kind} className="flex items-center justify-between px-4 py-2.5">
-                <span className={cn('text-sm', qty[kind] ? 'text-white font-medium' : 'text-neutral-400')}>{kind}</span>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={() => bump(kind, -1)} disabled={!qty[kind]} aria-label={`Retirer : ${kind}`} className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 flex items-center justify-center text-white"><Minus className="w-4 h-4" /></button>
-                  <span className="w-8 text-center text-white font-bold tabular-nums">{qty[kind] || 0}</span>
-                  <button type="button" onClick={() => bump(kind, 1)} aria-label={`Ajouter : ${kind}`} className="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white"><Plus className="w-4 h-4" /></button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </fieldset>
+        <PiecesEditor pieces={pieces} onChange={setPieces} />
 
         <fieldset>
           <legend className="block text-sm font-medium text-neutral-400 mb-2">Prêt sous</legend>
@@ -220,21 +296,10 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
           )}
         </fieldset>
 
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="cp-amount" className="block text-sm font-medium text-neutral-400 mb-1">Prix total (FCFA)</label>
-            <input id="cp-amount" className={inputCls} type="number" min="0" step="100" inputMode="numeric" value={form.amount} onChange={(e) => set('amount', e.target.value)} placeholder="Vide = fixé au retrait" />
-          </div>
-          <div>
-            <label htmlFor="cp-note" className="block text-sm font-medium text-neutral-400 mb-1">Note interne</label>
-            <input id="cp-note" className={inputCls} value={form.note} onChange={(e) => set('note', e.target.value)} placeholder="Taches, dimensions…" />
-          </div>
-        </div>
-
         <div className="rounded-xl border border-white/10 p-4">
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" className="w-5 h-5 accent-blue-500" checked={form.paidNow} onChange={(e) => set('paidNow', e.target.checked)} />
-            <span className="text-white text-sm font-medium">Le client paie maintenant</span>
+            <span className="text-white text-sm font-medium">Le client paie maintenant{total > 0 ? ` (${fcfa(total)})` : ''}</span>
           </label>
           {form.paidNow && (
             <div className="flex flex-wrap gap-2 mt-3">
@@ -250,7 +315,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
 
         {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
         <button type="submit" disabled={saving} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
-          {saving ? 'Enregistrement…' : `Enregistrer le dépôt${pieces ? ` (${pieces} pièce${pieces > 1 ? 's' : ''})` : ''}`}
+          {saving ? 'Enregistrement…' : `Enregistrer le dépôt${pieces.length ? ` (${pieces.length} pièce${pieces.length > 1 ? 's' : ''}${total ? `, ${fcfa(total)}` : ''})` : ''}`}
         </button>
       </form>
     </Modal>
@@ -296,7 +361,7 @@ function PayModal({ order, onClose, onDone }) {
 
 function EditModal({ order, onClose, onSaved }) {
   const [promisedAt, setPromisedAt] = useState(toLocalInput(order.promisedAt));
-  const [amount, setAmount] = useState(order.amount ? String(order.amount) : '');
+  const [pieces, setPieces] = useState(() => orderToPieces(order));
   const [phone, setPhone] = useState(order.clientPhone || '');
   const [note, setNote] = useState(order.note || '');
   const [saving, setSaving] = useState(false);
@@ -305,9 +370,8 @@ function EditModal({ order, onClose, onSaved }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const patch = { promisedAt: new Date(promisedAt).toISOString(), clientPhone: phone, note };
-      if (!order.paid) patch.amount = amount;
-      onSaved(await updateCarpetOrder(order.id, patch));
+      if (pieces.length < 1) { setError('Gardez au moins une pièce.'); setSaving(false); return; }
+      onSaved(await updateCarpetOrder(order, { promisedAt: new Date(promisedAt).toISOString(), clientPhone: phone, note, pieces }));
       onClose();
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
@@ -318,18 +382,14 @@ function EditModal({ order, onClose, onSaved }) {
           <label htmlFor="ed-date" className="block text-sm font-medium text-neutral-400 mb-1">Prêt au plus tard le</label>
           <input id="ed-date" type="datetime-local" className={inputCls} value={promisedAt} onChange={(e) => setPromisedAt(e.target.value)} required />
         </div>
-        {!order.paid && (
-          <div>
-            <label htmlFor="ed-amount" className="block text-sm font-medium text-neutral-400 mb-1">Prix total (FCFA)</label>
-            <input id="ed-amount" type="number" min="0" step="100" className={inputCls} value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </div>
-        )}
+        <PiecesEditor pieces={pieces} onChange={setPieces} lockPrices={order.paid} fallbackTotal={order.amount} />
+        {order.paid && <p className="text-xs text-neutral-500 -mt-2">Déjà encaissé ({fcfa(order.amount)}) : les prix ne changent plus.</p>}
         <div>
           <label htmlFor="ed-phone" className="block text-sm font-medium text-neutral-400 mb-1">WhatsApp du client</label>
           <input id="ed-phone" type="tel" className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} />
         </div>
         <div>
-          <label htmlFor="ed-note" className="block text-sm font-medium text-neutral-400 mb-1">Note interne</label>
+          <label htmlFor="ed-note" className="block text-sm font-medium text-neutral-400 mb-1">Note interne du dépôt</label>
           <input id="ed-note" className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
         {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
@@ -343,6 +403,7 @@ function EditModal({ order, onClose, onSaved }) {
 
 function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, busy }) {
   const [menu, setMenu] = useState(false);
+  const [details, setDetails] = useState(false);
   const status = CARPET_STATUS[order.status] || CARPET_STATUS.depose;
   const late = isLateCarpet(order);
   const open = isOpenCarpet(order);
@@ -356,7 +417,11 @@ function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, 
         </div>
         <div className="flex-1 min-w-[180px]">
           <p className="font-bold text-white truncate">{order.clientName}</p>
-          <p className="text-neutral-400 text-sm">{itemsSummary(order.items, order.pieceCount)}</p>
+          <button type="button" onClick={() => setDetails((d) => !d)} aria-expanded={details}
+            className="text-neutral-400 hover:text-white text-sm inline-flex items-center gap-1 text-left">
+            {itemsSummary(order.items, order.pieceCount)} <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 transition-transform', details && 'rotate-180')} />
+          </button>
+          {details && <div className="mt-2 max-w-sm"><PieceList order={order} showNotes /></div>}
           {order.clientPhone && <p className="text-neutral-500 text-xs mt-0.5 tabular-nums">{order.clientPhone}</p>}
           {order.note && <p className="text-neutral-500 text-xs mt-1 italic">« {order.note} »</p>}
         </div>
@@ -407,7 +472,7 @@ function OrderRow({ order, onAdvance, onBack, onCancel, onPay, onEdit, onShare, 
               <>
                 <button type="button" aria-label="Fermer le menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setMenu(false)} />
                 <div className="absolute z-20 mt-1 left-0 w-56 rounded-xl bg-neutral-900 border border-white/10 shadow-2xl py-1">
-                  <button type="button" onClick={() => { setMenu(false); onEdit(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Pencil className="w-4 h-4" /> Modifier délai, prix, note</button>
+                  <button type="button" onClick={() => { setMenu(false); onEdit(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Pencil className="w-4 h-4" /> Modifier pièces, prix, délai</button>
                   {PREV_STATUS[order.status] && (
                     <button type="button" onClick={() => { setMenu(false); onBack(order, PREV_STATUS[order.status]); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Undo2 className="w-4 h-4" /> Revenir à « {CARPET_STATUS[PREV_STATUS[order.status]].label} »</button>
                   )}

@@ -44,13 +44,44 @@ export const stepIndex = (status) => {
 // En retard : date promise dépassée et pas encore prêt.
 export const isLateCarpet = (o, now = new Date()) => ['depose', 'lavage', 'sechage'].includes(o.status) && new Date(o.promisedAt) < now;
 
-// « 2 tapis de salon, 1 moquette »
-export function itemsSummary(items, pieceCount) {
-  const list = (items || []).filter((it) => it && it.qty > 0);
-  if (!list.length) return `${pieceCount || 1} pièce${(pieceCount || 1) > 1 ? 's' : ''}`;
-  return list.map((it) => `${it.qty} ${String(it.kind || 'pièce').toLowerCase()}`).join(', ');
+// ─── Pièces ───────────────────────────────────────────────────────────
+// Une entrée de `items` par pièce : { id, kind, qty: 1, size, price }.
+// Les premiers dépôts (avant le 11/11/2026 au soir) avaient une entrée par
+// type avec une quantité { kind, qty } : ils restent lisibles.
+const pieceId = () => Math.random().toString(36).slice(2, 10);
+export const newPiece = (kind) => ({ id: pieceId(), kind, qty: 1, size: '', price: '', note: '' });
+const toInt = (v) => parseInt(String(v ?? '').replace(/\s/g, ''), 10) || 0;
+
+// Une ligne par pièce réelle (une ancienne entrée « 3 moquettes » donne 3 lignes sans prix).
+export function pieceLines(items) {
+  const out = [];
+  for (const it of items || []) {
+    if (!it) continue;
+    const qty = Math.max(1, toInt(it.qty) || 1);
+    for (let i = 0; i < qty; i += 1) {
+      out.push({ id: it.id || `${it.kind}-${out.length}`, kind: it.kind || 'Pièce', size: it.size || '', price: qty === 1 ? toInt(it.price) : 0 });
+    }
+  }
+  return out;
 }
-export const countPieces = (items) => (items || []).reduce((s, it) => s + (parseInt(it.qty, 10) || 0), 0);
+// Somme des prix des pièces.
+export const piecesTotal = (items) => (items || []).reduce((s, it) => s + toInt(it.price) * Math.max(1, toInt(it.qty) || 1), 0);
+// Pièces sans prix (prix à fixer au retrait).
+export const piecesWithoutPrice = (items) => pieceLines(items).filter((p) => !p.price).length;
+
+// « 2 tapis de salon, 1 moquette » (regroupé par type)
+export function itemsSummary(items, pieceCount) {
+  const byKind = new Map();
+  for (const it of items || []) {
+    if (!it || !(toInt(it.qty) > 0)) continue;
+    byKind.set(it.kind || 'pièce', (byKind.get(it.kind || 'pièce') || 0) + toInt(it.qty));
+  }
+  if (!byKind.size) return `${pieceCount || 1} pièce${(pieceCount || 1) > 1 ? 's' : ''}`;
+  return [...byKind].map(([kind, n]) => `${n} ${String(kind).toLowerCase()}`).join(', ');
+}
+export const countPieces = (items) => (items || []).reduce((s, it) => s + (toInt(it.qty) || 0), 0);
+// « Tapis de salon · 2 × 3 m »
+export const pieceLabel = (p) => [p.kind, p.size].filter(Boolean).join(' · ');
 
 export const fcfa = (n) => `${(parseInt(n, 10) || 0).toLocaleString('fr-FR')} FCFA`;
 
@@ -81,14 +112,15 @@ export function carpetTrackingUrl(token) {
 
 const firstName = (name) => String(name || '').trim().split(/\s+/)[0] || '';
 
-// Message WhatsApp envoyé au dépôt : ticket, délai promis et lien de suivi.
+// Message WhatsApp envoyé au dépôt : ticket, pièces (taille, prix), délai promis et lien de suivi.
 export function depositMessage(order, stationName) {
-  const pieces = itemsSummary(order.items, order.pieceCount);
+  const lines = pieceLines(order.items);
   return [
     `Bonjour ${firstName(order.clientName)},`,
-    `${stationName || 'La station'} a bien reçu : ${pieces} (ticket n° ${order.ticketNo}).`,
+    `${stationName || 'La station'} a bien reçu votre dépôt (ticket n° ${order.ticketNo}) :`,
+    ...lines.map((p) => `• ${pieceLabel(p)}${p.price ? ` : ${fcfa(p.price)}` : ''}`),
+    order.amount > 0 ? `Total : ${fcfa(order.amount)}${order.paid ? ' (payé)' : ''}` : null,
     `Prêt au plus tard le ${formatPromise(order.promisedAt)}.`,
-    order.amount > 0 ? `Montant : ${fcfa(order.amount)}${order.paid ? ' (payé)' : ''}.` : null,
     '',
     `Suivez l'avancement ici, et créez votre compte pour être prévenu : ${carpetTrackingUrl(order.publicToken)}`,
   ].filter((l) => l !== null).join('\n');
@@ -125,44 +157,84 @@ export function rowToCarpet(row) {
     promisedAt: row.promised_at,
     readyAt: row.ready_at,
     pickedUpAt: row.picked_up_at,
-    note: row.note,
+    // Notes internes : table carpet_order_notes, lue par la station seule
+    // (add_carpet_piece_notes.sql). Absentes côté client.
+    ...notesFromRow(row),
     createdAt: row.created_at,
   };
 }
 
-export async function createCarpetOrder(stationId, { clientName, clientPhone, items, amount, promisedAt, note }) {
-  const clean = (items || []).filter((it) => it.qty > 0).map((it) => ({ kind: it.kind, qty: parseInt(it.qty, 10) }));
+function notesFromRow(row) {
+  const n = Array.isArray(row.carpet_order_notes) ? row.carpet_order_notes[0] : row.carpet_order_notes;
+  return { note: n?.note || row.note || '', pieceNotes: n?.piece_notes || {} };
+}
+// Colonnes lues par la station (le client lit `*` sans les notes).
+export const STATION_CARPET_SELECT = '*, carpet_order_notes(note, piece_notes)';
+
+// Enregistre les notes internes (dépôt + pièces) ; supprime la ligne si tout est vide.
+async function saveNotes(order, stationId, note, pieceNotes) {
+  const clean = Object.fromEntries(Object.entries(pieceNotes || {}).map(([k, v]) => [k, String(v || '').trim()]).filter(([, v]) => v));
+  const text = String(note || '').trim();
+  if (!text && !Object.keys(clean).length) {
+    await supabase.from('carpet_order_notes').delete().eq('order_id', order);
+    return { note: '', pieceNotes: {} };
+  }
+  const { error } = await supabase.from('carpet_order_notes').upsert({ order_id: order, station_id: stationId, note: text || null, piece_notes: clean, updated_at: new Date().toISOString() });
+  if (error) throw new Error(error.message);
+  return { note: text, pieceNotes: clean };
+}
+// Pièces telles qu'enregistrées dans `items` (sans les notes, privées).
+const piecesToItems = (pieces) => (pieces || []).map((p) => ({
+  id: p.id || pieceId(), kind: p.kind, qty: Math.max(1, toInt(p.qty) || 1), size: String(p.size || '').trim(), price: toInt(p.price),
+}));
+const piecesToNotes = (pieces) => Object.fromEntries((pieces || []).filter((p) => p.note && String(p.note).trim()).map((p) => [p.id, String(p.note).trim()]));
+
+// `pieces` : [{ id, kind, size, price, note }] — le total est la somme des prix.
+export async function createCarpetOrder(stationId, { clientName, clientPhone, pieces, promisedAt, note }) {
+  const items = piecesToItems(pieces);
   const { data, error } = await supabase.from('carpet_orders').insert({
     station_id: stationId,
     ticket_no: 0, // remplacé par le trigger
     client_name: clientName.trim(),
     client_phone: (clientPhone || '').trim() || null,
-    items: clean,
-    piece_count: Math.max(1, countPieces(clean)),
-    amount: parseInt(amount, 10) || 0,
+    items,
+    piece_count: Math.max(1, countPieces(items)),
+    amount: piecesTotal(items),
     promised_at: promisedAt,
-    note: (note || '').trim() || null,
   }).select('*').single();
   if (error) throw new Error(error.message);
-  return rowToCarpet(data);
+  const notes = await saveNotes(data.id, stationId, note, piecesToNotes(pieces));
+  return { ...rowToCarpet(data), ...notes };
 }
 
 export async function setCarpetStatus(id, status) {
-  const { data, error } = await supabase.from('carpet_orders').update({ status }).eq('id', id).select('*').single();
+  const { data, error } = await supabase.from('carpet_orders').update({ status }).eq('id', id).select(STATION_CARPET_SELECT).single();
   if (error) throw new Error(error.message);
   return rowToCarpet(data);
 }
 
-export async function updateCarpetOrder(id, patch) {
+// patch : promisedAt, clientPhone, note, pieces (pièces modifiées : le total suit).
+export async function updateCarpetOrder(order, patch) {
   const row = {};
   if ('promisedAt' in patch) row.promised_at = patch.promisedAt;
-  if ('amount' in patch) row.amount = parseInt(patch.amount, 10) || 0;
   if ('clientPhone' in patch) row.client_phone = (patch.clientPhone || '').trim() || null;
-  if ('note' in patch) row.note = (patch.note || '').trim() || null;
-  const { data, error } = await supabase.from('carpet_orders').update(row).eq('id', id).select('*').single();
+  if (patch.pieces) {
+    row.items = piecesToItems(patch.pieces);
+    row.piece_count = Math.max(1, countPieces(row.items));
+    // Un dépôt encaissé garde le montant encaissé (la transaction est faite).
+    // Ancien dépôt sans prix par pièce : son total reste tant qu'aucun prix
+    // de pièce n'est saisi (changer la date ne doit pas le remettre à 0).
+    if (!order.paid) { const t = piecesTotal(row.items); row.amount = t > 0 ? t : order.amount; }
+  }
+  const { data, error } = await supabase.from('carpet_orders').update(row).eq('id', order.id).select('*').single();
   if (error) throw new Error(error.message);
-  return rowToCarpet(data);
+  const notes = ('note' in patch || patch.pieces)
+    ? await saveNotes(order.id, order.stationId, 'note' in patch ? patch.note : order.note, patch.pieces ? piecesToNotes(patch.pieces) : order.pieceNotes)
+    : { note: order.note, pieceNotes: order.pieceNotes };
+  return { ...rowToCarpet(data), ...notes };
 }
+// Pièces d'un dépôt existant, prêtes pour l'éditeur (notes comprises).
+export const orderToPieces = (order) => pieceLines(order.items).map((p) => ({ ...p, price: p.price ? String(p.price) : '', note: order.pieceNotes?.[p.id] || '' }));
 
 export async function recordCarpetPayment(id, method, amount) {
   const { error } = await supabase.rpc('carpet_record_payment', { p_order_id: id, p_method: method, p_amount: parseInt(amount, 10) || null });

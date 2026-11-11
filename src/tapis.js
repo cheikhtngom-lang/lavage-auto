@@ -6,7 +6,7 @@
 // carpet_public_status (add_carpet_cleaning.sql). La page se relit seule
 // toutes les minutes et au retour sur l'onglet.
 import { supabase } from './lib/supabaseClient';
-import { CARPET_STEPS, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel, rememberCarpetClaim } from './lib/carpets';
+import { CARPET_STEPS, stepIndex, fcfa, formatPromise, timeLeftLabel, rememberCarpetClaim, pieceLines, pieceLabel } from './lib/carpets';
 
 const root = document.getElementById('root');
 const token = new URLSearchParams(window.location.search).get('t') || '';
@@ -79,7 +79,7 @@ function render(d, signedIn) {
   const steps = status === 'annule' ? '' : `<ol class="steps${ready || status === 'recupere' ? ' done' : ''}" aria-label="Avancement">${CARPET_STEPS.map((s, i) => `<li class="${i <= idx ? 'on' : ''}${i === idx && !ready && status !== 'recupere' ? ' now' : ''}">${esc(s.label)}</li>`).join('')}</ol>`;
 
   const amountRow = d.amount > 0
-    ? `<dt>Montant</dt><dd>${esc(fcfa(d.amount))}${d.paid ? ' · payé' : ' · à régler au retrait'}</dd>`
+    ? `<dt>Total</dt><dd>${esc(fcfa(d.amount))}${d.paid ? ' · payé' : ' · à régler au retrait'}</dd>`
     : '<dt>Montant</dt><dd>indiqué au retrait</dd>';
 
   const call = telHref(st.phone);
@@ -107,8 +107,10 @@ function render(d, signedIn) {
       <p class="lead">${lead}</p>
       ${flag}
       ${steps}
+      <ul class="pieces" aria-label="Pièces déposées">
+        ${pieceLines(d.items).map((p) => `<li><span>${esc(pieceLabel(p))}</span><span class="price">${p.price ? esc(fcfa(p.price)) : d.amount > 0 ? '' : 'prix au retrait'}</span></li>`).join('')}
+      </ul>
       <dl>
-        <dt>Pièces</dt><dd>${esc(itemsSummary(d.items, d.piece_count))}</dd>
         <dt>Déposé le</dt><dd>${esc(new Date(d.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))}</dd>
         ${amountRow}
       </dl>

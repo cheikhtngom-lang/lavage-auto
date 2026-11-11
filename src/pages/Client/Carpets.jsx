@@ -12,7 +12,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { cn } from '../../lib/utils';
 import { whatsappLink } from '../../lib/subscriptionReminders';
 import {
-  CARPET_STEPS, CARPET_STATUS, rowToCarpet, isOpenCarpet, isLateCarpet, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel,
+  CARPET_STEPS, CARPET_STATUS, rowToCarpet, isOpenCarpet, isLateCarpet, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel, pieceLines, pieceLabel,
   claimPendingCarpet,
 } from '../../lib/carpets';
 
@@ -99,6 +99,16 @@ function CarpetCard({ order, index }) {
       )}
 
       <Steps status={order.status} />
+
+      {/* Détail des pièces : taille et prix de chacune */}
+      <ul className="mt-5 space-y-1.5 text-sm">
+        {pieceLines(order.items).map((p) => (
+          <li key={p.id} className="flex items-baseline justify-between gap-3">
+            <span className="text-neutral-300 min-w-0">{pieceLabel(p)}</span>
+            <span className="text-neutral-400 tabular-nums shrink-0">{p.price ? fcfa(p.price) : order.amount > 0 ? '' : 'prix au retrait'}</span>
+          </li>
+        ))}
+      </ul>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mt-5 pt-5 border-t border-white/5">
         <p className="text-sm">

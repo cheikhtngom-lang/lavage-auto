@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getCurrentStationId } from '../lib/accounts';
-import { rowToCarpet } from '../lib/carpets';
+import { rowToCarpet, STATION_CARPET_SELECT } from '../lib/carpets';
 
 export function useStationCarpets() {
   const stationId = getCurrentStationId();
@@ -13,7 +13,7 @@ export function useStationCarpets() {
 
   const load = useCallback(async () => {
     if (!stationId || stationId === 'default') { setOrders([]); setLoaded(true); return; }
-    const { data, error: err } = await supabase.from('carpet_orders').select('*').eq('station_id', stationId).order('created_at', { ascending: false }).limit(500);
+    const { data, error: err } = await supabase.from('carpet_orders').select(STATION_CARPET_SELECT).eq('station_id', stationId).order('created_at', { ascending: false }).limit(500);
     if (err) setError(err.message);
     else { setError(null); setOrders((data || []).map(rowToCarpet)); }
     setLoaded(true);
@@ -25,6 +25,8 @@ export function useStationCarpets() {
     const channel = supabase
       .channel(`carpets-${stationId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'carpet_orders', filter: `station_id=eq.${stationId}` }, () => load())
+      // Notes internes (add_carpet_piece_notes.sql), modifiées depuis un autre poste.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'carpet_order_notes', filter: `station_id=eq.${stationId}` }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [load, stationId]);
