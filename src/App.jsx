@@ -111,6 +111,7 @@ const SuperAdminReminders = lazyPage(() => import('./pages/SuperAdmin/Reminders'
 const SuperAdminTicker = lazyPage(() => import('./pages/SuperAdmin/Ticker'));
 const SuperAdminBilan = lazyPage(() => import('./pages/SuperAdmin/Bilan'));
 const SuperAdminFuel = lazyPage(() => import('./pages/SuperAdmin/Fuel'));
+const SuperAdminCarpets = lazyPage(() => import('./pages/SuperAdmin/Carpets'));
 const SuperAdminSupport = lazyPage(() => import('./pages/SuperAdmin/Support'));
 const SuperAdminAffiliates = lazyPage(() => import('./pages/SuperAdmin/Affiliates'));
 const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'));
@@ -118,7 +119,7 @@ const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'))
 const CLIENT_PAGES = [ClientOverview, Stations, MyStations, ClientLoyalty, ClientShop, ClientCarpets, ClientGarage, ClientSettings];
 const ADMIN_PAGES = [StationDashboard, AdminTransactions, Subscriptions, Washers, Settings, Analytics, Accounting, AdminPayouts, AdminReminders, Team, Pompistes, Vidange, Carpets, Bilan, Shop, AdminAnnouncements];
 const GROUP_PAGES = [GroupDashboard, GroupStations, GroupAccounting, GroupAnalysis, GroupOrder, GroupBilling, GroupSettings];
-const SUPER_ADMIN_PAGES = [SuperAdminDashboard, SuperAdminStations, SuperAdminBilling, SuperAdminMotorists, SuperAdminSuperUsers, SuperAdminAnalytics, SuperAdminPayouts, SuperAdminReminders, SuperAdminGroups, SuperAdminModules, SuperAdminAds, SuperAdminAnnouncements, SuperAdminTicker, SuperAdminFuel, SuperAdminBilan, SuperAdminSupport, SuperAdminAffiliates, SuperAdminSettings];
+const SUPER_ADMIN_PAGES = [SuperAdminDashboard, SuperAdminStations, SuperAdminBilling, SuperAdminMotorists, SuperAdminSuperUsers, SuperAdminAnalytics, SuperAdminPayouts, SuperAdminReminders, SuperAdminGroups, SuperAdminModules, SuperAdminAds, SuperAdminAnnouncements, SuperAdminTicker, SuperAdminFuel, SuperAdminCarpets, SuperAdminBilan, SuperAdminSupport, SuperAdminAffiliates, SuperAdminSettings];
 
 // Mock Home/Login Pages
 const Home = () => (
@@ -278,6 +279,7 @@ function App() {
                 <Route path="relances" element={<SuperAdminReminders />} />
                 <Route path="bandeau" element={<SuperAdminTicker />} />
                 <Route path="carburant" element={<SuperAdminFuel />} />
+                <Route path="tapis" element={<SuperAdminCarpets />} />
                 <Route path="bilan" element={<SuperAdminBilan />} />
                 <Route path="support" element={<SuperAdminSupport />} />
                 <Route path="affilies" element={<SuperAdminAffiliates />} />

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import PageSuspense from '../ui/PageSuspense';
-import { LayoutDashboard, Building2, CreditCard, LifeBuoy, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes, Briefcase, Fuel, Wallet, BellRing, Newspaper, Share2 } from 'lucide-react';
+import { LayoutDashboard, Building2, CreditCard, LifeBuoy, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes, Briefcase, Fuel, Wallet, BellRing, Newspaper, Share2, Layers } from 'lucide-react';
 import { getCurrentRole, clearSession } from '../../lib/accounts';
 import { supabase } from '../../lib/supabaseClient';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -66,6 +66,8 @@ export default function SuperAdminLayout() {
     { name: 'Vue d\'ensemble', href: '/superadmin', icon: LayoutDashboard, section: PILOTAGE },
     { name: 'Analytique', href: '/superadmin/analytics', icon: BarChart3, section: PILOTAGE },
     { name: 'Carburant', href: '/superadmin/carburant', icon: Fuel, section: PILOTAGE },
+    // Tapis et moquettes déposés dans les stations : dépôts, chiffre d'affaires, stations partenaires.
+    { name: 'Tapis', href: '/superadmin/tapis', icon: Layers, section: PILOTAGE },
     { name: 'Bilan', href: '/superadmin/bilan', icon: FileBarChart, section: PILOTAGE },
     // ─── Réseau ───
     { name: 'Stations', href: '/superadmin/stations', icon: Building2, section: RESEAU },
