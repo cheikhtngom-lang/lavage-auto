@@ -10,7 +10,7 @@
 //     d'accès : la route reste joignable.
 import {
   LayoutDashboard, Users, Settings, Droplets, Activity, Calculator, LineChart, Sparkles,
-  FileBarChart, Store, Wrench, Send, Fuel, Wallet, BellRing, Layers, Footprints,
+  FileBarChart, Store, Wrench, Send, Fuel, Wallet, BellRing, Layers, Footprints, Sofa, Shirt, Boxes,
 } from 'lucide-react';
 import { hasPerm } from './permissions';
 import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './offers';
@@ -18,6 +18,7 @@ import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './o
 // Sections du menu (titres affichés par AppShell) — l'ordre du catalogue
 // suit ces groupes, Paramètres > Menu reprend le même ordre.
 const EXPLOITATION = 'Exploitation';
+const ACTIVITES = 'Activités';
 const FINANCES = 'Ventes & finances';
 const CLIENTS = 'Clients';
 const ADMINISTRATION = 'Administration';
@@ -31,13 +32,17 @@ export const ADMIN_NAV = [
   // Pompistes : offre Station de service (clé 'Business', voir lib/offers.js) — voir
   // RequirePompistesAccess (App.jsx).
   { key: 'pompistes', name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', plans: [SERVICE_STATION_PLAN], hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.', section: EXPLOITATION },
-  // Tapis et moquettes déposés par les clients : toutes les offres, tout membre de la station
-  // (comme la file d'attente) — voir add_carpet_cleaning.sql et pages/Admin/Carpets.jsx.
-  { key: 'tapis', name: 'Tapis', href: '/admin/tapis', icon: Layers, perm: 'dashboard', hint: 'Tapis de salon et moquettes déposés : avancement, encaissement et lien de suivi du client.', section: EXPLOITATION },
-  // Chaussures : même principe que les tapis (add_shoe_cleaning.sql, même page avec activity="chaussures").
-  { key: 'chaussures', name: 'Chaussures', href: '/admin/chaussures', icon: Footprints, perm: 'dashboard', hint: 'Chaussures déposées : avancement, encaissement et lien de suivi du client.', section: EXPLOITATION },
   // Vidange : offre Station de service, ou module "mod_vidange" — voir RequireVidangeAccess (App.jsx).
   { key: 'vidange', name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_vidange', section: EXPLOITATION },
+  // ─── Activités en plus ───
+  // Un autre métier dans la même appli, chacun abonnement à part : aucune offre
+  // ne l'inclut (plans: []), seul son module l'ouvre (Super Admin > Modules,
+  // add_salon_pressing.sql). Même page pour les quatre (pages/Admin/Carpets.jsx,
+  // prop `activity`), tout membre de la station (comme la file d'attente).
+  { key: 'tapis', name: 'Tapis', href: '/admin/tapis', icon: Layers, perm: 'dashboard', plans: [], module: 'mod_tapis', hint: 'Tapis de salon et moquettes déposés : avancement, encaissement et lien de suivi du client.', section: ACTIVITES },
+  { key: 'chaussures', name: 'Chaussures', href: '/admin/chaussures', icon: Footprints, perm: 'dashboard', plans: [], module: 'mod_chaussures', hint: 'Chaussures déposées : avancement, encaissement et lien de suivi du client.', section: ACTIVITES },
+  { key: 'salon', name: 'Salon', href: '/admin/salon', icon: Sofa, perm: 'dashboard', plans: [], module: 'mod_salon', hint: 'Canapés, fauteuils et matelas, à la station ou à domicile.', section: ACTIVITES },
+  { key: 'pressing', name: 'Pressing', href: '/admin/pressing', icon: Shirt, perm: 'dashboard', plans: [], module: 'mod_pressing', hint: 'Vêtements et linge : tickets, étiquettes, avance, livraison.', section: ACTIVITES },
   // ─── Ventes & finances ───
   // Boutique : offre Station de service, ou module "mod_boutique" — voir RequireShopAccess (App.jsx).
   { key: 'shop', name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_boutique', section: FINANCES },
@@ -56,6 +61,8 @@ export const ADMIN_NAV = [
   // Annonces aux clients : à partir de Pro (lib/offers.js) — voir RequireMarketingAccess (App.jsx).
   { key: 'annonces', name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage', plans: MARKETING_PLANS, section: CLIENTS },
   // ─── Administration ───
+  // Modules : ce que la station a, ce qu'elle peut demander (pages/Admin/Modules.jsx).
+  { key: 'modules', name: 'Modules', href: '/admin/modules', icon: Boxes, perm: 'settings.manage', hint: 'Activités et options en plus : celles que vous avez, celles que vous pouvez demander.', section: ADMINISTRATION },
   { key: 'team', name: 'Équipe', href: '/admin/team', icon: Users, tourId: 'admin-nav-team', perm: 'team.manage', section: ADMINISTRATION },
   { key: 'settings', name: 'Paramètres', href: '/admin/settings', icon: Settings, tourId: 'admin-nav-settings', perm: 'settings.manage', locked: true, section: ADMINISTRATION },
 ];

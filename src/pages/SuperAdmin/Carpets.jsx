@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Layers, Footprints, Hourglass, PackageCheck, Banknote, RefreshCw, Loader2, Search, ArrowRight, Building2 } from 'lucide-react';
+import { Layers, Footprints, Sofa, Shirt, Hourglass, PackageCheck, Banknote, RefreshCw, Loader2, Search, ArrowRight, Building2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -9,11 +9,11 @@ import { AreaChart, Donut, Legend, Bars, compactNumber } from '../../components/
 import Pagination from '../../components/ui/Pagination';
 import { presetRange, bucketFor, bucketLabel } from '../../lib/groupDashboard';
 import { fcfa, fcfaCompact } from '../../lib/bilan';
-import { CARPET_SERVICE, SHOE_SERVICE, orderSummary, timeLeftLabel } from '../../lib/carpets';
+import { CARPET_SERVICE, SHOE_SERVICE, SALON_SERVICE, PRESSING_SERVICE, DEPOSIT_SERVICES, orderSummary, timeLeftLabel } from '../../lib/carpets';
 import { computeCarpetStats, ORDER_FILTERS, matchesSearch, isLateOrder, isOpenOrder, toCollect } from '../../lib/carpetStats';
 
-// Super Admin > Tapis et chaussures : les dépôts de tapis et moquettes, ou de
-// chaussures (choix en haut de page, add_shoe_cleaning.sql), de TOUTES les
+// Super Admin > Dépôts : les dépôts de tapis et moquettes, de chaussures, de
+// salons ou de pressing (choix en haut de page, add_salon_pressing.sql), de TOUTES les
 // stations (rubriques station Exploitation > Tapis / Chaussures). Lecture seule : la RLS de
 // carpet_orders et de transactions ouvre déjà tout au super admin, aucune
 // fonction SQL n'est nécessaire. Les notes internes des stations
@@ -45,6 +45,14 @@ const VIEWS = {
   chaussures: {
     key: 'chaussures', label: 'Chaussures', title: 'Lavage de chaussures', icon: Footprints, service: SHOE_SERVICE, unit: ['paire', 'paires'], things: 'chaussures',
     received: 'Paires reçues', returned: 'Paires rendues', kinds: 'Types de chaussures', kindsSub: 'Paires reçues sur la période',
+  },
+  salon: {
+    key: 'salon', label: 'Salon', title: 'Salons et fauteuils', icon: Sofa, service: SALON_SERVICE, unit: ['pièce', 'pièces'], things: 'meubles',
+    received: 'Pièces reçues', returned: 'Pièces rendues', kinds: 'Types de meubles', kindsSub: 'Pièces reçues sur la période',
+  },
+  pressing: {
+    key: 'pressing', label: 'Pressing', title: 'Pressing', icon: Shirt, service: PRESSING_SERVICE, unit: ['article', 'articles'], things: 'vêtements',
+    received: 'Articles reçus', returned: 'Articles rendus', kinds: 'Types d’articles', kindsSub: 'Articles reçus sur la période',
   },
 };
 const ViewContext = createContext(VIEWS.tapis);
@@ -392,7 +400,7 @@ function OrdersList({ orders, stationById, partnerStationOf, now }) {
 
 // ─── Page ──────────────────────────────────────────────────────────────
 export default function Carpets() {
-  useDocumentTitle('Tapis et chaussures');
+  useDocumentTitle('Dépôts');
   const { stations } = useSuperAdminState();
   const [activity, setActivity] = useState('tapis');
   const view = VIEWS[activity];
@@ -423,7 +431,7 @@ export default function Carpets() {
       const [o, p] = await Promise.all([
         fetchAll(() => supabase.from('carpet_orders').select(ORDER_COLS).order('created_at', { ascending: false }).order('id')),
         fetchAll(() => supabase.from('transactions').select('id, station_id, service, amount, method, created_at')
-          .in('service', [CARPET_SERVICE, SHOE_SERVICE]).gte('created_at', prevFrom.toISOString()).lt('created_at', range.to.toISOString())
+          .in('service', DEPOSIT_SERVICES).gte('created_at', prevFrom.toISOString()).lt('created_at', range.to.toISOString())
           .order('created_at', { ascending: false }).order('id')),
       ]);
       setOrders(o);
@@ -477,7 +485,7 @@ export default function Carpets() {
         <div>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3"><ViewIcon className="w-9 h-9 text-blue-400" /> {view.title}</h1>
           <p className="text-neutral-400 mt-1">{range ? `${range.label} · comparé à la période précédente de même durée` : 'Choisissez une période'}</p>
-          <div className="mt-4 inline-flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10" role="tablist" aria-label="Activité">
+          <div className="mt-4 inline-flex flex-wrap max-w-full gap-1 p-1 rounded-xl bg-white/5 border border-white/10" role="tablist" aria-label="Activité">
             {Object.values(VIEWS).map((v) => (
               <button key={v.key} type="button" role="tab" aria-selected={activity === v.key} onClick={() => setActivity(v.key)}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activity === v.key ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white'}`}>

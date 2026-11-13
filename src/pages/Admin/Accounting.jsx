@@ -2,13 +2,22 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone, Droplets, Store, PieChart, Layers, Footprints } from 'lucide-react';
+import { Calculator, TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet, Calendar, ArrowRight, Sparkles, X, Receipt, Coins, Smartphone, Droplets, Store, PieChart, Layers, Footprints, Sofa, Shirt } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useShopSales } from '../../hooks/useShopSales';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { stationHasPompistes } from '../../lib/pompistes';
 import { stationHasShop } from '../../lib/shop';
-import { onlineOrderRevenue, soldLines, topProducts, splitRevenue, isCarpetRevenueEntry, isShoeRevenueEntry } from '../../lib/shopStats';
+import { onlineOrderRevenue, soldLines, topProducts, splitRevenue, depositKeyOf } from '../../lib/shopStats';
+
+// Activités à dépôt en Comptabilité : une carte et une part de la barre
+// chacune, à partir du premier encaissement de l'activité.
+const DEPOSIT_PARTS = [
+  { key: 'tapis', label: 'Tapis', icon: Layers, text: 'text-amber-400', chip: 'text-amber-300 bg-amber-500/10', bar: 'from-amber-500 to-amber-300' },
+  { key: 'chaussures', label: 'Chaussures', icon: Footprints, text: 'text-rose-400', chip: 'text-rose-300 bg-rose-500/10', bar: 'from-rose-500 to-rose-300' },
+  { key: 'salon', label: 'Salon', icon: Sofa, text: 'text-orange-400', chip: 'text-orange-300 bg-orange-500/10', bar: 'from-orange-500 to-orange-300' },
+  { key: 'pressing', label: 'Pressing', icon: Shirt, text: 'text-sky-400', chip: 'text-sky-300 bg-sky-500/10', bar: 'from-sky-500 to-sky-300' },
+];
 import TopProducts from '../../components/ui/TopProducts';
 
 const EXPENSE_CATEGORIES = ['Savon', 'Eau', 'Électricité', 'Matériel', 'Autre'];
@@ -151,14 +160,14 @@ export default function Accounting() {
   const split = splitRevenue(transactions.filter((tx) => inRange(tx.createdAt, splitRange)));
   const splitTop = topProducts(soldLines(shopSales, shopOrders).filter((l) => inRange(l.createdAt, splitRange)));
   const showShopPart = hasShop || transactions.some((tx) => tx.service === 'Boutique');
-  // Tapis et moquettes (rubrique Tapis) : la carte n'apparaît qu'à partir du premier encaissement.
-  const showCarpetPart = transactions.some(isCarpetRevenueEntry);
-  // Chaussures (rubrique Chaussures) : même règle que les tapis.
-  const showShoePart = transactions.some(isShoeRevenueEntry);
-  const showShopSplit = showShopPart || showCarpetPart || showShoePart;
-  const revenueMix = ['Lavage', showShopPart && 'boutique', showCarpetPart && 'tapis', showShoePart && 'chaussures'].filter(Boolean).join(' + ');
-  const splitTitle = `Revenus : ${['lavage', showShopPart && 'boutique', showCarpetPart && 'tapis', showShoePart && 'chaussures'].filter(Boolean).join(', ').replace(/, ([^,]*)$/, ' et $1')}`;
-  const splitParts = 1 + [showShopPart, showCarpetPart, showShoePart].filter(Boolean).length;
+  // Activités à dépôt (Tapis, Chaussures, Salon, Pressing) : une carte à partir du premier encaissement.
+  const usedDeposits = new Set(transactions.map(depositKeyOf).filter(Boolean));
+  const depositParts = DEPOSIT_PARTS.filter((p) => usedDeposits.has(p.key));
+  const showShopSplit = showShopPart || depositParts.length > 0;
+  const mixWords = ['lavage', showShopPart && 'boutique', ...depositParts.map((p) => p.label.toLowerCase())].filter(Boolean);
+  const revenueMix = mixWords.map((w, i) => (i === 0 ? 'Lavage' : w)).join(' + ');
+  const splitTitle = `Revenus : ${mixWords.join(', ').replace(/, ([^,]*)$/, ' et $1')}`;
+  const splitParts = 1 + (showShopPart ? 1 : 0) + depositParts.length;
   const splitLabel = SPLIT_PERIODS.find((p) => p.id === splitPeriod)?.label;
 
   const weekDays = Array.from({ length: 7 }).map((_, i) => {
@@ -293,18 +302,19 @@ export default function Accounting() {
 
                 {/* Barre de répartition lavage / boutique */}
                 <div className="mt-6 h-3 w-full rounded-full bg-neutral-900 overflow-hidden flex" role="img"
-                  aria-label={`Lavage ${pct(split.lavage, split.total)} %${showShopPart ? `, boutique ${pct(split.boutique, split.total)} %` : ''}${showCarpetPart ? `, tapis ${pct(split.tapis, split.total)} %` : ''}${showShoePart ? `, chaussures ${pct(split.chaussures, split.total)} %` : ''}`}>
+                  aria-label={`Lavage ${pct(split.lavage, split.total)} %${showShopPart ? `, boutique ${pct(split.boutique, split.total)} %` : ''}${depositParts.map((p) => `, ${p.label.toLowerCase()} ${pct(split[p.key], split.total)} %`).join('')}`}>
                   {split.total > 0 && (
                     <>
                       <motion.div initial={{ width: 0 }} animate={{ width: `${(split.lavage / split.total) * 100}%` }} transition={{ duration: 0.8 }} className="h-full bg-gradient-to-r from-blue-600 to-blue-400" />
                       <motion.div initial={{ width: 0 }} animate={{ width: `${(split.boutique / split.total) * 100}%` }} transition={{ duration: 0.8, delay: 0.1 }} className="h-full bg-gradient-to-r from-emerald-500 to-teal-300" />
-                      <motion.div initial={{ width: 0 }} animate={{ width: `${(split.tapis / split.total) * 100}%` }} transition={{ duration: 0.8, delay: 0.2 }} className="h-full bg-gradient-to-r from-amber-500 to-amber-300" />
-                      <motion.div initial={{ width: 0 }} animate={{ width: `${(split.chaussures / split.total) * 100}%` }} transition={{ duration: 0.8, delay: 0.3 }} className="h-full bg-gradient-to-r from-rose-500 to-rose-300" />
+                      {DEPOSIT_PARTS.map((p, i) => (
+                        <motion.div key={p.key} initial={{ width: 0 }} animate={{ width: `${(split[p.key] / split.total) * 100}%` }} transition={{ duration: 0.8, delay: 0.2 + i * 0.1 }} className={`h-full bg-gradient-to-r ${p.bar}`} />
+                      ))}
                     </>
                   )}
                 </div>
 
-                <div className={`grid grid-cols-1 gap-4 mt-5 ${splitParts >= 4 ? 'sm:grid-cols-2 xl:grid-cols-4' : splitParts === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                <div className={`grid grid-cols-1 gap-4 mt-5 ${splitParts >= 5 ? 'sm:grid-cols-2 xl:grid-cols-3' : splitParts === 4 ? 'sm:grid-cols-2 xl:grid-cols-4' : splitParts === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                   <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Droplets className="w-4 h-4 text-blue-400" /> Lavage</span>
@@ -326,26 +336,16 @@ export default function Accounting() {
                     </p>
                   </div>
                   )}
-                  {showCarpetPart && (
-                    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                  {depositParts.map((part) => (
+                    <div key={part.key} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Layers className="w-4 h-4 text-amber-400" /> Tapis</span>
-                        <span className="text-xs font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md">{pct(split.tapis, split.total)} %</span>
+                        <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><part.icon className={`w-4 h-4 ${part.text}`} /> {part.label}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${part.chip}`}>{pct(split[part.key], split.total)} %</span>
                       </div>
-                      <p className="text-2xl font-bold text-white">{split.tapis.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
-                      <p className="text-neutral-500 text-xs mt-1">{split.tapisCount} dépôt{split.tapisCount > 1 ? 's' : ''} encaissé{split.tapisCount > 1 ? 's' : ''}</p>
+                      <p className="text-2xl font-bold text-white">{split[part.key].toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
+                      <p className="text-neutral-500 text-xs mt-1">{split[`${part.key}Count`]} encaissement{split[`${part.key}Count`] > 1 ? 's' : ''}</p>
                     </div>
-                  )}
-                  {showShoePart && (
-                    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Footprints className="w-4 h-4 text-rose-400" /> Chaussures</span>
-                        <span className="text-xs font-bold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-md">{pct(split.chaussures, split.total)} %</span>
-                      </div>
-                      <p className="text-2xl font-bold text-white">{split.chaussures.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
-                      <p className="text-neutral-500 text-xs mt-1">{split.chaussuresCount} dépôt{split.chaussuresCount > 1 ? 's' : ''} encaissé{split.chaussuresCount > 1 ? 's' : ''}</p>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </CardContent>
             </Card>

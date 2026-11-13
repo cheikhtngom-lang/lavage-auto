@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Boxes, Building2 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { STATION_MODULES, hasModule } from '../../lib/stationModules';
+import { MODULE_GROUPS, modulesOfGroup, hasModule } from '../../lib/stationModules';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function SuperAdminModules() {
@@ -51,9 +51,12 @@ export default function SuperAdminModules() {
 
         {station && (
           <>
-            <h2 className="text-xl font-bold text-white mb-4">Catalogue des modules additionnels</h2>
+            {MODULE_GROUPS.map((group) => (
+            <section key={group.id} className="mb-10">
+            <h2 className="text-xl font-bold text-white mb-1">{group.title}</h2>
+            <p className="text-neutral-400 text-sm mb-4">{group.sub}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {STATION_MODULES.map((mod, i) => {
+              {modulesOfGroup(group.id).map((mod, i) => {
                 const active = hasModule(station.activeModules, mod.id);
                 return (
                   <motion.div
@@ -88,6 +91,7 @@ export default function SuperAdminModules() {
                         type="button"
                         role="switch"
                         aria-checked={active}
+                        aria-label={`${mod.name} : ${active ? 'actif' : 'inactif'}`}
                         onClick={() => toggleStationModule(station.id, mod.id, !active)}
                         className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${active ? 'bg-purple-600' : 'bg-white/10'}`}
                       >
@@ -98,6 +102,8 @@ export default function SuperAdminModules() {
                 );
               })}
             </div>
+            </section>
+            ))}
           </>
         )}
       </div>

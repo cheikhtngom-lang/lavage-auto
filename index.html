@@ -114,6 +114,11 @@
             },
             {
               "@type": "Question",
+              "name": "Puis-je gérer aussi des tapis, des chaussures, des salons ou un pressing ?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Oui. Chaque activité est un module à part : Tapis 5 000 F, Chaussures 3 000 F, Salon 5 000 F et Pressing 10 000 F par mois, en plus de votre offre. Demandez-le depuis votre espace, rubrique Modules : nous l'activons pour votre station." }
+            },
+            {
+              "@type": "Question",
               "name": "Puis-je annuler mon abonnement ?",
               "acceptedAnswer": { "@type": "Answer", "text": "Oui, toutes nos offres sont sans engagement. Vous pouvez annuler votre abonnement SaaS à tout moment depuis votre tableau de bord." }
             }
@@ -136,6 +141,7 @@
     <script src="/register-sw.js" defer></script>
 
     <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="landing.css">
     <style>
         /* Smooth scrolling */
         html { scroll-behavior: smooth; }
@@ -316,285 +322,304 @@
         }
     </style>
 </head>
-<body class="min-h-screen relative overflow-x-hidden text-white bg-[#0a0a0a]">
-    <!-- Effets de lumière en arrière-plan -->
+<body class="lp min-h-screen relative">
+    <!-- Page d'accueil claire (13/11/2026) : styles dans landing.css. Photos de la
+         marque (pub Galsen, public/images/landing) ; activités Tapis, Chaussures,
+         Salon et Pressing : photos Unsplash (licence Unsplash), à remplacer par
+         des photos de stations Galsen quand elles existeront. -->
 
     <!-- Navigation -->
-    <header class="sticky top-0 z-50 w-full border-b border-white/10 glass-panel">
-        <div class="container mx-auto px-4 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-2 min-w-0 flex-shrink mr-2">
-                <img src="/icons/icon-192.png" alt="Clean Car Galsen" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg object-cover flex-shrink-0">
-                <span class="font-bold text-base sm:text-xl tracking-tight truncate">Clean Car <span class="text-transparent bg-clip-text bg-gradient-to-r from-green-500 via-yellow-400 to-red-500">Galsen</span></span>
-            </div>
-            <nav class="hidden md:flex gap-6 items-center">
-                <a href="#accueil" class="text-sm font-medium text-white hover:text-blue-400 transition-colors">Accueil</a>
-                <a href="#comment-ca-marche" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Comment ça marche</a>
-                <a href="#a-propos" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">À propos</a>
-                <a href="#tarifs" class="text-sm font-medium text-neutral-400 hover:text-white transition-colors">Tarifs Pro</a>
+    <header class="lp-nav">
+        <div class="lp-wrap lp-nav__bar">
+            <a href="#accueil" class="lp-logo" aria-label="Clean Car Galsen, accueil">
+                <img src="/icons/icon-192.png" alt="" width="32" height="32">
+                <span>Clean Car <b>Galsen</b></span>
+            </a>
+            <nav class="lp-nav__links" aria-label="Sections">
+                <a href="#automobilistes">Automobilistes</a>
+                <a href="#stations-pro">Stations</a>
+                <a href="#activites">Tapis et pressing</a>
+                <a href="#tarifs">Tarifs</a>
+                <a href="#faq">Questions</a>
             </nav>
-            <div class="flex items-center gap-1 sm:gap-3 flex-shrink-0">
-                <div id="auth-buttons" class="flex items-center gap-1 sm:gap-3">
-                    <button onclick="window.location.href='login.html'" class="hidden sm:inline-block text-white hover:text-blue-400 font-medium px-2 py-2 text-sm transition-colors">
-                        Connexion
-                    </button>
-                    <button onclick="window.location.href='login.html?mode=register'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-colors shadow-lg shadow-blue-500/20 whitespace-nowrap">
-                        S'inscrire
-                    </button>
+            <div class="lp-nav__right">
+                <div id="auth-buttons" class="flex items-center gap-1 sm:gap-2">
+                    <button onclick="window.location.href='login.html'" class="lp-nav__login">Connexion</button>
+                    <button onclick="window.location.href='login.html?mode=register'" class="lp-btn lp-btn--primary lp-btn--sm">S'inscrire</button>
                 </div>
-                <button onclick="toggleMobileMenu()" class="md:hidden text-white p-2 -mr-2" aria-label="Ouvrir le menu" aria-expanded="false" id="mobile-menu-toggle">
-                    <svg id="menu-icon-open" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                    <svg id="menu-icon-close" class="w-6 h-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                <button onclick="toggleMobileMenu()" class="lp-burger" aria-label="Ouvrir le menu" aria-expanded="false" id="mobile-menu-toggle">
+                    <svg id="menu-icon-open" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    <svg id="menu-icon-close" class="hidden" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
         </div>
-        <nav id="mobile-nav" class="hidden md:hidden border-t border-white/10 bg-neutral-950/95 backdrop-blur-xl">
-            <div class="container mx-auto px-4 py-3 flex flex-col gap-1">
-                <a href="#accueil" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Accueil</a>
-                <a href="#comment-ca-marche" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Comment ça marche</a>
-                <a href="#a-propos" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">À propos</a>
-                <a href="#tarifs" onclick="closeMobileMenu()" class="px-3 py-3 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors">Tarifs Pro</a>
-                <a href="login.html" class="sm:hidden mt-1 px-3 py-3 rounded-xl text-sm font-bold text-center text-white border border-white/10 hover:bg-white/5 transition-colors">Connexion</a>
+        <nav id="mobile-nav" class="hidden lp-mobile-nav" aria-label="Menu">
+            <div class="lp-wrap">
+                <a href="#automobilistes" onclick="closeMobileMenu()">Automobilistes</a>
+                <a href="#stations-pro" onclick="closeMobileMenu()">Stations</a>
+                <a href="#activites" onclick="closeMobileMenu()">Tapis et pressing</a>
+                <a href="#tarifs" onclick="closeMobileMenu()">Tarifs</a>
+                <a href="#faq" onclick="closeMobileMenu()">Questions</a>
+                <a href="login.html" onclick="closeMobileMenu()">Connexion</a>
             </div>
         </nav>
     </header>
 
-    <!-- CTA sticky mobile : masquée pendant le hero (voir .mobile-cta-bar /
-         initMobileCta), apparaît une fois le premier écran dépassé. -->
-    <div id="mobile-cta" class="mobile-cta-bar is-hidden md:hidden fixed bottom-0 left-0 right-0 z-40 bg-neutral-950/95 backdrop-blur-xl border-t border-white/10 px-4 py-2.5 flex items-center gap-3" style="padding-bottom: max(0.625rem, env(safe-area-inset-bottom));">
+    <!-- Barre d'action mobile : masquée pendant le héros (initMobileCta). -->
+    <div id="mobile-cta" class="mobile-cta-bar is-hidden md:hidden fixed bottom-0 left-0 right-0 z-40 px-4 py-2.5 flex items-center gap-3" style="padding-bottom: max(0.625rem, env(safe-area-inset-bottom));">
         <div class="flex-1 min-w-0">
-            <p class="text-[15px] font-bold text-white leading-tight truncate">Prêt à réserver ?</p>
-            <p class="text-[11px] text-neutral-500 leading-tight truncate">Paiement Wave / Orange Money</p>
+            <p class="text-[15px] font-bold leading-tight truncate">Une station près de vous</p>
+            <p class="text-[12px] leading-tight truncate" style="color:var(--lp-muted)">Réservez, payez par Wave ou Orange Money</p>
         </div>
-        <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-full text-sm font-bold transition-colors shadow-lg shadow-blue-500/30 flex-shrink-0 whitespace-nowrap">
-            Trouver une station
-        </button>
+        <a href="/stations" class="lp-btn lp-btn--primary lp-btn--sm flex-shrink-0">Trouver une station</a>
     </div>
 
-    <main class="w-full flex flex-col items-center pb-20 md:pb-0">
-        <!-- Section Hero — vidéo de fond en boucle (laveurs au travail), overlay
-             sombre dégradé bas→haut pour la lisibilité du texte. hero-wash.mp4
-             (960×540, ~470 Ko) est chargée aussi bien sur mobile que sur desktop ;
-             on s'en tient au poster (hero-poster.jpg, ~38 Ko) uniquement en 2G /
-             mode économie de données / prefers-reduced-motion. -->
-        <!-- Note : sur iOS le playsinline + muted permettent l'autoplay ; l'overlay
-             dégradé masque en partie le bouton lecture natif si l'autoplay échoue. -->
-        <section id="accueil" class="relative w-full min-h-[80vh] md:min-h-screen flex items-center overflow-hidden">
-            <!-- Bandeau défilant (annonces, mises en avant, pubs payées) — rempli
-                 par initHeroTicker() ; reste masqué s'il n'y a rien à afficher. -->
-            <div id="hero-ticker" class="hero-ticker" style="display:none" role="region" aria-label="Annonces">
-                <div id="hero-ticker-track" class="hero-ticker-track"></div>
-            </div>
-            <video id="hero-video" muted loop playsinline preload="none" aria-hidden="true"
-                   poster="/images/hero-poster.jpg" data-src="/videos/hero-wash.mp4"
-                   class="absolute inset-0 w-full h-full object-cover"></video>
-            <script>
-                (function () {
-                    var v = document.getElementById('hero-video');
-                    if (!v) return;
-                    // La vidéo (~470 Ko) joue aussi sur mobile — seule exception :
-                    // connexion 2G / mode économie de données, ou "réduire les
-                    // animations" activé. Sinon on ne montre que le poster (~38 Ko).
-                    var c = navigator.connection || {};
-                    var slow = c.saveData || /(^|-)2g$/.test(c.effectiveType || '');
-                    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                    if (slow || reduce) return;
-                    var s = document.createElement('source');
-                    s.src = v.dataset.src; s.type = 'video/mp4';
-                    v.appendChild(s); v.load();
-                    v.play().catch(function () {});
-                })();
-            </script>
-            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20"></div>
+    <main class="w-full pb-20 md:pb-0">
+        <!-- Bandeau d'annonces (Super Admin + pubs payées), rempli par initHeroTicker(). -->
+        <div id="hero-ticker" class="hero-ticker" style="display:none" role="region" aria-label="Annonces">
+            <div id="hero-ticker-track" class="hero-ticker-track"></div>
+        </div>
 
-            <!-- Badge "temps d'attente" — DESKTOP (md+) : flottant en haut à droite,
-                 par-dessus la vidéo. Sur mobile il chevauchait le H1 → voir la version
-                 compacte dans le flux, plus bas. -->
-            <div class="hidden md:flex absolute top-28 right-10 z-10 glass-panel rounded-2xl px-5 py-4 items-center gap-4 shadow-2xl animate-float">
-                <div class="w-14 h-14 flex-shrink-0 rounded-full border-4 border-blue-500/40 bg-black/50 flex flex-col items-center justify-center">
-                    <span class="text-lg font-bold text-white leading-none">30</span>
-                    <span class="text-[8px] text-blue-400 uppercase tracking-wide">min</span>
+        <!-- 1. Héros -->
+        <section id="accueil" class="lp-hero">
+            <div class="lp-wrap lp-hero__grid">
+                <div>
+                    <span class="lp-eyebrow">Logiciel des stations de lavage au Sénégal</span>
+                    <h1>Fini la queue.<br><span>Fini le cahier.</span></h1>
+                    <p class="lp-hero__sub">File d'attente, laveurs et caisse sur un seul écran. Vos clients réservent et paient par Wave ou Orange Money.</p>
+                    <div class="lp-actions">
+                        <a href="login.html?mode=register&role=agence" class="lp-btn lp-btn--primary">Essayer 7 jours gratuits</a>
+                        <a href="/stations" class="lp-btn lp-btn--ghost">Trouver une station</a>
+                    </div>
+                    <div class="lp-hero__fact">
+                        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Dès 10 000 F par mois</span>
+                        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Sans matériel à acheter</span>
+                        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Sans commission</span>
+                    </div>
+                </div>
+                <div class="lp-hero__visual">
+                    <div class="lp-photo">
+                        <img src="/images/landing/gerant-tablette-1600.webp" srcset="/images/landing/gerant-tablette-900.webp 900w, /images/landing/gerant-tablette-1600.webp 1600w" sizes="(max-width: 960px) 100vw, 50vw" width="1600" height="884" alt="Gérant de station de lavage qui suit sa file d'attente sur une tablette" fetchpriority="high" decoding="async">
+                    </div>
+                    <div class="lp-ui lp-ui--float" aria-hidden="true">
+                        <div class="lp-ui__top">File d'attente <span class="lp-ui__live">En direct</span></div>
+                        <div class="lp-ui__row">
+                            <span class="lp-ui__rank">1</span>
+                            <div><div class="lp-ui__plate">DK-2847-AB</div><div class="lp-ui__meta">Berline · Lavage complet · Modou</div><div class="lp-ui__bar"><i></i></div></div>
+                            <span class="lp-ui__time">8 min</span>
+                        </div>
+                        <div class="lp-ui__row">
+                            <span class="lp-ui__rank">2</span>
+                            <div><div class="lp-ui__plate">AA-119-DK</div><div class="lp-ui__meta">4x4 · Extérieur</div></div>
+                            <span class="lp-ui__time">~20 min</span>
+                        </div>
+                        <div class="lp-ui__paid"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> 5 000 F reçus par Wave</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. Automobilistes -->
+        <section id="automobilistes" class="lp-section lp-section--white">
+            <div class="lp-wrap lp-split">
+                <div class="lp-duo">
+                    <div class="lp-photo lp-photo--main">
+                        <img src="/images/landing/cliente-reserve-1600.webp" srcset="/images/landing/cliente-reserve-900.webp 900w, /images/landing/cliente-reserve-1600.webp 1600w" sizes="(max-width: 960px) 100vw, 50vw" width="1600" height="884" alt="Cliente qui réserve son lavage sur son téléphone depuis son balcon" loading="lazy" decoding="async">
+                    </div>
+                    <div class="lp-photo lp-photo--inset">
+                        <img src="/images/landing/cliente-recupere-900.webp" width="900" height="497" alt="Laveur qui rend les clés à la cliente devant sa voiture propre" loading="lazy" decoding="async" style="object-position: 40% center">
+                    </div>
                 </div>
                 <div>
-                    <p class="text-white text-sm font-semibold">Temps d'attente estimé</p>
-                    <p class="text-neutral-300 text-xs">Suivi en direct de votre lavage</p>
-                </div>
-            </div>
-
-            <div class="relative z-10 w-full max-w-7xl mx-auto px-4 py-14 sm:py-28">
-                <div class="max-w-2xl animate-fade-in opacity-0" style="animation-fill-mode: forwards;">
-                    <h1 class="text-[1.9rem] leading-[1.15] sm:text-5xl md:text-6xl font-bold tracking-tight mb-4 sm:mb-5 sm:leading-tight text-white">
-                        Votre lavage de confiance à Dakar
-                    </h1>
-
-                    <p class="text-[0.95rem] sm:text-lg text-neutral-200 mb-6 sm:mb-9 max-w-xl">
-                        Réservez votre créneau en ligne, suivez votre lavage en direct et payez par Wave ou Orange Money — sans jamais faire la queue.
-                    </p>
-
-                    <!-- Badge "temps d'attente" — MOBILE : version compacte dans le flux -->
-                    <div class="md:hidden mb-6 glass-panel rounded-2xl px-3.5 py-2.5 inline-flex items-center gap-3 shadow-xl">
-                        <div class="w-10 h-10 flex-shrink-0 rounded-full border-4 border-blue-500/40 bg-black/50 flex flex-col items-center justify-center">
-                            <span class="text-sm font-bold text-white leading-none">30</span>
-                            <span class="text-[8px] text-blue-400 uppercase tracking-wide">min</span>
-                        </div>
-                        <div>
-                            <p class="text-white text-[13px] font-semibold leading-tight">Temps d'attente estimé</p>
-                            <p class="text-neutral-300 text-[11px] leading-tight">Suivi en direct de votre lavage</p>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-7 sm:mb-10">
-                        <button onclick="window.location.href='/stations'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-3.5 sm:py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95 flex items-center justify-center gap-2">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                            Réserver un créneau
-                        </button>
-                        <button onclick="document.getElementById('avantages').scrollIntoView({behavior:'smooth'})" class="border border-white/40 hover:bg-white/10 rounded-full px-8 py-3.5 sm:py-4 text-white font-semibold transition-colors flex items-center justify-center gap-2 backdrop-blur-sm">
-                            Voir nos services
-                        </button>
-                    </div>
-
-                    <div class="flex flex-wrap gap-2 sm:gap-3">
-                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-white">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            Laveurs qualifiés
-                        </span>
-                        <span class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 backdrop-blur-sm px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-white">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            Sans attente — réservation en ligne
-                        </span>
-                    </div>
+                    <span class="lp-eyebrow">Pour l'automobiliste</span>
+                    <h2 class="lp-h2">Réservez. Suivez votre tour. Payez au téléphone.</h2>
+                    <ul class="lp-points" style="margin: 28px 0 32px">
+                        <li class="lp-point">
+                            <span class="lp-point__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                            <div><strong>L'attente, avant de partir</strong><p>Voyez la file de la station et réservez votre créneau.</p></div>
+                        </li>
+                        <li class="lp-point">
+                            <span class="lp-point__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/></svg></span>
+                            <div><strong>Votre tour en direct</strong><p>Un retard ? Votre place recule, votre ticket payé reste valable.</p></div>
+                        </li>
+                        <li class="lp-point">
+                            <span class="lp-point__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg></span>
+                            <div><strong>Wave ou Orange Money</strong><p>Payez en un geste, recevez votre reçu sur WhatsApp.</p></div>
+                        </li>
+                    </ul>
+                    <a href="/stations" class="lp-btn lp-btn--primary">Trouver une station</a>
                 </div>
             </div>
         </section>
 
-        <!-- Ce que nous facilitons (Avantages) -->
-        <section id="avantages" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 relative reveal-group">
-            <div class="reveal-item text-center mb-16">
-                <span class="text-purple-400 font-bold tracking-wider uppercase text-sm mb-2 block">Nos Avantages</span>
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Ce que nous facilitons pour vous</h2>
-                <p class="text-neutral-400 max-w-2xl mx-auto">Une solution pensée pour éliminer la frustration des conducteurs et maximiser les revenus des stations de lavage.</p>
-            </div>
-
-            <div class="reveal-item grid md:grid-cols-2 gap-8">
-                <!-- Pour le client -->
-                <div class="spotlight glass-card p-6 sm:p-10 rounded-3xl border border-blue-500/20 bg-blue-900/10 relative overflow-hidden group hover:border-blue-500/40 transition-colors shadow-2xl">
-                    <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-500/20 blur-3xl rounded-full group-hover:bg-blue-500/30 transition-colors"></div>
-                    <h3 class="text-xl sm:text-2xl font-bold text-white mb-8 flex items-center gap-4">
-                        <span class="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                        </span>
-                        Pour les Automobilistes
-                    </h3>
-                    <ul class="space-y-6 text-neutral-300">
-                        <li class="flex items-start gap-4">
-                            <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                            <div>
-                                <strong class="text-white block mb-1">Zéro attente imprévue</strong>
-                                <span class="text-sm">Consultez la file d'attente d'une station en temps réel avant même de vous déplacer.</span>
-                            </div>
-                        </li>
-                        <li class="flex items-start gap-4">
-                            <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                            <div>
-                                <strong class="text-white block mb-1">Paiement simplifié</strong>
-                                <span class="text-sm">Payez votre ticket depuis votre canapé via Wave ou Orange Money en 1 clic.</span>
-                            </div>
-                        </li>
-                        <li class="flex items-start gap-4">
-                            <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                            <div>
-                                <strong class="text-white block mb-1">Flexibilité intelligente</strong>
-                                <span class="text-sm">Si vous êtes en retard, notre système recule votre position au lieu d'annuler votre ticket payé.</span>
-                            </div>
-                        </li>
-                    </ul>
+        <!-- 3. Stations (gérants) -->
+        <section id="stations-pro" class="lp-section">
+            <div class="lp-wrap">
+                <div class="lp-head lp-head--split">
+                    <div>
+                        <span class="lp-eyebrow">Pour le gérant</span>
+                        <h2 class="lp-h2">Toute la station sur un seul écran.</h2>
+                        <p class="lp-lead">Le gérant lance les lavages, l'équipe suit, l'argent est compté. Sur le téléphone que vous avez déjà.</p>
+                    </div>
+                    <a href="login.html?mode=register&role=agence" class="lp-btn lp-btn--primary">Créer mon espace station</a>
                 </div>
-
-                <!-- Pour la station -->
-                <div class="spotlight glass-card p-6 sm:p-10 rounded-3xl border border-emerald-500/20 bg-emerald-900/10 relative overflow-hidden group hover:border-emerald-500/40 transition-colors shadow-2xl">
-                    <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-500/20 blur-3xl rounded-full group-hover:bg-emerald-500/30 transition-colors"></div>
-                    <h3 class="text-xl sm:text-2xl font-bold text-white mb-8 flex items-center gap-4">
-                        <span class="w-11 h-11 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-6h6v6"></path></svg>
-                        </span>
-                        Pour les Stations de Lavage
-                    </h3>
-                    <ul class="space-y-6 text-neutral-300">
-                        <li class="flex items-start gap-4">
-                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <div class="lp-split lp-split--wide-left">
+                    <div>
+                        <div class="lp-app" aria-hidden="true">
+                            <div class="lp-app__bar"><i></i><i></i><i></i><span>galsenautocleaner.com/admin</span></div>
+                            <div class="lp-app__body">
+                                <div class="lp-app__col">
+                                    <div class="lp-app__title">File d'attente <span class="lp-ui__live">3 en attente</span></div>
+                                    <div class="lp-ui__row"><span class="lp-ui__rank">1</span><div><div class="lp-ui__plate">DK-2847-AB</div><div class="lp-ui__meta">Berline · Lavage complet</div></div><span class="lp-ui__time">4 min</span></div>
+                                    <div class="lp-ui__row"><span class="lp-ui__rank">2</span><div><div class="lp-ui__plate">TT-70-MZ</div><div class="lp-ui__meta">Camion · 3 laveurs</div></div><span class="lp-ui__time">~20 min</span></div>
+                                    <div class="lp-ui__row"><span class="lp-ui__rank">3</span><div><div class="lp-ui__plate">BG-55-AB</div><div class="lp-ui__meta">Moto · Jakarta</div></div><span class="lp-ui__time">~26 min</span></div>
+                                    <button class="lp-app__btn" tabindex="-1" type="button">Démarrer le lavage</button>
+                                </div>
+                                <div class="lp-app__col">
+                                    <div class="lp-app__title">Caisse du jour</div>
+                                    <div class="lp-app__kpi">86 500 <small>FCFA</small></div>
+                                    <div class="lp-ui__meta" style="margin-bottom:10px">24 lavages · 3 dépôts de tapis</div>
+                                    <div class="lp-app__washer"><span class="lp-app__avatar">MF</span>Modou Fall<em>9 lavages</em></div>
+                                    <div class="lp-app__washer"><span class="lp-app__avatar" style="background:#0f8a5f">IN</span>Ibrahima Ndiaye<em>8 lavages</em></div>
+                                    <div class="lp-app__washer"><span class="lp-app__avatar" style="background:#b45309">FB</span>Fatou Ba<em>7 lavages</em></div>
+                                </div>
                             </div>
-                            <div>
-                                <strong class="text-white block mb-1">Fidélisation client</strong>
-                                <span class="text-sm">Offrez une expérience technologique premium qui démarque votre station de la concurrence.</span>
-                            </div>
+                        </div>
+                        <div class="lp-app-photo">
+                            <div class="lp-photo"><img src="/images/landing/laveur-jet-900.webp" width="900" height="497" alt="Laveur qui rince une voiture couverte de mousse au jet" loading="lazy" decoding="async"></div>
+                            <div class="lp-photo"><img src="/images/landing/gerant-caisse-900.webp" width="900" height="497" alt="Gérant qui compte la recette de la journée" loading="lazy" decoding="async"></div>
+                        </div>
+                    </div>
+                    <ul class="lp-points">
+                        <li class="lp-point">
+                            <span class="lp-point__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg></span>
+                            <div><strong>File d'attente et laveurs</strong><p>Un ou trois laveurs par véhicule, le temps d'attente se recalcule seul.</p></div>
                         </li>
-                        <li class="flex items-start gap-4">
-                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                            <div>
-                                <strong class="text-white block mb-1">Gestion digitalisée</strong>
-                                <span class="text-sm">Un tableau de bord clair pour démarrer les lavages, suivre le chiffre d'affaires et l'efficacité des laveurs.</span>
-                            </div>
+                        <li class="lp-point">
+                            <span class="lp-point__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>
+                            <div><strong>Caisse et reçu WhatsApp</strong><p>Espèces, Wave ou Orange Money, reçu avec votre logo et votre cachet.</p></div>
                         </li>
-                        <li class="flex items-start gap-4">
-                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                            <div>
-                                <strong class="text-white block mb-1">Paiements sécurisés</strong>
-                                <span class="text-sm">Réduisez la manipulation d'espèces et les vols avec les reçus électroniques et paiements mobiles.</span>
-                            </div>
+                        <li class="lp-point">
+                            <span class="lp-point__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span>
+                            <div><strong>Comptabilité du jour</strong><p>Recettes, dépenses et objectif, sans recopier un cahier.</p></div>
                         </li>
-                        <li class="flex items-start gap-4">
-                            <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            </div>
-                            <div>
-                                <strong class="text-white block mb-1">Module RH & Pointage</strong>
-                                <span class="text-sm">Suivez les heures et absences de vos laveurs, et exportez automatiquement les fiches Excel pour la paie.</span>
-                            </div>
+                        <li class="lp-point">
+                            <span class="lp-point__icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/></svg></span>
+                            <div><strong>Équipe et pointage</strong><p>Arrivées, départs et classement des laveurs, export pour la paie.</p></div>
                         </li>
                     </ul>
                 </div>
             </div>
         </section>
 
-        <!-- Comment ça marche ? -->
-        <section id="comment-ca-marche" class="w-full max-w-6xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
-            <div class="reveal-item text-center mb-16">
-                <span class="text-blue-400 font-bold tracking-wider uppercase text-sm mb-2 block">Le processus</span>
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">La magie en 3 étapes simples</h2>
-                <p class="text-neutral-400 max-w-2xl mx-auto">Une fluidité parfaite entre le client et la station.</p>
+        <!-- 4. Activités en plus -->
+        <section id="activites" class="lp-section lp-section--white">
+            <div class="lp-wrap">
+                <div class="lp-head lp-head--split">
+                    <div>
+                        <span class="lp-eyebrow">Activités en plus</span>
+                        <h2 class="lp-h2">Tapis, chaussures, salons, pressing : un ticket, un lien de suivi.</h2>
+                        <p class="lp-lead">Chaque activité a sa rubrique, ses tarifs et sa part en comptabilité. Vous l'ajoutez quand vous voulez.</p>
+                    </div>
+                    <a href="#tarifs" class="lp-link">Voir les prix</a>
+                </div>
+                <div class="lp-grid4">
+                    <article class="lp-card lp-card--hover">
+                        <div class="lp-photo"><img src="https://images.unsplash.com/photo-1608724552908-e1c141f631ac?w=900&q=70&auto=format&fit=crop" srcset="https://images.unsplash.com/photo-1608724552908-e1c141f631ac?w=600&q=70&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1608724552908-e1c141f631ac?w=900&q=70&auto=format&fit=crop 900w" sizes="(max-width: 560px) 100vw, (max-width: 1024px) 50vw, 25vw" width="900" height="675" alt="Pile de tapis de salon colorés" loading="lazy" decoding="async"></div>
+                        <div class="lp-card__body">
+                            <h3>Tapis et moquettes</h3>
+                            <p>Dépôt numéroté, lavage, séchage : le client sait quand passer.</p>
+                            <div class="lp-card__price">Module <b>5 000 F/mois</b></div>
+                        </div>
+                    </article>
+                    <article class="lp-card lp-card--hover">
+                        <div class="lp-photo"><img src="https://images.unsplash.com/photo-1707109322343-3fe79f5d5c0b?w=900&q=70&auto=format&fit=crop" srcset="https://images.unsplash.com/photo-1707109322343-3fe79f5d5c0b?w=600&q=70&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1707109322343-3fe79f5d5c0b?w=900&q=70&auto=format&fit=crop 900w" sizes="(max-width: 560px) 100vw, (max-width: 1024px) 50vw, 25vw" width="900" height="675" alt="Nettoyage d'une basket blanche à la brosse" loading="lazy" decoding="async"></div>
+                        <div class="lp-card__body">
+                            <h3>Chaussures</h3>
+                            <p>Baskets, cuir, daim : à la paire, avec la pointure et le prix.</p>
+                            <div class="lp-card__price">Module <b>3 000 F/mois</b></div>
+                        </div>
+                    </article>
+                    <article class="lp-card lp-card--hover">
+                        <div class="lp-photo"><img src="https://images.unsplash.com/photo-1686178827149-6d55c72d81df?w=900&q=70&auto=format&fit=crop" srcset="https://images.unsplash.com/photo-1686178827149-6d55c72d81df?w=600&q=70&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1686178827149-6d55c72d81df?w=900&q=70&auto=format&fit=crop 900w" sizes="(max-width: 560px) 100vw, (max-width: 1024px) 50vw, 25vw" width="900" height="675" alt="Nettoyage d'un fauteuil en tissu à l'aspirateur" loading="lazy" decoding="async"></div>
+                        <div class="lp-card__body">
+                            <h3>Salons et fauteuils</h3>
+                            <p>À la station ou chez le client, avec l'adresse et les frais de déplacement.</p>
+                            <div class="lp-card__price">Module <b>5 000 F/mois</b></div>
+                        </div>
+                    </article>
+                    <article class="lp-card lp-card--hover">
+                        <div class="lp-photo"><img src="https://images.unsplash.com/photo-1451933335233-c41672c8f378?w=900&q=70&auto=format&fit=crop" srcset="https://images.unsplash.com/photo-1451933335233-c41672c8f378?w=600&q=70&auto=format&fit=crop 600w, https://images.unsplash.com/photo-1451933335233-c41672c8f378?w=900&q=70&auto=format&fit=crop 900w" sizes="(max-width: 560px) 100vw, (max-width: 1024px) 50vw, 25vw" width="900" height="675" alt="Vêtements nettoyés sous housse sur les portants d'un pressing" loading="lazy" decoding="async"></div>
+                        <div class="lp-card__body">
+                            <h3>Pressing</h3>
+                            <p>Vêtements et linge : étiquettes, avance, express et livraison.</p>
+                            <div class="lp-card__price">Module <b>10 000 F/mois</b></div>
+                        </div>
+                    </article>
+                </div>
             </div>
+        </section>
 
-            <div class="reveal-item grid md:grid-cols-3 gap-8 relative">
-                <!-- Ligne de connexion (Desktop) -->
-                <div class="hidden md:block absolute top-[40px] left-[15%] right-[15%] h-1 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-emerald-500/20 z-0"></div>
+        <!-- 5. Pressing en détail -->
+        <section id="pressing" class="lp-section">
+            <div class="lp-wrap lp-split">
+                <div>
+                    <span class="lp-eyebrow">Gestion de pressing</span>
+                    <h2 class="lp-h2">Le pressing, du dépôt à la livraison.</h2>
+                    <p class="lp-lead">Chaque vêtement a son traitement, son prix et son étiquette. Le client suit son linge sur WhatsApp.</p>
+                    <ul class="lp-features">
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Lavage, nettoyage à sec, repassage seul</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Vos tarifs par article</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Express en 24 h avec supplément</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Avance au dépôt, solde au retrait</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Ticket et étiquettes imprimés</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Emplacement sur le portant</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Collecte et livraison à domicile</li>
+                        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Alerte au-delà de 30 jours non retirés</li>
+                    </ul>
+                    <a href="login.html?mode=register&role=agence" class="lp-btn lp-btn--primary">Ouvrir mon pressing</a>
+                </div>
+                <div class="lp-press">
+                    <div class="lp-photo">
+                        <img src="https://images.unsplash.com/photo-1696546761220-6c418dfefb8d?w=1200&q=70&auto=format&fit=crop" srcset="https://images.unsplash.com/photo-1696546761220-6c418dfefb8d?w=700&q=70&auto=format&fit=crop 700w, https://images.unsplash.com/photo-1696546761220-6c418dfefb8d?w=1200&q=70&auto=format&fit=crop 1200w" sizes="(max-width: 960px) 100vw, 50vw" width="1200" height="1056" alt="Repassage d'une chemise au fer vapeur dans un pressing" loading="lazy" decoding="async">
+                    </div>
+                    <div class="lp-ui lp-ticket" aria-hidden="true">
+                        <div class="lp-ticket__head"><span class="lp-ticket__no">Ticket n° 12</span><span class="lp-ticket__express">EXPRESS</span></div>
+                        <div class="lp-ticket__line"><b>12-1</b><span>Chemise · repassage</span><em>500 F</em></div>
+                        <div class="lp-ticket__line"><b>12-2</b><span>Grand boubou · à sec</span><em>4 500 F</em></div>
+                        <div class="lp-ticket__line"><b>12-3</b><span>Costume · à sec</span><em>4 500 F</em></div>
+                        <div class="lp-ticket__sum"><span>Avance 5 000 F</span><b>Reste 4 500 F</b></div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-                <!-- Step 1 -->
-                <div class="glass-flat p-8 rounded-3xl relative z-10 flex flex-col items-center text-center border-t border-blue-500/30">
-                    <div class="w-20 h-20 rounded-full bg-blue-600 text-white font-bold text-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(37,99,235,0.4)]">1</div>
-                    <h3 class="text-xl font-bold mb-3">Le client réserve</h3>
-                    <p class="text-neutral-400 text-sm">L'automobiliste trouve votre station, choisit son lavage et paie instantanément via Wave ou Orange Money.</p>
+        <!-- 6. Comment ça marche -->
+        <section id="comment-ca-marche" class="lp-section lp-section--white">
+            <div class="lp-wrap">
+                <div class="lp-head">
+                    <span class="lp-eyebrow">Comment ça marche</span>
+                    <h2 class="lp-h2">Du parking à la caisse, en trois temps.</h2>
                 </div>
-                <!-- Step 2 -->
-                <div class="glass-flat p-8 rounded-3xl relative z-10 flex flex-col items-center text-center border-t border-purple-500/30">
-                    <div class="w-20 h-20 rounded-full bg-purple-600 text-white font-bold text-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(147,51,234,0.4)]">2</div>
-                    <h3 class="text-xl font-bold mb-3">Vous validez</h3>
-                    <p class="text-neutral-400 text-sm">Le véhicule apparaît sur votre tablette. Vous lancez le lavage et le système gère l'ordre d'attente intelligemment.</p>
-                </div>
-                <!-- Step 3 -->
-                <div class="glass-flat p-8 rounded-3xl relative z-10 flex flex-col items-center text-center border-t border-emerald-500/30">
-                    <div class="w-20 h-20 rounded-full bg-emerald-600 text-white font-bold text-3xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(5,150,105,0.4)]">3</div>
-                    <h3 class="text-xl font-bold mb-3">Suivi en direct</h3>
-                    <p class="text-neutral-400 text-sm">La barre de progression du client avance en temps réel. Il arrive exactement au bon moment. Zéro frustration.</p>
+                <div class="lp-grid3">
+                    <div class="lp-step">
+                        <div class="lp-photo"><img src="/images/landing/cliente-file-900.webp" width="900" height="497" alt="Cliente au volant qui attend son tour devant la station" loading="lazy" decoding="async" style="object-position: 30% center"></div>
+                        <span class="lp-step__n">1</span>
+                        <h3>Le client réserve</h3>
+                        <p>Il choisit sa station et son lavage, et paie s'il le souhaite.</p>
+                    </div>
+                    <div class="lp-step">
+                        <div class="lp-photo"><img src="/images/landing/mousse-900.webp" width="900" height="497" alt="Laveur qui couvre une voiture de mousse active" loading="lazy" decoding="async"></div>
+                        <span class="lp-step__n">2</span>
+                        <h3>Le gérant lance le lavage</h3>
+                        <p>Il choisit le laveur. La file des suivants avance toute seule.</p>
+                    </div>
+                    <div class="lp-step">
+                        <div class="lp-photo"><img src="/images/landing/cliente-recupere-1600.webp" srcset="/images/landing/cliente-recupere-900.webp 900w, /images/landing/cliente-recupere-1600.webp 1600w" sizes="(max-width: 900px) 100vw, 33vw" width="1600" height="884" alt="La cliente récupère sa voiture propre et remercie le laveur" loading="lazy" decoding="async" style="object-position: 70% center"></div>
+                        <span class="lp-step__n">3</span>
+                        <h3>On encaisse, reçu envoyé</h3>
+                        <p>Wave, Orange Money ou espèces. Le reçu part sur WhatsApp.</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -614,12 +639,13 @@
              sous-ensemble sur tous les navigateurs.
              Comme pour le hero, pas d'autoplay en 2G/économie de données/"réduire
              les animations" — juste la vignette, lecture manuelle via le bouton. -->
-        <section class="w-full max-w-5xl mx-auto px-4 py-24 border-t border-white/5 reveal-group">
-            <div class="reveal-item text-center mb-10">
-                <h2 class="text-3xl md:text-5xl font-bold mb-4">Voyez Clean Car Galsen en vidéo</h2>
-                <p class="text-neutral-400 max-w-2xl mx-auto">Réservation, file d'attente, encaissement : la plateforme en images.</p>
+        <section id="video" class="lp-section lp-section--sand">
+          <div class="lp-wrap" style="max-width:1040px">
+            <div class="lp-head" style="text-align:center">
+                <span class="lp-eyebrow">En vidéo</span>
+                <h2 class="lp-h2">Galsen en 40 secondes.</h2>
             </div>
-            <div class="reveal-item glass-card rounded-3xl border border-white/10 overflow-hidden shadow-2xl relative" id="motion-design-wrap">
+            <div class="lp-video relative" id="motion-design-wrap">
                 <video
                     id="motion-design-video"
                     muted
@@ -748,15 +774,16 @@
                     io.observe(v);
                 })();
             </script>
+        </div>
         </section>
 
-        <!-- Recherche de Stations (Existante) -->
-        <section id="stations-section" class="w-full bg-black/40 py-24 border-y border-white/5 relative z-10 reveal-group">
-            <div class="max-w-6xl mx-auto px-4">
-                <div class="reveal-item flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
+        <section id="stations-section" class="lp-section lp-night relative z-10">
+            <div class="lp-wrap">
+                <div class="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
                     <div>
-                        <h2 class="text-3xl font-bold mb-2">Stations partenaires actuelles</h2>
-                        <p class="text-neutral-400">Trouvez une station à proximité ou dans une autre région.</p>
+                        <span class="lp-eyebrow" style="color:#7cc4ff">Stations partenaires</span>
+                        <h2 class="lp-h2">Trouvez une station près de chez vous.</h2>
+                        <p class="lp-lead">Par quartier, par région, ou la plus proche de vous.</p>
                     </div>
                     <button onclick="window.location.href='login.html'" class="text-blue-400 hover:text-white font-medium transition-colors flex items-center gap-2">
                         Rejoindre le réseau
@@ -765,7 +792,7 @@
                 </div>
 
                 <!-- Pays : détecté automatiquement, modifiable (voir src/lib/userCountry.js) -->
-                <div id="country-bar" class="reveal-item relative z-20 flex justify-center mb-4 min-h-[2.25rem]"></div>
+                <div id="country-bar" class="relative z-20 flex justify-center mb-4 min-h-[2.25rem]"></div>
 
                 <!-- Pays pas (encore) ouvert : message à la place de la recherche -->
                 <div id="country-unavailable" class="hidden text-center py-14 px-4 glass-card rounded-2xl border border-dashed border-white/10 mb-4">
@@ -775,7 +802,7 @@
                 </div>
 
                 <!-- Barre de recherche : quartier + région + bouton Rechercher -->
-                <div id="stations-search-bar" class="reveal-item glass-flat p-4 rounded-2xl border border-white/5 mb-4 flex flex-col md:flex-row gap-4 items-center">
+                <div id="stations-search-bar" class="glass-flat p-4 rounded-2xl border border-white/5 mb-4 flex flex-col md:flex-row gap-4 items-center">
                     <div class="flex-1 w-full relative">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                         <input id="search-input" type="text" placeholder="Rechercher un quartier, une station..." class="w-full bg-black/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-blue-500 transition-colors" onkeydown="if(event.key==='Enter')searchStations()">
@@ -795,7 +822,7 @@
                 </div>
 
                 <!-- Recherche par géolocalisation : station la plus proche -->
-                <div id="geoloc-block" class="reveal-item flex flex-col items-center gap-1 mb-10">
+                <div id="geoloc-block" class="flex flex-col items-center gap-1 mb-10">
                     <button id="geoloc-btn" onclick="useMyPosition()" class="text-blue-400 hover:text-white font-medium text-sm transition-colors flex items-center gap-2">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>
                         <span id="geoloc-btn-label">Ou trouver la station la plus proche de moi (géolocalisation)</span>
@@ -816,12 +843,12 @@
                 </div>
 
                 <!-- Défilement horizontal automatique des vraies stations inscrites (vue par défaut) -->
-                <div id="stations-marquee" class="reveal-item stations-marquee">
+                <div id="stations-marquee" class="stations-marquee">
                     <div id="stations-track" class="stations-track"></div>
                 </div>
                 <div id="stations-empty" class="hidden text-center py-16 glass-card rounded-2xl border border-dashed border-white/10">
                     <p class="text-neutral-300 font-medium mb-1">Aucune station inscrite pour le moment.</p>
-                    <p class="text-neutral-500 text-sm mb-5">Soyez la première station partenaire du réseau !</p>
+                    <p class="text-neutral-500 text-sm mb-5">Soyez la première station partenaire du réseau !</p>
                     <button onclick="window.location.href='login.html?mode=register&role=agence'" class="cta-beam bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-blue-500/20">
                         Inscrire ma station
                     </button>
@@ -829,361 +856,135 @@
             </div>
         </section>
 
-        <!-- À propos : l'équipe de laveurs + ce que fait le système -->
-        <section id="a-propos" class="w-full bg-black/40 py-24 border-y border-white/5 relative z-10 reveal-group scroll-mt-20 overflow-hidden">
-            <!-- Halo en dégradé radial (profil d'un flou gaussien calculé) : même rendu qu'un filter: blur(), sans son coût sous Safari. -->
-            <div aria-hidden="true" class="absolute -left-24 top-1/3 w-96 h-96 pointer-events-none" style="transform:scale(3.031);background:radial-gradient(closest-side,rgb(37 99 235 / 0.0664) 0%,rgb(37 99 235 / 0.0628) 10%,rgb(37 99 235 / 0.0530) 20%,rgb(37 99 235 / 0.0396) 30%,rgb(37 99 235 / 0.0259) 40%,rgb(37 99 235 / 0.0146) 50%,rgb(37 99 235 / 0.0071) 60%,rgb(37 99 235 / 0.0029) 70%,rgb(37 99 235 / 0.0010) 80%,rgb(37 99 235 / 0.0003) 90%,rgb(37 99 235 / 0.0001) 100%)"></div>
-            <div class="max-w-6xl mx-auto px-4 relative z-10">
-
-                <div class="reveal-item max-w-2xl mb-14">
-                    <span class="inline-block text-xs font-bold tracking-[0.2em] text-blue-400 uppercase mb-4">À propos</span>
-                    <h2 class="text-3xl md:text-5xl font-bold mb-5">Une équipe de laveurs.<br class="hidden sm:block"> Un système qui gère tout le reste.</h2>
-                    <p class="text-neutral-400 text-lg">Clean Car Galsen est né au Sénégal d'un constat simple : les stations de lavage tournent à l'huile de coude, sans outil pour organiser la file d'attente, suivre les laveurs ni tracer l'argent. Nous avons construit le logiciel qui fait tout ça — vos laveurs gardent l'éponge, le reste devient automatique.</p>
+        <!-- 9. À propos -->
+        <section id="a-propos" class="lp-section lp-about">
+            <div class="lp-wrap lp-split">
+                <div class="lp-photo">
+                    <img src="/images/landing/gerant-portrait-1600.webp" srcset="/images/landing/gerant-portrait-900.webp 900w, /images/landing/gerant-portrait-1600.webp 1600w" sizes="(max-width: 960px) 100vw, 50vw" width="1600" height="884" alt="Portrait d'un gérant de station de lavage devant sa station" loading="lazy" decoding="async" style="object-position: 48% center">
                 </div>
-
-                <div class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-
-                    <!-- Montage : les laveurs au travail -->
-                    <div class="reveal-item grid grid-cols-2 gap-3">
-                        <img src="/images/about-team-1.jpg" width="1400" height="933" loading="lazy" decoding="async"
-                             alt="Laveur de l'équipe pulvérisant la mousse active sur une berline, station de lavage Clean Car Galsen"
-                             class="col-span-2 w-full aspect-[16/10] object-cover rounded-2xl ring-1 ring-white/10">
-                        <img src="/images/about-team-2.jpg" width="1400" height="933" loading="lazy" decoding="async"
-                             alt="Laveur passant l'éponge sur le toit d'une voiture couverte de mousse"
-                             class="w-full aspect-[4/3] object-cover rounded-2xl ring-1 ring-white/10">
-                        <img src="/images/about-team-3.jpg" width="1400" height="933" loading="lazy" decoding="async"
-                             alt="Laveur essuyant le rétroviseur d'une voiture pendant le lavage"
-                             class="w-full aspect-[4/3] object-cover rounded-2xl ring-1 ring-white/10">
+                <div>
+                    <span class="lp-eyebrow">À propos</span>
+                    <h2 class="lp-h2">Conçu au Sénégal, pour les stations d'ici.</h2>
+                    <p class="lp-lead">Les stations tournaient au cahier et à l'huile de coude. Nous avons fait l'outil qui manquait.</p>
+                    <div class="lp-values">
+                        <div class="lp-value"><strong>Zéro matériel</strong><p>Tout tourne dans le navigateur de votre téléphone.</p></div>
+                        <div class="lp-value"><strong>Zéro commission</strong><p>L'argent des lavages va sur votre compte. Seul l'abonnement est facturé.</p></div>
+                        <div class="lp-value"><strong>Paiement d'ici</strong><p>Wave et Orange Money, reçus sur WhatsApp.</p></div>
                     </div>
-
-                    <!-- Ce que le système fait -->
-                    <div class="reveal-item space-y-8">
-                        <div>
-                            <h3 class="text-xl font-bold mb-3 flex items-center gap-3">
-                                <span class="w-9 h-9 rounded-lg bg-blue-500/15 flex items-center justify-center flex-shrink-0">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                </span>
-                                L'équipe de laveurs, sous contrôle
-                            </h3>
-                            <ul class="space-y-2.5 text-neutral-300 text-sm">
-                                <li class="flex gap-3"><span class="text-blue-400 font-bold flex-shrink-0">→</span> Pointage du jour : prise de poste, descente, fin de service — avec coupure automatique à l'heure de fermeture.</li>
-                                <li class="flex gap-3"><span class="text-blue-400 font-bold flex-shrink-0">→</span> Planning des shifts préparé à l'avance, distinct du pointage réel.</li>
-                                <li class="flex gap-3"><span class="text-blue-400 font-bold flex-shrink-0">→</span> Chaque lavage est affecté à un laveur — ou à 2 ou 3 pour un bus ou un camion.</li>
-                                <li class="flex gap-3"><span class="text-blue-400 font-bold flex-shrink-0">→</span> Classement des laveurs : qui a lavé quoi, combien, avec quelle note du client.</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h3 class="text-xl font-bold mb-3 flex items-center gap-3">
-                                <span class="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                                </span>
-                                Le reste, le système s'en occupe
-                            </h3>
-                            <ul class="space-y-2.5 text-neutral-300 text-sm">
-                                <li class="flex gap-3"><span class="text-emerald-400 font-bold flex-shrink-0">→</span> File d'attente virtuelle : position en direct et temps d'attente estimé pour chaque client.</li>
-                                <li class="flex gap-3"><span class="text-emerald-400 font-bold flex-shrink-0">→</span> Réservation d'un créneau en ligne, suivi en direct sur le téléphone du client, notification quand c'est son tour.</li>
-                                <li class="flex gap-3"><span class="text-emerald-400 font-bold flex-shrink-0">→</span> Le client habitué est reconnu à sa plaque : son lavage se relie tout seul à son compte.</li>
-                                <li class="flex gap-3"><span class="text-emerald-400 font-bold flex-shrink-0">→</span> Paiement Wave / Orange Money et reçu numérique avec votre logo et votre cachet.</li>
-                                <li class="flex gap-3"><span class="text-emerald-400 font-bold flex-shrink-0">→</span> Comptabilité : chiffre d'affaires du jour, dépenses, objectif — et abonnements fidélité prépayés.</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Le poste de commande du gérant : maquette de la file d'attente + validation -->
-                <div class="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center mt-20 pt-16 border-t border-white/5">
-
-                    <!-- Maquette produit (pur HTML/CSS, aucune image) -->
-                    <div class="reveal-item relative order-1 pt-9">
-                        <div class="absolute top-0 right-2 md:right-6 z-20 glass-panel rounded-full pl-2 pr-4 py-1.5 flex items-center gap-2 shadow-2xl animate-float">
-                            <span class="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                            </span>
-                            <span class="text-white text-xs font-semibold">Lavage démarré</span>
-                            <span class="text-neutral-500 text-xs hidden sm:inline">· Awa</span>
-                        </div>
-
-                        <div class="glass-card rounded-3xl border border-white/10 bg-black/40 overflow-hidden shadow-2xl">
-                            <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
-                                <div class="flex items-center gap-2.5">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span class="font-bold text-white">File d'attente <span class="text-emerald-400">Live</span></span>
-                                </div>
-                                <span class="text-xs text-neutral-300 bg-white/5 rounded-full px-2.5 py-1">3 en attente</span>
-                            </div>
-
-                            <div class="p-4 space-y-3">
-                                <p class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 px-1">Prochains véhicules</p>
-
-                                <!-- Fiche active : le gérant assigne puis démarre -->
-                                <div class="rounded-2xl border border-blue-500/40 bg-blue-500/[0.07] p-4">
-                                    <div class="flex items-start justify-between mb-3">
-                                        <div>
-                                            <p class="font-bold text-white tracking-wide">DK-2847-AB</p>
-                                            <p class="text-xs text-neutral-400">Berline · Lavage complet</p>
-                                        </div>
-                                        <span class="inline-flex items-center gap-1.5 text-[11px] text-amber-300 bg-amber-500/10 rounded-full px-2.5 py-1 flex-shrink-0">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                            En attente · 4 min
-                                        </span>
-                                    </div>
-                                    <p class="text-[11px] text-neutral-500 mb-2">Assigner un laveur</p>
-                                    <div class="flex flex-wrap gap-2 mb-3">
-                                        <span class="text-xs rounded-lg border border-white/10 px-2.5 py-1 text-neutral-300">Modou</span>
-                                        <span class="text-xs rounded-lg border border-white/10 px-2.5 py-1 text-neutral-300">Ibrahima</span>
-                                        <span class="inline-flex items-center gap-1.5 text-xs rounded-lg border border-emerald-400/50 bg-emerald-500/10 px-2.5 py-1 text-emerald-300 font-semibold">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                                            Awa
-                                        </span>
-                                    </div>
-                                    <div class="w-full rounded-xl bg-blue-600 text-white text-sm font-bold py-2.5 flex items-center justify-center gap-2">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                        Démarrer le lavage
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
-                                    <div>
-                                        <p class="font-semibold text-white text-sm tracking-wide">AA-119-DK</p>
-                                        <p class="text-xs text-neutral-500">4×4 · Extérieur seul</p>
-                                    </div>
-                                    <span class="text-[11px] text-neutral-400">~12 min</span>
-                                </div>
-                                <div class="flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
-                                    <div>
-                                        <p class="font-semibold text-white text-sm tracking-wide flex items-center gap-2">
-                                            TT-70-MZ
-                                            <span class="inline-flex items-center gap-1 text-[10px] bg-white/10 rounded px-1.5 py-0.5 text-neutral-300 font-normal">
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
-                                                3 laveurs
-                                            </span>
-                                        </p>
-                                        <p class="text-xs text-neutral-500">Camion · Lavage complet</p>
-                                    </div>
-                                    <span class="text-[11px] text-neutral-400">~20 min</span>
-                                </div>
-                            </div>
-
-                            <div class="px-4 py-3 border-t border-white/5 bg-white/[0.02]">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500">En cours</span>
-                                    <span class="text-[11px] text-neutral-400">2 lavages</span>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
-                                    <span class="text-sm text-white">BG-55-AB</span>
-                                    <span class="text-xs text-neutral-500">Ndeye · 6 min 20</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Explication du flux -->
-                    <div class="reveal-item order-2">
-                        <span class="inline-block text-xs font-bold tracking-[0.2em] text-emerald-400 uppercase mb-4">Le poste de commande</span>
-                        <h3 class="text-2xl md:text-4xl font-bold mb-5">Le gérant valide,<br class="hidden sm:block"> le laveur lave.</h3>
-                        <p class="text-neutral-400 text-lg mb-7">Chaque véhicule qui arrive entre dans la file. Le gérant ouvre la fiche, choisit le laveur — un seul, ou deux à trois pour un bus ou un camion — et lance le lavage. Le client voit sa position bouger en direct sur son téléphone, le chrono tourne côté station.</p>
-                        <ol class="space-y-4">
-                            <li class="flex gap-4">
-                                <span class="w-7 h-7 rounded-full bg-emerald-500/15 text-emerald-400 font-bold text-sm flex items-center justify-center flex-shrink-0">1</span>
-                                <span class="text-neutral-300 text-sm pt-1">Le véhicule s'ajoute à la file : réservation en ligne ou arrivée directe, avec reconnaissance du client habitué à sa plaque.</span>
-                            </li>
-                            <li class="flex gap-4">
-                                <span class="w-7 h-7 rounded-full bg-emerald-500/15 text-emerald-400 font-bold text-sm flex items-center justify-center flex-shrink-0">2</span>
-                                <span class="text-neutral-300 text-sm pt-1">Le gérant assigne le ou les laveurs et appuie sur « Démarrer ». Le lavage passe « En cours », le temps d'attente des suivants se recalcule.</span>
-                            </li>
-                            <li class="flex gap-4">
-                                <span class="w-7 h-7 rounded-full bg-emerald-500/15 text-emerald-400 font-bold text-sm flex items-center justify-center flex-shrink-0">3</span>
-                                <span class="text-neutral-300 text-sm pt-1">À la fin : encaissement Wave / Orange Money et reçu numérique avec logo et cachet, en un geste.</span>
-                            </li>
-                        </ol>
-                    </div>
-                </div>
-
-                <!-- Nos valeurs (3 piliers) -->
-                <div class="reveal-item grid sm:grid-cols-3 gap-4 mt-16">
-                    <div class="glass-card rounded-2xl p-6 border border-white/5 bg-black/20">
-                        <span class="w-10 h-10 rounded-lg bg-blue-500/15 flex items-center justify-center mb-3">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                        </span>
-                        <strong class="text-white block mb-1">Conçu au Sénégal</strong>
-                        <span class="text-sm text-neutral-400">Fait pour les stations de lavage d'ici : paiement Wave et Orange Money facilité, adapté au terrain.</span>
-                    </div>
-                    <div class="glass-card rounded-2xl p-6 border border-white/5 bg-black/20">
-                        <span class="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center mb-3">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                        </span>
-                        <strong class="text-white block mb-1">Zéro matériel à acheter</strong>
-                        <span class="text-sm text-neutral-400">Tout tourne dans un navigateur, sur le téléphone que vous avez déjà.</span>
-                    </div>
-                    <div class="glass-card rounded-2xl p-6 border border-white/5 bg-black/20">
-                        <span class="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center mb-3">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>
-                        </span>
-                        <strong class="text-white block mb-1">Zéro commission</strong>
-                        <span class="text-sm text-neutral-400">L'argent des lavages va sur votre compte. On ne facture que l'abonnement mensuel.</span>
-                    </div>
-                </div>
-
-                <div class="reveal-item flex flex-col sm:flex-row gap-4 mt-12">
-                    <button onclick="window.location.href='login.html?mode=register&role=agence'" class="cta-beam bg-blue-600 hover:bg-blue-700 rounded-full px-8 py-4 text-white font-semibold shadow-lg shadow-blue-500/30 transition-transform active:scale-95">
-                        Créer mon espace station
-                    </button>
-                    <button onclick="document.getElementById('tarifs').scrollIntoView({behavior:'smooth'})" class="border border-white/20 hover:bg-white/10 rounded-full px-8 py-4 text-white font-semibold transition-colors backdrop-blur-sm">
-                        Voir les tarifs
-                    </button>
                 </div>
             </div>
         </section>
 
-        <!-- Tarifs SaaS pour Gérants -->
-        <section id="tarifs" class="w-full bg-neutral-900/50 py-24 border-t border-white/5 relative overflow-hidden reveal-group">
-            <!-- Halo en dégradé radial (profil d'un flou gaussien calculé) : même rendu qu'un filter: blur(), sans son coût sous Safari. -->
-            <div aria-hidden="true" class="absolute bottom-0 left-0 w-[800px] h-[800px] pointer-events-none z-0" style="transform:scale(1.900);background:radial-gradient(closest-side,rgb(37 99 235 / 0.0498) 0%,rgb(37 99 235 / 0.0496) 10%,rgb(37 99 235 / 0.0483) 20%,rgb(37 99 235 / 0.0446) 30%,rgb(37 99 235 / 0.0367) 40%,rgb(37 99 235 / 0.0252) 50%,rgb(37 99 235 / 0.0136) 60%,rgb(37 99 235 / 0.0055) 70%,rgb(37 99 235 / 0.0016) 80%,rgb(37 99 235 / 0.0003) 90%,rgb(37 99 235 / 0.0000) 100%)"></div>
-
-            <div class="max-w-7xl mx-auto px-4 relative z-10">
-                <div class="reveal-item text-center mb-16">
-                    <h2 class="text-3xl md:text-5xl font-bold mb-4">Des tarifs simples & clairs</h2>
-                    <p class="text-neutral-400 max-w-2xl mx-auto">Starter et Pro pour votre station de lavage. Station de service quand vous vendez aussi du carburant, des produits et des vidanges. 7 jours d'essai gratuit, sans engagement.</p>
+        <!-- 10. Tarifs -->
+        <section id="tarifs" class="lp-section lp-section--sand">
+            <div class="lp-wrap">
+                <div class="lp-head lp-head--split">
+                    <div>
+                        <span class="lp-eyebrow">Tarifs</span>
+                        <h2 class="lp-h2">Une offre de base, des activités à la carte.</h2>
+                        <p class="lp-lead">7 jours d'essai gratuit, sans engagement. Chaque activité s'ajoute à votre offre.</p>
+                    </div>
+                    <a href="sur-mesure.html" class="lp-link">Plusieurs stations ? Offre sur mesure</a>
                 </div>
-
-                <div class="reveal-item grid md:grid-cols-2 xl:grid-cols-4 gap-8 xl:gap-6 max-w-7xl mx-auto pt-3 md:pt-4">
-                    <!-- Starter -->
-                    <div class="glass-card p-6 sm:p-10 xl:p-7 rounded-3xl border border-white/5 relative flex flex-col bg-black/20">
-                        <h3 class="text-2xl font-bold mb-2">Starter</h3>
-                        <p class="text-neutral-400 text-sm mb-6">Station de lavage : pour bien démarrer.</p>
-                        <div class="mb-8">
-                            <span class="text-5xl xl:text-4xl font-bold text-white">10 000 F</span><span class="text-neutral-500"> / mois</span>
-                        </div>
-                        <ul class="space-y-4 text-sm text-neutral-300 mb-10 flex-1">
-                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> File d'attente & suivi en temps réel</li>
-                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> Estimation intelligente du temps d'attente</li>
-                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> Reçus numériques avec logo & cachet</li>
-                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> Paiement mobile Wave / Orange Money</li>
-                            <li class="flex items-center gap-3"><span class="text-blue-500 font-bold">✓</span> 3 comptes utilisateurs inclus</li>
+                <div class="lp-plans">
+                    <div class="lp-plan">
+                        <h3>Starter</h3>
+                        <p class="lp-plan__for">Pour bien démarrer.</p>
+                        <div class="lp-plan__price">10 000 F <small>/ mois</small></div>
+                        <ul>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>File d'attente en direct</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Wave et Orange Money</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Reçus avec logo et cachet</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>3 comptes</li>
                         </ul>
-                        <button onclick="window.location.href='login.html?mode=register&role=agence&plan=starter'" class="w-full py-4 rounded-xl border border-white/10 hover:bg-white/5 transition-colors font-bold text-white">Choisir Starter</button>
-                        <p class="text-center text-xs text-neutral-500 mt-3">7 jours d'essai gratuit, sans engagement</p>
+                        <a href="login.html?mode=register&role=agence&plan=starter" class="lp-btn lp-btn--ghost">Choisir Starter</a>
                     </div>
-
-                    <!-- Pro — le badge est sur un wrapper .relative EXTÉRIEUR à .spotlight
-                         (qui a overflow:hidden et le rognait, cf. mobile). -->
-                    <div class="relative md:-translate-y-4">
-                    <div class="absolute -top-3 inset-x-0 flex justify-center z-20">
-                        <span class="bg-blue-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase tracking-wider shadow-[0_0_15px_rgba(59,130,246,0.5)]">Le Plus Populaire</span>
-                    </div>
-                    <div class="spotlight cta-beam p-[1px] rounded-3xl h-full">
-                    <div class="glass-card p-6 sm:p-10 xl:p-7 rounded-3xl bg-blue-600/10 relative flex flex-col h-full shadow-2xl shadow-blue-900/20">
-                        <h3 class="text-2xl font-bold mb-2 text-blue-400">Pro</h3>
-                        <p class="text-neutral-400 text-sm mb-6">Station de lavage : toute la gestion, avec votre équipe.</p>
-                        <div class="mb-8">
-                            <span class="text-5xl xl:text-4xl font-bold text-white">20 000 F</span><span class="text-neutral-500"> / mois</span>
-                        </div>
-                        <ul class="space-y-4 text-sm text-neutral-300 mb-10 flex-1">
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Tout Starter, plus :</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Planning d'équipe & pointage des laveurs</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Comptabilité complète (dépenses, objectifs)</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Reconnaissance automatique des clients par plaque</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Abonnements clients & fidélité</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Annonces à vos clients & publicité</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> 5 comptes utilisateurs inclus</li>
+                    <div class="lp-plan lp-plan--featured">
+                        <span class="lp-plan__tag">Recommandé</span>
+                        <h3>Pro</h3>
+                        <p class="lp-plan__for">Toute la gestion, avec votre équipe.</p>
+                        <div class="lp-plan__price">20 000 F <small>/ mois</small></div>
+                        <ul>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Tout Starter</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Comptabilité et objectifs</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Planning et pointage</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Abonnements et fidélité</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Annonces aux clients</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>5 comptes</li>
                         </ul>
-                        <button onclick="window.location.href='login.html?mode=register&role=agence&plan=pro'" class="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors font-bold shadow-[0_0_20px_rgba(37,99,235,0.4)]">Choisir Pro</button>
-                        <p class="text-center text-xs text-neutral-500 mt-3">7 jours d'essai gratuit, sans engagement</p>
+                        <a href="login.html?mode=register&role=agence&plan=pro" class="lp-btn lp-btn--primary">Choisir Pro</a>
                     </div>
-                    </div>
-                    </div>
-
-                    <!-- Station de service (clé interne « Business ») — photo de station-service
-                         en fond : Hans Eiskonen / Unsplash (licence Unsplash), public/images. -->
-                    <div class="relative rounded-3xl overflow-hidden border border-amber-500/30 flex flex-col bg-neutral-950 shadow-2xl shadow-amber-900/20 isolate">
-                        <!-- Bandeau photo en tête de carte, fondu dans le fond sombre : le titre se pose sur
-                             le bas du fondu, le prix et la liste restent sur fond uni (lisibilité). -->
-                        <div class="absolute inset-x-0 top-0 h-72 -z-10" aria-hidden="true">
-                            <img src="/images/offre-station-service.jpg" alt="" width="1600" height="1067" loading="lazy" decoding="async"
-                                 class="w-full h-full object-cover object-[50%_46%]">
-                            <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-neutral-950"></div>
-                        </div>
-                        <div class="p-6 sm:p-10 xl:p-7 flex flex-col h-full">
-                            <span class="self-start mb-32 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-500/30 rounded-full px-3 py-1 backdrop-blur-sm">⛽ Nouvelle offre</span>
-                            <h3 class="text-2xl font-bold mb-2 text-amber-400">Station de service</h3>
-                            <p class="text-neutral-300 text-sm mb-6">Pour les stations-service qui lavent aussi.</p>
-                            <div class="mb-8">
-                                <span class="text-5xl xl:text-4xl font-bold text-white">35 000 F</span><span class="text-neutral-400"> / mois</span>
-                            </div>
-                            <ul class="space-y-4 text-sm text-neutral-200 mb-10 flex-1">
-                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Tout Pro, plus :</li>
-                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Pompistes : pompes, pistolets, pointage et relevés</li>
-                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Carburant suivi à part du lavage (litres, encaissé)</li>
-                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Boutique en ligne (pneus, huiles, accessoires)</li>
-                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Vidange sur rendez-vous, payable en ligne</li>
-                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> Bilan d'activité et export PDF</li>
-                                <li class="flex items-center gap-3"><span class="text-amber-400 font-bold">✓</span> +10 comptes utilisateurs</li>
-                            </ul>
-                            <button onclick="window.location.href='login.html?mode=register&role=agence&plan=station-service'" class="w-full py-4 rounded-xl bg-amber-500/90 hover:bg-amber-400 text-neutral-950 transition-colors font-bold shadow-[0_0_20px_rgba(245,158,11,0.35)]">Choisir Station de service</button>
-                            <p class="text-center text-xs text-neutral-500 mt-3">7 jours d'essai gratuit, sans engagement</p>
-                        </div>
-                    </div>
-
-                    <!-- Sur mesure (réseaux de stations) -->
-                    <div id="sur-mesure" class="glass-card p-6 sm:p-10 xl:p-7 rounded-3xl border border-emerald-500/25 relative flex flex-col bg-emerald-500/[0.04] scroll-mt-24">
-                        <h3 class="text-2xl font-bold mb-2 text-emerald-400">Sur mesure</h3>
-                        <p class="text-neutral-400 text-sm mb-6">Pour les réseaux de stations.</p>
-                        <div class="mb-8 min-h-[48px] xl:min-h-[40px] flex items-center">
-                            <span class="text-3xl xl:text-2xl font-bold text-white">À votre mesure</span>
-                        </div>
-                        <ul class="space-y-4 text-sm text-neutral-300 mb-10 flex-1">
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Le prix dépend de vous : nombre de stations et forfait de chacune</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Tarif dégressif : plus vous avez de stations, moins chacune coûte</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Un seul paiement, une seule date de facturation</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Tableau de bord consolidé de tout le réseau</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Un Super Admin par station</li>
-                            <li class="flex items-center gap-3"><span class="text-emerald-400 font-bold">✓</span> Retirez les stations peu rentables</li>
+                    <div class="lp-plan">
+                        <h3>Station de service</h3>
+                        <p class="lp-plan__for">Quand vous vendez aussi du carburant.</p>
+                        <div class="lp-plan__price">35 000 F <small>/ mois</small></div>
+                        <ul>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Tout Pro</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Pompistes et carburant</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Boutique en ligne</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Vidange sur rendez-vous</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Bilan d'activité en PDF</li>
+                            <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Plus de 10 comptes</li>
                         </ul>
-                        <a href="sur-mesure.html" class="block text-center w-full py-4 rounded-xl border border-emerald-500/40 hover:bg-emerald-500/10 transition-colors font-bold text-emerald-300">Composer mon offre</a>
+                        <a href="login.html?mode=register&role=agence&plan=station-service" class="lp-btn lp-btn--ghost">Choisir Station de service</a>
+                    </div>
+                </div>
+                <div class="lp-addons" id="sur-mesure">
+                    <div>
+                        <h3>Activités en plus</h3>
+                        <p>Un autre métier dans la même appli, activé à votre demande.</p>
+                    </div>
+                    <div class="lp-addons__list">
+                        <div class="lp-addon"><span>Tapis</span><b>5 000 F</b> <small>/ mois</small></div>
+                        <div class="lp-addon"><span>Chaussures</span><b>3 000 F</b> <small>/ mois</small></div>
+                        <div class="lp-addon"><span>Salon</span><b>5 000 F</b> <small>/ mois</small></div>
+                        <div class="lp-addon"><span>Pressing</span><b>10 000 F</b> <small>/ mois</small></div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- FAQ -->
-        <section id="faq" class="w-full max-w-4xl mx-auto px-4 py-24 border-t border-white/5 reveal-group scroll-mt-20">
-            <div class="reveal-item text-center mb-16">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4">Questions Fréquentes</h2>
-            </div>
-
-            <div class="reveal-item">
-                <details class="faq" open>
-                    <summary>Faut-il acheter du matériel informatique spécifique ?
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </summary>
-                    <p>Absolument pas. Clean Car Galsen fonctionne sur n'importe quel smartphone, tablette ou ordinateur connecté à internet (via le navigateur web).</p>
-                </details>
-                <details class="faq">
-                    <summary>Comment je récupère l'argent payé par les clients via Wave/OM ?
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </summary>
-                    <p>L'argent va directement sur votre propre compte marchand (Wave/Orange Money). Nous ne prenons aucune commission sur vos lavages, seul l'abonnement mensuel vous est facturé.</p>
-                </details>
-                <details class="faq">
-                    <summary>Puis-je annuler mon abonnement ?
-                        <svg class="chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </summary>
-                    <p>Oui, toutes nos offres sont sans engagement. Vous pouvez annuler votre abonnement SaaS à tout moment depuis votre tableau de bord.</p>
-                </details>
-            </div>
-        </section>
-
-        <!-- CTA Final -->
-        <section class="w-full py-24 border-t border-white/5 bg-gradient-to-b from-transparent to-blue-900/20 relative reveal-group">
-            <div class="reveal-item max-w-4xl mx-auto px-4 text-center relative z-10">
-                <h2 class="text-4xl md:text-6xl font-bold mb-6">Prêt à digitaliser votre station ?</h2>
-                <p class="text-xl text-neutral-400 mb-10 max-w-2xl mx-auto">Rejoignez le réseau. Offrez une expérience Premium à vos clients. Maximisez vos revenus.</p>
-                <button onclick="window.location.href='login.html?mode=register&role=agence'" class="bg-white hover:bg-neutral-200 text-black rounded-full px-10 py-5 font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-transform active:scale-95 text-lg">
-                    Créer mon espace station
-                </button>
+        <!-- 11. FAQ : le texte doit rester identique au bloc FAQPage (données structurées, <head>). -->
+        <section id="faq" class="lp-section lp-section--white">
+            <div class="lp-wrap">
+                <div class="lp-head" style="text-align:center">
+                    <span class="lp-eyebrow">Questions</span>
+                    <h2 class="lp-h2">Questions fréquentes</h2>
+                </div>
+                <div class="lp-faq">
+                    <details open>
+                        <summary>Faut-il acheter du matériel informatique spécifique ?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
+                        <p>Absolument pas. Clean Car Galsen fonctionne sur n'importe quel smartphone, tablette ou ordinateur connecté à internet (via le navigateur web).</p>
+                    </details>
+                    <details>
+                        <summary>Comment je récupère l'argent payé par les clients via Wave/OM ?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
+                        <p>L'argent va directement sur votre propre compte marchand (Wave/Orange Money). Nous ne prenons aucune commission sur vos lavages, seul l'abonnement mensuel vous est facturé.</p>
+                    </details>
+                    <details>
+                        <summary>Puis-je gérer aussi des tapis, des chaussures, des salons ou un pressing ?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
+                        <p>Oui. Chaque activité est un module à part : Tapis 5 000 F, Chaussures 3 000 F, Salon 5 000 F et Pressing 10 000 F par mois, en plus de votre offre. Demandez-le depuis votre espace, rubrique Modules : nous l'activons pour votre station.</p>
+                    </details>
+                    <details>
+                        <summary>Puis-je annuler mon abonnement ?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
+                        <p>Oui, toutes nos offres sont sans engagement. Vous pouvez annuler votre abonnement SaaS à tout moment depuis votre tableau de bord.</p>
+                    </details>
+                </div>
             </div>
         </section>
+
+        <!-- 12. Dernier appel -->
+        <section class="lp-final">
+            <img src="/images/landing/cahier-1600.webp" srcset="/images/landing/cahier-900.webp 900w, /images/landing/cahier-1600.webp 1600w" sizes="100vw" width="1600" height="884" alt="" loading="lazy" decoding="async">
+            <div class="lp-wrap">
+                <h2>Rangez le cahier.</h2>
+                <p>Votre station en ligne aujourd'hui. 7 jours gratuits, sans engagement.</p>
+                <div class="lp-actions">
+                    <a href="login.html?mode=register&role=agence" class="lp-btn lp-btn--light">Créer mon espace station</a>
+                </div>
+            </div>
+        </section>
+        <p class="lp-credit">Photos des activités Tapis, Chaussures, Salon et Pressing : Unsplash.</p>
+
 
         <!-- Footer + fenêtre Contact : générés depuis src/lib/siteFooter.js (plugin htmlPartials, vite.config.js) -->
         <!--@site-footer-->

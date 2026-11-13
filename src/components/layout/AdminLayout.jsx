@@ -20,6 +20,10 @@ import { openStation } from '../../lib/groups';
 import { SERVICE_STATION_LABEL, isServiceStationPlan } from '../../lib/offers';
 import { trialLabel } from '../../lib/stationTrial';
 import { stockLevel } from '../../lib/shop';
+import { ACTIVITY_KEYS } from '../../lib/stationModules';
+
+// Rubriques des activités à dépôt (Tapis, Chaussures, Salon, Pressing) : pastilles retard / prêts.
+const DEPOSIT_NAV_KEYS = ACTIVITY_KEYS;
 
 // Statut affiché sous le nom de la station (pastille + libellé).
 const SUBSCRIPTION_STATUS = {
@@ -128,7 +132,7 @@ export default function AdminLayout() {
   // rendu, donc aucun flash.
   const baseNav = visibleNav({ permissions: myPermissions, billing: stationBilling, hiddenMenu });
   const showsShop = baseNav.some((item) => item.key === 'shop');
-  const showsCarpets = baseNav.some((item) => item.key === 'tapis' || item.key === 'chaussures');
+  const showsCarpets = baseNav.some((item) => DEPOSIT_NAV_KEYS.includes(item.key));
 
   // Nom du compte connecté (carte en pied de menu).
   useEffect(() => {
@@ -188,7 +192,7 @@ export default function AdminLayout() {
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
   const navigation = baseNav.map((item) => {
     if (item.key === 'queue') return { ...item, badges: [{ count: waitingCount, tone: 'blue', label: plural(waitingCount, 'véhicule en attente', 'véhicules en attente') }] };
-    if (item.key === 'tapis' || item.key === 'chaussures') {
+    if (DEPOSIT_NAV_KEYS.includes(item.key)) {
       const a = carpetAlerts[item.key] || { late: 0, ready: 0, partnerReady: 0 };
       return { ...item, badges: [
         { count: a.late, tone: 'red', label: plural(a.late, 'dépôt en retard', 'dépôts en retard') },

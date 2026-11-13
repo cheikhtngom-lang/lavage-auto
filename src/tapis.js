@@ -7,7 +7,7 @@
 // carpet_public_status (add_carpet_cleaning.sql). La page se relit seule
 // toutes les minutes et au retour sur l'onglet.
 import { supabase } from './lib/supabaseClient';
-import { CARPET_STEPS, stepIndex, fcfa, formatPromise, timeLeftLabel, rememberCarpetClaim, pieceLines, pieceLabel } from './lib/carpets';
+import { stepsFor, stepIndex, fcfa, formatPromise, timeLeftLabel, rememberCarpetClaim, pieceLines, pieceLabel } from './lib/carpets';
 
 const root = document.getElementById('root');
 const token = new URLSearchParams(window.location.search).get('t') || '';
@@ -34,6 +34,20 @@ const WORDS = {
     titles: {
       depose: 'Vos chaussures sont bien reçues', lavage: 'Vos chaussures sont en lavage', sechage: 'Vos chaussures sèchent',
       pret: 'Vos chaussures sont prêtes', recupere: 'Vos chaussures ont été récupérées', annule: 'Ce dépôt a été annulé',
+    },
+  },
+  salon: {
+    things: 'meubles', ready: 'Prêts', back: 'Récupérés', wait: 'vos meubles vous attendent', piecesLabel: 'Pièces à nettoyer',
+    titles: {
+      depose: 'Votre demande est enregistrée', lavage: 'Nettoyage en cours', sechage: 'Vos meubles sèchent',
+      pret: 'Vos meubles sont prêts', recupere: 'Nettoyage terminé', annule: 'Ce dépôt a été annulé',
+    },
+  },
+  pressing: {
+    things: 'vêtements', ready: 'Prêts', back: 'Retirés', wait: 'vos vêtements vous attendent', piecesLabel: 'Articles déposés',
+    titles: {
+      depose: 'Vos vêtements sont bien reçus', lavage: 'Vos vêtements sont au nettoyage', sechage: 'Vos vêtements sont au repassage',
+      pret: 'Vos vêtements sont prêts', recupere: 'Vos vêtements ont été retirés', annule: 'Ce dépôt a été annulé',
     },
   },
 };
@@ -73,10 +87,18 @@ function render(d, signedIn) {
   const late = ['depose', 'lavage', 'sechage'].includes(status) && new Date(d.promised_at) < new Date();
   const idx = stepIndex(status);
   const w = WORDS[d.activity] || WORDS.tapis;
-  const title = w.titles[status] || `Suivi de vos ${w.things}`;
+  const delivery = d.place === 'domicile' && d.activity === 'pressing';
+  const homeVisit = d.place === 'domicile' && d.activity === 'salon';
+  let title = w.titles[status] || `Suivi de vos ${w.things}`;
+  if (delivery && status === 'pret') title = 'Vos vêtements sont prêts, livraison en route';
+  if (delivery && status === 'recupere') title = 'Vos vêtements ont été livrés';
   document.title = `${title} — ${st.name || 'Clean Car Galsen'}`;
 
-  const lead = ready
+  const lead = homeVisit && ['depose', 'lavage', 'sechage'].includes(status)
+    ? `Intervention prévue le <strong>${esc(formatPromise(d.promised_at))}</strong>.`
+    : ready && delivery
+    ? `${w.ready} depuis le <strong>${esc(formatPromise(d.ready_at || d.promised_at))}</strong>. La station vous les livre.`
+    : ready
     ? `${w.ready} depuis le <strong>${esc(formatPromise(d.ready_at || d.promised_at))}</strong>. Vous pouvez passer les récupérer.`
     : status === 'recupere'
       ? `${w.back} le ${esc(formatPromise(d.picked_up_at || d.ready_at || d.created_at))}. Merci de votre confiance.`
@@ -84,15 +106,17 @@ function render(d, signedIn) {
         ? 'Contactez la station pour plus d’informations.'
         : `${w.ready} au plus tard le <strong>${esc(formatPromise(d.promised_at))}</strong>${late ? '' : ` (${esc(timeLeftLabel(d.promised_at))})`}.`;
 
-  const flag = ready
+  const flag = ready && !delivery
     ? `<div class="flag flag--ready">${ICON.check}<span>Pas besoin d’appeler : ${w.wait}${st.open_time && st.close_time ? `, de ${esc(fmtTime(st.open_time))} à ${esc(fmtTime(st.close_time))}` : ''}.</span></div>`
     : late ? `<div class="flag flag--late">${ICON.alert}<span>La date annoncée est passée. Appelez la station avant de vous déplacer.</span></div>` : '';
 
-  const steps = status === 'annule' ? '' : `<ol class="steps${ready || status === 'recupere' ? ' done' : ''}" aria-label="Avancement">${CARPET_STEPS.map((s, i) => `<li class="${i <= idx ? 'on' : ''}${i === idx && !ready && status !== 'recupere' ? ' now' : ''}">${esc(s.label)}</li>`).join('')}</ol>`;
+  const steps = status === 'annule' ? '' : `<ol class="steps${ready || status === 'recupere' ? ' done' : ''}" aria-label="Avancement">${stepsFor(d.activity).map((s, i) => `<li class="${i <= idx ? 'on' : ''}${i === idx && !ready && status !== 'recupere' ? ' now' : ''}">${esc(s.label)}</li>`).join('')}</ol>`;
 
+  const paidPart = d.amount_paid > 0 && !d.paid;
   const amountRow = d.amount > 0
-    ? `<dt>Total</dt><dd>${esc(fcfa(d.amount))}${d.paid ? ' · payé' : ' · à régler au retrait'}</dd>`
+    ? `<dt>Total</dt><dd>${esc(fcfa(d.amount))}${d.paid ? ' · payé' : paidPart ? '' : ' · à régler au retrait'}</dd>${paidPart ? `<dt>Avance payée</dt><dd>${esc(fcfa(d.amount_paid))}</dd><dt>Reste à payer</dt><dd>${esc(fcfa(Math.max(0, d.amount - d.amount_paid)))}</dd>` : ''}`
     : '<dt>Montant</dt><dd>indiqué au retrait</dd>';
+  const extrasRows = `${d.express_fee > 0 ? `<li><span>Express</span><span class="price">${esc(fcfa(d.express_fee))}</span></li>` : ''}${d.travel_fee > 0 ? `<li><span>${d.activity === 'salon' ? 'Déplacement' : 'Livraison'}</span><span class="price">${esc(fcfa(d.travel_fee))}</span></li>` : ''}`;
 
   const call = telHref(st.phone);
   const maps = mapsHref(st);
@@ -114,13 +138,13 @@ function render(d, signedIn) {
 
   root.innerHTML = `
     <section class="card" aria-live="polite">
-      <p class="eyebrow">Ticket n° ${esc(d.ticket_no)}${d.first_name ? ` · ${esc(d.first_name)}` : ''}</p>
+      <p class="eyebrow">Ticket n° ${esc(d.ticket_no)}${d.first_name ? ` · ${esc(d.first_name)}` : ''}${d.express ? ' · Express' : ''}</p>
       <h1>${esc(title)}</h1>
       <p class="lead">${lead}</p>
       ${flag}
       ${steps}
       <ul class="pieces" aria-label="${esc(w.piecesLabel)}">
-        ${pieceLines(d.items).map((p) => `<li><span>${esc(pieceLabel(p))}</span><span class="price">${p.price ? esc(fcfa(p.price)) : d.amount > 0 ? '' : 'prix au retrait'}</span></li>`).join('')}
+        ${pieceLines(d.items).map((p) => `<li><span>${esc(pieceLabel(p))}</span><span class="price">${p.price ? esc(fcfa(p.price)) : d.amount > 0 ? '' : 'prix au retrait'}</span></li>`).join('')}${extrasRows}
       </ul>
       <dl>
         <dt>Déposé le</dt><dd>${esc(new Date(d.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))}</dd>

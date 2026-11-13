@@ -53,19 +53,23 @@ export function topProducts(lines, limit = 5) {
 export const isCarpetRevenueEntry = (entry) => entry.service === 'Tapis';
 // Chaussures (add_shoe_cleaning.sql) : service « Chaussures », même valeur que SHOE_SERVICE.
 export const isShoeRevenueEntry = (entry) => entry.service === 'Chaussures';
+// Activités à dépôt (lib/carpets.js) : clé → service inscrit dans `transactions`.
+export const DEPOSIT_SERVICE_BY_KEY = { tapis: 'Tapis', chaussures: 'Chaussures', salon: 'Salon', pressing: 'Pressing' };
+const DEPOSIT_KEY_BY_SERVICE = Object.fromEntries(Object.entries(DEPOSIT_SERVICE_BY_KEY).map(([k, v]) => [v, k]));
+export const depositKeyOf = (entry) => DEPOSIT_KEY_BY_SERVICE[entry.service] || null;
 
-// Lavage / boutique / tapis / chaussures sur une liste de recettes déjà filtrée sur la période.
+// Lavage / boutique / tapis / chaussures / salon / pressing sur une liste de
+// recettes déjà filtrée sur la période. Chaque activité : out[clé] et out[clé + 'Count'].
 export function splitRevenue(entries) {
-  const out = { total: 0, lavage: 0, lavageCount: 0, boutique: 0, boutiqueCount: 0, boutiqueOnline: 0, tapis: 0, tapisCount: 0, chaussures: 0, chaussuresCount: 0 };
+  const out = { total: 0, lavage: 0, lavageCount: 0, boutique: 0, boutiqueCount: 0, boutiqueOnline: 0 };
+  for (const key of Object.keys(DEPOSIT_SERVICE_BY_KEY)) { out[key] = 0; out[`${key}Count`] = 0; }
   for (const e of entries) {
     const amount = parseInt(e.amount, 10) || 0;
     out.total += amount;
-    if (isCarpetRevenueEntry(e)) {
-      out.tapis += amount;
-      out.tapisCount += 1;
-    } else if (isShoeRevenueEntry(e)) {
-      out.chaussures += amount;
-      out.chaussuresCount += 1;
+    const deposit = depositKeyOf(e);
+    if (deposit) {
+      out[deposit] += amount;
+      out[`${deposit}Count`] += 1;
     } else if (isShopRevenue(e)) {
       out.boutique += amount;
       out.boutiqueCount += 1;

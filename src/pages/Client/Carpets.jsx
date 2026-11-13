@@ -1,19 +1,19 @@
-// Espace automobiliste, rubrique « Mes dépôts » : les tapis, moquettes et
-// chaussures déposés en station (add_shoe_cleaning.sql), avec l'étape en
+// Espace automobiliste, rubrique « Mes dépôts » : tapis, moquettes,
+// chaussures, salons et pressing (add_shoe_cleaning.sql, add_salon_pressing.sql), avec l'étape en
 // cours et la date promise. Le client
 // sait s'ils sont prêts avant de se déplacer. Un dépôt arrive ici quand le
 // client ouvre le lien de suivi envoyé par la station puis se connecte
 // (jeton gardé par login.html, rattaché par carpet_claim).
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Layers, Footprints, Phone, MessageCircle, Navigation, CheckCircle2, Clock, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Layers, Footprints, Sofa, Shirt, Phone, MessageCircle, Navigation, CheckCircle2, Clock, AlertTriangle, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { cn } from '../../lib/utils';
 import { whatsappLink } from '../../lib/subscriptionReminders';
 import {
-  CARPET_STEPS, CARPET_STATUS, rowToCarpet, isOpenCarpet, isLateCarpet, stepIndex, orderSummary, fcfa, formatPromise, timeLeftLabel, pieceLines, pieceLabel,
+  stepsFor, statusInfo, amountDue, rowToCarpet, isOpenCarpet, isLateCarpet, stepIndex, orderSummary, fcfa, formatPromise, timeLeftLabel, pieceLines, pieceLabel,
   claimPendingCarpet, activityConfig, CLIENT_DEPOSITS_LABEL,
 } from '../../lib/carpets';
 
@@ -33,12 +33,14 @@ const mapsHref = (st) => {
 const fmtTime = (t) => { const [h, m] = String(t).split(':'); return `${parseInt(h, 10)} h${m && m !== '00' ? ` ${m}` : ''}`; };
 const hours = (st) => (st?.open_time && st?.close_time ? `${fmtTime(st.open_time)} – ${fmtTime(st.close_time)}` : null);
 
-function Steps({ status }) {
+const KIND_ICONS = { tapis: Layers, chaussures: Footprints, salon: Sofa, pressing: Shirt };
+
+function Steps({ status, activity }) {
   const idx = stepIndex(status);
   const done = status === 'pret' || status === 'recupere';
   return (
     <ol className="grid grid-cols-4 gap-2" aria-label="Avancement">
-      {CARPET_STEPS.map((s, i) => {
+      {stepsFor(activity).map((s, i) => {
         const reached = i <= idx;
         const current = i === idx && !done;
         return (
@@ -56,7 +58,10 @@ function Steps({ status }) {
 
 function CarpetCard({ order, index }) {
   const cfg = activityConfig(order.activity);
-  const KindIcon = cfg.key === 'chaussures' ? Footprints : Layers;
+  const KindIcon = KIND_ICONS[cfg.key] || Layers;
+  const delivery = order.place === 'domicile' && cfg.key === 'pressing';
+  const homeVisit = order.place === 'domicile' && cfg.key === 'salon';
+  const due = amountDue(order);
   const st = order.station;
   const ready = order.status === 'pret';
   const late = isLateCarpet(order);
@@ -81,7 +86,7 @@ function CarpetCard({ order, index }) {
         <div className="flex items-start gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-4 mb-5">
           <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
           <div>
-            <p className="text-white font-bold">Prêt : vous pouvez passer le récupérer</p>
+            <p className="text-white font-bold">{delivery ? 'Prêt : la station vous le livre' : 'Prêt : vous pouvez passer le récupérer'}</p>
             <p className="text-emerald-200/80 text-sm mt-0.5">
               {order.readyAt ? `Prêt depuis le ${formatPromise(order.readyAt)}` : 'Prêt'}{h ? ` · horaires ${h}` : ''}
             </p>
@@ -91,9 +96,9 @@ function CarpetCard({ order, index }) {
         <div className={cn('flex items-start gap-3 rounded-xl p-4 mb-5 border', late ? 'bg-amber-500/10 border-amber-500/25' : 'bg-white/[0.03] border-white/10')}>
           {late ? <AlertTriangle className="w-6 h-6 text-amber-400 shrink-0" /> : <Clock className="w-6 h-6 text-blue-400 shrink-0" />}
           <div>
-            <p className="text-white font-bold">{CARPET_STATUS[order.status]?.label || 'En cours'}</p>
+            <p className="text-white font-bold">{statusInfo(order.activity, order.status, order.place).label}</p>
             <p className="text-neutral-300 text-sm mt-0.5">
-              Prêt au plus tard le <span className="text-white font-medium">{formatPromise(order.promisedAt)}</span>
+              {homeVisit ? 'Intervention le' : 'Prêt au plus tard le'} <span className="text-white font-medium">{formatPromise(order.promisedAt)}</span>
               {!late && <span className="text-neutral-500"> ({timeLeftLabel(order.promisedAt)})</span>}
             </p>
             {late && <p className="text-amber-200/90 text-sm mt-1">La date annoncée est passée : appelez la station avant de vous déplacer.</p>}
@@ -101,7 +106,7 @@ function CarpetCard({ order, index }) {
         </div>
       )}
 
-      <Steps status={order.status} />
+      <Steps status={order.status} activity={order.activity} />
 
       {/* Détail des pièces : taille et prix de chacune */}
       <ul className="mt-5 space-y-1.5 text-sm">
@@ -118,7 +123,9 @@ function CarpetCard({ order, index }) {
           {order.amount > 0
             ? (order.paid
               ? <span className="text-emerald-400 font-medium">Payé · {fcfa(order.amount)}</span>
-              : <span className="text-neutral-300">À régler au retrait : <span className="text-white font-bold">{fcfa(order.amount)}</span></span>)
+              : order.amountPaid > 0
+                ? <span className="text-neutral-300">Avance payée {fcfa(order.amountPaid)} · reste <span className="text-white font-bold">{fcfa(due)}</span></span>
+                : <span className="text-neutral-300">À régler : <span className="text-white font-bold">{fcfa(order.amount)}</span></span>)
             : <span className="text-neutral-500">Prix indiqué au retrait</span>}
         </p>
         <div className="grid grid-cols-3 gap-2 w-full sm:w-auto sm:flex">

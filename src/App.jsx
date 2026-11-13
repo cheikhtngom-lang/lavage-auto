@@ -14,6 +14,7 @@ import { SuperAdminStateProvider } from './hooks/useSuperAdminState';
 import { ClientAccountProvider } from './hooks/useClientAccount';
 import { startIdleWatch } from './lib/idleTimeout';
 import { hasPerm } from './lib/permissions';
+import { stationHasActivity } from './lib/stationModules';
 import { stationHasShop } from './lib/shop';
 import { stationHasVidange } from './lib/vidange';
 import { stationHasPompistes } from './lib/pompistes';
@@ -81,6 +82,7 @@ const Washers = lazyPage(() => import('./pages/Admin/Washers'));
 const Pompistes = lazyPage(() => import('./pages/Admin/Pompistes'));
 const Vidange = lazyPage(() => import('./pages/Admin/Vidange'));
 const Carpets = lazyPage(() => import('./pages/Admin/Carpets'));
+const AdminModules = lazyPage(() => import('./pages/Admin/Modules'));
 const Settings = lazyPage(() => import('./pages/Admin/Settings'));
 const Subscriptions = lazyPage(() => import('./pages/Admin/Subscriptions'));
 const Bilan = lazyPage(() => import('./pages/Admin/Bilan'));
@@ -117,7 +119,7 @@ const SuperAdminAffiliates = lazyPage(() => import('./pages/SuperAdmin/Affiliate
 const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'));
 
 const CLIENT_PAGES = [ClientOverview, Stations, MyStations, ClientLoyalty, ClientShop, ClientCarpets, ClientGarage, ClientSettings];
-const ADMIN_PAGES = [StationDashboard, AdminTransactions, Subscriptions, Washers, Settings, Analytics, Accounting, AdminPayouts, AdminReminders, Team, Pompistes, Vidange, Carpets, Bilan, Shop, AdminAnnouncements];
+const ADMIN_PAGES = [StationDashboard, AdminTransactions, Subscriptions, Washers, Settings, Analytics, Accounting, AdminPayouts, AdminReminders, Team, Pompistes, Vidange, Carpets, AdminModules, Bilan, Shop, AdminAnnouncements];
 const GROUP_PAGES = [GroupDashboard, GroupStations, GroupAccounting, GroupAnalysis, GroupOrder, GroupBilling, GroupSettings];
 const SUPER_ADMIN_PAGES = [SuperAdminDashboard, SuperAdminStations, SuperAdminBilling, SuperAdminMotorists, SuperAdminSuperUsers, SuperAdminAnalytics, SuperAdminPayouts, SuperAdminReminders, SuperAdminGroups, SuperAdminModules, SuperAdminAds, SuperAdminAnnouncements, SuperAdminTicker, SuperAdminFuel, SuperAdminCarpets, SuperAdminBilan, SuperAdminSupport, SuperAdminAffiliates, SuperAdminSettings];
 
@@ -188,6 +190,16 @@ function RequirePompistesAccess({ children }) {
   return <Navigate to="/admin/queue" replace />;
 }
 
+// Activités à dépôt (Tapis, Chaussures, Salon, Pressing) : chacune s'ouvre par
+// son module (Super Admin > Modules), aucune offre ne l'inclut. Même règle en
+// base pour l'enregistrement d'un dépôt (station_has_activity, add_salon_pressing.sql).
+function RequireActivity({ activity, children }) {
+  const { stationBilling, myPermissions } = useAppState();
+  if (stationBilling == null || myPermissions == null) return null;
+  if (stationHasActivity(stationBilling, activity) && hasPerm(myPermissions, 'dashboard')) return children;
+  return <Navigate to="/admin/modules" replace />;
+}
+
 // Annonces aux clients : à partir de Pro (Starter exclu) — même règle en base
 // (station_has_marketing, add_marketing_plan_gate.sql).
 function RequireMarketingAccess({ children }) {
@@ -245,8 +257,11 @@ function App() {
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
                 <Route path="pompistes" element={<RequirePompistesAccess><Pompistes /></RequirePompistesAccess>} />
                 <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
-                <Route path="tapis" element={<RequirePerm perm="dashboard"><Carpets key="tapis" activity="tapis" /></RequirePerm>} />
-                <Route path="chaussures" element={<RequirePerm perm="dashboard"><Carpets key="chaussures" activity="chaussures" /></RequirePerm>} />
+                <Route path="tapis" element={<RequireActivity activity="tapis"><Carpets key="tapis" activity="tapis" /></RequireActivity>} />
+                <Route path="chaussures" element={<RequireActivity activity="chaussures"><Carpets key="chaussures" activity="chaussures" /></RequireActivity>} />
+                <Route path="salon" element={<RequireActivity activity="salon"><Carpets key="salon" activity="salon" /></RequireActivity>} />
+                <Route path="pressing" element={<RequireActivity activity="pressing"><Carpets key="pressing" activity="pressing" /></RequireActivity>} />
+                <Route path="modules" element={<RequirePerm perm="settings.manage"><AdminModules /></RequirePerm>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="relances" element={<RequirePerm perm="subscriptions.manage"><AdminReminders /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />
