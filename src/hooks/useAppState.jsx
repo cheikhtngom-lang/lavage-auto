@@ -94,6 +94,8 @@ const rowToProfile = (row) => ({
 const rowToBilling = (row) => ({
     plan: row?.plan || 'Starter',
     activeModules: row?.active_modules || [],
+    // Modules offerts par le Super Admin : jamais facturés (add_pressing_offer.sql).
+    freeModules: row?.free_modules || [],
     subscriptionStatus: row?.subscription_status || 'essai',
     trialEndsAt: row?.trial_ends_at || null,
     nextBillingDate: row?.next_billing_date || null,

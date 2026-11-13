@@ -7,6 +7,7 @@
 // add_carpet_cleaning.sql, add_shoe_cleaning.sql et add_salon_pressing.sql.
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Layers, Footprints, Sofa, Shirt, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, AlertTriangle, Trash2,
@@ -989,6 +990,13 @@ export default function Carpets({ activity = 'tapis' }) {
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState('');
   const [priceList, setPriceList] = useState(emptyPriceList);
+  // ?tarifs=1 : ouvre les tarifs (accueil d'un nouveau compte Pressing).
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('tarifs') !== '1') return;
+    setShowPrices(true);
+    setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('tarifs'); return p; }, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     let cancelled = false;

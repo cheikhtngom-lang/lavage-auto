@@ -73,10 +73,18 @@ Deno.serve(async (req) => {
     // du montant écrit par la station dans sa ligne (sinon on pourrait payer
     // l'offre Station de service au prix de Starter). L'offre payée est
     // appliquée à la confirmation (finalizePayment, kind 'saas').
+    // Depuis le 13/11/2026 (add_pressing_offer.sql) : offre + modules payants
+    // actifs (Pressing, Tapis…), hors modules compris dans l'offre ou offerts
+    // par le Super Admin — calculé en base par station_subscription_amount.
     if (kind === "saas") {
       const { data: plan } = await asUser.from("plans").select("price").eq("key", row.plan ?? "").maybeSingle();
       if (!plan) return json({ error: "Offre inconnue." }, 400);
-      amount = Number(plan.price);
+      const { data: total, error: totalErr } = await asUser.rpc("station_subscription_amount", {
+        p_station_id: row.station_id,
+        p_plan: row.plan,
+      });
+      if (totalErr) console.error("station_subscription_amount:", totalErr.message);
+      amount = totalErr || total == null ? Number(plan.price) : Number(total);
     }
     if (!amount || amount <= 0) return json({ error: "Montant invalide." }, 400);
 

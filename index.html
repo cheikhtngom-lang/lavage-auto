@@ -96,7 +96,8 @@
           "offers": [
             { "@type": "Offer", "name": "Starter", "price": "10000", "priceCurrency": "XOF", "description": "Forfait mensuel Starter pour station de lavage, sans engagement." },
             { "@type": "Offer", "name": "Pro", "price": "20000", "priceCurrency": "XOF", "description": "Forfait mensuel Pro pour station de lavage, sans engagement." },
-            { "@type": "Offer", "name": "Station de service", "price": "35000", "priceCurrency": "XOF", "description": "Offre mensuelle Station de service (lavage, pompistes et carburant, boutique, vidange), sans engagement." }
+            { "@type": "Offer", "name": "Station de service", "price": "35000", "priceCurrency": "XOF", "description": "Offre mensuelle Station de service (lavage, pompistes et carburant, boutique, vidange), sans engagement." },
+            { "@type": "Offer", "name": "Pressing", "price": "15000", "priceCurrency": "XOF", "description": "Offre mensuelle Pressing pour un pressing sans lavage auto (dépôts, étiquettes, avance, livraison), sans engagement." }
           ]
         },
         {
@@ -115,7 +116,7 @@
             {
               "@type": "Question",
               "name": "Puis-je gérer aussi des tapis, des chaussures, des salons ou un pressing ?",
-              "acceptedAnswer": { "@type": "Answer", "text": "Oui. Chaque activité est un module à part : Tapis 5 000 F, Chaussures 3 000 F, Salon 5 000 F et Pressing 10 000 F par mois, en plus de votre offre. Demandez-le depuis votre espace, rubrique Modules : nous l'activons pour votre station." }
+              "acceptedAnswer": { "@type": "Answer", "text": "Oui. Chaque activité est un module à part : Tapis 5 000 F, Chaussures 3 000 F, Salon 5 000 F et Pressing 10 000 F par mois, en plus de votre offre. Demandez-le depuis votre espace, rubrique Modules : nous l'activons pour votre station. Un pressing sans lavage auto prend l'offre Pressing à 15 000 F par mois." }
             },
             {
               "@type": "Question",
@@ -941,6 +942,16 @@
                         <div class="lp-addon"><span>Pressing</span><b>10 000 F</b> <small>/ mois</small></div>
                     </div>
                 </div>
+                <div class="lp-addons lp-addons--solo">
+                    <div>
+                        <h3>Vous êtes un pressing</h3>
+                        <p>Sans lavage auto : l'espace s'ouvre sur votre pressing, rien d'autre.</p>
+                    </div>
+                    <div class="lp-solo">
+                        <div class="lp-plan__price" style="margin:0">15 000 F <small>/ mois</small></div>
+                        <a href="login.html?mode=register&role=agence&plan=pressing" class="lp-btn lp-btn--primary">Choisir l'offre Pressing</a>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -962,7 +973,7 @@
                     </details>
                     <details>
                         <summary>Puis-je gérer aussi des tapis, des chaussures, des salons ou un pressing ?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-                        <p>Oui. Chaque activité est un module à part : Tapis 5 000 F, Chaussures 3 000 F, Salon 5 000 F et Pressing 10 000 F par mois, en plus de votre offre. Demandez-le depuis votre espace, rubrique Modules : nous l'activons pour votre station.</p>
+                        <p>Oui. Chaque activité est un module à part : Tapis 5 000 F, Chaussures 3 000 F, Salon 5 000 F et Pressing 10 000 F par mois, en plus de votre offre. Demandez-le depuis votre espace, rubrique Modules : nous l'activons pour votre station. Un pressing sans lavage auto prend l'offre Pressing à 15 000 F par mois.</p>
                     </details>
                     <details>
                         <summary>Puis-je annuler mon abonnement ?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
@@ -1047,7 +1058,7 @@
 
         async function loadPublicStations() {
             const [{ data: stations }, { data: reviews }] = await Promise.all([
-                supabase.from('stations').select('id, name, quartier, region, country, city, address, status, open_time, close_time, weekend_open_time, weekend_close_time, lat, lng').eq('status', 'active').order('created_at', { ascending: false }),
+                supabase.from('stations').select('id, name, quartier, region, country, city, address, status, open_time, close_time, weekend_open_time, weekend_close_time, lat, lng').eq('status', 'active').neq('business_type', 'pressing').order('created_at', { ascending: false }),
                 supabase.from('station_reviews').select('station_id, rating'),
             ]);
             const ratingByStation = {};

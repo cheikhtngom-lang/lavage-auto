@@ -8,14 +8,12 @@ import { motion } from 'framer-motion';
 import { Boxes, Check, MessageCircle, ArrowRight } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { MODULE_GROUPS, modulesOfGroup, hasModule, ACTIVITY_MODULES } from '../../lib/stationModules';
+import { MODULE_GROUPS, modulesOfGroup, hasModule, ACTIVITY_MODULES, moduleIncludedInPlan } from '../../lib/stationModules';
 import { SITE } from '../../lib/siteFooter';
 import { cn } from '../../lib/utils';
 
 // Rubrique ouverte par un module d'activité (lien « Ouvrir »).
 const HREF_BY_MODULE = Object.fromEntries(Object.entries(ACTIVITY_MODULES).map(([activity, mod]) => [mod, `/admin/${activity}`]));
-// Modules inclus d'office dans l'offre Station de service (clé Business).
-const INCLUDED_IN_SERVICE_STATION = ['mod_vidange', 'mod_bilan', 'mod_boutique'];
 
 function requestLink(stationName, mod) {
   const text = `Bonjour, la station ${stationName || ''} souhaite activer le module « ${mod.name} » (${mod.price}).`.replace(/\s+/g, ' ');
@@ -26,8 +24,11 @@ export default function AdminModules() {
   useDocumentTitle('Modules');
   const { stationBilling, stationProfile } = useAppState();
   const active = stationBilling?.activeModules || [];
-  const isServiceStation = stationBilling?.plan === 'Business';
-  const has = (mod) => hasModule(active, mod.id) || (isServiceStation && INCLUDED_IN_SERVICE_STATION.includes(mod.id));
+  const plan = stationBilling?.plan;
+  const free = stationBilling?.freeModules || [];
+  // Compris dans l'offre (Station de service : vidange, bilan, boutique ; Pressing : pressing).
+  const included = (mod) => moduleIncludedInPlan(plan, mod.id);
+  const has = (mod) => hasModule(active, mod.id) || included(mod);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto relative z-10">
@@ -70,7 +71,7 @@ export default function AdminModules() {
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-3 pt-3 border-t border-white/5 mt-auto">
-                    <span className="text-white font-bold tabular-nums">{isServiceStation && INCLUDED_IN_SERVICE_STATION.includes(mod.id) ? 'Inclus dans votre offre' : mod.price}</span>
+                    <span className="text-white font-bold tabular-nums">{included(mod) ? 'Compris dans votre offre' : on && free.includes(mod.id) ? 'Offert' : mod.price}</span>
                     {on ? (
                       href ? (
                         <Link to={href} className="inline-flex items-center gap-1.5 text-sm font-bold text-blue-300 hover:text-white">

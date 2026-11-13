@@ -8,7 +8,8 @@ import { getMyStationGroup, leaveGroup } from '../../lib/groups';
 import { createRenewalPayment, isSubscriptionEnded } from '../../lib/stationRenewal';
 import { payPlatformOnline } from '../../lib/paydunya';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import { isServiceStationPlan, SERVICE_STATION_IMAGE } from '../../lib/offers';
+import { isServiceStationPlan, isPressingPlan, SERVICE_STATION_IMAGE } from '../../lib/offers';
+import { billedModules } from '../../lib/stationModules';
 
 // Écran de blocage plein écran (pas de AdminLayout, pas de menu) quand
 // l'abonnement d'une station a pris fin (voir isSubscriptionEnded,
@@ -92,7 +93,16 @@ export default function SubscriptionEnded() {
   const planKey = selectedPlan || stationBilling.plan;
   const planDef = PLANS[planKey] || { label: planKey, price: 0 };
   const serviceStation = isServiceStationPlan(planKey);
-  const planOptions = Object.entries(PLANS || {}).sort(([, a], [, b]) => (a.price || 0) - (b.price || 0));
+  // Une station de lavage ne voit pas l'offre Pressing (elle perdrait ses
+  // rubriques de lavage) ; elle ajoute le Pressing en module. Un pressing voit tout.
+  const planOptions = Object.entries(PLANS || {})
+    .filter(([key]) => !isPressingPlan(key) || isPressingPlan(stationBilling.plan))
+    .sort(([, a], [, b]) => (a.price || 0) - (b.price || 0));
+  // Modules payants actifs (Pressing, Tapis…), hors ceux compris dans l'offre
+  // ou offerts : le montant réellement payé est recalculé côté serveur
+  // (station_subscription_amount, add_pressing_offer.sql).
+  const modules = billedModules(stationBilling, planKey);
+  const total = (planDef.price || 0) + modules.reduce((s, m) => s + m.price, 0);
   const latestPayment = stationRenewalPayments
     .filter((p) => p.stationId === stationId)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
@@ -108,7 +118,7 @@ export default function SubscriptionEnded() {
     try {
       const row = await createRenewalPayment(stationId, {
         plan: planKey,
-        amount: planDef.price,
+        amount: total,
         method: paymentMethod === 'wave' ? 'Wave' : 'Orange Money',
         reference: paymentPhone.trim(),
       });
@@ -149,7 +159,7 @@ export default function SubscriptionEnded() {
           </p>
 
           {planOptions.length > 1 && !isPending && !submitting && (
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className={`grid gap-2 mb-3 ${planOptions.length > 3 ? 'grid-cols-2' : 'grid-cols-3'}`}>
               {planOptions.map(([key, p]) => (
                 <button key={key} type="button" onClick={() => setSelectedPlan(key)}
                   className={`rounded-xl border px-2 py-2.5 text-center transition-colors ${key === planKey ? 'border-blue-500/60 bg-blue-600/15' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
@@ -174,6 +184,15 @@ export default function SubscriptionEnded() {
             </div>
             <p className="text-white font-bold text-lg">{planDef.price.toLocaleString('fr-FR')} <span className="text-neutral-400 text-xs font-normal">FCFA/mois</span></p>
           </div>
+
+          {modules.length > 0 && (
+            <div className="-mt-3 mb-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm">
+              {modules.map((m) => (
+                <p key={m.id} className="flex justify-between py-1 text-neutral-300"><span>Module {m.name}</span><span className="tabular-nums">+ {m.price.toLocaleString('fr-FR')} F</span></p>
+              ))}
+              <p className="flex justify-between pt-2 mt-1 border-t border-white/10 font-bold text-white"><span>Total par mois</span><span className="tabular-nums">{total.toLocaleString('fr-FR')} FCFA</span></p>
+            </div>
+          )}
 
           {isPending ? (
             <div className="mb-6">
@@ -206,7 +225,7 @@ export default function SubscriptionEnded() {
               {error && <p className="text-sm text-red-400">{error}</p>}
               <button type="button" onClick={handleSubmit} disabled={paymentPhone.trim().length < 6}
                 className={`w-full font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-white disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed ${paymentMethod === 'wave' ? 'bg-[#1DC8E0] hover:bg-[#17aec3]' : 'bg-[#FF7900] hover:bg-[#e56b00]'}`}>
-                <Smartphone className="w-5 h-5" /> Payer {planDef.price.toLocaleString('fr-FR')} FCFA via {paymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
+                <Smartphone className="w-5 h-5" /> Payer {total.toLocaleString('fr-FR')} FCFA via {paymentMethod === 'wave' ? 'Wave' : 'Orange Money'}
               </button>
             </div>
           ) : (

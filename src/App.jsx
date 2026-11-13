@@ -18,7 +18,7 @@ import { stationHasActivity } from './lib/stationModules';
 import { stationHasShop } from './lib/shop';
 import { stationHasVidange } from './lib/vidange';
 import { stationHasPompistes } from './lib/pompistes';
-import { isServiceStationPlan, stationHasMarketing } from './lib/offers';
+import { isServiceStationPlan, stationHasMarketing, ACCOUNTING_PLANS, isPressingPlan } from './lib/offers';
 import PageSuspense from './components/ui/PageSuspense';
 
 // Pages chargées à la demande (une par rubrique) — voir components/ui/PageSuspense.jsx.
@@ -144,7 +144,7 @@ function RequirePerm({ perm, children }) {
 function RequireAccountingAccess({ children }) {
   const { stationBilling, myPermissions } = useAppState();
   if (stationBilling == null || myPermissions == null) return null;
-  const canSeeAccounting = stationBilling.plan === 'Pro' || isServiceStationPlan(stationBilling.plan);
+  const canSeeAccounting = ACCOUNTING_PLANS.includes(stationBilling.plan);
   if (canSeeAccounting && hasPerm(myPermissions, 'accounting.manage')) return children;
   return <Navigate to="/admin/queue" replace />;
 }
@@ -188,6 +188,16 @@ function RequirePompistesAccess({ children }) {
   if (stationBilling == null || myPermissions == null) return null;
   if (stationHasPompistes(stationBilling) && hasPerm(myPermissions, 'pompistes.manage')) return children;
   return <Navigate to="/admin/queue" replace />;
+}
+
+// Page d'accueil de l'espace station : la file d'attente du lavage, ou la
+// rubrique Pressing pour l'offre Pressing (pressing seul, add_pressing_offer.sql).
+// Les redirections « retour à l'accueil » (/admin/queue) y passent toutes.
+function StationHome() {
+  const { stationBilling } = useAppState();
+  if (stationBilling == null) return null;
+  if (isPressingPlan(stationBilling.plan)) return <Navigate to="/admin/pressing" replace />;
+  return <StationDashboard />;
 }
 
 // Activités à dépôt (Tapis, Chaussures, Salon, Pressing) : chacune s'ouvre par
@@ -246,7 +256,7 @@ function App() {
 
               <Route path="/admin" element={<><PrefetchPages pages={ADMIN_PAGES} /><AdminLayout /></>}>
                 <Route index element={<Navigate to="/admin/queue" replace />} />
-                <Route path="queue" element={<StationDashboard />} />
+                <Route path="queue" element={<StationHome />} />
                 <Route path="transactions" element={<RequirePerm perm="transactions.view"><AdminTransactions /></RequirePerm>} />
                 <Route path="accounting" element={<RequireAccountingAccess><Accounting /></RequireAccountingAccess>} />
                 <Route path="analytics" element={<RequirePerm perm="analytics.view"><Analytics /></RequirePerm>} />

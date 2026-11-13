@@ -19,7 +19,7 @@
 //    'a_jour') à cette date, + modules add-on actifs. Toujours annoté
 //    "estimation" dans l'UI.
 import { PERIOD_TYPES, periodRange, previousPeriod, isCurrentPeriod, periodKey, availablePeriods, fcfa, fcfaCompact, pct } from './bilan';
-import { PAID_SUBSCRIPTION_STATUS, MODULE_PRICE_BY_ID } from './platformRevenue';
+import { PAID_SUBSCRIPTION_STATUS, stationModulesRevenue } from './platformRevenue';
 
 export { PERIOD_TYPES, periodRange, previousPeriod, isCurrentPeriod, periodKey, availablePeriods, fcfa, fcfaCompact, pct };
 
@@ -57,7 +57,7 @@ function subscriptionEstimateForMonth(stations, PLANS, monthEnd) {
 
 function moduleEstimateForMonth(stations, monthEnd) {
   return validatedBefore(stations, monthEnd).reduce(
-    (sum, s) => sum + (s.activeModules || []).reduce((a, id) => a + (MODULE_PRICE_BY_ID[id] || 0), 0),
+    (sum, s) => sum + stationModulesRevenue(s),
     0,
   );
 }

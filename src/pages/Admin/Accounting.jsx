@@ -8,6 +8,7 @@ import { useShopSales } from '../../hooks/useShopSales';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { stationHasPompistes } from '../../lib/pompistes';
 import { stationHasShop } from '../../lib/shop';
+import { isPressingPlan } from '../../lib/offers';
 import { onlineOrderRevenue, soldLines, topProducts, splitRevenue, depositKeyOf } from '../../lib/shopStats';
 
 // Activités à dépôt en Comptabilité : une carte et une part de la barre
@@ -164,10 +165,12 @@ export default function Accounting() {
   const usedDeposits = new Set(transactions.map(depositKeyOf).filter(Boolean));
   const depositParts = DEPOSIT_PARTS.filter((p) => usedDeposits.has(p.key));
   const showShopSplit = showShopPart || depositParts.length > 0;
-  const mixWords = ['lavage', showShopPart && 'boutique', ...depositParts.map((p) => p.label.toLowerCase())].filter(Boolean);
-  const revenueMix = mixWords.map((w, i) => (i === 0 ? 'Lavage' : w)).join(' + ');
+  // Offre Pressing (pressing seul) : pas de part « Lavage » tant qu'aucun lavage n'est encaissé.
+  const showLavagePart = !isPressingPlan(stationBilling?.plan) || transactions.some((tx) => !depositKeyOf(tx) && tx.service !== 'Boutique');
+  const mixWords = [showLavagePart && 'lavage', showShopPart && 'boutique', ...depositParts.map((p) => p.label.toLowerCase())].filter(Boolean);
+  const revenueMix = mixWords.map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' + ');
   const splitTitle = `Revenus : ${mixWords.join(', ').replace(/, ([^,]*)$/, ' et $1')}`;
-  const splitParts = 1 + (showShopPart ? 1 : 0) + depositParts.length;
+  const splitParts = (showLavagePart ? 1 : 0) + (showShopPart ? 1 : 0) + depositParts.length;
   const splitLabel = SPLIT_PERIODS.find((p) => p.id === splitPeriod)?.label;
 
   const weekDays = Array.from({ length: 7 }).map((_, i) => {
@@ -315,6 +318,7 @@ export default function Accounting() {
                 </div>
 
                 <div className={`grid grid-cols-1 gap-4 mt-5 ${splitParts >= 5 ? 'sm:grid-cols-2 xl:grid-cols-3' : splitParts === 4 ? 'sm:grid-cols-2 xl:grid-cols-4' : splitParts === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                  {showLavagePart && (
                   <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="flex items-center gap-2 text-sm font-medium text-neutral-300"><Droplets className="w-4 h-4 text-blue-400" /> Lavage</span>
@@ -323,6 +327,7 @@ export default function Accounting() {
                     <p className="text-2xl font-bold text-white">{split.lavage.toLocaleString('fr-FR')} <span className="text-sm font-medium text-neutral-500">FCFA</span></p>
                     <p className="text-neutral-500 text-xs mt-1">{split.lavageCount} encaissement{split.lavageCount > 1 ? 's' : ''}</p>
                   </div>
+                  )}
                   {showShopPart && (
                   <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
                     <div className="flex items-center justify-between mb-2">

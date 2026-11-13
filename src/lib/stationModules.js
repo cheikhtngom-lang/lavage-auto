@@ -117,7 +117,28 @@ export const STATION_MODULES = [
 // carpets.js pour que le menu et les routes ne chargent pas toute la logique.
 export const ACTIVITY_MODULES = { tapis: 'mod_tapis', chaussures: 'mod_chaussures', salon: 'mod_salon', pressing: 'mod_pressing' };
 export const ACTIVITY_KEYS = Object.keys(ACTIVITY_MODULES);
-export const stationHasActivity = (billing, activity) => (billing?.activeModules || []).includes(ACTIVITY_MODULES[activity]);
+// L'offre Pressing comprend le module Pressing (ajouté aussi en base par un trigger).
+export const stationHasActivity = (billing, activity) => (billing?.activeModules || []).includes(ACTIVITY_MODULES[activity])
+  || (activity === 'pressing' && billing?.plan === 'Pressing');
+
+// ─── Facturation des modules (add_pressing_offer.sql) ─────────────────
+// Au renouvellement, la station paie son offre + ses modules actifs, sauf
+// ceux compris dans l'offre (Station de service, Pressing) et ceux que le
+// Super Admin lui offre (station_billing.free_modules). Même calcul en base :
+// station_subscription_amount (c'est lui qui fixe le montant payé).
+const INCLUDED_BY_PLAN = { Business: ['mod_vidange', 'mod_bilan', 'mod_boutique'], Pressing: ['mod_pressing'] };
+export const moduleIncludedInPlan = (plan, moduleId) => (INCLUDED_BY_PLAN[plan] || []).includes(moduleId);
+export const modulePrice = (mod) => parseInt(String(mod?.price || '').replace(/[^\d]/g, ''), 10) || 0;
+// Modules facturés pour une offre donnée : [{ id, name, price }].
+export function billedModules(billing, plan = billing?.plan) {
+  const free = billing?.freeModules || [];
+  return (billing?.activeModules || [])
+    .filter((id) => !free.includes(id) && !moduleIncludedInPlan(plan, id))
+    .map((id) => STATION_MODULES.find((m) => m.id === id))
+    .filter(Boolean)
+    .map((m) => ({ id: m.id, name: m.name, price: modulePrice(m) }));
+}
+export const billedModulesTotal = (billing, plan) => billedModules(billing, plan).reduce((s, m) => s + m.price, 0);
 
 export const modulesOfGroup = (group) => STATION_MODULES.filter((m) => (m.group || 'option') === group);
 

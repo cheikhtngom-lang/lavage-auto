@@ -289,3 +289,14 @@ a.lp-card:hover, .lp-card--hover:hover { transform: translateY(-2px); box-shadow
   .lp-ui--float .lp-ui__row:nth-of-type(3) { display: none; }
   .lp-ui--float .lp-ui__paid { margin-top: 8px; padding: 8px 10px; }
 }
+
+/* Offre Pressing (pressing seul) sous les offres de lavage */
+.lp-addons--solo { margin-top: 16px; }
+.lp-solo { display: flex; align-items: center; justify-content: flex-end; gap: 20px; flex-wrap: wrap; }
+@media (max-width: 960px) { .lp-solo { justify-content: flex-start; } }
+@media (max-width: 480px) { .lp-solo .lp-btn { width: 100%; } }
+
+/* Liens du menu sur une ligne, plus serrés sur écran moyen */
+.lp-nav__links a { white-space: nowrap; }
+@media (max-width: 1180px) { .lp-nav__links { gap: 18px; } }
+@media (max-width: 1060px) { .lp-nav__links { display: none; } .lp-burger { display: inline-flex; } }

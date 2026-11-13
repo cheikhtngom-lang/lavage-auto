@@ -5,6 +5,7 @@ import { useAppState } from '../../hooks/useAppState';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { supabase } from '../../lib/supabaseClient';
 import * as wizard from '../../lib/onboardingWizard';
+import { isPressingPlan } from '../../lib/offers';
 import WizardModal from './WizardModal';
 import GuidedTour from './GuidedTour';
 
@@ -27,7 +28,10 @@ const TOUR_STEPS = [
 export default function StationOnboarding() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { employees, addEmployee, stationProfile } = useAppState();
+  const { employees, addEmployee, stationProfile, stationBilling } = useAppState();
+  // Offre Pressing (pressing seul) : ni laveur ni grille de lavage ; l'accueil
+  // mène à ses tarifs de pressing, sans visite guidée du lavage auto.
+  const pressingOnly = isPressingPlan(stationBilling?.plan);
   const stationId = getCurrentStationId();
   const [showTour, setShowTour] = useState(false);
   const [name, setName] = useState('');
@@ -37,10 +41,12 @@ export default function StationOnboarding() {
   const urlStep = searchParams.get('onboarding');
 
   useEffect(() => {
-    if (!stationId || stationId === 'default') return;
-    supabase.from('wash_pricing').select('id', { count: 'exact', head: true }).eq('station_id', stationId)
-      .then(({ count }) => setHasCustomPricing((count || 0) > 0));
-  }, [stationId]);
+    if (!stationId || stationId === 'default' || stationBilling == null) return;
+    const query = pressingOnly
+      ? supabase.from('deposit_price_lists').select('station_id', { count: 'exact', head: true }).eq('station_id', stationId).eq('activity', 'pressing')
+      : supabase.from('wash_pricing').select('id', { count: 'exact', head: true }).eq('station_id', stationId);
+    query.then(({ count }) => setHasCustomPricing((count || 0) > 0));
+  }, [stationId, pressingOnly, stationBilling == null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setStepParam = (step) => {
     setSearchParams((prev) => {
@@ -51,7 +57,7 @@ export default function StationOnboarding() {
   };
 
   // Un pompiste seul ne suffit pas à démarrer un lavage : on attend un vrai membre de l'équipe lavage.
-  const hasEmployee = (employees || []).some((e) => e.role !== 'Pompiste' && e.status !== 'Archivé');
+  const hasEmployee = pressingOnly || (employees || []).some((e) => e.role !== 'Pompiste' && e.status !== 'Archivé');
 
   // Déclenchement automatique, même règle que ClientOnboarding : plafonné à
   // 3 connexions, reprend une session interrompue là où elle s'était arrêtée.
@@ -90,6 +96,36 @@ export default function StationOnboarding() {
   const afterEmployee = () => closeStep(hasCustomPricing ? null : 'pricing');
 
   if (showTour) return <GuidedTour steps={TOUR_STEPS} onFinish={finishTour} />;
+
+  if (urlStep === 'welcome' && pressingOnly) {
+    const toPrices = () => {
+      wizard.finishWizard(ROLE, stationId);
+      wizard.markTourDone(ROLE, stationId);
+      navigate('/admin/pressing?tarifs=1');
+    };
+    return (
+      <WizardModal
+        title={`Bienvenue${stationProfile?.name ? ', ' + stationProfile.name : ''} !`}
+        subtitle="Votre pressing est prêt à recevoir ses premiers dépôts."
+        stepIndex={0} totalSteps={1}
+        onClose={() => { wizard.finishWizard(ROLE, stationId); wizard.markTourDone(ROLE, stationId); setStepParam(null); }}
+        footer={
+          <button onClick={toPrices} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl transition-colors">
+            Saisir mes tarifs
+          </button>
+        }
+      >
+        <div className="flex items-center justify-center py-4">
+          <div className="w-16 h-16 rounded-2xl bg-blue-500/15 flex items-center justify-center">
+            <Tag className="w-8 h-8 text-blue-400" />
+          </div>
+        </div>
+        <p className="text-neutral-300 text-sm text-center">
+          Indiquez le prix de chaque article (chemise, costume, boubou…) : il sera proposé tout seul à chaque dépôt.
+        </p>
+      </WizardModal>
+    );
+  }
 
   if (urlStep === 'welcome') {
     return (

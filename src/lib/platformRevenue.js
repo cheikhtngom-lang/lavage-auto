@@ -44,6 +44,16 @@ export const MODULE_PRICE_BY_ID = Object.fromEntries(
   STATION_MODULES.map((m) => [m.id, moduleMonthlyPrice(m)]),
 );
 
+// Ce que les modules d'une station rapportent par mois : hors modules offerts
+// (free_modules) et hors modules compris dans son offre (Station de service,
+// Pressing) — même règle que station_subscription_amount (add_pressing_offer.sql).
+const INCLUDED_BY_PLAN = { Business: ['mod_vidange', 'mod_bilan', 'mod_boutique'], Pressing: ['mod_pressing'] };
+export function stationModulesRevenue(s) {
+  const free = s.freeModules || [];
+  const included = INCLUDED_BY_PLAN[s.plan] || [];
+  return (s.activeModules || []).reduce((a, id) => (free.includes(id) || included.includes(id) ? a : a + (MODULE_PRICE_BY_ID[id] || 0)), 0);
+}
+
 // Une station fermée (compte clôturé, voir add_account_closure.sql) garde sa
 // ligne et ses données anonymisées mais ne rapporte plus rien : hors revenus.
 const open = (stations) => (stations || []).filter((s) => !s.closedAt);
@@ -66,7 +76,7 @@ export function modulesMRR(stations, { includeAll = false } = {}) {
   return open(stations)
     .filter((s) => (includeAll ? s.subscriptionStatus !== 'illimite' : s.subscriptionStatus === PAID_SUBSCRIPTION_STATUS))
     .reduce(
-      (sum, s) => sum + (s.activeModules || []).reduce((a, id) => a + (MODULE_PRICE_BY_ID[id] || 0), 0),
+      (sum, s) => sum + stationModulesRevenue(s),
       0,
     );
 }

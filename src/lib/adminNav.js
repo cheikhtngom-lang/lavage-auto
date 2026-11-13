@@ -13,7 +13,7 @@ import {
   FileBarChart, Store, Wrench, Send, Fuel, Wallet, BellRing, Layers, Footprints, Sofa, Shirt, Boxes,
 } from 'lucide-react';
 import { hasPerm } from './permissions';
-import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './offers';
+import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS, ACCOUNTING_PLANS, PRESSING_PLAN, isPressingPlan } from './offers';
 
 // Sections du menu (titres affichés par AppShell) — l'ordre du catalogue
 // suit ces groupes, Paramètres > Menu reprend le même ordre.
@@ -27,13 +27,13 @@ const ADMINISTRATION = 'Administration';
 // page d'accueil, sans « Paramètres » on ne pourrait plus rien réactiver).
 export const ADMIN_NAV = [
   // ─── Exploitation ───
-  { key: 'queue', name: "Vue d'ensemble", href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null, locked: true, section: EXPLOITATION },
-  { key: 'washers', name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage', section: EXPLOITATION },
+  { key: 'queue', carWash: true, name: "Vue d'ensemble", href: '/admin/queue', icon: LayoutDashboard, tourId: 'admin-nav-overview', perm: null, locked: true, section: EXPLOITATION },
+  { key: 'washers', carWash: true, name: 'Laveurs', href: '/admin/washers', icon: Droplets, tourId: 'admin-nav-washers', perm: 'washers.manage', section: EXPLOITATION },
   // Pompistes : offre Station de service (clé 'Business', voir lib/offers.js) — voir
   // RequirePompistesAccess (App.jsx).
-  { key: 'pompistes', name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', plans: [SERVICE_STATION_PLAN], hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.', section: EXPLOITATION },
+  { key: 'pompistes', carWash: true, name: 'Pompistes', href: '/admin/pompistes', icon: Fuel, perm: 'pompistes.manage', plans: [SERVICE_STATION_PLAN], hint: 'Pointage des pompistes, pompe affectée, litres vendus et montant encaissé.', section: EXPLOITATION },
   // Vidange : offre Station de service, ou module "mod_vidange" — voir RequireVidangeAccess (App.jsx).
-  { key: 'vidange', name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_vidange', section: EXPLOITATION },
+  { key: 'vidange', carWash: true, name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_vidange', section: EXPLOITATION },
   // ─── Activités en plus ───
   // Un autre métier dans la même appli, chacun abonnement à part : aucune offre
   // ne l'inclut (plans: []), seul son module l'ouvre (Super Admin > Modules,
@@ -42,24 +42,24 @@ export const ADMIN_NAV = [
   { key: 'tapis', name: 'Tapis', href: '/admin/tapis', icon: Layers, perm: 'dashboard', plans: [], module: 'mod_tapis', hint: 'Tapis de salon et moquettes déposés : avancement, encaissement et lien de suivi du client.', section: ACTIVITES },
   { key: 'chaussures', name: 'Chaussures', href: '/admin/chaussures', icon: Footprints, perm: 'dashboard', plans: [], module: 'mod_chaussures', hint: 'Chaussures déposées : avancement, encaissement et lien de suivi du client.', section: ACTIVITES },
   { key: 'salon', name: 'Salon', href: '/admin/salon', icon: Sofa, perm: 'dashboard', plans: [], module: 'mod_salon', hint: 'Canapés, fauteuils et matelas, à la station ou à domicile.', section: ACTIVITES },
-  { key: 'pressing', name: 'Pressing', href: '/admin/pressing', icon: Shirt, perm: 'dashboard', plans: [], module: 'mod_pressing', hint: 'Vêtements et linge : tickets, étiquettes, avance, livraison.', section: ACTIVITES },
+  { key: 'pressing', name: 'Pressing', href: '/admin/pressing', icon: Shirt, tourId: 'admin-nav-pressing', perm: 'dashboard', plans: [PRESSING_PLAN], module: 'mod_pressing', hint: 'Vêtements et linge : tickets, étiquettes, avance, livraison.', section: ACTIVITES },
   // ─── Ventes & finances ───
   // Boutique : offre Station de service, ou module "mod_boutique" — voir RequireShopAccess (App.jsx).
   { key: 'shop', name: 'Boutique', href: '/admin/shop', icon: Store, perm: 'shop.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_boutique', section: FINANCES },
   { key: 'transactions', name: 'Transactions', href: '/admin/transactions', icon: Activity, tourId: 'admin-nav-transactions', perm: 'transactions.view', section: FINANCES },
   // Comptabilité : Pro et Station de service — voir RequireAccountingAccess (App.jsx).
-  { key: 'accounting', name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ['Pro', SERVICE_STATION_PLAN], section: FINANCES },
+  { key: 'accounting', name: 'Comptabilité', href: '/admin/accounting', icon: Calculator, perm: 'accounting.manage', plans: ACCOUNTING_PLANS, section: FINANCES },
   // Reversements des paiements en ligne : tous les forfaits (une station Starter peut aussi être payée en ligne).
-  { key: 'reversements', name: 'Reversements', href: '/admin/reversements', icon: Wallet, perm: 'accounting.manage', hint: 'Ce que la plateforme vous reverse sur les paiements en ligne, et l’historique.', section: FINANCES },
+  { key: 'reversements', carWash: true, name: 'Reversements', href: '/admin/reversements', icon: Wallet, perm: 'accounting.manage', hint: 'Ce que la plateforme vous reverse sur les paiements en ligne, et l’historique.', section: FINANCES },
   // Bilan : offre Station de service, ou module "mod_bilan" — voir RequireBusinessPlan (App.jsx).
   { key: 'bilan', name: 'Bilan', href: '/admin/bilan', icon: FileBarChart, perm: 'accounting.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_bilan', section: FINANCES },
-  { key: 'analytics', name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view', section: FINANCES },
+  { key: 'analytics', carWash: true, name: 'Analytique', href: '/admin/analytics', icon: LineChart, tourId: 'admin-nav-analytics', perm: 'analytics.view', section: FINANCES },
   // ─── Clients ───
-  { key: 'subscriptions', name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage', section: CLIENTS },
+  { key: 'subscriptions', carWash: true, name: 'Abonnements', href: '/admin/subscriptions', icon: Sparkles, perm: 'subscriptions.manage', section: CLIENTS },
   // Relances des clients abonnés 5 jours avant l'échéance (email auto + WhatsApp), voir lib/subscriptionReminders.js.
-  { key: 'relances', name: 'Relances', href: '/admin/relances', icon: BellRing, perm: 'subscriptions.manage', hint: 'Clients dont l’abonnement se termine bientôt : email automatique et relance WhatsApp.', section: CLIENTS },
+  { key: 'relances', carWash: true, name: 'Relances', href: '/admin/relances', icon: BellRing, perm: 'subscriptions.manage', hint: 'Clients dont l’abonnement se termine bientôt : email automatique et relance WhatsApp.', section: CLIENTS },
   // Annonces aux clients : à partir de Pro (lib/offers.js) — voir RequireMarketingAccess (App.jsx).
-  { key: 'annonces', name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage', plans: MARKETING_PLANS, section: CLIENTS },
+  { key: 'annonces', carWash: true, name: 'Annonces', href: '/admin/annonces', icon: Send, perm: 'announcements.manage', plans: MARKETING_PLANS, section: CLIENTS },
   // ─── Administration ───
   // Modules : ce que la station a, ce qu'elle peut demander (pages/Admin/Modules.jsx).
   { key: 'modules', name: 'Modules', href: '/admin/modules', icon: Boxes, perm: 'settings.manage', hint: 'Activités et options en plus : celles que vous avez, celles que vous pouvez demander.', section: ADMINISTRATION },
@@ -76,12 +76,16 @@ export const defaultHiddenMenu = (billing) => (isServiceStationPlan(billing?.pla
 // Rubriques auxquelles le compte connecté a droit (permission + forfait),
 // masquées ou non. Tant que les permissions ne sont pas chargées (staff), seules
 // les entrées libres apparaissent — le propriétaire a ['*'] dès le premier rendu.
+// Offre Pressing (pressing seul) : aucune rubrique du lavage auto (`carWash`),
+// la rubrique Pressing tient lieu de page d'accueil et ne se masque pas.
 export function navAvailableTo({ permissions, billing }) {
+  const pressingOnly = isPressingPlan(billing?.plan);
   return ADMIN_NAV.filter((item) => {
+    if (pressingOnly && item.carWash) return false;
     if (item.perm && !hasPerm(permissions || [], item.perm)) return false;
     if (item.plans && !item.plans.includes(billing?.plan) && !(item.module && (billing?.activeModules || []).includes(item.module))) return false;
     return true;
-  });
+  }).map((item) => (pressingOnly && item.key === 'pressing' ? { ...item, locked: true } : item));
 }
 
 // Ce qui s'affiche réellement dans le menu.

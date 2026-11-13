@@ -13,6 +13,7 @@ export const DEFAULT_PLANS = {
     Starter: { label: 'Starter', price: 10000 },
     Pro: { label: 'Pro', price: 20000 },
     Business: { label: 'Station de service', price: 35000 }, // clé historique, voir lib/offers.js
+    Pressing: { label: 'Pressing', price: 15000 }, // pressing seul, sans lavage auto (add_pressing_offer.sql)
 };
 
 const rowToDispute = (row) => ({
@@ -68,6 +69,9 @@ const rowToStation = (row) => ({
     closedAt: row.closed_at || null, // compte fermé (add_account_closure.sql) : exclu des revenus
     plan: row.station_billing?.plan || 'Starter',
     activeModules: row.station_billing?.active_modules || [],
+    freeModules: row.station_billing?.free_modules || [],
+    // 'pressing' : offre Pressing, absente de l'annuaire des stations de lavage.
+    businessType: row.business_type || 'lavage',
     subscriptionStatus: row.station_billing?.subscription_status || 'essai',
     nextBillingDate: row.station_billing?.next_billing_date || null,
     trialEndsAt: row.station_billing?.trial_ends_at || null,
@@ -562,6 +566,16 @@ export function SuperAdminStateProvider({ children }) {
         if (station) logAction(`Module "${moduleId}" ${active ? 'activé' : 'désactivé'} pour ${station.name}`);
     };
 
+    // Module offert (non facturé au renouvellement), voir add_pressing_offer.sql.
+    const toggleFreeModule = async (id, moduleId, free) => {
+        const station = stations.find((s) => s.id === id);
+        const current = station?.freeModules || [];
+        const next = free ? [...new Set([...current, moduleId])] : current.filter((m) => m !== moduleId);
+        await supabase.from('station_billing').update({ free_modules: next }).eq('station_id', id);
+        setStations((prev) => prev.map((s) => (s.id === id ? { ...s, freeModules: next } : s)));
+        if (station) logAction(`Module "${moduleId}" ${free ? 'offert' : 'facturé'} pour ${station.name}`);
+    };
+
     const markSubscriptionPaid = async (id) => {
         const station = stations.find((s) => s.id === id);
         const nextDate = new Date();
@@ -793,7 +807,7 @@ export function SuperAdminStateProvider({ children }) {
     return (
         <SuperAdminStateContext.Provider value={{
             stations: pricedStations, disputes, auditLog, clientAccounts, PLANS: plans, queueSnapshotVersion,
-            addStation, updateStation, setStationStatus, deleteStation, setStationPlan, toggleStationModule,
+            addStation, updateStation, setStationStatus, deleteStation, setStationPlan, toggleStationModule, toggleFreeModule,
             markSubscriptionPaid, markSubscriptionOverdue, sendBillingReminder, grantUnlimitedAccess, revokeUnlimitedAccess, grantFreeAccess,
             recordStationPayment, getTrialDataCounts, purgeTrialData,
             addDispute, resolveDispute, refundDispute, logAction,

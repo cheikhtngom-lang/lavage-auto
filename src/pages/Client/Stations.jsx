@@ -306,6 +306,8 @@ export default function Stations() {
 
   const allStations = (registry || [])
     .filter(s => s.status !== 'suspendue')
+    // Offre Pressing (pressing seul) : pas une station de lavage (add_pressing_offer.sql).
+    .filter(s => s.businessType !== 'pressing')
     // Seules les stations du pays affiché (les anciennes lignes sans pays sont au Sénégal).
     .filter(s => !!country.code && (s.country || DEFAULT_COUNTRY) === country.code)
     .map(s => {

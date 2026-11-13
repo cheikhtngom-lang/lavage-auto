@@ -7,7 +7,7 @@ import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { getCurrentStationId, getCurrentRole, getIsGroupOwner } from '../../lib/accounts';
 import CloseAccountCard from '../../components/account/CloseAccountCard';
 import PasswordInput from '../../components/ui/PasswordInput';
-import { stationHasMarketing } from '../../lib/offers';
+import { stationHasMarketing, isPressingPlan } from '../../lib/offers';
 import { supabase } from '../../lib/supabaseClient';
 import { COUNTRIES, regionsOf } from '../../lib/countries';
 import { geocodeQuartierRegion } from '../../lib/geocoding';
@@ -73,6 +73,7 @@ export default function Settings() {
   const canVidange = stationHasVidange(stationBilling);
   // Publicité (et Annonces, menu) : à partir de Pro — voir lib/offers.js.
   const canMarketing = stationHasMarketing(stationBilling);
+  const pressingOnly = isPressingPlan(stationBilling?.plan);
   const canPompistes = stationHasPompistes(stationBilling);
   const location = useLocation();
 
@@ -595,12 +596,16 @@ export default function Settings() {
             { id: 'employes', label: 'Gestion Employés', icon: Users },
             // Pompistes & pompes : offre Station de service — voir RequirePompistesAccess (App.jsx).
             ...(canPompistes ? [{ id: 'pompistes', label: 'Pompistes & pompes', icon: Fuel }] : []),
-            { id: 'temps', label: 'Temps Estimés', icon: Clock },
-            { id: 'tarifs', label: 'Grille Tarifaire', icon: CreditCard },
+            // Offre Pressing (pressing seul) : pas de grille ni de temps de lavage,
+            // ses tarifs sont dans la rubrique Pressing (bouton « Tarifs »).
+            ...(pressingOnly ? [] : [
+              { id: 'temps', label: 'Temps Estimés', icon: Clock },
+              { id: 'tarifs', label: 'Grille Tarifaire', icon: CreditCard },
+            ]),
             // Vidange réservée à l'offre Station de service (ou module mod_vidange) —
             // même logique que Boutique/Bilan, voir RequireVidangeAccess (App.jsx).
             ...(canVidange ? [{ id: 'vidange', label: 'Vidange', icon: Wrench }] : []),
-            { id: 'promotions', label: 'Promotions', icon: Megaphone },
+            ...(pressingOnly ? [] : [{ id: 'promotions', label: 'Promotions', icon: Megaphone }]),
             ...(canMarketing ? [{ id: 'publicite', label: 'Passer une pub', icon: Camera }] : []),
             { id: 'securite', label: 'Sécurité & Accès', icon: Shield },
           ].map(tab => (

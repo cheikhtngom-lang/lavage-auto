@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Boxes, Building2 } from 'lucide-react';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
-import { MODULE_GROUPS, modulesOfGroup, hasModule } from '../../lib/stationModules';
+import { MODULE_GROUPS, modulesOfGroup, hasModule, moduleIncludedInPlan, billedModulesTotal } from '../../lib/stationModules';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 
 export default function SuperAdminModules() {
   useDocumentTitle('Modules');
-  const { stations, PLANS, toggleStationModule } = useSuperAdminState();
+  const { stations, PLANS, toggleStationModule, toggleFreeModule } = useSuperAdminState();
   const [stationId, setStationId] = useState('');
 
   const station = stations.find((s) => s.id === stationId) || null;
@@ -38,6 +38,11 @@ export default function SuperAdminModules() {
               Abonnement de base : {PLANS[station.plan]?.label || station.plan}
             </span>
           )}
+          {station && (
+            <span className="px-4 py-2.5 bg-white/5 border border-white/10 text-neutral-200 rounded-lg font-medium text-sm whitespace-nowrap">
+              Facturé par mois : {((PLANS[station.plan]?.price || 0) + billedModulesTotal(station, station.plan)).toLocaleString('fr-FR')} F
+            </span>
+          )}
         </div>
       </div>
 
@@ -58,6 +63,9 @@ export default function SuperAdminModules() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {modulesOfGroup(group.id).map((mod, i) => {
                 const active = hasModule(station.activeModules, mod.id);
+                // Compris dans l'offre (Station de service, Pressing) ou offert : pas facturé au renouvellement.
+                const included = moduleIncludedInPlan(station.plan, mod.id);
+                const free = (station.freeModules || []).includes(mod.id);
                 return (
                   <motion.div
                     key={mod.id}
@@ -86,7 +94,7 @@ export default function SuperAdminModules() {
                     </div>
                     <p className="text-neutral-400 text-sm flex-1">{mod.desc}</p>
                     <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                      <span className="text-white font-bold">{mod.price}</span>
+                      <span className="text-white font-bold">{included ? 'Compris dans l’offre' : free && active ? <><s className="text-neutral-500 font-medium">{mod.price}</s> Offert</> : mod.price}</span>
                       <button
                         type="button"
                         role="switch"
@@ -98,6 +106,12 @@ export default function SuperAdminModules() {
                         <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${active ? 'translate-x-5' : ''}`} />
                       </button>
                     </div>
+                    {active && !included && (
+                      <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer -mt-1">
+                        <input type="checkbox" className="w-4 h-4 accent-emerald-500" checked={free} onChange={(e) => toggleFreeModule(station.id, mod.id, e.target.checked)} />
+                        Offert (pas facturé au renouvellement)
+                      </label>
+                    )}
                   </motion.div>
                 );
               })}
