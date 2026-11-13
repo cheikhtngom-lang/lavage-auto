@@ -10,7 +10,7 @@
 //     d'accès : la route reste joignable.
 import {
   LayoutDashboard, Users, Settings, Droplets, Activity, Calculator, LineChart, Sparkles,
-  FileBarChart, Store, Wrench, Send, Fuel, Wallet, BellRing, Layers,
+  FileBarChart, Store, Wrench, Send, Fuel, Wallet, BellRing, Layers, Footprints,
 } from 'lucide-react';
 import { hasPerm } from './permissions';
 import { SERVICE_STATION_PLAN, isServiceStationPlan, MARKETING_PLANS } from './offers';
@@ -34,6 +34,8 @@ export const ADMIN_NAV = [
   // Tapis et moquettes déposés par les clients : toutes les offres, tout membre de la station
   // (comme la file d'attente) — voir add_carpet_cleaning.sql et pages/Admin/Carpets.jsx.
   { key: 'tapis', name: 'Tapis', href: '/admin/tapis', icon: Layers, perm: 'dashboard', hint: 'Tapis de salon et moquettes déposés : avancement, encaissement et lien de suivi du client.', section: EXPLOITATION },
+  // Chaussures : même principe que les tapis (add_shoe_cleaning.sql, même page avec activity="chaussures").
+  { key: 'chaussures', name: 'Chaussures', href: '/admin/chaussures', icon: Footprints, perm: 'dashboard', hint: 'Chaussures déposées : avancement, encaissement et lien de suivi du client.', section: EXPLOITATION },
   // Vidange : offre Station de service, ou module "mod_vidange" — voir RequireVidangeAccess (App.jsx).
   { key: 'vidange', name: 'Vidange', href: '/admin/vidange', icon: Wrench, perm: 'vidange.manage', plans: [SERVICE_STATION_PLAN], module: 'mod_vidange', section: EXPLOITATION },
   // ─── Ventes & finances ───

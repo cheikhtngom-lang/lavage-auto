@@ -1,12 +1,14 @@
-// Rubrique station « Tapis » : tapis de salon et moquettes déposés par les
-// clients. Enregistrer un dépôt, le faire avancer (lavage, séchage, prêt,
-// récupéré), l'encaisser (transaction « Tapis » en Comptabilité) et envoyer
-// au client le lien de suivi sur WhatsApp. Voir add_carpet_cleaning.sql.
-import React, { useEffect, useMemo, useState } from 'react';
+// Rubriques station « Tapis » et « Chaussures » (même page, prop `activity`) :
+// tapis, moquettes ou chaussures déposés par les clients. Enregistrer un
+// dépôt, le faire avancer (lavage, séchage, prêt, récupéré), l'encaisser
+// (transaction « Tapis » ou « Chaussures » en Comptabilité) et envoyer au
+// client le lien de suivi sur WhatsApp. Voir add_carpet_cleaning.sql et
+// add_shoe_cleaning.sql.
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
-  Layers, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, AlertTriangle, Trash2, Building2, Send, Phone,
+  Layers, Footprints, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, AlertTriangle, Trash2, Building2, Send, Phone,
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { useAppState } from '../../hooks/useAppState';
@@ -14,10 +16,10 @@ import { useStationCarpets } from '../../hooks/useStationCarpets';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { cn } from '../../lib/utils';
 import {
-  CARPET_KINDS, CARPET_DELAYS, DEFAULT_CARPET_DELAY, CARPET_STEPS, CARPET_STATUS, NEXT_STATUS, NEXT_ACTION_LABEL,
-  isOpenCarpet, isLateCarpet, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel, carpetTrackingUrl,
+  CARPET_DELAYS, DEFAULT_CARPET_DELAY, CARPET_STEPS, CARPET_STATUS, NEXT_STATUS, NEXT_ACTION_LABEL,
+  isOpenCarpet, isLateCarpet, stepIndex, orderSummary, fcfa, formatPromise, timeLeftLabel, carpetTrackingUrl,
   depositMessage, readyMessage, carpetWhatsAppLink, createCarpetOrder, setCarpetStatus, updateCarpetOrder,
-  recordCarpetPayment, isCarpetRevenue, newPiece, pieceLines, pieceLabel, piecesTotal, piecesWithoutPrice, orderToPieces,
+  recordCarpetPayment, activityConfig, unitCount, CLIENT_DEPOSITS_LABEL, newPiece, pieceLines, pieceLabel, piecesTotal, piecesWithoutPrice, orderToPieces,
   loadPartnerStations, stationPlace, outsourceCarpet, cancelOutsource,
 } from '../../lib/carpets';
 import { whatsappLink } from '../../lib/subscriptionReminders';
@@ -47,6 +49,10 @@ const TONE = {
   emerald: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
   red: 'bg-red-500/10 text-red-300 border-red-500/25',
 };
+
+// Rubrique ouverte (tapis ou chaussures) : libellés, types de pièces, service.
+const ActivityContext = createContext(activityConfig('tapis'));
+const useActivity = () => useContext(ActivityContext);
 
 // Rendue dans <body> : la page est un contexte d'empilement (relative z-10),
 // une fenêtre restée dedans passerait sous le menu et le bandeau d'essai.
@@ -115,6 +121,7 @@ function ShareLink({ order, stationName, ready }) {
 // Pièces une par une : chaque type touché ajoute une pièce avec sa taille, son
 // prix et sa note interne ; le total est la somme des prix.
 function PiecesEditor({ pieces, onChange, lockPrices = false, fallbackTotal = 0 }) {
+  const cfg = useActivity();
   const [focusId, setFocusId] = useState(null);
   const add = (kind) => {
     const piece = newPiece(kind);
@@ -127,9 +134,9 @@ function PiecesEditor({ pieces, onChange, lockPrices = false, fallbackTotal = 0 
   const missing = piecesWithoutPrice(pieces);
   return (
     <fieldset>
-      <legend className="block text-sm font-medium text-neutral-400 mb-2">Pièces déposées</legend>
+      <legend className="block text-sm font-medium text-neutral-400 mb-2">{cfg.piecesLegend}</legend>
       <div className="flex flex-wrap gap-2 mb-3">
-        {CARPET_KINDS.map((kind) => (
+        {cfg.kinds.map((kind) => (
           <button key={kind} type="button" onClick={() => add(kind)}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors">
             <Plus className="w-4 h-4 text-blue-400" /> {kind}
@@ -138,32 +145,32 @@ function PiecesEditor({ pieces, onChange, lockPrices = false, fallbackTotal = 0 
       </div>
 
       {pieces.length === 0 ? (
-        <p className="text-sm text-neutral-500 rounded-xl border border-dashed border-white/10 px-4 py-5 text-center">Touchez le type de pièce pour l'ajouter. Chaque pièce a sa taille, son prix et sa note.</p>
+        <p className="text-sm text-neutral-500 rounded-xl border border-dashed border-white/10 px-4 py-5 text-center">{cfg.editorHint}</p>
       ) : (
         <ol className="space-y-3">
           {pieces.map((p, i) => (
             <li key={p.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2 mb-2.5">
-                <p className="text-sm font-bold text-white"><span className="text-neutral-500 font-medium tabular-nums">Pièce {i + 1} · </span>{p.kind}</p>
-                <button type="button" onClick={() => remove(p.id)} aria-label={`Retirer la pièce ${i + 1}`} title="Retirer cette pièce"
+                <p className="text-sm font-bold text-white"><span className="text-neutral-500 font-medium tabular-nums">{cfg.unitCap} {i + 1} · </span>{p.kind}</p>
+                <button type="button" onClick={() => remove(p.id)} aria-label={`Retirer la ${cfg.unit} ${i + 1}`} title={`Retirer cette ${cfg.unit}`}
                   className="w-9 h-9 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-colors">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label htmlFor={`size-${p.id}`} className="block text-xs text-neutral-500 mb-1">Taille</label>
-                  <input id={`size-${p.id}`} className={inputCls} value={p.size} onChange={(e) => patch(p.id, 'size', e.target.value)} placeholder="2 x 3 m" autoComplete="off"
+                  <label htmlFor={`size-${p.id}`} className="block text-xs text-neutral-500 mb-1">{cfg.sizeLabel}</label>
+                  <input id={`size-${p.id}`} className={inputCls} value={p.size} onChange={(e) => patch(p.id, 'size', e.target.value)} placeholder={cfg.sizePlaceholder} autoComplete="off"
                     autoFocus={focusId === p.id} />
                 </div>
                 <div>
                   <label htmlFor={`price-${p.id}`} className="block text-xs text-neutral-500 mb-1">Prix (FCFA)</label>
                   <input id={`price-${p.id}`} className={cn(inputCls, 'tabular-nums')} type="number" min="0" step="100" inputMode="numeric" value={p.price}
-                    onChange={(e) => patch(p.id, 'price', e.target.value)} placeholder="5000" disabled={lockPrices} />
+                    onChange={(e) => patch(p.id, 'price', e.target.value)} placeholder={cfg.pricePlaceholder} disabled={lockPrices} />
                 </div>
               </div>
               <label htmlFor={`note-${p.id}`} className="block text-xs text-neutral-500 mt-2 mb-1">Note interne (jamais vue par le client)</label>
-              <input id={`note-${p.id}`} className={inputCls} value={p.note} onChange={(e) => patch(p.id, 'note', e.target.value)} placeholder="Taches, franges abîmées…" autoComplete="off" />
+              <input id={`note-${p.id}`} className={inputCls} value={p.note} onChange={(e) => patch(p.id, 'note', e.target.value)} placeholder={cfg.notePlaceholder} autoComplete="off" />
             </li>
           ))}
         </ol>
@@ -172,7 +179,7 @@ function PiecesEditor({ pieces, onChange, lockPrices = false, fallbackTotal = 0 
       {pieces.length > 0 && (
         <div className="flex items-baseline justify-between gap-3 mt-3 px-1">
           <span className="text-sm text-neutral-400">
-            Prix total{missing > 0 ? <span className="text-amber-400"> · {missing} pièce{missing > 1 ? 's' : ''} sans prix</span> : null}
+            Prix total{missing > 0 ? <span className="text-amber-400"> · {unitCount(missing, cfg)} sans prix</span> : null}
           </span>
           <span className="text-xl font-bold text-white tabular-nums">{fcfa(total || fallbackTotal)}</span>
         </div>
@@ -243,6 +250,7 @@ function StationPicker({ myStationId, value, onChange }) {
 }
 
 function OutsourceModal({ order, myStationId, onClose, onDone }) {
+  const cfg = useActivity();
   const [partner, setPartner] = useState(null);
   // Date promise au client par défaut ; déjà passée (dépôt en retard) : dans 48 h.
   const [promisedAt, setPromisedAt] = useState(() => toLocalInput(new Date(order.promisedAt) > new Date() ? order.promisedAt : promiseFromDelay(DEFAULT_CARPET_DELAY)));
@@ -250,7 +258,7 @@ function OutsourceModal({ order, myStationId, onClose, onDone }) {
   const [error, setError] = useState('');
   const submit = async (e) => {
     e.preventDefault();
-    if (!partner) { setError('Choisissez la station qui lavera ces pièces.'); return; }
+    if (!partner) { setError(`Choisissez la station qui lavera ces ${cfg.units}.`); return; }
     setSaving(true);
     setError('');
     try { await outsourceCarpet(order.id, partner.id, new Date(promisedAt).toISOString()); onDone(); onClose(); } catch (err) { setError(err.message); } finally { setSaving(false); }
@@ -259,7 +267,7 @@ function OutsourceModal({ order, myStationId, onClose, onDone }) {
     <Modal title={`Confier le ticket n° ${order.ticketNo} à une autre station`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <p className="text-sm text-neutral-400">
-          {order.clientName} · {itemsSummary(order.items, order.pieceCount)}. La station choisie reçoit le dépôt dans sa rubrique Tapis, à votre nom ; elle fixe son prix.
+          {order.clientName} · {orderSummary(order)}. La station choisie reçoit le dépôt dans sa rubrique {cfg.nav}, à votre nom ; elle fixe son prix.
         </p>
         <StationPicker myStationId={myStationId} value={partner} onChange={setPartner} />
         <div>
@@ -268,8 +276,8 @@ function OutsourceModal({ order, myStationId, onClose, onDone }) {
         </div>
         <ul className="text-xs text-neutral-500 space-y-1 list-disc pl-4">
           <li>L'avancement chez elle se recopie sur le dépôt de votre client : il le voit sur son lien.</li>
-          <li>Quand vous récupérez les tapis chez elle, le dépôt de votre client passe à « Prêt ».</li>
-          <li>Ce que vous lui payez s'ajoute à vos dépenses (« Tapis (station partenaire) »).</li>
+          <li>Quand vous récupérez les {cfg.things} chez elle, le dépôt de votre client passe à « Prêt ».</li>
+          <li>Ce que vous lui payez s'ajoute à vos dépenses (« {cfg.service} (station partenaire) »).</li>
         </ul>
         {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
         <button type="submit" disabled={saving || !partner} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
@@ -282,10 +290,11 @@ function OutsourceModal({ order, myStationId, onClose, onDone }) {
 
 // Dépôt de la station chez une station partenaire (onglet « Chez un partenaire »).
 function SentRow({ order, ownOrder, onTakeBack, busy }) {
+  const cfg = useActivity();
   const status = CARPET_STATUS[order.status] || CARPET_STATUS.depose;
   const partner = order.partner || {};
   const call = partner.owner_phone ? `tel:${String(partner.owner_phone).replace(/[^\d+]/g, '')}` : null;
-  const wa = whatsappLink(partner.owner_phone, `Bonjour, je viens aux nouvelles de nos tapis (ticket n° ${order.ticketNo} chez vous).`);
+  const wa = whatsappLink(partner.owner_phone, `Bonjour, je viens aux nouvelles de nos ${cfg.things} (ticket n° ${order.ticketNo} chez vous).`);
   const open = isOpenCarpet(order);
   return (
     <div className={cn('p-4 sm:p-5 border-b border-white/5 last:border-0', !open && 'opacity-70')}>
@@ -293,7 +302,7 @@ function SentRow({ order, ownOrder, onTakeBack, busy }) {
         <div className="flex-1 min-w-[200px]">
           <p className="font-bold text-white flex items-center gap-2"><Building2 className="w-4 h-4 text-blue-400 shrink-0" /> {partner.name || 'Station partenaire'}</p>
           <p className="text-neutral-500 text-xs mt-0.5">Ticket n° {order.ticketNo} chez elle{stationPlace(partner) ? ` · ${stationPlace(partner)}` : ''}</p>
-          <p className="text-neutral-400 text-sm mt-1">{itemsSummary(order.items, order.pieceCount)}</p>
+          <p className="text-neutral-400 text-sm mt-1">{orderSummary(order)}</p>
           {ownOrder && <p className="text-neutral-500 text-xs mt-1">Pour votre ticket n° {ownOrder.ticketNo} · {ownOrder.clientName}</p>}
         </div>
         <div className="min-w-[190px]">
@@ -326,6 +335,7 @@ function SentRow({ order, ownOrder, onTakeBack, busy }) {
 }
 
 function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
+  const cfg = useActivity();
   const [form, setForm] = useState({ clientName: '', clientPhone: '', paidNow: false, method: 'Espèces' });
   const [pieces, setPieces] = useState([]);
   // Client = une autre station Galsen : elle suivra le dépôt et son paiement sera une dépense chez elle.
@@ -347,15 +357,16 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
     setError('');
     if (isStationClient && !clientStation) { setError('Choisissez la station cliente.'); return; }
     if (!form.clientName.trim()) { setError('Indiquez le nom du client.'); return; }
-    if (pieces.length < 1) { setError('Ajoutez au moins une pièce.'); return; }
+    if (pieces.length < 1) { setError(`Ajoutez au moins une ${cfg.unit}.`); return; }
     if (!promise || Number.isNaN(promise.getTime())) { setError('Choisissez la date à laquelle ce sera prêt.'); return; }
-    if (form.paidNow && !(total > 0)) { setError('Indiquez le prix des pièces pour encaisser maintenant.'); return; }
+    if (form.paidNow && !(total > 0)) { setError(`Indiquez le prix des ${cfg.units} pour encaisser maintenant.`); return; }
     setSaving(true);
     try {
       let order = await createCarpetOrder(stationId, {
         clientName: form.clientName, clientPhone: form.clientPhone,
         pieces, promisedAt: promise.toISOString(),
         fromStationId: isStationClient ? clientStation?.id : null,
+        activity: cfg.key,
       });
       if (form.paidNow) {
         await recordCarpetPayment(order.id, form.method, total);
@@ -383,7 +394,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
           )}
           <p className="text-neutral-300 text-sm mt-3">Prêt au plus tard le <strong className="text-white">{formatPromise(saved.promisedAt)}</strong></p>
         </div>
-        <p className="text-sm text-neutral-400 mb-3">Le client suit l'avancement avec ce lien et peut créer son compte pour retrouver ses dépôts dans « Mes tapis ».</p>
+        <p className="text-sm text-neutral-400 mb-3">Le client suit l'avancement avec ce lien et peut créer son compte pour retrouver ses dépôts dans « {CLIENT_DEPOSITS_LABEL} ».</p>
         <ShareLink order={saved} stationName={stationName} />
         <button type="button" onClick={onClose} className="w-full mt-3 text-neutral-400 hover:text-white py-2 text-sm">Fermer</button>
       </Modal>
@@ -404,7 +415,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
         </div>
         {isStationClient && (
           <div>
-            <p className="text-sm text-neutral-400 mb-2">Station qui vous apporte ses tapis : elle suit le dépôt dans sa rubrique Tapis, et ce qu'elle vous paie s'ajoute à ses dépenses.</p>
+            <p className="text-sm text-neutral-400 mb-2">Station qui vous apporte ses {cfg.things} : elle suit le dépôt dans sa rubrique {cfg.nav}, et ce qu'elle vous paie s'ajoute à ses dépenses.</p>
             <StationPicker myStationId={stationId} value={clientStation} onChange={pickStation} />
           </div>
         )}
@@ -462,7 +473,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
 
         {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
         <button type="submit" disabled={saving} className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
-          {saving ? 'Enregistrement…' : `Enregistrer le dépôt${pieces.length ? ` (${pieces.length} pièce${pieces.length > 1 ? 's' : ''}${total ? `, ${fcfa(total)}` : ''})` : ''}`}
+          {saving ? 'Enregistrement…' : `Enregistrer le dépôt${pieces.length ? ` (${unitCount(pieces.length, cfg)}${total ? `, ${fcfa(total)}` : ''})` : ''}`}
         </button>
       </form>
     </Modal>
@@ -470,6 +481,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved }) {
 }
 
 function PayModal({ order, onClose, onDone }) {
+  const cfg = useActivity();
   const [amount, setAmount] = useState(order.amount ? String(order.amount) : '');
   const [method, setMethod] = useState('Espèces');
   const [saving, setSaving] = useState(false);
@@ -483,7 +495,7 @@ function PayModal({ order, onClose, onDone }) {
   return (
     <Modal title={`Encaisser le ticket n° ${order.ticketNo}`} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <p className="text-sm text-neutral-400">{order.clientName} · {itemsSummary(order.items, order.pieceCount)}</p>
+        <p className="text-sm text-neutral-400">{order.clientName} · {orderSummary(order)}</p>
         <div>
           <label htmlFor="pay-amount" className="block text-sm font-medium text-neutral-400 mb-1">Montant (FCFA)</label>
           <input id="pay-amount" className={inputCls} type="number" min="0" step="100" inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
@@ -496,7 +508,7 @@ function PayModal({ order, onClose, onDone }) {
             </button>
           ))}
         </div>
-        <p className="text-xs text-neutral-500">La recette apparaît dans Transactions et en Comptabilité, rubrique Tapis.</p>
+        <p className="text-xs text-neutral-500">La recette apparaît dans Transactions et en Comptabilité, rubrique {cfg.service}.</p>
         {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
         <button type="submit" disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-colors">
           {saving ? 'Encaissement…' : `Encaisser ${parseInt(amount, 10) > 0 ? fcfa(amount) : ''}`}
@@ -507,6 +519,7 @@ function PayModal({ order, onClose, onDone }) {
 }
 
 function EditModal({ order, onClose, onSaved }) {
+  const cfg = useActivity();
   const [promisedAt, setPromisedAt] = useState(toLocalInput(order.promisedAt));
   const [pieces, setPieces] = useState(() => orderToPieces(order));
   const [phone, setPhone] = useState(order.clientPhone || '');
@@ -517,7 +530,7 @@ function EditModal({ order, onClose, onSaved }) {
     e.preventDefault();
     setSaving(true);
     try {
-      if (pieces.length < 1) { setError('Gardez au moins une pièce.'); setSaving(false); return; }
+      if (pieces.length < 1) { setError(`Gardez au moins une ${cfg.unit}.`); setSaving(false); return; }
       onSaved(await updateCarpetOrder(order, { promisedAt: new Date(promisedAt).toISOString(), clientPhone: phone, note, pieces }));
       onClose();
     } catch (err) { setError(err.message); } finally { setSaving(false); }
@@ -549,6 +562,7 @@ function EditModal({ order, onClose, onSaved }) {
 }
 
 function OrderRow({ order, partnerOrder, onAdvance, onBack, onCancel, onPay, onEdit, onShare, onOutsource, onTakeBack, busy }) {
+  const cfg = useActivity();
   const [menu, setMenu] = useState(false);
   const [details, setDetails] = useState(false);
   const status = CARPET_STATUS[order.status] || CARPET_STATUS.depose;
@@ -567,7 +581,7 @@ function OrderRow({ order, partnerOrder, onAdvance, onBack, onCancel, onPay, onE
           {order.fromStationId && <p className="text-[11px] text-blue-300 flex items-center gap-1"><Building2 className="w-3 h-3" /> Station partenaire</p>}
           <button type="button" onClick={() => setDetails((d) => !d)} aria-expanded={details}
             className="text-neutral-400 hover:text-white text-sm inline-flex items-center gap-1 text-left">
-            {itemsSummary(order.items, order.pieceCount)} <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 transition-transform', details && 'rotate-180')} />
+            {orderSummary(order)} <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 transition-transform', details && 'rotate-180')} />
           </button>
           {details && <div className="mt-2 max-w-sm"><PieceList order={order} showNotes /></div>}
           {order.clientPhone && <p className="text-neutral-500 text-xs mt-0.5 tabular-nums">{order.clientPhone}</p>}
@@ -625,7 +639,7 @@ function OrderRow({ order, partnerOrder, onAdvance, onBack, onCancel, onPay, onE
               <>
                 <button type="button" aria-label="Fermer le menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setMenu(false)} />
                 <div className="absolute z-20 mt-1 left-0 w-56 rounded-xl bg-neutral-900 border border-white/10 shadow-2xl py-1">
-                  <button type="button" onClick={() => { setMenu(false); onEdit(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Pencil className="w-4 h-4" /> Modifier pièces, prix, délai</button>
+                  <button type="button" onClick={() => { setMenu(false); onEdit(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Pencil className="w-4 h-4" /> Modifier {cfg.units}, prix, délai</button>
                   {PREV_STATUS[order.status] && (
                     <button type="button" onClick={() => { setMenu(false); onBack(order, PREV_STATUS[order.status]); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Undo2 className="w-4 h-4" /> Revenir à « {CARPET_STATUS[PREV_STATUS[order.status]].label} »</button>
                   )}
@@ -655,10 +669,12 @@ const TABS = [
   { id: 'historique', label: 'Historique' },
 ];
 
-export default function Carpets() {
-  useDocumentTitle('Tapis');
+export default function Carpets({ activity = 'tapis' }) {
+  const cfg = activityConfig(activity);
+  const Icon = cfg.key === 'chaussures' ? Footprints : Layers;
+  useDocumentTitle(cfg.nav);
   const { stationProfile, transactions } = useAppState();
-  const { stationId, orders, sent, loaded, error, reload, upsertLocal } = useStationCarpets();
+  const { stationId, orders, sent, loaded, error, reload, upsertLocal } = useStationCarpets(cfg.key);
   const [outsourcing, setOutsourcing] = useState(null);
   const sentById = useMemo(() => new Map(sent.map((o) => [o.id, o])), [sent]);
   const ownById = useMemo(() => new Map(orders.map((o) => [o.id, o])), [orders]);
@@ -678,7 +694,7 @@ export default function Carpets() {
   const ready = orders.filter((o) => o.status === 'pret');
   const late = inProgress.filter((o) => isLateCarpet(o, now));
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthRevenue = (transactions || []).filter((t) => isCarpetRevenue(t) && new Date(t.createdAt) >= monthStart).reduce((s, t) => s + (parseInt(t.amount, 10) || 0), 0);
+  const monthRevenue = (transactions || []).filter((t) => t.service === cfg.service && new Date(t.createdAt) >= monthStart).reduce((s, t) => s + (parseInt(t.amount, 10) || 0), 0);
   const toCollect = orders.filter((o) => isOpenCarpet(o) && !o.paid).reduce((s, o) => s + (o.amount || 0), 0);
 
   const list = useMemo(() => {
@@ -715,13 +731,14 @@ export default function Carpets() {
   };
 
   return (
+    <ActivityContext.Provider value={cfg}>
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto relative z-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
         <div>
           <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight flex items-center gap-3">
-            <Layers className="w-8 h-8 text-blue-400" /> Tapis et moquettes
+            <Icon className="w-8 h-8 text-blue-400" /> {cfg.title}
           </h1>
-          <p className="text-neutral-400 text-base sm:text-lg">Dépôts des clients et des stations partenaires, avancement du lavage et lien de suivi.</p>
+          <p className="text-neutral-400 text-base sm:text-lg">{cfg.intro}</p>
         </div>
         <button type="button" onClick={() => setShowNew(true)} className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl font-bold transition-colors">
           <Plus className="w-5 h-5" /> Nouveau dépôt
@@ -783,11 +800,11 @@ export default function Carpets() {
         )
       ) : list.length === 0 ? (
         <div className="glass-card rounded-2xl p-10 text-center border-dashed border-2 border-white/10">
-          <Layers className="w-12 h-12 text-neutral-600 mx-auto mb-3" />
+          <Icon className="w-12 h-12 text-neutral-600 mx-auto mb-3" />
           {orders.length === 0 ? (
             <>
               <p className="text-white font-bold mb-1">Aucun dépôt pour l'instant</p>
-              <p className="text-neutral-400 text-sm max-w-md mx-auto">Enregistrez les tapis et moquettes déposés par vos clients. Ils reçoivent un lien pour suivre le lavage et savoir quand passer les récupérer.</p>
+              <p className="text-neutral-400 text-sm max-w-md mx-auto">{cfg.empty}</p>
               <button type="button" onClick={() => setShowNew(true)} className="mt-5 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-3 rounded-xl font-bold transition-colors"><Plus className="w-5 h-5" /> Premier dépôt</button>
             </>
           ) : (
@@ -812,12 +829,13 @@ export default function Carpets() {
         <Modal title={sharing.status === 'pret' ? `Ticket n° ${sharing.ticketNo} prêt` : `Lien de suivi · ticket n° ${sharing.ticketNo}`} onClose={() => setSharing(null)}>
           <p className="text-sm text-neutral-400 mb-4">
             {sharing.status === 'pret'
-              ? `Prévenez ${sharing.clientName} que son dépôt est prêt. S'il a créé son compte, il le voit déjà dans « Mes tapis ».`
+              ? `Prévenez ${sharing.clientName} que son dépôt est prêt. S'il a créé son compte, il le voit déjà dans « ${CLIENT_DEPOSITS_LABEL} ».`
               : `${sharing.clientName} suit l'avancement avec ce lien et peut créer son compte pour être prévenu.`}
           </p>
           <ShareLink order={sharing} stationName={stationName} ready={sharing.status === 'pret'} />
         </Modal>
       )}
     </div>
+    </ActivityContext.Provider>
   );
 }

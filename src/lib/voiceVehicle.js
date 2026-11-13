@@ -33,7 +33,8 @@ const CATEGORY_KEYWORDS = [
   ['4x4', 'SUV / 4x4'], ['4 x 4', 'SUV / 4x4'], ['quatre par quatre', 'SUV / 4x4'],
   ['suv', 'SUV / 4x4'], ['tout terrain', 'SUV / 4x4'],
   ['tricycle', 'Tricycle'], ['tuk tuk', 'Tricycle'], ['tuktuk', 'Tricycle'],
-  ['moto', 'Moto / Scooter'], ['scooter', 'Moto / Scooter'], ['jakarta', 'Moto / Scooter'],
+  ['moto', 'Moto / Scooter'], ['scooter', 'Moto / Scooter'], ['jakarta', 'Jakarta'],
+  ['velo', 'Vélo'], ['bicyclette', 'Vélo'], ['vtt', 'Vélo'],
   ['voiture', 'Berline / Citadine'], ['berline', 'Berline / Citadine'], ['citadine', 'Berline / Citadine'],
 ].map(([phrase, category]) => ({ words: phrase.split(' '), category }))
   .sort((a, b) => b.words.length - a.words.length);
@@ -43,7 +44,7 @@ const CATEGORY_KEYWORDS = [
 // corriger en disant le type ("moto", "camion"…) ou d'un tap.
 const CATEGORY_PREFERENCE = [
   'Berline / Citadine', 'SUV / 4x4', 'Utilitaire / Minibus', 'Moto / Scooter', 'Tricycle',
-  'Camion léger', 'Bus / Car rapide', 'Camion lourd / Remorque', 'Bus / Car (+50 places)',
+  'Camion léger', 'Bus / Car rapide', 'Camion lourd / Remorque', 'Bus / Car (+50 places)', 'Jakarta', 'Vélo',
 ];
 
 // ── Marque ──────────────────────────────────────────────────────────────

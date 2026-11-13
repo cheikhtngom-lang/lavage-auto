@@ -12,7 +12,7 @@
 // (client_id = auth.uid()) sans avoir besoin d'anonymisation.
 
 import { supabase } from './supabaseClient';
-import { DEFAULT_PRICING, DEFAULT_DURATION } from './washDefaults';
+import { DEFAULT_PRICING, DEFAULT_DURATION, withDefaultCategories } from './washDefaults';
 import { DEFAULT_PROMO } from './promoDefaults';
 
 // ─── Cache Supabase (alimenté par useSuperAdminState.jsx à chaque poll) ──
@@ -34,6 +34,12 @@ export function setWashPricingCache(rows) {
     const entry = (pricingCache[row.station_id] ||= { pricing: {}, duration: {} });
     (entry.pricing[row.category] ||= {})[row.service] = row.price;
     (entry.duration[row.category] ||= {})[row.service] = row.duration_minutes;
+  });
+  // Catégorie absente de la grille de la station (Jakarta, Vélo pour une
+  // station plus ancienne) : valeur par défaut, comme useAppState.
+  Object.values(pricingCache).forEach((entry) => {
+    entry.pricing = withDefaultCategories(entry.pricing, DEFAULT_PRICING);
+    entry.duration = withDefaultCategories(entry.duration, DEFAULT_DURATION);
   });
 }
 

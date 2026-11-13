@@ -18,6 +18,7 @@ import { listStationClients, exportStationData, exportStationClientData } from '
 import { hasModule } from '../../lib/stationModules';
 import { navAvailableTo, defaultHiddenMenu } from '../../lib/adminNav';
 import { OIL_TYPES, VIDANGE_CATEGORY_GRID, stationHasVidange } from '../../lib/vidange';
+import { isSingleServiceCategory } from '../../lib/washDefaults';
 import { stationHasPompistes } from '../../lib/pompistes';
 import PompistesSetup from '../../components/pompistes/PompistesSetup';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -34,6 +35,14 @@ const PRICING_GRIDS = [
 ];
 const PRICING_SERVICES = ['Lavage Simple', 'Lavage Complet', 'Lavage Moteur'];
 
+// Deux-roues : un seul type de lavage (Lavage Complet), un prix et une durée
+// par véhicule. Jakarta et Vélo ajoutés le 13/11/2026 (demande des stations).
+const TWO_WHEEL_GRIDS = [
+  { category: 'Moto', label: 'Moto / Scooter / Tricycle' },
+  { category: 'Jakarta', label: 'Jakarta' },
+  { category: 'Vélo', label: 'Vélo' },
+];
+
 // Mêmes catégories que la grille tarifaire — chacune a ses 3 durées propres,
 // car un lavage complet ou moteur prend plus de temps qu'un lavage simple.
 // La moto/tricycle est traitée à part : un seul type de lavage existe pour elle.
@@ -48,12 +57,12 @@ const MAX_LOGO_SIZE = 1.5 * 1024 * 1024; // 1.5 Mo — au-delà, ça alourdit tr
 // Catégories disponibles pour la réduction ciblée — la moto/tricycle n'a que
 // "Lavage Complet" (voir DURATION_GRIDS/moto plus haut), donc ses services
 // proposés sont limités.
-const PROMO_CATEGORIES = ['Moto', 'Particulier', 'Transport', 'Camion'];
-const promoServicesFor = (category) => (category === 'Moto' ? ['Lavage Complet'] : PRICING_SERVICES);
+const PROMO_CATEGORIES = ['Moto', 'Jakarta', 'Vélo', 'Particulier', 'Transport', 'Camion'];
+const promoServicesFor = (category) => (isSingleServiceCategory(category) ? ['Lavage Complet'] : PRICING_SERVICES);
 
 export default function Settings() {
   useDocumentTitle('Paramètres station');
-  const { stationProfile, stationBilling, pricingConfig, durationConfig, promoConfig, updateStationProfile, updatePricing, updateDuration, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds, vidangePricingConfig, updateVidangePricing, updateVidangeSettings, myPermissions, hiddenMenu, updateHiddenMenu } = useAppState();
+  const { stationProfile, stationBilling, pricingConfig, durationConfig, promoConfig, updateStationProfile, updateWashGrid, updatePromo, addEmployee, cleanDemoData, resetOperationalData, resetStationCompletely, stationAds, loadStationAds, vidangePricingConfig, updateVidangePricing, updateVidangeSettings, myPermissions, hiddenMenu, updateHiddenMenu } = useAppState();
   const { stations, updateStation } = useSuperAdminState();
   const navigate = useNavigate();
   const isNewStation = !stationProfile?.name || stationProfile.name.trim() === '';
@@ -92,6 +101,15 @@ export default function Settings() {
   // ils sont vides au tout premier rendu, donc on resynchronise les formulaires
   // locaux dès que les vraies données arrivent (une fois par station chargée).
   useEffect(() => { setProfile(stationProfile); }, [stationProfile]);
+  // Même chose pour la grille (wash_pricing, chargée après le premier rendu) :
+  // sans ça, Paramètres ouvert directement montrait les prix par défaut, et
+  // « Enregistrer » les écrivait à la place des vrais. Tant que rien n'a été
+  // modifié à la main, la grille suit celle de la station.
+  const [gridEdited, setGridEdited] = useState(false);
+  useEffect(() => { if (!gridEdited) setPricing(pricingConfig); }, [pricingConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!gridEdited) setDuration(durationConfig); }, [durationConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+  const editPricing = (next) => { setGridEdited(true); setPricing(next); };
+  const editDuration = (next) => { setGridEdited(true); setDuration(next); };
   useEffect(() => {
     if (!registryEntry) return;
     setLoyaltyThreshold(registryEntry.loyaltyThreshold || 5);
@@ -219,8 +237,8 @@ export default function Settings() {
     setIsSaving(true);
 
     updateStationProfile(profile);
-    updatePricing(pricing);
-    updateDuration(duration);
+    // Un seul envoi pour la grille (prix + durées) : voir updateWashGrid.
+    updateWashGrid(pricing, duration);
 
     // Synchronise les infos publiques (nom, adresse, quartier, région) vers le
     // registre Super Admin, pour que la recherche/landing page les reflètent.
@@ -988,30 +1006,33 @@ export default function Settings() {
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">Ajustez les durées de référence (en minutes) pour chaque type de lavage. Un lavage complet ou moteur prend logiquement plus de temps qu'un lavage simple.</p>
 
                 <div className="space-y-10">
-                  {/* Moto / Tricycle — un seul type de lavage existe pour cette catégorie */}
+                  {/* Deux-roues — un seul type de lavage, une valeur par véhicule (TWO_WHEEL_GRIDS) */}
                   <div>
                     <div className="flex items-center gap-3 mb-1">
                       <span className="text-2xl">🏍️</span>
-                      <h3 className="text-lg font-bold text-white">Moto / Scooter / Tricycle</h3>
+                      <h3 className="text-lg font-bold text-white">Deux-roues : moto, Jakarta, vélo</h3>
                     </div>
-                    <p className="text-neutral-500 text-xs mb-4">Un seul type de lavage est proposé pour cette catégorie.</p>
-                    <div className="max-w-xs">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-neutral-400">Lavage Complet</label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="0"
-                            value={duration?.Moto?.["Lavage Complet"] ?? ''}
-                            onChange={e => setDuration({
-                              ...duration,
-                              Moto: { ...(duration?.Moto || {}), "Lavage Complet": parseInt(e.target.value) || 0 },
-                            })}
-                            className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 pr-14 text-white focus:outline-none focus:border-blue-500"
-                          />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 text-xs font-medium">min</span>
+                    <p className="text-neutral-500 text-xs mb-4">Un seul type de lavage pour ces véhicules : une durée chacun.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {TWO_WHEEL_GRIDS.map(({ category, label }) => (
+                        <div className="space-y-2" key={category}>
+                          <label className="text-sm font-medium text-neutral-400">{label}</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              aria-label={`Durée du lavage — ${label}`}
+                              value={duration?.[category]?.["Lavage Complet"] ?? ''}
+                              onChange={e => editDuration({
+                                ...duration,
+                                [category]: { ...(duration?.[category] || {}), "Lavage Complet": parseInt(e.target.value) || 0 },
+                              })}
+                              className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 pr-14 text-white focus:outline-none focus:border-blue-500"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 text-xs font-medium">min</span>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
@@ -1031,7 +1052,7 @@ export default function Settings() {
                                 type="number"
                                 min="0"
                                 value={duration?.[grid.category]?.[service] ?? ''}
-                                onChange={e => setDuration({
+                                onChange={e => editDuration({
                                   ...duration,
                                   [grid.category]: { ...(duration?.[grid.category] || {}), [service]: parseInt(e.target.value) || 0 },
                                 })}
@@ -1056,30 +1077,33 @@ export default function Settings() {
                 <p className="text-neutral-400 mb-8 pb-4 border-b border-white/10">Configurez le prix de vos prestations en FCFA, par catégorie de véhicule.</p>
 
                 <div className="space-y-10">
-                  {/* Moto / Tricycle — un seul type de lavage existe pour cette catégorie */}
+                  {/* Deux-roues — un seul type de lavage, une valeur par véhicule (TWO_WHEEL_GRIDS) */}
                   <div>
                     <div className="flex items-center gap-3 mb-1">
                       <span className="text-2xl">🏍️</span>
-                      <h3 className="text-lg font-bold text-white">Grille tarifaire — Moto / Scooter / Tricycle</h3>
+                      <h3 className="text-lg font-bold text-white">Grille tarifaire — Deux-roues : moto, Jakarta, vélo</h3>
                     </div>
-                    <p className="text-neutral-500 text-xs mb-4">Deux-roues et tricycles. Un seul type de lavage est proposé pour cette catégorie.</p>
-                    <div className="max-w-xs">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-neutral-400">Lavage Complet</label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="0"
-                            value={pricing?.Moto?.["Lavage Complet"] ?? ''}
-                            onChange={e => setPricing({
-                              ...pricing,
-                              Moto: { ...(pricing?.Moto || {}), "Lavage Complet": parseInt(e.target.value) || 0 },
-                            })}
-                            className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 pr-16 text-white focus:outline-none focus:border-blue-500"
-                          />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 text-xs font-medium">FCFA</span>
+                    <p className="text-neutral-500 text-xs mb-4">Un seul type de lavage pour ces véhicules : un prix chacun.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {TWO_WHEEL_GRIDS.map(({ category, label }) => (
+                        <div className="space-y-2" key={category}>
+                          <label className="text-sm font-medium text-neutral-400">{label}</label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              aria-label={`Prix du lavage — ${label}`}
+                              value={pricing?.[category]?.["Lavage Complet"] ?? ''}
+                              onChange={e => editPricing({
+                                ...pricing,
+                                [category]: { ...(pricing?.[category] || {}), "Lavage Complet": parseInt(e.target.value) || 0 },
+                              })}
+                              className="w-full bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 pr-16 text-white focus:outline-none focus:border-blue-500"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 text-xs font-medium">FCFA</span>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
@@ -1099,7 +1123,7 @@ export default function Settings() {
                                 type="number"
                                 min="0"
                                 value={pricing?.[grid.category]?.[service] ?? ''}
-                                onChange={e => setPricing({
+                                onChange={e => editPricing({
                                   ...pricing,
                                   [grid.category]: { ...(pricing?.[grid.category] || {}), [service]: parseInt(e.target.value) || 0 },
                                 })}

@@ -1,19 +1,20 @@
-// Espace automobiliste, rubrique « Mes tapis » : les tapis et moquettes
-// déposés en station, avec l'étape en cours et la date promise. Le client
+// Espace automobiliste, rubrique « Mes dépôts » : les tapis, moquettes et
+// chaussures déposés en station (add_shoe_cleaning.sql), avec l'étape en
+// cours et la date promise. Le client
 // sait s'ils sont prêts avant de se déplacer. Un dépôt arrive ici quand le
 // client ouvre le lien de suivi envoyé par la station puis se connecte
 // (jeton gardé par login.html, rattaché par carpet_claim).
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Layers, Phone, MessageCircle, Navigation, CheckCircle2, Clock, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Layers, Footprints, Phone, MessageCircle, Navigation, CheckCircle2, Clock, AlertTriangle, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useClientAccount } from '../../hooks/useClientAccount';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { cn } from '../../lib/utils';
 import { whatsappLink } from '../../lib/subscriptionReminders';
 import {
-  CARPET_STEPS, CARPET_STATUS, rowToCarpet, isOpenCarpet, isLateCarpet, stepIndex, itemsSummary, fcfa, formatPromise, timeLeftLabel, pieceLines, pieceLabel,
-  claimPendingCarpet,
+  CARPET_STEPS, CARPET_STATUS, rowToCarpet, isOpenCarpet, isLateCarpet, stepIndex, orderSummary, fcfa, formatPromise, timeLeftLabel, pieceLines, pieceLabel,
+  claimPendingCarpet, activityConfig, CLIENT_DEPOSITS_LABEL,
 } from '../../lib/carpets';
 
 const telHref = (phone) => {
@@ -54,11 +55,13 @@ function Steps({ status }) {
 }
 
 function CarpetCard({ order, index }) {
+  const cfg = activityConfig(order.activity);
+  const KindIcon = cfg.key === 'chaussures' ? Footprints : Layers;
   const st = order.station;
   const ready = order.status === 'pret';
   const late = isLateCarpet(order);
   const call = telHref(st?.owner_phone);
-  const wa = whatsappLink(st?.owner_phone, `Bonjour, je viens aux nouvelles de mon dépôt de tapis (ticket n° ${order.ticketNo}).`);
+  const wa = whatsappLink(st?.owner_phone, `Bonjour, je viens aux nouvelles de mon dépôt de ${cfg.things} (ticket ${cfg.things} n° ${order.ticketNo}).`);
   const maps = mapsHref(st);
   const h = hours(st);
   return (
@@ -70,9 +73,9 @@ function CarpetCard({ order, index }) {
     >
       <div className="flex items-start justify-between gap-3 mb-1">
         <h3 className="text-lg font-bold text-white leading-snug">{st?.name || 'Station'}</h3>
-        <span className="shrink-0 text-xs font-medium text-neutral-300 bg-white/5 border border-white/10 rounded-md px-2 py-1 tabular-nums">Ticket n° {order.ticketNo}</span>
+        <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-medium text-neutral-300 bg-white/5 border border-white/10 rounded-md px-2 py-1 tabular-nums"><KindIcon className="w-3.5 h-3.5 text-blue-300" aria-hidden="true" /> {cfg.nav} · n° {order.ticketNo}</span>
       </div>
-      <p className="text-neutral-400 text-sm mb-5">{itemsSummary(order.items, order.pieceCount)} · déposé le {new Date(order.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</p>
+      <p className="text-neutral-400 text-sm mb-5">{orderSummary(order)} · déposé le {new Date(order.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</p>
 
       {ready ? (
         <div className="flex items-start gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 p-4 mb-5">
@@ -129,7 +132,7 @@ function CarpetCard({ order, index }) {
 }
 
 export default function Carpets() {
-  useDocumentTitle('Mes tapis');
+  useDocumentTitle(CLIENT_DEPOSITS_LABEL);
   const { account } = useClientAccount();
   const [orders, setOrders] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -172,8 +175,8 @@ export default function Carpets() {
   return (
     <div className="container mx-auto px-4 py-8 sm:py-12 max-w-3xl relative z-10">
       <div className="mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight">Mes <span className="text-blue-400">tapis</span></h1>
-        <p className="text-neutral-400 text-base sm:text-lg">Tapis et moquettes déposés en station : voyez s'ils sont prêts avant de vous déplacer.</p>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2 tracking-tight">Mes <span className="text-blue-400">dépôts</span></h1>
+        <p className="text-neutral-400 text-base sm:text-lg">Tapis, moquettes et chaussures déposés en station : voyez s'ils sont prêts avant de vous déplacer.</p>
       </div>
 
       {notice && (
@@ -188,10 +191,10 @@ export default function Carpets() {
         <div className="glass-card rounded-2xl p-8 sm:p-10 border-dashed border-2 border-white/10">
           <Layers className="w-12 h-12 text-neutral-600 mb-4" />
           <h2 className="text-xl font-bold text-white mb-2">Aucun dépôt pour l'instant</h2>
-          <p className="text-neutral-400 mb-6">Certaines stations lavent aussi les tapis de salon et les moquettes.</p>
+          <p className="text-neutral-400 mb-6">Certaines stations lavent aussi les tapis de salon, les moquettes et les chaussures.</p>
           <ol className="space-y-3 text-sm">
             {[
-              'Déposez vos tapis à la station.',
+              'Déposez vos tapis ou vos chaussures à la station.',
               'La station vous envoie un lien de suivi sur WhatsApp.',
               'Ouvrez-le une fois connecté : le dépôt s\'ajoute ici et vous voyez quand il est prêt.',
             ].map((t, i) => (
@@ -222,8 +225,8 @@ export default function Carpets() {
                   {past.map((o) => (
                     <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-4">
                       <div className="min-w-0">
-                        <p className="text-white font-medium truncate">{o.station?.name || 'Station'} · ticket n° {o.ticketNo}</p>
-                        <p className="text-neutral-500 text-sm">{itemsSummary(o.items, o.pieceCount)}</p>
+                        <p className="text-white font-medium truncate">{o.station?.name || 'Station'} · {activityConfig(o.activity).things} n° {o.ticketNo}</p>
+                        <p className="text-neutral-500 text-sm">{orderSummary(o)}</p>
                       </div>
                       <p className="text-sm text-neutral-400">
                         {o.status === 'annule' ? 'Annulé' : `Récupéré le ${new Date(o.pickedUpAt || o.readyAt || o.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`}

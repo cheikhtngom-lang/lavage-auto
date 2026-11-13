@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Layers, Hourglass, PackageCheck, Banknote, RefreshCw, Loader2, Search, ArrowRight, Building2 } from 'lucide-react';
+import { Layers, Footprints, Hourglass, PackageCheck, Banknote, RefreshCw, Loader2, Search, ArrowRight, Building2 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -9,16 +9,17 @@ import { AreaChart, Donut, Legend, Bars, compactNumber } from '../../components/
 import Pagination from '../../components/ui/Pagination';
 import { presetRange, bucketFor, bucketLabel } from '../../lib/groupDashboard';
 import { fcfa, fcfaCompact } from '../../lib/bilan';
-import { CARPET_SERVICE, itemsSummary, timeLeftLabel } from '../../lib/carpets';
+import { CARPET_SERVICE, SHOE_SERVICE, orderSummary, timeLeftLabel } from '../../lib/carpets';
 import { computeCarpetStats, ORDER_FILTERS, matchesSearch, isLateOrder, isOpenOrder, toCollect } from '../../lib/carpetStats';
 
-// Super Admin > Tapis : les dépôts de tapis et moquettes de TOUTES les
-// stations (rubrique station Exploitation > Tapis). Lecture seule : la RLS de
+// Super Admin > Tapis et chaussures : les dépôts de tapis et moquettes, ou de
+// chaussures (choix en haut de page, add_shoe_cleaning.sql), de TOUTES les
+// stations (rubriques station Exploitation > Tapis / Chaussures). Lecture seule : la RLS de
 // carpet_orders et de transactions ouvre déjà tout au super admin, aucune
 // fonction SQL n'est nécessaire. Les notes internes des stations
 // (carpet_order_notes) ne sont pas lues. Calculs : lib/carpetStats.js.
 
-const ORDER_COLS = 'id, station_id, ticket_no, client_id, client_name, client_phone, items, piece_count, amount, paid, payment_method, status, promised_at, ready_at, picked_up_at, created_at, from_station_id, from_order_id, partner_order_id, transaction_id';
+const ORDER_COLS = 'id, station_id, activity, ticket_no, client_id, client_name, client_phone, items, piece_count, amount, paid, payment_method, status, promised_at, ready_at, picked_up_at, created_at, from_station_id, from_order_id, partner_order_id, transaction_id';
 const PAGE = 1000; // plafond de lignes par requête de l'API Supabase
 
 // Lit toutes les lignes, 1 000 par 1 000.
@@ -34,7 +35,21 @@ async function fetchAll(build) {
 }
 
 const plural = (n, one, many) => `${n.toLocaleString('fr-FR')} ${n > 1 ? many : one}`;
-const pieceWord = (n) => plural(n, 'pièce', 'pièces');
+
+// Tapis ou chaussures : mêmes calculs, libellés propres à chaque activité.
+const VIEWS = {
+  tapis: {
+    key: 'tapis', label: 'Tapis', title: 'Tapis et moquettes', icon: Layers, service: CARPET_SERVICE, unit: ['pièce', 'pièces'], things: 'tapis',
+    received: 'Tapis reçus', returned: 'Tapis rendus', kinds: 'Types de pièces', kindsSub: 'Pièces reçues sur la période',
+  },
+  chaussures: {
+    key: 'chaussures', label: 'Chaussures', title: 'Lavage de chaussures', icon: Footprints, service: SHOE_SERVICE, unit: ['paire', 'paires'], things: 'chaussures',
+    received: 'Paires reçues', returned: 'Paires rendues', kinds: 'Types de chaussures', kindsSub: 'Paires reçues sur la période',
+  },
+};
+const ViewContext = createContext(VIEWS.tapis);
+const useView = () => useContext(ViewContext);
+const unitWord = (view, n) => plural(n, view.unit[0], view.unit[1]);
 // En heures jusqu'à 5 jours (une colonne se compare d'un coup d'œil), en jours au-delà.
 const fmtHours = (h) => (h == null ? '—' : h < 120 ? `${Math.max(1, Math.round(h))} h` : `${Math.round(h / 24)} j`);
 const fmtRate = (r) => (r == null ? null : `${Math.round(r * 100)} % à l'heure`);
@@ -96,6 +111,7 @@ const STATION_COLS = [
 ];
 
 function StationsTable({ rows, totalRevenue }) {
+  const view = useView();
   const [sort, setSort] = useState({ key: 'revenue', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -172,7 +188,7 @@ function StationsTable({ rows, totalRevenue }) {
                 </tr>
               );
             })}
-            {sorted.length === 0 && <tr><td colSpan={STATION_COLS.length} className="px-2 py-8 text-center text-neutral-500">Aucune station n'a encore enregistré de tapis.</td></tr>}
+            {sorted.length === 0 && <tr><td colSpan={STATION_COLS.length} className="px-2 py-8 text-center text-neutral-500">Aucune station n'a encore enregistré de {view.things}.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -185,8 +201,9 @@ function StationsTable({ rows, totalRevenue }) {
 
 // ─── Stations partenaires ──────────────────────────────────────────────
 function PartnersList({ flows, nameOf }) {
+  const view = useView();
   if (flows.length === 0) {
-    return <p className="text-sm text-neutral-500">Aucune station n'a encore confié de tapis à une autre. Ça se fait depuis la rubrique Tapis de la station : « Plus › Confier à une autre station ».</p>;
+    return <p className="text-sm text-neutral-500">Aucune station n'a encore confié de {view.things} à une autre. Ça se fait depuis la rubrique {view.label} de la station : « Plus › Confier à une autre station ».</p>;
   }
   return (
     <ul className="divide-y divide-white/[0.06] -mx-2">
@@ -194,13 +211,13 @@ function PartnersList({ flows, nameOf }) {
         <li key={f.key} className="grid grid-cols-1 gap-2 px-2 py-3.5 sm:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))] sm:items-center sm:gap-4">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
             <span className="font-semibold text-white">{nameOf(f.fromId)}</span>
-            <ArrowRight className="h-4 w-4 shrink-0 text-neutral-500" aria-label="confie ses tapis à" />
+            <ArrowRight className="h-4 w-4 shrink-0 text-neutral-500" aria-label={`confie ses ${view.things} à`} />
             <span className="font-semibold text-white">{nameOf(f.toId)}</span>
             <span className="w-full text-xs text-neutral-500">Dernier dépôt le {shortDate(f.lastAt)}</span>
           </div>
           <div className="text-sm sm:text-right">
             <p className="text-neutral-200 tabular-nums">{plural(f.orders, 'dépôt', 'dépôts')}</p>
-            <p className="text-xs text-neutral-500">{pieceWord(f.pieces)}</p>
+            <p className="text-xs text-neutral-500">{unitWord(view, f.pieces)}</p>
           </div>
           <div className="text-sm sm:text-right">
             <p className="text-white font-semibold tabular-nums whitespace-nowrap">{fcfa(f.billed)}</p>
@@ -225,6 +242,7 @@ function PartnersList({ flows, nameOf }) {
 const ROW_GRID = "grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-x-4 gap-y-3 [grid-template-areas:'station_price'_'client_items'_'status_status'] lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.05fr)_minmax(0,1.2fr)_8rem] lg:items-center lg:[grid-template-areas:'station_client_items_status_price']";
 
 function OrdersList({ orders, stationById, partnerStationOf, now }) {
+  const view = useView();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('tous');
   const [page, setPage] = useState(1);
@@ -275,8 +293,8 @@ function OrdersList({ orders, stationById, partnerStationOf, now }) {
         </div>
 
         <div className="min-w-0 [grid-area:items]">
-          <p className="text-sm text-neutral-200 first-letter:uppercase">{itemsSummary(o.items, o.piece_count)}</p>
-          <p className="text-xs text-neutral-500">{pieceWord(o.piece_count || 1)}</p>
+          <p className="text-sm text-neutral-200 first-letter:uppercase">{orderSummary(o)}</p>
+          <p className="text-xs text-neutral-500">{unitWord(view, o.piece_count || 1)}</p>
         </div>
 
         <div className="min-w-0 [grid-area:status] max-lg:rounded-xl max-lg:bg-white/[0.025] max-lg:p-3">
@@ -354,7 +372,7 @@ function OrdersList({ orders, stationById, partnerStationOf, now }) {
           <div aria-hidden="true" className={`hidden border-b border-white/[0.07] px-6 py-3 text-xs font-medium text-neutral-500 lg:grid ${ROW_GRID}`}>
             <span className="[grid-area:station]">Station et ticket</span>
             <span className="[grid-area:client]">Client</span>
-            <span className="[grid-area:items]">Pièces</span>
+            <span className="[grid-area:items]">{view.unit[1].charAt(0).toUpperCase() + view.unit[1].slice(1)}</span>
             <span className="[grid-area:status]">Avancement</span>
             <span className="[grid-area:price] text-right">Prix</span>
           </div>
@@ -374,12 +392,18 @@ function OrdersList({ orders, stationById, partnerStationOf, now }) {
 
 // ─── Page ──────────────────────────────────────────────────────────────
 export default function Carpets() {
-  useDocumentTitle('Tapis');
+  useDocumentTitle('Tapis et chaussures');
   const { stations } = useSuperAdminState();
+  const [activity, setActivity] = useState('tapis');
+  const view = VIEWS[activity];
+  const pieceWord = (n) => unitWord(view, n);
   const [preset, setPreset] = useState('30d');
   const [custom, setCustom] = useState({ start: '', end: '' });
-  const [orders, setOrders] = useState(null);
-  const [payments, setPayments] = useState([]);
+  const [allOrders, setOrders] = useState(null);
+  const [allPayments, setPayments] = useState([]);
+  // Activité choisie : les dépôts et encaissements des deux sont lus une fois.
+  const orders = useMemo(() => (allOrders ? allOrders.filter((o) => (o.activity || 'tapis') === activity) : null), [allOrders, activity]);
+  const payments = useMemo(() => allPayments.filter((p) => p.service === view.service), [allPayments, view.service]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [metric, setMetric] = useState('revenue');
@@ -398,8 +422,8 @@ export default function Carpets() {
       const prevFrom = new Date(+range.from - (+range.to - +range.from));
       const [o, p] = await Promise.all([
         fetchAll(() => supabase.from('carpet_orders').select(ORDER_COLS).order('created_at', { ascending: false }).order('id')),
-        fetchAll(() => supabase.from('transactions').select('id, station_id, amount, method, created_at')
-          .eq('service', CARPET_SERVICE).gte('created_at', prevFrom.toISOString()).lt('created_at', range.to.toISOString())
+        fetchAll(() => supabase.from('transactions').select('id, station_id, service, amount, method, created_at')
+          .in('service', [CARPET_SERVICE, SHOE_SERVICE]).gte('created_at', prevFrom.toISOString()).lt('created_at', range.to.toISOString())
           .order('created_at', { ascending: false }).order('id')),
       ]);
       setOrders(o);
@@ -430,14 +454,14 @@ export default function Carpets() {
   const t = stats?.totals;
   const trend = (stats?.trend || []).map((p) => ({ ...p, label: bucketLabel(p.label, bucket) }));
   const kpis = t ? [
-    { title: 'Tapis reçus', value: t.receivedPieces, icon: Layers, color: 'text-sky-400', bg: 'bg-sky-500/10', d: stats.deltas.receivedPieces,
+    { title: view.received, value: t.receivedPieces, icon: view.icon, color: 'text-sky-400', bg: 'bg-sky-500/10', d: stats.deltas.receivedPieces,
       spark: trend.map((p) => p.pieces), sparkColor: '#0ea5e9',
       sub: `${plural(t.receivedOrders, 'dépôt', 'dépôts')}${t.receivedFromPartners ? ` · dont ${t.receivedFromPartners} d'une station partenaire` : ''}` },
     { title: 'En cours, en ce moment', value: t.openPieces, icon: Hourglass, color: 'text-amber-400', bg: 'bg-amber-500/10',
       sub: `${plural(t.lateOrders, 'dépôt en retard', 'dépôts en retard')} · ${plural(t.readyOrders, 'prêt à récupérer', 'prêts à récupérer')}` },
-    { title: 'Tapis rendus', value: t.returnedPieces, icon: PackageCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', d: stats.deltas.returnedPieces,
+    { title: view.returned, value: t.returnedPieces, icon: PackageCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', d: stats.deltas.returnedPieces,
       sub: t.avgReadyHours != null ? `Prêts en ${fmtHours(t.avgReadyHours)} en moyenne${t.onTimeRate != null ? ` · ${fmtRate(t.onTimeRate)}` : ''}` : 'Aucun dépôt prêt sur la période' },
-    { title: "Chiffre d'affaires Tapis", value: t.revenue, suffix: ' FCFA', icon: Banknote, color: 'text-emerald-400', bg: 'bg-emerald-500/10', d: stats.deltas.revenue,
+    { title: `Chiffre d'affaires ${view.label}`, value: t.revenue, suffix: ' FCFA', icon: Banknote, color: 'text-emerald-400', bg: 'bg-emerald-500/10', d: stats.deltas.revenue,
       spark: trend.map((p) => p.revenue), sparkColor: '#10b981',
       sub: t.toCollect > 0 ? `Reste à encaisser : ${fcfa(t.toCollect)}` : `Période précédente : ${fcfa(t.revenuePrev)}` },
   ] : [];
@@ -445,12 +469,22 @@ export default function Carpets() {
     .map((s) => ({ label: s.name, value: s.revenue }));
   const kindTotal = (stats?.byKind || []).reduce((s, k) => s + k.value, 0);
 
+  const ViewIcon = view.icon;
   return (
+    <ViewContext.Provider value={view}>
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3"><Layers className="w-9 h-9 text-blue-400" /> Tapis et moquettes</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight flex items-center gap-3"><ViewIcon className="w-9 h-9 text-blue-400" /> {view.title}</h1>
           <p className="text-neutral-400 mt-1">{range ? `${range.label} · comparé à la période précédente de même durée` : 'Choisissez une période'}</p>
+          <div className="mt-4 inline-flex gap-1 p-1 rounded-xl bg-white/5 border border-white/10" role="tablist" aria-label="Activité">
+            {Object.values(VIEWS).map((v) => (
+              <button key={v.key} type="button" role="tab" aria-selected={activity === v.key} onClick={() => setActivity(v.key)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activity === v.key ? 'bg-blue-600 text-white' : 'text-neutral-400 hover:text-white'}`}>
+                <v.icon className="w-4 h-4" /> {v.label}
+              </button>
+            ))}
+          </div>
         </div>
         <button onClick={load} disabled={loading} className="self-start lg:self-auto p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-neutral-300 disabled:opacity-60" title="Actualiser" aria-label="Actualiser">
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -466,9 +500,9 @@ export default function Carpets() {
         <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           {orders.length === 0 ? (
             <div className="glass-card rounded-2xl p-12 text-center border-dashed border-2 border-white/10">
-              <Layers className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
-              <h3 className="text-xl font-bold mb-2">Aucun dépôt de tapis pour l'instant</h3>
-              <p className="text-neutral-400">Les chiffres apparaissent dès qu'une station enregistre un dépôt dans sa rubrique Exploitation › Tapis.</p>
+              <ViewIcon className="w-14 h-14 text-neutral-600 mx-auto mb-4" />
+              <h3 className="text-xl font-bold mb-2">Aucun dépôt de {view.things} pour l'instant</h3>
+              <p className="text-neutral-400">Les chiffres apparaissent dès qu'une station enregistre un dépôt dans sa rubrique Exploitation › {view.label}.</p>
             </div>
           ) : (
             <>
@@ -479,7 +513,7 @@ export default function Carpets() {
                 subtitle={bucket === 'day' ? 'Par jour' : bucket === 'week' ? 'Par semaine' : 'Par mois'}
                 right={(
                   <div className="flex gap-1 bg-black/30 rounded-lg p-1">
-                    {[['revenue', "Chiffre d'affaires"], ['pieces', 'Tapis reçus']].map(([k, l]) => (
+                    {[['revenue', "Chiffre d'affaires"], ['pieces', view.received]].map(([k, l]) => (
                       <button key={k} type="button" aria-pressed={metric === k} onClick={() => setMetric(k)} className={`px-3 py-1 rounded-md text-xs font-semibold ${metric === k ? 'bg-emerald-600 text-white' : 'text-neutral-400 hover:text-white'}`}>{l}</button>
                     ))}
                   </div>
@@ -487,27 +521,27 @@ export default function Carpets() {
               >
                 <AreaChart
                   data={trend}
-                  series={metric === 'revenue' ? [{ key: 'revenue', label: "Chiffre d'affaires", color: '#10b981' }] : [{ key: 'pieces', label: 'Tapis reçus', color: '#0ea5e9' }]}
+                  series={metric === 'revenue' ? [{ key: 'revenue', label: "Chiffre d'affaires", color: '#10b981' }] : [{ key: 'pieces', label: view.received, color: '#0ea5e9' }]}
                   height={260}
                   formatValue={metric === 'revenue' ? fcfa : pieceWord}
                   formatTick={metric === 'revenue' ? fcfaCompact : compactNumber}
                   integer={metric === 'pieces'}
                   emptyWhenZero
-                  ariaLabel={metric === 'revenue' ? "Chiffre d'affaires Tapis sur la période" : 'Tapis reçus sur la période'}
+                  ariaLabel={metric === 'revenue' ? `Chiffre d'affaires ${view.label} sur la période` : `${view.received} sur la période`}
                 />
               </Section>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Section title="Types de pièces" subtitle="Pièces reçues sur la période">
+                <Section title={view.kinds} subtitle={view.kindsSub}>
                   {kindTotal === 0 ? <p className="text-sm text-neutral-500">Aucun dépôt sur la période.</p> : (
                     <div className="flex flex-col sm:flex-row items-center gap-6">
-                      <Donut data={stats.byKind} centerLabel={String(kindTotal)} centerSub={kindTotal > 1 ? 'pièces' : 'pièce'} />
+                      <Donut data={stats.byKind} centerLabel={String(kindTotal)} centerSub={kindTotal > 1 ? view.unit[1] : view.unit[0]} />
                       <div className="flex-1 w-full"><Legend data={stats.byKind} formatValue={pieceWord} /></div>
                     </div>
                   )}
                 </Section>
                 <Section title="Chiffre d'affaires par station" subtitle="Les 8 premières sur la période">
-                  {revenueBars.length === 0 ? <p className="text-sm text-neutral-500">Aucun encaissement Tapis sur la période.</p> : <Bars data={revenueBars} color="#10b981" formatValue={fcfa} />}
+                  {revenueBars.length === 0 ? <p className="text-sm text-neutral-500">Aucun encaissement {view.label} sur la période.</p> : <Bars data={revenueBars} color="#10b981" formatValue={fcfa} />}
                 </Section>
               </div>
 
@@ -517,7 +551,7 @@ export default function Carpets() {
 
               <Section
                 title="Stations partenaires"
-                subtitle={`Une station qui confie ses tapis à une autre station Galsen, depuis le début${t.partnerRevenue > 0 ? ` · ${fcfa(t.partnerRevenue)} facturés entre stations sur la période` : ''}`}
+                subtitle={`Une station qui confie ses ${view.things} à une autre station Galsen, depuis le début${t.partnerRevenue > 0 ? ` · ${fcfa(t.partnerRevenue)} facturés entre stations sur la période` : ''}`}
               >
                 <PartnersList flows={stats.partners} nameOf={nameOf} />
               </Section>
@@ -527,8 +561,8 @@ export default function Carpets() {
               </Section>
 
               <p className="text-xs text-neutral-600 text-center pb-4 max-w-3xl mx-auto leading-relaxed">
-                Chiffre d'affaires : encaissements « Tapis » des stations, comme dans leur Comptabilité. Cet argent revient aux stations :
-                il ne passe pas par la plateforme et n'entre pas dans le MRR. Un tapis confié à une station partenaire est compté chez les deux stations.
+                Chiffre d'affaires : encaissements « {view.label} » des stations, comme dans leur Comptabilité. Cet argent revient aux stations :
+                il ne passe pas par la plateforme et n'entre pas dans le MRR. Un dépôt confié à une station partenaire est compté chez les deux stations.
                 Les dépôts annulés ne sont comptés nulle part.
               </p>
             </>
@@ -536,5 +570,6 @@ export default function Carpets() {
         </div>
       )}
     </div>
+    </ViewContext.Provider>
   );
 }

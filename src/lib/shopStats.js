@@ -51,16 +51,21 @@ export function topProducts(lines, limit = 5) {
 // Tapis et moquettes (add_carpet_cleaning.sql) : service « Tapis » dans
 // `transactions`, même valeur que CARPET_SERVICE (lib/carpets.js).
 export const isCarpetRevenueEntry = (entry) => entry.service === 'Tapis';
+// Chaussures (add_shoe_cleaning.sql) : service « Chaussures », même valeur que SHOE_SERVICE.
+export const isShoeRevenueEntry = (entry) => entry.service === 'Chaussures';
 
-// Lavage / boutique / tapis sur une liste de recettes déjà filtrée sur la période.
+// Lavage / boutique / tapis / chaussures sur une liste de recettes déjà filtrée sur la période.
 export function splitRevenue(entries) {
-  const out = { total: 0, lavage: 0, lavageCount: 0, boutique: 0, boutiqueCount: 0, boutiqueOnline: 0, tapis: 0, tapisCount: 0 };
+  const out = { total: 0, lavage: 0, lavageCount: 0, boutique: 0, boutiqueCount: 0, boutiqueOnline: 0, tapis: 0, tapisCount: 0, chaussures: 0, chaussuresCount: 0 };
   for (const e of entries) {
     const amount = parseInt(e.amount, 10) || 0;
     out.total += amount;
     if (isCarpetRevenueEntry(e)) {
       out.tapis += amount;
       out.tapisCount += 1;
+    } else if (isShoeRevenueEntry(e)) {
+      out.chaussures += amount;
+      out.chaussuresCount += 1;
     } else if (isShopRevenue(e)) {
       out.boutique += amount;
       out.boutiqueCount += 1;

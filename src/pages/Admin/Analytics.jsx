@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '../../components/ui/Card';
-import { Clock, Users, Car, Target, TrendingUp, TrendingDown, Banknote, Receipt, Calendar, Store, Droplets, Layers } from 'lucide-react';
+import { Clock, Users, Car, Target, TrendingUp, TrendingDown, Banknote, Receipt, Calendar, Store, Droplets, Layers, Footprints } from 'lucide-react';
 import { useAppState } from '../../hooks/useAppState';
 import { useShopSales } from '../../hooks/useShopSales';
 import { stationHasShop } from '../../lib/shop';
@@ -71,6 +71,9 @@ const DONUT_COLORS = ['#12a8dc', '#10b981', '#4f78d0', '#f59e0b', '#ef4444', '#0
 const VEHICLE_CATEGORIES = [
   { key: 'Particulier', color: 'bg-blue-500', text: 'text-blue-400' },
   { key: 'Moto', color: 'bg-emerald-500', text: 'text-emerald-400' },
+  // Jakarta et vélo : affichés seulement s'il y en a sur la période.
+  { key: 'Jakarta', color: 'bg-cyan-500', text: 'text-cyan-400', optional: true },
+  { key: 'Vélo', color: 'bg-lime-500', text: 'text-lime-400', optional: true },
   { key: 'Transport', color: 'bg-amber-500', text: 'text-amber-400' },
   { key: 'Camion', color: 'bg-purple-500', text: 'text-purple-400' },
 ];
@@ -176,7 +179,7 @@ export default function Analytics() {
   const serviceEntries = Object.entries(serviceRevenue).sort((a, b) => b[1] - a[1]);
   const serviceTotal = serviceEntries.reduce((sum, [, amt]) => sum + amt, 0);
 
-  // Types de véhicules — les 4 vrais buckets de pricing (voir washDefaults.js),
+  // Types de véhicules — les vrais buckets de pricing (voir washDefaults.js),
   // pas une taxonomie inventée.
   const vehicleCounts = {};
   VEHICLE_CATEGORIES.forEach(({ key }) => { vehicleCounts[key] = 0; });
@@ -316,7 +319,7 @@ export default function Analytics() {
               </div>
             </div>
             <div className="flex flex-wrap items-stretch gap-3">
-              {(showShop || revenueSplit.tapis > 0) && (
+              {(showShop || revenueSplit.tapis > 0 || revenueSplit.chaussures > 0) && (
                 <>
                   <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
                     <Droplets className="w-5 h-5 text-blue-400" />
@@ -340,6 +343,15 @@ export default function Analytics() {
                       <div>
                         <p className="text-xl font-bold text-white">{revenueSplit.tapis.toLocaleString('fr-FR')} <span className="text-xs font-medium text-neutral-500">F</span></p>
                         <p className="text-xs text-neutral-500">Tapis · {totalRevenue > 0 ? Math.round((revenueSplit.tapis / totalRevenue) * 100) : 0} %</p>
+                      </div>
+                    </div>
+                  )}
+                  {revenueSplit.chaussures > 0 && (
+                    <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-5 py-3">
+                      <Footprints className="w-5 h-5 text-rose-400" />
+                      <div>
+                        <p className="text-xl font-bold text-white">{revenueSplit.chaussures.toLocaleString('fr-FR')} <span className="text-xs font-medium text-neutral-500">F</span></p>
+                        <p className="text-xs text-neutral-500">Chaussures · {totalRevenue > 0 ? Math.round((revenueSplit.chaussures / totalRevenue) * 100) : 0} %</p>
                       </div>
                     </div>
                   )}
@@ -525,7 +537,7 @@ export default function Analytics() {
               <p className="text-neutral-500 text-sm">Aucun lavage terminé sur cette période.</p>
             ) : (
               <div className="space-y-5">
-                {VEHICLE_CATEGORIES.map(({ key, color }, idx) => {
+                {VEHICLE_CATEGORIES.filter(({ key, optional }) => !optional || vehicleCounts[key] > 0).map(({ key, color }, idx) => {
                   const count = vehicleCounts[key] || 0;
                   const pct = vehicleTotal > 0 ? Math.round((count / vehicleTotal) * 100) : 0;
                   return (

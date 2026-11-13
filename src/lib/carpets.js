@@ -1,6 +1,8 @@
-// Tapis et moquettes déposés à la station (voir add_carpet_cleaning.sql).
-// Partagé par la rubrique station (/admin/tapis), l'espace automobiliste
-// (/dashboard/tapis) et la page publique du lien de suivi (/tapis.html).
+// Tapis et moquettes déposés à la station (voir add_carpet_cleaning.sql), et
+// chaussures sur le même principe (add_shoe_cleaning.sql : même table, colonne
+// `activity`). Partagé par les rubriques station (/admin/tapis,
+// /admin/chaussures), l'espace automobiliste (/dashboard/tapis, « Mes
+// dépôts ») et la page publique du lien de suivi (/tapis.html).
 import { supabase } from './supabaseClient';
 import { whatsappLink } from './subscriptionReminders';
 
@@ -10,6 +12,35 @@ export const CARPET_SERVICE = 'Tapis';
 export const isCarpetRevenue = (entry) => entry.service === CARPET_SERVICE;
 
 export const CARPET_KINDS = ['Tapis de salon', 'Moquette', 'Tapis de prière', 'Tapis de voiture', 'Autre'];
+
+// ─── Activités : tapis ou chaussures ──────────────────────────────────
+// Même parcours (dépôt, ticket, lien de suivi, étapes, encaissement) ; ce qui
+// change : libellés, types de pièces et service inscrit en Comptabilité.
+export const SHOE_SERVICE = 'Chaussures';
+export const SHOE_KINDS = ['Baskets', 'Chaussures en cuir', 'Daim / nubuck', 'Talons', 'Bottes', 'Sandales', 'Autre'];
+export const ACTIVITIES = {
+  tapis: {
+    key: 'tapis', service: CARPET_SERVICE, nav: 'Tapis', title: 'Tapis et moquettes', href: '/admin/tapis',
+    kinds: CARPET_KINDS, unit: 'pièce', units: 'pièces', unitCap: 'Pièce', things: 'tapis',
+    piecesLegend: 'Pièces déposées', editorHint: "Touchez le type de pièce pour l'ajouter. Chaque pièce a sa taille, son prix et sa note.",
+    sizeLabel: 'Taille', sizePlaceholder: '2 x 3 m', pricePlaceholder: '5000', notePlaceholder: 'Taches, franges abîmées…',
+    intro: 'Dépôts des clients et des stations partenaires, avancement du lavage et lien de suivi.',
+    empty: 'Enregistrez les tapis et moquettes déposés par vos clients. Ils reçoivent un lien pour suivre le lavage et savoir quand passer les récupérer.',
+  },
+  chaussures: {
+    key: 'chaussures', service: SHOE_SERVICE, nav: 'Chaussures', title: 'Lavage de chaussures', href: '/admin/chaussures',
+    kinds: SHOE_KINDS, unit: 'paire', units: 'paires', unitCap: 'Paire', things: 'chaussures',
+    piecesLegend: 'Paires déposées', editorHint: 'Touchez le type de chaussures pour ajouter une paire. Chaque paire a sa pointure, son prix et sa note.',
+    sizeLabel: 'Pointure, couleur', sizePlaceholder: '42, blanches', pricePlaceholder: '2000', notePlaceholder: "Semelle décollée, tache d'encre…",
+    intro: 'Chaussures déposées par les clients et les stations partenaires, avancement du lavage et lien de suivi.',
+    empty: 'Enregistrez les chaussures déposées par vos clients. Ils reçoivent un lien pour suivre le lavage et savoir quand passer les récupérer.',
+  },
+};
+export const activityConfig = (key) => ACTIVITIES[key] || ACTIVITIES.tapis;
+// « 1 pièce », « 3 paires »
+export const unitCount = (n, cfg) => `${n} ${n > 1 ? cfg.units : cfg.unit}`;
+// Rubrique de l'espace automobiliste qui regroupe tapis et chaussures.
+export const CLIENT_DEPOSITS_LABEL = 'Mes dépôts';
 
 // Délais proposés au dépôt, en heures.
 export const CARPET_DELAYS = [24, 48, 72, 120];
@@ -69,16 +100,24 @@ export const piecesTotal = (items) => (items || []).reduce((s, it) => s + toInt(
 // Pièces sans prix (prix à fixer au retrait).
 export const piecesWithoutPrice = (items) => pieceLines(items).filter((p) => !p.price).length;
 
-// « 2 tapis de salon, 1 moquette » (regroupé par type)
-export function itemsSummary(items, pieceCount) {
+// « 2 tapis de salon, 1 moquette » (regroupé par type) ;
+// chaussures : « 3 paires : baskets ×2, bottes ».
+export function itemsSummary(items, pieceCount, activity) {
   const byKind = new Map();
   for (const it of items || []) {
     if (!it || !(toInt(it.qty) > 0)) continue;
     byKind.set(it.kind || 'pièce', (byKind.get(it.kind || 'pièce') || 0) + toInt(it.qty));
   }
+  if (activity === 'chaussures') {
+    const total = [...byKind.values()].reduce((s, n) => s + n, 0) || pieceCount || 1;
+    const list = [...byKind].map(([kind, n]) => `${String(kind).toLowerCase()}${n > 1 ? ` ×${n}` : ''}`).join(', ');
+    return `${total} paire${total > 1 ? 's' : ''}${list ? ` : ${list}` : ''}`;
+  }
   if (!byKind.size) return `${pieceCount || 1} pièce${(pieceCount || 1) > 1 ? 's' : ''}`;
   return [...byKind].map(([kind, n]) => `${n} ${String(kind).toLowerCase()}`).join(', ');
 }
+// Résumé d'un dépôt (ligne de la base ou objet de rowToCarpet).
+export const orderSummary = (o) => itemsSummary(o.items, o.pieceCount ?? o.piece_count, o.activity);
 export const countPieces = (items) => (items || []).reduce((s, it) => s + (toInt(it.qty) || 0), 0);
 // « Tapis de salon · 2 × 3 m »
 export const pieceLabel = (p) => [p.kind, p.size].filter(Boolean).join(' · ');
@@ -143,6 +182,8 @@ export function rowToCarpet(row) {
   return {
     id: row.id,
     stationId: row.station_id,
+    // 'tapis' ou 'chaussures' (add_shoe_cleaning.sql).
+    activity: row.activity || 'tapis',
     ticketNo: row.ticket_no,
     publicToken: row.public_token,
     clientId: row.client_id,
@@ -196,10 +237,11 @@ const piecesToItems = (pieces) => (pieces || []).map((p) => ({
 const piecesToNotes = (pieces) => Object.fromEntries((pieces || []).filter((p) => p.note && String(p.note).trim()).map((p) => [p.id, String(p.note).trim()]));
 
 // `pieces` : [{ id, kind, size, price, note }] — le total est la somme des prix.
-export async function createCarpetOrder(stationId, { clientName, clientPhone, pieces, promisedAt, note, fromStationId }) {
+export async function createCarpetOrder(stationId, { clientName, clientPhone, pieces, promisedAt, note, fromStationId, activity = 'tapis' }) {
   const items = piecesToItems(pieces);
   const { data, error } = await supabase.from('carpet_orders').insert({
     station_id: stationId,
+    activity,
     ticket_no: 0, // remplacé par le trigger
     client_name: clientName.trim(),
     client_phone: (clientPhone || '').trim() || null,
@@ -250,7 +292,7 @@ export async function recordCarpetPayment(id, method, amount) {
 }
 
 // Lien ouvert avant l'inscription : le jeton attend dans le navigateur
-// jusqu'à ce que « Mes tapis » le rattache au compte (voir login.html).
+// jusqu'à ce que « Mes dépôts » le rattache au compte (voir login.html).
 export const PENDING_CLAIM_KEY = 'ccg_carpet_claim';
 export function rememberCarpetClaim(token) {
   try { localStorage.setItem(PENDING_CLAIM_KEY, token); } catch { /* stockage indisponible */ }

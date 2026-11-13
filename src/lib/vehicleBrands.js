@@ -22,6 +22,9 @@ export function setCustomBrandsCache(rows) {
 export const VEHICLE_CATEGORIES = [
   { value: 'Moto / Scooter', label: '🏍️ Moto / Scooter', pricingCategory: 'Moto' },
   { value: 'Tricycle', label: '🛺 Tricycle', pricingCategory: 'Moto' },
+  // Jakarta et vélo : prix à part dans la grille de la station (13/11/2026).
+  { value: 'Jakarta', label: '🛵 Jakarta', pricingCategory: 'Jakarta' },
+  { value: 'Vélo', label: '🚲 Vélo', pricingCategory: 'Vélo' },
   { value: 'Berline / Citadine', label: '🚗 Berline / Citadine', pricingCategory: 'Particulier' },
   { value: 'SUV / 4x4', label: '🚙 SUV / 4x4', pricingCategory: 'Particulier' },
   { value: 'Utilitaire / Minibus', label: '🚐 Minibus (6 places) / Utilitaire', pricingCategory: 'Transport' },
@@ -35,11 +38,21 @@ export function getPricingCategory(category) {
   return VEHICLE_CATEGORIES.find((c) => c.value === category)?.pricingCategory || 'Particulier';
 }
 
+// Catégorie de la grille vidange (lib/vidange.js) d'une catégorie de tarif
+// lavage : une Jakarta est une moto ; un vélo n'a pas de vidange (null).
+export function vidangeCategoryFor(pricingCategory) {
+  if (pricingCategory === 'Vélo') return null;
+  if (pricingCategory === 'Jakarta') return 'Moto';
+  return pricingCategory;
+}
+
 // Libellés conviviaux des catégories de tarification (pricingConfig/durationConfig),
 // utilisés partout où l'admin ou le client voit une catégorie brute affichée
 // (grille tarifaire, badge de la file d'attente...).
 export const PRICING_CATEGORY_LABELS = {
   Moto: 'Moto / Scooter / Tricycle',
+  Jakarta: 'Jakarta',
+  'Vélo': 'Vélo',
   Particulier: 'Voitures Particulières',
   Transport: 'Bus et Minibus',
   Camion: 'Camion et Bus +50 places',
@@ -53,6 +66,10 @@ const MOTO_BRANDS = [
 
 const TRICYCLE_BRANDS = [
   'Bajaj', 'TVS', 'Piaggio', 'DAYUN', 'JMSTAR', 'Foton', 'Loncin', 'Zongshen',
+];
+
+const BIKE_BRANDS = [
+  'BMX', 'Btwin', 'Rockrider', 'Peugeot', 'Giant', 'Trek', 'Scott', 'Merida', 'Cannondale', 'Specialized',
 ];
 
 const CAR_BRANDS = [
@@ -84,6 +101,8 @@ const BUS_BRANDS = [
 const BRANDS_BY_CATEGORY = {
   'Moto / Scooter': MOTO_BRANDS,
   'Tricycle': TRICYCLE_BRANDS,
+  'Jakarta': MOTO_BRANDS,
+  'Vélo': BIKE_BRANDS,
   'Berline / Citadine': CAR_BRANDS,
   'SUV / 4x4': CAR_BRANDS,
   'Utilitaire / Minibus': UTILITY_BRANDS,

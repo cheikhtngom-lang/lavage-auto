@@ -128,7 +128,7 @@ export default function AdminLayout() {
   // rendu, donc aucun flash.
   const baseNav = visibleNav({ permissions: myPermissions, billing: stationBilling, hiddenMenu });
   const showsShop = baseNav.some((item) => item.key === 'shop');
-  const showsCarpets = baseNav.some((item) => item.key === 'tapis');
+  const showsCarpets = baseNav.some((item) => item.key === 'tapis' || item.key === 'chaussures');
 
   // Nom du compte connecté (carte en pied de menu).
   useEffect(() => {
@@ -155,26 +155,29 @@ export default function AdminLayout() {
     return () => { cancelled = true; };
   }, [showsShop, location.pathname]);
 
-  // Tapis (pastilles « Tapis ») : dépôts en retard sur la date promise, et
-  // dépôts prêts que le client n'a pas encore récupérés. Relu à chaque
-  // changement de page, comme les alertes de stock.
-  const [carpetAlerts, setCarpetAlerts] = useState({ late: 0, ready: 0, partnerReady: 0 });
+  // Tapis et chaussures (pastilles « Tapis », « Chaussures ») : dépôts en
+  // retard sur la date promise, et dépôts prêts que le client n'a pas encore
+  // récupérés. Relu à chaque changement de page, comme les alertes de stock.
+  const [carpetAlerts, setCarpetAlerts] = useState({});
   useEffect(() => {
     const stationId = getCurrentStationId();
-    if (!showsCarpets || !stationId || stationId === 'default') { setCarpetAlerts({ late: 0, ready: 0, partnerReady: 0 }); return undefined; }
+    if (!showsCarpets || !stationId || stationId === 'default') { setCarpetAlerts({}); return undefined; }
     let cancelled = false;
     Promise.all([
-      supabase.from('carpet_orders').select('status, promised_at').eq('station_id', stationId).in('status', ['depose', 'lavage', 'sechage', 'pret']),
-      // Tapis confiés à une station partenaire et prêts là-bas : à aller chercher.
-      supabase.from('carpet_orders').select('id', { count: 'exact', head: true }).eq('from_station_id', stationId).eq('status', 'pret'),
+      supabase.from('carpet_orders').select('status, promised_at, activity').eq('station_id', stationId).in('status', ['depose', 'lavage', 'sechage', 'pret']),
+      // Dépôts confiés à une station partenaire et prêts là-bas : à aller chercher.
+      supabase.from('carpet_orders').select('activity').eq('from_station_id', stationId).eq('status', 'pret'),
     ]).then(([{ data, error }, partner]) => {
       if (cancelled || error) return;
       const now = Date.now();
-      setCarpetAlerts({
-        late: (data || []).filter((o) => o.status !== 'pret' && new Date(o.promised_at).getTime() < now).length,
-        ready: (data || []).filter((o) => o.status === 'pret').length,
-        partnerReady: partner.error ? 0 : (partner.count || 0),
+      const next = {};
+      const of = (activity) => (next[activity || 'tapis'] ||= { late: 0, ready: 0, partnerReady: 0 });
+      (data || []).forEach((o) => {
+        if (o.status === 'pret') of(o.activity).ready += 1;
+        else if (new Date(o.promised_at).getTime() < now) of(o.activity).late += 1;
       });
+      if (!partner.error) (partner.data || []).forEach((o) => { of(o.activity).partnerReady += 1; });
+      setCarpetAlerts(next);
     });
     return () => { cancelled = true; };
   }, [showsCarpets, location.pathname]);
@@ -185,11 +188,12 @@ export default function AdminLayout() {
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
   const navigation = baseNav.map((item) => {
     if (item.key === 'queue') return { ...item, badges: [{ count: waitingCount, tone: 'blue', label: plural(waitingCount, 'véhicule en attente', 'véhicules en attente') }] };
-    if (item.key === 'tapis') {
+    if (item.key === 'tapis' || item.key === 'chaussures') {
+      const a = carpetAlerts[item.key] || { late: 0, ready: 0, partnerReady: 0 };
       return { ...item, badges: [
-        { count: carpetAlerts.late, tone: 'red', label: plural(carpetAlerts.late, 'dépôt en retard', 'dépôts en retard') },
-        { count: carpetAlerts.ready, tone: 'emerald', label: plural(carpetAlerts.ready, 'prêt à récupérer', 'prêts à récupérer') },
-        { count: carpetAlerts.partnerReady, tone: 'blue', label: plural(carpetAlerts.partnerReady, 'à chercher chez un partenaire', 'à chercher chez des partenaires') },
+        { count: a.late, tone: 'red', label: plural(a.late, 'dépôt en retard', 'dépôts en retard') },
+        { count: a.ready, tone: 'emerald', label: plural(a.ready, 'prêt à récupérer', 'prêts à récupérer') },
+        { count: a.partnerReady, tone: 'blue', label: plural(a.partnerReady, 'à chercher chez un partenaire', 'à chercher chez des partenaires') },
       ] };
     }
     if (item.key === 'shop') {

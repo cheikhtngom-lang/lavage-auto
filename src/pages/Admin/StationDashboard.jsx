@@ -7,7 +7,7 @@ import { Play, CheckCircle2, CreditCard, Clock, ListOrdered, Droplets, User, Plu
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppState } from '../../hooks/useAppState';
 import { PRICING_CATEGORY_LABELS, getPricingCategory } from '../../lib/vehicleBrands';
-import { normalizeService } from '../../lib/washDefaults';
+import { normalizeService, isSingleServiceCategory } from '../../lib/washDefaults';
 import { washDurationMinutes, startedBeforeToday } from '../../lib/washAlarm';
 import { getCurrentStationId, getLoginCount } from '../../lib/accounts';
 import { hasSeenTip, markTipSeen } from '../../lib/adoptionTips';
@@ -63,10 +63,13 @@ function todayKey() { return dateKey(new Date()); }
 const DEFAULT_CLIENT_NAME = 'Client';
 
 // ---- Types de véhicules proposés au gérant ----
-// Liste volontairement courte (demande de l'exploitant, 2026-09-27) : six
+// Liste volontairement courte (demande de l'exploitant, 2026-09-27) : des
 // boutons à toucher plutôt qu'une longue liste déroulante à faire défiler.
+// Jakarta et Vélo ajoutés le 13/11/2026 (prix à part dans la grille).
 const DEFAULT_VEHICLE_TYPES = [
   { emoji: '🏍️', label: 'Moto', value: 'Moto' },
+  { emoji: '🛵', label: 'Jakarta', value: 'Jakarta' },
+  { emoji: '🚲', label: 'Vélo', value: 'Vélo' },
   { emoji: '🚗', label: 'Berline', value: 'Berline' },
   { emoji: '🚙', label: 'SUV', value: 'SUV' },
   { emoji: '🚐', label: 'Mini bus', value: 'Mini bus' },
@@ -84,6 +87,8 @@ const DEFAULT_VEHICLE_TYPES = [
 // corriger ensuite manuellement si besoin.
 const VEHICLE_TYPE_PRICING_CATEGORY = {
   'Moto': 'Moto',
+  'Jakarta': 'Jakarta',
+  'Vélo': 'Vélo',
   'Berline': 'Particulier',
   'SUV': 'Particulier',
   'Mini bus': 'Transport',
@@ -112,6 +117,8 @@ function guessPricingCategory(vehicleTypeValue) {
   const known = VEHICLE_TYPE_PRICING_CATEGORY[vehicleTypeValue];
   if (known) return known;
   const lower = (vehicleTypeValue || '').toLowerCase();
+  if (lower.includes('jakarta')) return 'Jakarta';
+  if (/\bv[ée]lo\b|bicyclette/.test(lower)) return 'Vélo';
   if (lower.includes('camion') || lower.includes('+50') || lower.includes('50 place')) return 'Camion';
   return null;
 }
@@ -120,6 +127,8 @@ function guessPricingCategory(vehicleTypeValue) {
 // exactement les libellés de vehicleBrands.js — on fait la correspondance ici.
 const CATEGORY_TO_STATION_TYPE = {
   'Moto / Scooter': 'Moto',
+  'Jakarta': 'Jakarta',
+  'Vélo': 'Vélo',
   'Tricycle': 'Moto',
   'Berline / Citadine': 'Berline',
   'SUV / 4x4': 'SUV',
@@ -296,7 +305,7 @@ export default function StationDashboard() {
       ...w,
       ...(name ? { client: name } : {}),
       ...(vehicle ? { vehicle } : {}),
-      ...(pricingCategory ? { category: pricingCategory, service: pricingCategory === 'Moto' ? 'Lavage Complet' : w.service } : {}),
+      ...(pricingCategory ? { category: pricingCategory, service: normalizeService(pricingCategory, w.service) } : {}),
       // « sans plaque » : on vide le champ, ce qui défait aussi un client reconnu par une plaque précédente.
       ...(noPlate ? { plate: '', clientId: null } : plate ? { plate } : {}),
     }));
@@ -1220,11 +1229,13 @@ export default function StationDashboard() {
                       value={newWash.category}
                       onChange={(e) => {
                         const category = e.target.value;
-                        // Les motos/tricycles n'ont qu'un seul type de lavage disponible.
-                        setNewWash({ ...newWash, category, service: category === 'Moto' ? 'Lavage Complet' : newWash.service });
+                        // Les deux-roues (moto, Jakarta, vélo) n'ont qu'un seul type de lavage disponible.
+                        setNewWash({ ...newWash, category, service: normalizeService(category, newWash.service) });
                       }}
                     >
                       <option value="Moto">{PRICING_CATEGORY_LABELS.Moto}</option>
+                      <option value="Jakarta">{PRICING_CATEGORY_LABELS.Jakarta}</option>
+                      <option value="Vélo">{PRICING_CATEGORY_LABELS['Vélo']}</option>
                       <option value="Particulier">{PRICING_CATEGORY_LABELS.Particulier}</option>
                       <option value="Transport">{PRICING_CATEGORY_LABELS.Transport}</option>
                       <option value="Camion">{PRICING_CATEGORY_LABELS.Camion}</option>
@@ -1235,10 +1246,10 @@ export default function StationDashboard() {
                     <select
                       className="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 disabled:opacity-60"
                       value={newWash.service}
-                      disabled={newWash.category === 'Moto'}
+                      disabled={isSingleServiceCategory(newWash.category)}
                       onChange={(e) => setNewWash({...newWash, service: e.target.value})}
                     >
-                      {newWash.category === 'Moto' ? (
+                      {isSingleServiceCategory(newWash.category) ? (
                         <option value="Lavage Complet">Lavage Complet</option>
                       ) : (
                         <>

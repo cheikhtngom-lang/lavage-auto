@@ -66,8 +66,8 @@ export default function SuperAdminLayout() {
     { name: 'Vue d\'ensemble', href: '/superadmin', icon: LayoutDashboard, section: PILOTAGE },
     { name: 'Analytique', href: '/superadmin/analytics', icon: BarChart3, section: PILOTAGE },
     { name: 'Carburant', href: '/superadmin/carburant', icon: Fuel, section: PILOTAGE },
-    // Tapis et moquettes déposés dans les stations : dépôts, chiffre d'affaires, stations partenaires.
-    { name: 'Tapis', href: '/superadmin/tapis', icon: Layers, section: PILOTAGE },
+    // Tapis, moquettes et chaussures déposés dans les stations : dépôts, chiffre d'affaires, stations partenaires.
+    { name: 'Tapis et chaussures', href: '/superadmin/tapis', icon: Layers, section: PILOTAGE },
     { name: 'Bilan', href: '/superadmin/bilan', icon: FileBarChart, section: PILOTAGE },
     // ─── Réseau ───
     { name: 'Stations', href: '/superadmin/stations', icon: Building2, section: RESEAU },

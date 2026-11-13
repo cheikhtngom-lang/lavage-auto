@@ -1,4 +1,5 @@
-// Super Admin > Tapis : chiffres des dépôts de tapis et moquettes de TOUTES
+// Super Admin > Tapis et chaussures : chiffres des dépôts (tapis ou chaussures,
+// la page filtre l'activité avant l'appel) de TOUTES
 // les stations (voir add_carpet_cleaning.sql et add_carpet_partner_stations.sql).
 // Fonctions pures, sans accès à la base (testées par carpetStats.test.js) :
 // la page lit les lignes brutes de `carpet_orders` et les encaissements
@@ -39,6 +40,13 @@ export const KIND_COLORS = {
   Moquette: '#10b981',
   'Tapis de prière': '#f59e0b',
   'Tapis de voiture': '#4f78d0',
+  // Chaussures (SHOE_KINDS, lib/carpets.js).
+  Baskets: '#12a8dc',
+  'Chaussures en cuir': '#10b981',
+  'Daim / nubuck': '#f59e0b',
+  Talons: '#ef4444',
+  Bottes: '#4f78d0',
+  Sandales: '#06b6d4',
   Autre: '#688c9e',
   'Non précisé': '#475569',
 };

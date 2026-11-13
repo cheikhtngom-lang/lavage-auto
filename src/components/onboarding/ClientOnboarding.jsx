@@ -162,7 +162,7 @@ export default function ClientOnboarding() {
           <div>
             <label className="text-xs font-medium text-neutral-400 mb-2 block">Immatriculation</label>
             <PlateField
-              plate={form.plate} noPlate={form.noPlate} onChange={(p) => setForm((f) => ({ ...f, ...p }))}
+              plate={form.plate} noPlate={form.noPlate} category={form.category} onChange={(p) => setForm((f) => ({ ...f, ...p }))}
               inputClassName="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
             />
             {saveError && <p className="text-sm text-red-400 mt-1">{saveError}</p>}

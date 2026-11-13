@@ -47,6 +47,7 @@ export const ROUTE_PERMISSION = {
   '/admin/pompistes': 'pompistes.manage',
   '/admin/vidange': 'vidange.manage',
   '/admin/tapis': 'dashboard',
+  '/admin/chaussures': 'dashboard',
   '/admin/transactions': 'transactions.view',
   '/admin/accounting': 'accounting.manage',
   '/admin/reversements': 'accounting.manage',

@@ -124,7 +124,7 @@ const TRIAL_DATA_LABELS = [
   ['attendance_records', 'Pointages (laveurs, pompistes)'],
   ['client_subscriptions', 'Abonnements clients et leurs factures'],
   ['vidange_bookings', 'Rendez-vous de vidange'],
-  ['carpet_orders', 'Dépôts de tapis et moquettes'],
+  ['carpet_orders', 'Dépôts de tapis et de chaussures'],
   ['reviews', 'Avis clients'],
 ];
 const trialDataTotal = (counts) => TRIAL_DATA_LABELS.reduce((sum, [key]) => sum + (Number(counts?.[key]) || 0), 0);

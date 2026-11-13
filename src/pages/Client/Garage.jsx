@@ -143,7 +143,7 @@ export default function Garage() {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-400 mb-1.5">Immatriculation <span className="text-red-400">*</span></label>
-                  <PlateField plate={form.plate} noPlate={form.noPlate} onChange={(p) => setForm({ ...form, ...p })}
+                  <PlateField plate={form.plate} noPlate={form.noPlate} category={form.category} onChange={(p) => setForm({ ...form, ...p })}
                     inputClassName="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
                 </div>
                 <div className="pt-4 mt-2 border-t border-white/10">

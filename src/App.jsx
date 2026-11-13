@@ -245,7 +245,8 @@ function App() {
                 <Route path="washers" element={<RequirePerm perm="washers.manage"><Washers /></RequirePerm>} />
                 <Route path="pompistes" element={<RequirePompistesAccess><Pompistes /></RequirePompistesAccess>} />
                 <Route path="vidange" element={<RequireVidangeAccess><Vidange /></RequireVidangeAccess>} />
-                <Route path="tapis" element={<RequirePerm perm="dashboard"><Carpets /></RequirePerm>} />
+                <Route path="tapis" element={<RequirePerm perm="dashboard"><Carpets key="tapis" activity="tapis" /></RequirePerm>} />
+                <Route path="chaussures" element={<RequirePerm perm="dashboard"><Carpets key="chaussures" activity="chaussures" /></RequirePerm>} />
                 <Route path="subscriptions" element={<RequirePerm perm="subscriptions.manage"><Subscriptions /></RequirePerm>} />
                 <Route path="relances" element={<RequirePerm perm="subscriptions.manage"><AdminReminders /></RequirePerm>} />
                 <Route path="settings" element={<RequirePerm perm="settings.manage"><Settings /></RequirePerm>} />

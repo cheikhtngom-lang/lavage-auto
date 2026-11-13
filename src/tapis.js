@@ -1,7 +1,8 @@
 // Page publique /tapis.html?t=<jeton> : le lien de suivi que la station
-// envoie au client sur WhatsApp quand il dépose ses tapis. Sans connexion,
-// le client voit l'étape en cours et la date promise ; le bouton principal
-// l'amène à l'inscription (ou à la connexion), puis dans « Mes tapis » où le
+// envoie au client sur WhatsApp quand il dépose ses tapis ou ses chaussures
+// (add_shoe_cleaning.sql). Sans connexion, le client voit l'étape en cours et
+// la date promise ; le bouton principal l'amène à l'inscription (ou à la
+// connexion), puis dans « Mes dépôts » où le
 // dépôt est rattaché à son compte (carpet_claim). Lecture par
 // carpet_public_status (add_carpet_cleaning.sql). La page se relit seule
 // toutes les minutes et au retour sur l'onglet.
@@ -19,13 +20,22 @@ const ICON = {
   alert: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:1px"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
 };
 
-const TITLES = {
-  depose: 'Vos tapis sont bien reçus',
-  lavage: 'Vos tapis sont en lavage',
-  sechage: 'Vos tapis sèchent',
-  pret: 'Vos tapis sont prêts',
-  recupere: 'Vos tapis ont été récupérés',
-  annule: 'Ce dépôt a été annulé',
+// Libellés selon l'activité du dépôt : « tapis » (masculin) ou « chaussures » (féminin).
+const WORDS = {
+  tapis: {
+    things: 'tapis', ready: 'Prêts', back: 'Récupérés', wait: 'vos tapis vous attendent', piecesLabel: 'Pièces déposées',
+    titles: {
+      depose: 'Vos tapis sont bien reçus', lavage: 'Vos tapis sont en lavage', sechage: 'Vos tapis sèchent',
+      pret: 'Vos tapis sont prêts', recupere: 'Vos tapis ont été récupérés', annule: 'Ce dépôt a été annulé',
+    },
+  },
+  chaussures: {
+    things: 'chaussures', ready: 'Prêtes', back: 'Récupérées', wait: 'vos chaussures vous attendent', piecesLabel: 'Paires déposées',
+    titles: {
+      depose: 'Vos chaussures sont bien reçues', lavage: 'Vos chaussures sont en lavage', sechage: 'Vos chaussures sèchent',
+      pret: 'Vos chaussures sont prêtes', recupere: 'Vos chaussures ont été récupérées', annule: 'Ce dépôt a été annulé',
+    },
+  },
 };
 
 const fmtTime = (t) => { const [h, m] = String(t).split(':'); return `${parseInt(h, 10)} h${m && m !== '00' ? ` ${m}` : ''}`; };
@@ -62,18 +72,20 @@ function render(d, signedIn) {
   const finished = status === 'recupere' || status === 'annule';
   const late = ['depose', 'lavage', 'sechage'].includes(status) && new Date(d.promised_at) < new Date();
   const idx = stepIndex(status);
-  document.title = `${TITLES[status] || 'Suivi de vos tapis'} — ${st.name || 'Clean Car Galsen'}`;
+  const w = WORDS[d.activity] || WORDS.tapis;
+  const title = w.titles[status] || `Suivi de vos ${w.things}`;
+  document.title = `${title} — ${st.name || 'Clean Car Galsen'}`;
 
   const lead = ready
-    ? `Prêts depuis le <strong>${esc(formatPromise(d.ready_at || d.promised_at))}</strong>. Vous pouvez passer les récupérer.`
+    ? `${w.ready} depuis le <strong>${esc(formatPromise(d.ready_at || d.promised_at))}</strong>. Vous pouvez passer les récupérer.`
     : status === 'recupere'
-      ? `Récupérés le ${esc(formatPromise(d.picked_up_at || d.ready_at || d.created_at))}. Merci de votre confiance.`
+      ? `${w.back} le ${esc(formatPromise(d.picked_up_at || d.ready_at || d.created_at))}. Merci de votre confiance.`
       : status === 'annule'
         ? 'Contactez la station pour plus d’informations.'
-        : `Prêts au plus tard le <strong>${esc(formatPromise(d.promised_at))}</strong>${late ? '' : ` (${esc(timeLeftLabel(d.promised_at))})`}.`;
+        : `${w.ready} au plus tard le <strong>${esc(formatPromise(d.promised_at))}</strong>${late ? '' : ` (${esc(timeLeftLabel(d.promised_at))})`}.`;
 
   const flag = ready
-    ? `<div class="flag flag--ready">${ICON.check}<span>Pas besoin d’appeler : vos tapis vous attendent${st.open_time && st.close_time ? `, de ${esc(fmtTime(st.open_time))} à ${esc(fmtTime(st.close_time))}` : ''}.</span></div>`
+    ? `<div class="flag flag--ready">${ICON.check}<span>Pas besoin d’appeler : ${w.wait}${st.open_time && st.close_time ? `, de ${esc(fmtTime(st.open_time))} à ${esc(fmtTime(st.close_time))}` : ''}.</span></div>`
     : late ? `<div class="flag flag--late">${ICON.alert}<span>La date annoncée est passée. Appelez la station avant de vous déplacer.</span></div>` : '';
 
   const steps = status === 'annule' ? '' : `<ol class="steps${ready || status === 'recupere' ? ' done' : ''}" aria-label="Avancement">${CARPET_STEPS.map((s, i) => `<li class="${i <= idx ? 'on' : ''}${i === idx && !ready && status !== 'recupere' ? ' now' : ''}">${esc(s.label)}</li>`).join('')}</ol>`;
@@ -90,10 +102,10 @@ function render(d, signedIn) {
   const login = `/login.html?mode=login&role=automobiliste&tapis=${encodeURIComponent(token)}`;
   let cta = '';
   if (signedIn) {
-    cta = `<section class="card cta"><h2>Suivez-le dans votre espace</h2><p class="muted">Ce dépôt rejoint la rubrique « Mes tapis » de votre compte Galsen.</p>
-      <div class="row"><a class="btn btn--primary" id="goSpace" href="/dashboard/tapis">Ouvrir « Mes tapis »</a></div></section>`;
+    cta = `<section class="card cta"><h2>Suivez-le dans votre espace</h2><p class="muted">Ce dépôt rejoint la rubrique « Mes dépôts » de votre compte Galsen.</p>
+      <div class="row"><a class="btn btn--primary" id="goSpace" href="/dashboard/tapis">Ouvrir « Mes dépôts »</a></div></section>`;
   } else if (!d.claimed && !finished) {
-    cta = `<section class="card cta"><h2>Soyez prévenu quand c’est prêt</h2><p class="muted">Créez votre compte Galsen gratuit : ce dépôt et les suivants apparaissent dans votre espace, rubrique « Mes tapis ».</p>
+    cta = `<section class="card cta"><h2>Soyez prévenu quand c’est prêt</h2><p class="muted">Créez votre compte Galsen gratuit : ce dépôt et les suivants apparaissent dans votre espace, rubrique « Mes dépôts ».</p>
       <div class="row"><a class="btn btn--primary" href="${register}">Créer mon compte</a></div>
       <div class="row" style="margin-top:8px"><a class="btn" href="${login}">J’ai déjà un compte</a></div></section>`;
   } else if (d.claimed && !finished) {
@@ -103,11 +115,11 @@ function render(d, signedIn) {
   root.innerHTML = `
     <section class="card" aria-live="polite">
       <p class="eyebrow">Ticket n° ${esc(d.ticket_no)}${d.first_name ? ` · ${esc(d.first_name)}` : ''}</p>
-      <h1>${esc(TITLES[status] || 'Suivi de vos tapis')}</h1>
+      <h1>${esc(title)}</h1>
       <p class="lead">${lead}</p>
       ${flag}
       ${steps}
-      <ul class="pieces" aria-label="Pièces déposées">
+      <ul class="pieces" aria-label="${esc(w.piecesLabel)}">
         ${pieceLines(d.items).map((p) => `<li><span>${esc(pieceLabel(p))}</span><span class="price">${p.price ? esc(fcfa(p.price)) : d.amount > 0 ? '' : 'prix au retrait'}</span></li>`).join('')}
       </ul>
       <dl>

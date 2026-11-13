@@ -4,7 +4,7 @@ import { MapPin, Clock, ArrowRight, X, Droplets, CheckCircle2, Plus, Search, Tic
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
 import { useClientAccount } from '../../hooks/useClientAccount';
-import { getPricingCategory } from '../../lib/vehicleBrands';
+import { getPricingCategory, vidangeCategoryFor } from '../../lib/vehicleBrands';
 import { CategoryPicker, BrandDropdown, PlateField, isPlateProvided, categoryIcon } from '../../components/client/VehicleFormFields';
 import VoiceVehicleButton from '../../components/ui/VoiceVehicleButton';
 import { formatPlate, formatVehicleLabel, NO_PLATE_LABEL } from '../../lib/plateFormat';
@@ -15,7 +15,7 @@ import {
   checkClosingCapacity, getWaitlistPosition, hoursForDate, formatOpeningHours,
 } from '../../lib/stationData';
 import { isBannerActive, applyDiscount, matchPromoCode, applyPromoCode } from '../../lib/promoDefaults';
-import { normalizeService } from '../../lib/washDefaults';
+import { normalizeService, isSingleServiceCategory } from '../../lib/washDefaults';
 import { deriveAdStatus } from '../../lib/ads';
 import { regionsOf, regionLabel, countryName, DEFAULT_COUNTRY } from '../../lib/countries';
 import { useClientCountry } from '../../hooks/useClientCountry';
@@ -110,7 +110,7 @@ function VehiclePicker({ vehicles, selectedIds, onToggle, onVehicleCreated, maxS
         )}
         <div>
           <label className="block text-xs font-medium text-neutral-500 mb-1.5">Immatriculation <span className="text-red-400">*</span></label>
-          <PlateField plate={newVehicle.plate} noPlate={newVehicle.noPlate} onChange={(p) => setNewVehicle({ ...newVehicle, ...p })}
+          <PlateField plate={newVehicle.plate} noPlate={newVehicle.noPlate} category={newVehicle.category} onChange={(p) => setNewVehicle({ ...newVehicle, ...p })}
             inputClassName="w-full bg-neutral-950 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-neutral-600 focus:outline-none focus:border-blue-500 transition-colors" />
         </div>
         <button type="button" onClick={handleAddVehicle} disabled={!newVehicle.category || !newVehicle.brand || !isPlateProvided(newVehicle)}
@@ -227,7 +227,8 @@ export default function Stations() {
   const [vidangeSlotsLoading, setVidangeSlotsLoading] = useState(false);
 
   const vidangeVehicle = (account?.vehicles || []).find((v) => v.id === vidangeVehicleId) || null;
-  const vidangeCategory = vidangeVehicle ? getPricingCategory(vidangeVehicle.category) : null;
+  // Jakarta = grille vidange Moto ; vélo : pas de vidange (null).
+  const vidangeCategory = vidangeVehicle ? vidangeCategoryFor(getPricingCategory(vidangeVehicle.category)) : null;
   const vidangeOilOptions = (vidangeCategory && selectedStation?.vidangePricing?.[vidangeCategory])
     ? OIL_TYPES.filter((t) => (selectedStation.vidangePricing[vidangeCategory][t] || 0) > 0)
     : [];
@@ -266,10 +267,10 @@ export default function Stations() {
 
   const vehicles = account?.vehicles || [];
   const selectedVehicles = vehicles.filter(v => selectedVehicleIds.includes(v.id));
-  // Les motos/tricycles n'ont qu'un seul type de lavage disponible — dès que la
-  // sélection ne contient que des véhicules de cette catégorie, on restreint le
-  // choix à "Lavage Complet".
-  const onlyMotoSelected = selectedVehicles.length > 0 && selectedVehicles.every(v => getPricingCategory(v.category) === 'Moto');
+  // Les deux-roues (moto/tricycle, Jakarta, vélo) n'ont qu'un seul type de
+  // lavage disponible — dès que la sélection ne contient que ces véhicules, on
+  // restreint le choix à "Lavage Complet".
+  const onlyMotoSelected = selectedVehicles.length > 0 && selectedVehicles.every(v => isSingleServiceCategory(getPricingCategory(v.category)));
   const availableServices = onlyMotoSelected ? ['Lavage Complet'] : ['Lavage Simple', 'Lavage Complet', 'Lavage Moteur'];
 
   useEffect(() => {
@@ -1108,10 +1109,10 @@ export default function Stations() {
                           ))}
                         </div>
                         {onlyMotoSelected && (
-                          <p className="text-neutral-500 text-xs mt-1.5">Un seul type de lavage est proposé pour les motos et tricycles.</p>
+                          <p className="text-neutral-500 text-xs mt-1.5">Un seul type de lavage est proposé pour les motos, Jakarta et vélos.</p>
                         )}
-                        {!onlyMotoSelected && service !== 'Lavage Complet' && selectedVehicles.some((v) => getPricingCategory(v.category) === 'Moto') && (
-                          <p className="text-neutral-500 text-xs mt-1.5">Les motos et tricycles sont lavés en « Lavage Complet », le seul type proposé pour eux.</p>
+                        {!onlyMotoSelected && service !== 'Lavage Complet' && selectedVehicles.some((v) => isSingleServiceCategory(getPricingCategory(v.category))) && (
+                          <p className="text-neutral-500 text-xs mt-1.5">Les motos, Jakarta et vélos sont lavés en « Lavage Complet », le seul type proposé pour eux.</p>
                         )}
                       </div>
                     )}
@@ -1229,7 +1230,7 @@ export default function Stations() {
 
                     {vidangeVehicle && vidangeOilOptions.length === 0 && (
                       <p className="text-amber-400 text-sm bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-3">
-                        Cette station n'a pas encore de tarif vidange pour la catégorie "{vidangeCategory}".
+                        {vidangeCategory ? `Cette station n'a pas encore de tarif vidange pour la catégorie "${vidangeCategory}".` : "Pas de vidange pour un vélo : choisissez un autre véhicule."}
                       </p>
                     )}
 

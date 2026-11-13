@@ -1278,6 +1278,11 @@ export function AppStateProvider({ children }) {
     };
     const updatePricing = (newP) => { setPricingConfig(newP); syncWashPricing(newP, durationConfig); };
     const updateDuration = (newD) => { setDurationConfig(newD); syncWashPricing(pricingConfig, newD); };
+    // Prix ET durées en un seul envoi (Paramètres > Enregistrer). Appeler
+    // updatePricing puis updateDuration envoyait deux fois la grille, la seconde
+    // avec les ANCIENS prix (pricingConfig pas encore à jour) : un prix modifié
+    // pouvait revenir à l'ancien.
+    const updateWashGrid = (newP, newD) => { setPricingConfig(newP); setDurationConfig(newD); syncWashPricing(newP, newD); };
     const updatePromo = (newPr) => {
         setPromoConfig(newPr);
         if (!stationId || stationId === 'default') return;
@@ -1832,7 +1837,7 @@ export function AppStateProvider({ children }) {
             vidangeBookings, updateVidangeBookingStatus,
             shopOrders, updateShopOrderStatus,
             receivedAnnouncements, sentAnnouncements, dismissedAnnouncementIds, dismissAnnouncement, sendStationAnnouncement, retireStationAnnouncement, loadStationKnownClients,
-            addWash, washAmountFor, startWash, endWash, skipWash, pushBackOnePosition, waitlist, admitWaitlisted, validatePayment, updatePricing, getEstimatedWaitTime,
+            addWash, washAmountFor, startWash, endWash, skipWash, pushBackOnePosition, waitlist, admitWaitlisted, validatePayment, updatePricing, updateWashGrid, getEstimatedWaitTime,
             updateDuration, updatePromo, updateStationProfile, addEmployee, updateEmployee, deleteEmployee, resumeEmployee, finishService, cleanDemoData,
             resetOperationalData, resetStationCompletely
         }}>

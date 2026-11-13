@@ -29,7 +29,7 @@ export default function ClientLayout() {
     }
   }, [loading, account]);
 
-  // Pastille « Mes tapis » : dépôts prêts à récupérer (add_carpet_cleaning.sql),
+  // Pastille « Mes dépôts » (tapis et chaussures) : dépôts prêts à récupérer (add_carpet_cleaning.sql),
   // relue à chaque changement de page.
   const location = useLocation();
   const [carpetsReady, setCarpetsReady] = useState(0);
@@ -46,7 +46,7 @@ export default function ClientLayout() {
     { name: 'Fidélité', href: '/dashboard/fidelite', icon: Gift },
     { name: 'Mes Stations', href: '/dashboard/mes-stations', icon: Building2 },
     { name: 'Boutique', href: '/dashboard/boutique', icon: ShoppingBag },
-    { name: 'Mes tapis', href: '/dashboard/tapis', icon: Layers, badges: [{ count: carpetsReady, tone: 'emerald', label: `${carpetsReady} prêt${carpetsReady > 1 ? 's' : ''} à récupérer` }] },
+    { name: 'Mes dépôts', href: '/dashboard/tapis', icon: Layers, badges: [{ count: carpetsReady, tone: 'emerald', label: `${carpetsReady} prêt${carpetsReady > 1 ? 's' : ''} à récupérer` }] },
     { name: 'Trouver une station', href: '/dashboard/stations', icon: MapPin, tourId: 'client-nav-stations' },
     { name: 'Mon Parking', href: '/dashboard/garage', icon: Car, tourId: 'client-nav-garage' },
     { name: 'Paramètres', href: '/dashboard/parametres', icon: SettingsIcon, tourId: 'client-nav-settings' },

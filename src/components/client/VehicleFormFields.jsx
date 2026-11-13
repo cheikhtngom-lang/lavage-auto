@@ -10,10 +10,15 @@ import { formatPlate, NO_PLATE_LABEL } from '../../lib/plateFormat';
 // Une plaque est requise, sauf si l'automobiliste indique que son véhicule n'en
 // a pas (encore) — neuf, en cours d'immatriculation. Il est alors enregistré
 // « sans plaque » et les reçus l'écrivent tel quel (voir vehicleLabel).
-export const isPlateProvided = ({ plate, noPlate }) => !!(plate || '').trim() || !!noPlate;
+// Un vélo n'a jamais de plaque : rien à saisir.
+const HAS_NO_PLATE = ['Vélo'];
+export const isPlateProvided = ({ plate, noPlate, category }) => !!(plate || '').trim() || !!noPlate || HAS_NO_PLATE.includes(category);
 
 // `onChange` reçoit { plate, noPlate } à fusionner dans l'état du formulaire.
-export function PlateField({ plate, noPlate, onChange, inputClassName }) {
+export function PlateField({ plate, noPlate, onChange, inputClassName, category }) {
+  if (HAS_NO_PLATE.includes(category)) {
+    return <p className="text-sm text-neutral-500">Un vélo n'a pas de plaque : rien à saisir.</p>;
+  }
   return (
     <div>
       <input type="text" placeholder="Ex: DK-1234-AB" value={plate} disabled={!!noPlate}
