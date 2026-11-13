@@ -7,7 +7,7 @@
 // carpet_public_status (add_carpet_cleaning.sql). La page se relit seule
 // toutes les minutes et au retour sur l'onglet.
 import { supabase } from './lib/supabaseClient';
-import { stepsFor, stepIndex, fcfa, formatPromise, timeLeftLabel, rememberCarpetClaim, pieceLines, pieceLabel } from './lib/carpets';
+import { stepsFor, stepIndex, fcfa, formatPromise, timeLeftLabel, rememberCarpetClaim, pieceLines, pieceLabel, workHours, totalWeight, formatKg } from './lib/carpets';
 
 const root = document.getElementById('root');
 const token = new URLSearchParams(window.location.search).get('t') || '';
@@ -148,6 +148,8 @@ function render(d, signedIn) {
       </ul>
       <dl>
         <dt>Déposé le</dt><dd>${esc(new Date(d.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))}</dd>
+        ${totalWeight(d.items) ? `<dt>Poids</dt><dd>${esc(formatKg(totalWeight(d.items)))}</dd>` : ''}
+        ${workHours(d.items) ? `<dt>Temps de travail prévu</dt><dd>${esc(workHours(d.items))} h</dd>` : ''}
         ${amountRow}
       </dl>
     </section>

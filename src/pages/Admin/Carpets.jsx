@@ -11,7 +11,7 @@ import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Layers, Footprints, Sofa, Shirt, Plus, X, Search, MessageCircle, Link2, Check, Coins, ChevronDown, Undo2, Pencil, Ban, Clock, AlertTriangle, Trash2,
-  Building2, Send, Phone, Printer, Tags, Zap, MapPin, Archive,
+  Building2, Send, Phone, Printer, Tags, Zap, MapPin, Archive, Scale,
 } from 'lucide-react';
 import { Card, CardContent } from '../../components/ui/Card';
 import { useAppState } from '../../hooks/useAppState';
@@ -26,6 +26,7 @@ import {
   loadPartnerStations, stationPlace, outsourceCarpet, cancelOutsource,
   PRESSING_TREATMENTS, DEFAULT_TREATMENT, suggestedPiecePrice, expressRate, expressFeeFor, emptyPriceList, loadPriceList, savePriceList,
   amountDue, daysSinceReady, UNCLAIMED_DAYS,
+  kiloServices, newLot, lotPrice, workHours, formatKg,
 } from '../../lib/carpets';
 import { printDeposit } from '../../lib/depositPrint';
 import { whatsappLink } from '../../lib/subscriptionReminders';
@@ -163,12 +164,38 @@ function PiecesEditor({ pieces, onChange, lockPrices = false, fallbackTotal = 0,
     onChange(pieces.map((x) => (x.id === p.id ? { ...x, service, price } : x)));
   };
   const remove = (id) => onChange(pieces.filter((p) => p.id !== id));
+  // Pesage : un lot par prestation au kilo ; prix = kilos × prix au kilo.
+  const services = kiloServices(priceList, cfg.key);
+  const addLot = (service) => {
+    const lot = newLot(cfg.key, service);
+    onChange([...pieces, lot]);
+    setFocusId(lot.id);
+  };
+  const patchLot = (p, field, value) => {
+    const next = { ...p, [field]: value };
+    if (!lockPrices) next.price = String(lotPrice(next.weight, next.rate) || '');
+    onChange(pieces.map((x) => (x.id === p.id ? next : x)));
+  };
   const total = piecesTotal(pieces);
   const missing = piecesWithoutPrice(pieces);
   const extraSum = extras.reduce((s, e) => s + (e.amount || 0), 0);
   return (
     <fieldset>
       <legend className="block text-sm font-medium text-neutral-400 mb-2">{cfg.piecesLegend}</legend>
+      {services.length > 0 && (
+        <div className="mb-3">
+          <p className="text-xs text-neutral-500 mb-1.5 flex items-center gap-1.5"><Scale className="w-3.5 h-3.5" /> Au kilo</p>
+          <div className="flex flex-wrap gap-2">
+            {services.map((s) => (
+              <button key={s.code} type="button" onClick={() => addLot(s)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/25 text-white transition-colors">
+                <Plus className="w-4 h-4 text-blue-300" /> <span className="tabular-nums text-blue-200">{s.code}</span> {s.label}{s.price ? <span className="text-neutral-400 font-normal">· {s.price.toLocaleString('fr-FR')} F/kg</span> : null}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-neutral-500 mt-3 mb-1.5">À l'article</p>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2 mb-3">
         {cfg.kinds.map((kind) => (
           <button key={kind} type="button" onClick={() => add(kind)}
@@ -182,7 +209,36 @@ function PiecesEditor({ pieces, onChange, lockPrices = false, fallbackTotal = 0,
         <p className="text-sm text-neutral-500 rounded-xl border border-dashed border-white/10 px-4 py-5 text-center">{cfg.editorHint}</p>
       ) : (
         <ol className="space-y-3">
-          {pieces.map((p, i) => (
+          {pieces.map((p, i) => p.code ? (
+            <li key={p.id} className="rounded-xl border border-blue-500/25 bg-blue-500/[0.04] p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <p className="text-sm font-bold text-white"><span className="text-neutral-500 font-medium tabular-nums">{cfg.unitCap} {i + 1} · </span>{p.kind} · <span className="text-blue-200 tabular-nums">{p.code}</span> {p.service}</p>
+                <button type="button" onClick={() => remove(p.id)} aria-label={`Retirer : lot ${i + 1}`} title="Retirer"
+                  className="w-9 h-9 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label htmlFor={`kg-${p.id}`} className="block text-xs text-neutral-500 mb-1">Poids (kg)</label>
+                  <input id={`kg-${p.id}`} className={cn(inputCls, 'tabular-nums')} inputMode="decimal" value={p.weight} onChange={(e) => patchLot(p, 'weight', e.target.value.replace(/[^\d.,]/g, ''))}
+                    placeholder="4,5" autoComplete="off" autoFocus={focusId === p.id} disabled={lockPrices} />
+                </div>
+                <div>
+                  <label htmlFor={`rate-${p.id}`} className="block text-xs text-neutral-500 mb-1">Prix au kilo</label>
+                  <input id={`rate-${p.id}`} className={cn(inputCls, 'tabular-nums')} type="number" min="0" step="50" inputMode="numeric" value={p.rate}
+                    onChange={(e) => patchLot(p, 'rate', e.target.value)} placeholder="700" disabled={lockPrices} />
+                </div>
+                <div>
+                  <p className="block text-xs text-neutral-500 mb-1">Prix</p>
+                  <p className="px-1 py-3 text-white font-bold tabular-nums">{p.price ? fcfa(p.price) : '—'}</p>
+                </div>
+              </div>
+              <p className="text-xs text-neutral-500 mt-1">{p.hours ? `${p.hours} h de travail` : ''}{p.weight ? `${p.hours ? ' · ' : ''}${formatKg(String(p.weight).replace(',', '.'))}` : ''}</p>
+              <label htmlFor={`note-${p.id}`} className="block text-xs text-neutral-500 mt-2 mb-1">Note interne (jamais vue par le client)</label>
+              <input id={`note-${p.id}`} className={inputCls} value={p.note} onChange={(e) => patch(p.id, 'note', e.target.value)} placeholder="Couleurs à part, linge délicat…" autoComplete="off" />
+            </li>
+          ) : (
             <li key={p.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2 mb-2.5">
                 <p className="text-sm font-bold text-white"><span className="text-neutral-500 font-medium tabular-nums">{cfg.unitCap} {i + 1} · </span>{p.kind}</p>
@@ -423,8 +479,17 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved, priceList, 
   const [clientStation, setClientStation] = useState(null);
   const [isStationClient, setIsStationClient] = useState(false);
   const pickStation = (st) => { setClientStation(st); setForm((f) => ({ ...f, clientName: st.name, clientPhone: st.owner_phone || '' })); };
-  const [delay, setDelay] = useState(cfg.defaultDelay || DEFAULT_CARPET_DELAY);
+  const [delay, setDelayState] = useState(cfg.defaultDelay || DEFAULT_CARPET_DELAY);
+  const [delayTouched, setDelayTouched] = useState(false);
+  const setDelay = (d) => { setDelayTouched(true); setDelayState(d); };
   const [customDate, setCustomDate] = useState('');
+  // Lots au kilo : la date promise suit le temps de travail de la plus longue prestation.
+  const hours = workHours(pieces);
+  useEffect(() => {
+    if (!hours || delayTouched) return;
+    if (CARPET_DELAYS.includes(hours)) setDelayState(hours);
+    else { setDelayState('custom'); setCustomDate(toLocalInput(promiseFromDelay(hours))); }
+  }, [hours]); // eslint-disable-line react-hooks/exhaustive-deps
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(null);
@@ -588,7 +653,7 @@ function NewDepositModal({ stationId, stationName, onClose, onSaved, priceList, 
             <input type="datetime-local" className={cn(inputCls, !homeVisit && 'mt-2')} value={customDate} min={toLocalInput(new Date())} onChange={(e) => setCustomDate(e.target.value)} aria-label="Date et heure" />
           )}
           {promise && !Number.isNaN(promise.getTime()) && (
-            <p className="text-sm text-neutral-400 mt-2">Annoncé au client : {homeVisit ? 'intervention le' : 'prêt au plus tard le'} <span className="text-white font-medium">{formatPromise(promise)}</span>.</p>
+            <p className="text-sm text-neutral-400 mt-2">Annoncé au client : {homeVisit ? 'intervention le' : 'prêt au plus tard le'} <span className="text-white font-medium">{formatPromise(promise)}</span>{hours ? <> · {hours} h de travail</> : null}.</p>
           )}
         </fieldset>
 
@@ -740,10 +805,16 @@ function PriceListModal({ stationId, priceList, onClose, onSaved }) {
   const [prices, setPrices] = useState(() => Object.fromEntries(cfg.kinds.filter((k) => k !== 'Autre').map((k) => [k, priceList.prices?.[k] ? String(priceList.prices[k]) : ''])));
   const [factors, setFactors] = useState(() => Object.fromEntries(PRESSING_TREATMENTS.map((t) => [t.key, String(priceList.options?.factors?.[t.key] ?? t.factor)])));
   const [rate, setRate] = useState(String(expressRate(priceList)));
+  // Pesage : prix au kilo et heures de travail par prestation (LAV-01…).
+  const [kilo, setKilo] = useState(() => Object.fromEntries(kiloServices(priceList, cfg.key).map((s) => [s.code, { price: s.price ? String(s.price) : '', hours: String(s.hours) }])));
+  const setKiloField = (code, field, value) => setKilo((k) => ({ ...k, [code]: { ...k[code], [field]: value } }));
   const [travelFee, setTravelFee] = useState(priceList.options?.travelFee ? String(priceList.options.travelFee) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const fillSuggested = () => setPrices((p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v || String(cfg.suggested?.[k] || '')])));
+  const fillSuggested = () => {
+    setPrices((p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v || String(cfg.suggested?.[k] || '')])));
+    setKilo((k) => Object.fromEntries((cfg.kilo?.services || []).map((s) => [s.code, { price: k[s.code]?.price || String(s.price), hours: k[s.code]?.hours || String(s.hours) }])));
+  };
   const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -753,6 +824,7 @@ function PriceListModal({ stationId, priceList, onClose, onSaved }) {
       if (cfg.treatments) options.factors = Object.fromEntries(Object.entries(factors).map(([k, v]) => [k, Number(String(v).replace(',', '.')) || 1]));
       if (cfg.express) options.expressRate = Math.max(0, toInt(rate));
       if (cfg.places) options.travelFee = toInt(travelFee);
+      if (cfg.kilo) options.kilo = Object.fromEntries(Object.entries(kilo).map(([code, v]) => [code, { price: toInt(v.price), hours: toInt(v.hours) || 48 }]));
       onSaved(await savePriceList(stationId, cfg.key, { prices, options }));
       onClose();
     } catch (err) { setError(err.message); } finally { setSaving(false); }
@@ -764,6 +836,29 @@ function PriceListModal({ stationId, priceList, onClose, onSaved }) {
           <p className="text-sm text-neutral-400 max-w-md">Prix proposés au dépôt{cfg.treatments ? ' pour « Lavage + repassage »' : ''}. Vous pouvez toujours les changer pièce par pièce.</p>
           <button type="button" onClick={fillSuggested} className={smallBtn}>Remplir les cases vides</button>
         </div>
+        {cfg.kilo && (
+          <fieldset>
+            <legend className="text-sm font-medium text-neutral-400 mb-2 flex items-center gap-1.5"><Scale className="w-4 h-4" /> Au kilo (pesage)</legend>
+            <div className="rounded-xl border border-white/10 divide-y divide-white/5">
+              {cfg.kilo.services.map((s) => (
+                <div key={s.code} className="grid grid-cols-[1fr_7rem_6rem] gap-2 items-center px-3 py-2">
+                  <span className="text-sm text-white"><span className="text-blue-200 tabular-nums">{s.code}</span> {s.label}</span>
+                  <label className="block">
+                    <span className="block text-[11px] text-neutral-500">F par kilo</span>
+                    <input className="w-full bg-neutral-950 border border-white/10 rounded-lg px-2 py-1.5 text-right text-white tabular-nums focus:outline-none focus:border-blue-500" type="number" min="0" step="50" inputMode="numeric"
+                      value={kilo[s.code]?.price ?? ''} onChange={(e) => setKiloField(s.code, 'price', e.target.value)} placeholder={String(s.price)} aria-label={`Prix au kilo : ${s.label}`} />
+                  </label>
+                  <label className="block">
+                    <span className="block text-[11px] text-neutral-500">Heures de travail</span>
+                    <input className="w-full bg-neutral-950 border border-white/10 rounded-lg px-2 py-1.5 text-right text-white tabular-nums focus:outline-none focus:border-blue-500" type="number" min="1" step="1" inputMode="numeric"
+                      value={kilo[s.code]?.hours ?? ''} onChange={(e) => setKiloField(s.code, 'hours', e.target.value)} placeholder={String(s.hours)} aria-label={`Heures de travail : ${s.label}`} />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </fieldset>
+        )}
+        <p className="text-sm font-medium text-neutral-400 -mb-2">À l'article</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
           {Object.keys(prices).map((kind) => (
             <label key={kind} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 bg-white/[0.02] border border-white/5">

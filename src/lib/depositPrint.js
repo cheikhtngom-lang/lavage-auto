@@ -5,7 +5,7 @@
 //    « 12-3 » = ticket 12, article 3, pour ne jamais mélanger deux clients.
 // Une fenêtre s'ouvre avec la page prête, l'impression part toute seule.
 // Format pensé pour une imprimante de tickets 58/80 mm comme pour l'A4.
-import { activityConfig, pieceLines, pieceLabel, pieceTag, fcfa, formatPromise, carpetTrackingUrl, amountDue } from './carpets';
+import { activityConfig, pieceLines, pieceLabel, pieceTag, fcfa, formatPromise, carpetTrackingUrl, amountDue, workHours, totalWeight, formatKg } from './carpets';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const shortDate = (iso) => new Date(iso).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -48,6 +48,8 @@ function ticketHtml(order, stationName) {
       ${order.amountPaid > 0 && !order.paid ? `<tr><td>Avance payée</td><td class="r">${esc(fcfa(order.amountPaid))}</td></tr><tr><td><strong>Reste à payer</strong></td><td class="r"><strong>${esc(fcfa(due))}</strong></td></tr>` : ''}
       ${order.paid ? '<tr><td colspan="2"><strong>Payé</strong></td></tr>' : ''}
     </table>
+    ${totalWeight(order.items) ? `<div>Poids total : <strong>${esc(formatKg(totalWeight(order.items)))}</strong></div>` : ''}
+    ${workHours(order.items) ? `<div>Temps de travail prévu : <strong>${esc(workHours(order.items))} h</strong></div>` : ''}
     <div>${home && order.activity === 'salon' ? 'Intervention le' : 'Prêt le'} <strong>${esc(formatPromise(order.promisedAt))}</strong></div>
     <hr>
     <div class="muted">Suivez l'avancement :</div>

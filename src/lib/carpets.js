@@ -53,6 +53,11 @@ export const ACTIVITIES = {
     intro: 'Dépôts des clients et des stations partenaires, avancement du lavage et lien de suivi.',
     empty: 'Enregistrez les tapis et moquettes déposés par vos clients. Ils reçoivent un lien pour suivre le lavage et savoir quand passer les récupérer.',
     suggested: { 'Tapis de salon': 5000, Moquette: 6000, 'Tapis de prière': 1500, 'Tapis de voiture': 1000 },
+    // Pesage : tapis au kilo (même procédure que le pressing).
+    kilo: { kind: 'Tapis au kilo', services: [
+      { code: 'LAV-01', label: 'Lavage seul', price: 800, hours: 48 },
+      { code: 'LAV-02', label: 'Lavage + Séchage', price: 1000, hours: 72 },
+    ] },
   },
   chaussures: {
     key: 'chaussures', service: SHOE_SERVICE, nav: 'Chaussures', title: 'Lavage de chaussures', href: '/admin/chaussures', module: 'mod_chaussures',
@@ -93,6 +98,12 @@ export const ACTIVITIES = {
     statusLabels: { depose: 'Reçu', lavage: 'Au nettoyage', sechage: 'Au repassage', pret: 'Prêt à retirer', recupere: 'Retiré' },
     actions: { depose: 'Mettre au nettoyage', lavage: 'Mettre au repassage', sechage: 'Marquer prêt', pret: 'Remis au client' },
     treatments: true, express: true, racks: true, labels: true, defaultDelay: 72,
+    // Pesage (13/11/2026) : linge au kilo, prix au kilo et heures de travail fixés par le pressing.
+    kilo: { kind: 'Linge au kilo', services: [
+      { code: 'LAV-01', label: 'Lavage seul', price: 500, hours: 24 },
+      { code: 'LAV-02', label: 'Lavage + Séchage', price: 700, hours: 48 },
+      { code: 'LAV-03', label: 'Lavage + Séchage + Repassage', price: 1000, hours: 72 },
+    ] },
     places: [['station', 'Dépôt à la station'], ['domicile', 'Collecte et livraison']],
     homeLabel: 'Livraison à domicile', feeLabel: 'Frais de livraison',
   },
@@ -209,7 +220,11 @@ export function pieceLines(items) {
     if (!it) continue;
     const qty = Math.max(1, toInt(it.qty) || 1);
     for (let i = 0; i < qty; i += 1) {
-      out.push({ id: it.id || `${it.kind}-${out.length}`, kind: it.kind || 'Pièce', size: it.size || '', service: it.service || '', price: qty === 1 ? toInt(it.price) : 0 });
+      out.push({
+        id: it.id || `${it.kind}-${out.length}`, kind: it.kind || 'Pièce', size: it.size || '', service: it.service || '', price: qty === 1 ? toInt(it.price) : 0,
+        // Lot pesé : code de prestation, poids (kg), prix au kilo, heures de travail.
+        ...(it.code ? { code: it.code, weight: Number(it.weight) || 0, rate: toInt(it.rate), hours: toInt(it.hours) } : {}),
+      });
     }
   }
   return out;
@@ -240,7 +255,33 @@ export function itemsSummary(items, pieceCount, activity) {
 export const orderSummary = (o) => itemsSummary(o.items, o.pieceCount ?? o.piece_count, o.activity);
 export const countPieces = (items) => (items || []).reduce((s, it) => s + (toInt(it.qty) || 0), 0);
 // « Tapis de salon · 2 × 3 m », « Chemise · Repassage seul · blanche »
-export const pieceLabel = (p) => [p.kind, p.service, p.size].filter(Boolean).join(' · ');
+export const pieceLabel = (p) => [p.kind, p.code ? `${p.code} ${p.service}` : p.service, p.code ? weightLine(p) : null, p.size].filter(Boolean).join(' · ');
+
+// ─── Pesage (prix au kilo) ────────────────────────────────────────────
+// « 4,5 kg × 700 F »
+export const formatKg = (kg) => `${(Number(kg) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} kg`;
+export const weightLine = (p) => `${formatKg(p.weight)}${p.rate ? ` × ${toInt(p.rate).toLocaleString('fr-FR')} F` : ''}`;
+// Prestations au kilo de la station : celles de l'activité, avec ses prix et heures (Tarifs).
+export function kiloServices(priceList, activity) {
+  const cfg = activityConfig(activity);
+  if (!cfg.kilo) return [];
+  const own = priceList?.options?.kilo || {};
+  return cfg.kilo.services.map((s) => ({
+    ...s,
+    price: toInt(own[s.code]?.price),
+    hours: toInt(own[s.code]?.hours) || s.hours,
+    suggestedPrice: s.price,
+  }));
+}
+// Prix d'un lot : poids × prix au kilo, arrondi à 50 F.
+export const lotPrice = (weight, rate) => Math.round(((Number(String(weight).replace(',', '.')) || 0) * toInt(rate)) / 50) * 50;
+export const newLot = (activity, service) => ({
+  id: pieceId(), kind: activityConfig(activity).kilo?.kind || 'Au kilo', qty: 1, size: '', note: '',
+  code: service.code, service: service.label, weight: '', rate: service.price ? String(service.price) : '', hours: service.hours, price: '',
+});
+// Temps de travail prévu d'un dépôt : la plus longue prestation au kilo (0 sans lot pesé).
+export const workHours = (items) => (items || []).reduce((m, it) => Math.max(m, it?.code ? toInt(it.hours) : 0), 0);
+export const totalWeight = (items) => (items || []).reduce((s, it) => s + (it?.code ? Number(it.weight) || 0 : 0), 0);
 // Code d'étiquette d'un article : « 12-3 » (ticket 12, article 3).
 export const pieceTag = (ticketNo, index) => `${ticketNo}-${index + 1}`;
 
@@ -283,6 +324,7 @@ export function depositMessage(order, stationName) {
     order.expressFee > 0 ? `• Express : ${fcfa(order.expressFee)}` : null,
     order.travelFee > 0 ? `• ${activityConfig(order.activity).feeLabel || 'Déplacement'} : ${fcfa(order.travelFee)}` : null,
     order.amount > 0 ? `Total : ${fcfa(order.amount)}${order.paid ? ' (payé)' : order.amountPaid > 0 ? ` (avance ${fcfa(order.amountPaid)}, reste ${fcfa(amountDue(order))})` : ''}` : null,
+    workHours(order.items) ? `Temps de travail prévu : ${workHours(order.items)} h.` : null,
     order.place === 'domicile' && order.activity === 'salon'
       ? `Intervention prévue le ${formatPromise(order.promisedAt)}.`
       : `Prêt au plus tard le ${formatPromise(order.promisedAt)}.`,
@@ -370,6 +412,7 @@ async function saveNotes(order, stationId, note, pieceNotes) {
 const piecesToItems = (pieces) => (pieces || []).map((p) => ({
   id: p.id || pieceId(), kind: p.kind, qty: Math.max(1, toInt(p.qty) || 1), size: String(p.size || '').trim(), price: toInt(p.price),
   ...(p.service ? { service: p.service } : {}),
+  ...(p.code ? { code: p.code, weight: Number(String(p.weight).replace(',', '.')) || 0, rate: toInt(p.rate), hours: toInt(p.hours) } : {}),
 }));
 const piecesToNotes = (pieces) => Object.fromEntries((pieces || []).filter((p) => p.note && String(p.note).trim()).map((p) => [p.id, String(p.note).trim()]));
 
@@ -441,7 +484,10 @@ export async function updateCarpetOrder(order, patch) {
   return { ...rowToCarpet(data), ...notes };
 }
 // Pièces d'un dépôt existant, prêtes pour l'éditeur (notes comprises).
-export const orderToPieces = (order) => pieceLines(order.items).map((p) => ({ ...p, price: p.price ? String(p.price) : '', note: order.pieceNotes?.[p.id] || '' }));
+export const orderToPieces = (order) => pieceLines(order.items).map((p) => ({
+  ...p, price: p.price ? String(p.price) : '', note: order.pieceNotes?.[p.id] || '',
+  ...(p.code ? { weight: p.weight ? String(p.weight) : '', rate: p.rate ? String(p.rate) : '' } : {}),
+}));
 
 // advance = true : avance (acompte), le dépôt reste « à encaisser » pour le reste.
 // Sinon : solde, le dépôt passe « payé » (le montant final = tout ce qui a été encaissé).
