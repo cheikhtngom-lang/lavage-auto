@@ -143,6 +143,13 @@
 
     <link rel="stylesheet" href="app.css">
     <link rel="stylesheet" href="landing.css">
+    <script>
+        // Héros : cache les éléments animés avant le premier rendu ; src/landing/hero.js
+        // les révèle. Sans JavaScript ou avec « réduire les animations », rien n'est caché
+        // (et landing.css les remontre seul au bout de 3 s si le script ne vient pas).
+        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('hero-intro');
+    </script>
+    <script type="module" src="/src/landing/hero.js"></script>
     <style>
         /* Smooth scrolling */
         html { scroll-behavior: smooth; }
@@ -382,40 +389,64 @@
         </div>
 
         <!-- 1. Héros -->
+        <!-- Héros animé (14/11/2026) : horizon lumineux, bulles de mousse qui
+             s'écartent du curseur, titre lettre par lettre, mot qui tourne,
+             file d'attente qui vit (voiture finie → paiement Wave → total du
+             jour → voiture suivante). anime.js (MIT), src/landing/hero.js.
+             Sans JavaScript ou avec « réduire les animations » : tout est fixe. -->
         <section id="accueil" class="lp-hero">
+            <div class="lp-hero__horizon" aria-hidden="true"></div>
+            <canvas class="lp-hero__bubbles" aria-hidden="true"></canvas>
             <div class="lp-wrap lp-hero__grid">
-                <div>
-                    <span class="lp-eyebrow">Logiciel des stations de lavage au Sénégal</span>
-                    <h1>Fini la queue.<br><span>Fini le cahier.</span></h1>
-                    <p class="lp-hero__sub">File d'attente, laveurs et caisse sur un seul écran. Vos clients réservent et paient par Wave ou Orange Money.</p>
-                    <div class="lp-actions">
-                        <a href="login.html?mode=register&role=agence" class="lp-btn lp-btn--primary">Essayer 7 jours gratuits</a>
+                <div class="lp-hero__copy">
+                    <span class="lp-eyebrow" data-intro>Logiciel au Sénégal pour les <span class="lp-rotate" aria-hidden="true" data-words="stations de lavage|pressings|lavages de tapis">stations de lavage</span><span class="lp-sr">stations de lavage, pressings et lavages de tapis</span></span>
+                    <h1 class="lp-hero__title">Fini la queue.<br><span class="lp-hero__accent">Fini le cahier.<svg class="lp-hero__swoosh" viewBox="0 0 320 22" preserveAspectRatio="none" aria-hidden="true"><path d="M4 15 C 70 6, 150 3, 222 8 S 300 15, 316 9"/></svg></span></h1>
+                    <p class="lp-hero__sub" data-intro>File d'attente, laveurs et caisse sur un seul écran. Vos clients réservent et paient par Wave ou Orange Money.</p>
+                    <div class="lp-actions" data-intro>
+                        <a href="login.html?mode=register&role=agence" class="lp-btn lp-btn--primary lp-btn--shine">Essayer 7 jours gratuits</a>
                         <a href="/stations" class="lp-btn lp-btn--ghost">Trouver une station</a>
                     </div>
                     <div class="lp-hero__fact">
-                        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Dès 10 000 F par mois</span>
-                        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Sans matériel à acheter</span>
-                        <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Sans commission</span>
+                        <span data-intro><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Dès <b class="lp-count" data-count="10000">10 000</b> F par mois</span>
+                        <span data-intro><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Sans matériel à acheter</span>
+                        <span data-intro><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Sans commission</span>
                     </div>
                 </div>
                 <div class="lp-hero__visual">
-                    <div class="lp-photo">
+                    <div class="lp-photo lp-hero__photo">
                         <img src="/images/landing/gerant-tablette-1600.webp" srcset="/images/landing/gerant-tablette-900.webp 900w, /images/landing/gerant-tablette-1600.webp 1600w" sizes="(max-width: 960px) 100vw, 50vw" width="1600" height="884" alt="Gérant de station de lavage qui suit sa file d'attente sur une tablette" fetchpriority="high" decoding="async">
                     </div>
-                    <div class="lp-ui lp-ui--float" aria-hidden="true">
+                    <div class="lp-ui lp-ui--float lp-queue" aria-hidden="true">
                         <div class="lp-ui__top">File d'attente <span class="lp-ui__live">En direct</span></div>
-                        <div class="lp-ui__row">
-                            <span class="lp-ui__rank">1</span>
-                            <div><div class="lp-ui__plate">DK-2847-AB</div><div class="lp-ui__meta">Berline · Lavage complet · Modou</div><div class="lp-ui__bar"><i></i></div></div>
-                            <span class="lp-ui__time">8 min</span>
+                        <div class="lp-queue__list">
+                            <div class="lp-queue__row" data-price="5000" data-method="Wave">
+                                <span class="lp-ui__rank">1</span>
+                                <div><div class="lp-ui__plate">DK-2847-AB</div><div class="lp-ui__meta">Berline · Lavage complet · Modou</div><div class="lp-ui__bar"><i style="width:62%"></i></div></div>
+                                <span class="lp-ui__time">8 min</span>
+                            </div>
+                            <div class="lp-queue__row">
+                                <span class="lp-ui__rank">2</span>
+                                <div><div class="lp-ui__plate">AA-119-DK</div><div class="lp-ui__meta">4x4 · Extérieur · Ibou</div></div>
+                                <span class="lp-ui__time">~20 min</span>
+                            </div>
+                            <div class="lp-queue__row">
+                                <span class="lp-ui__rank">3</span>
+                                <div><div class="lp-ui__plate">TH-5521-B</div><div class="lp-ui__meta">Citadine · Intérieur</div></div>
+                                <span class="lp-ui__time">~35 min</span>
+                            </div>
                         </div>
-                        <div class="lp-ui__row">
-                            <span class="lp-ui__rank">2</span>
-                            <div><div class="lp-ui__plate">AA-119-DK</div><div class="lp-ui__meta">4x4 · Extérieur</div></div>
-                            <span class="lp-ui__time">~20 min</span>
-                        </div>
-                        <div class="lp-ui__paid"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> 5 000 F reçus par Wave</div>
+                        <div class="lp-queue__total">Encaissé aujourd'hui <b data-total="47500">47 500 F</b></div>
+                        <div class="lp-queue__paid"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> <span>5 000 F reçus par Wave</span></div>
                     </div>
+                    <div class="lp-ui lp-ui--float-right lp-booking" aria-hidden="true">
+                        <span class="lp-booking__icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+                        <div><div class="lp-booking__title">Nouvelle réservation</div><div class="lp-booking__meta">Awa D. · Lavage complet · 15 h 30</div></div>
+                    </div>
+                    <button type="button" class="lp-hero__pause" aria-pressed="false" hidden>
+                        <svg class="lp-hero__pause-off" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                        <svg class="lp-hero__pause-on" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l12-7z"/></svg>
+                        <span>Pause</span>
+                    </button>
                 </div>
             </div>
         </section>
