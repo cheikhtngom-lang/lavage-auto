@@ -5,7 +5,7 @@
 // étiquettes, envoyer au client le lien de suivi sur WhatsApp. Chaque
 // activité s'ouvre par son module (Super Admin > Modules). Voir
 // add_carpet_cleaning.sql, add_shoe_cleaning.sql et add_salon_pressing.sql.
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -85,6 +85,58 @@ function Modal({ title, onClose, children, wide = false }) {
         {children}
       </motion.div>
     </div>,
+    document.body,
+  );
+}
+
+// Menu « Plus » d'un dépôt, rendu dans <body> : la liste (glass-card) coupe ce
+// qui dépasse (overflow-hidden) et son flou d'arrière-plan enferme les éléments
+// « fixed ». Resté dans la ligne, le menu était coupé sous le dernier dépôt
+// (onglet Prêts sur iPad, téléphone). Il s'ouvre sous le bouton, au-dessus
+// s'il manque de place, et reste dans la largeur de l'écran.
+function RowMenu({ anchor, onClose, children }) {
+  const ref = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const menu = ref.current;
+      if (!menu || !anchor.isConnected) return;
+      const r = anchor.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      const vh = window.innerHeight;
+      const h = menu.scrollHeight;
+      const below = vh - r.bottom - 12;
+      const above = r.top - 12;
+      const down = h <= below || below >= above;
+      const maxHeight = Math.max(120, down ? below : above);
+      setPos({
+        left: Math.max(8, Math.min(r.left, vw - menu.offsetWidth - 8)),
+        top: down ? r.bottom + 4 : Math.max(8, r.top - 4 - Math.min(h, maxHeight)),
+        maxHeight,
+      });
+    };
+    place();
+    const onKey = (e) => { if (e.key === 'Escape') closeRef.current(); };
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [anchor]);
+  return createPortal(
+    <>
+      <button type="button" aria-label="Fermer le menu" className="fixed inset-0 z-[90] cursor-default" onClick={() => closeRef.current()} />
+      <div ref={ref} role="menu"
+        style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : { top: 0, left: 0, visibility: 'hidden' }}
+        className="fixed z-[91] w-60 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl bg-neutral-900 border border-white/10 shadow-2xl py-1">
+        {children}
+      </div>
+    </>,
     document.body,
   );
 }
@@ -989,13 +1041,11 @@ function OrderRow({ order, partnerOrder, onAdvance, onBack, onCancel, onPay, onE
             </button>
           )}
           <div className="relative">
-            <button type="button" onClick={() => setMenu((m) => !m)} aria-expanded={menu} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
+            <button type="button" onClick={(e) => { const el = e.currentTarget; setMenu((m) => (m ? false : el)); }} aria-expanded={!!menu} aria-haspopup="menu" className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm text-neutral-400 hover:text-white hover:bg-white/5 transition-colors">
               Plus <ChevronDown className="w-4 h-4" />
             </button>
             {menu && (
-              <>
-                <button type="button" aria-label="Fermer le menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setMenu(false)} />
-                <div className="absolute z-20 mt-1 left-0 w-60 rounded-xl bg-neutral-900 border border-white/10 shadow-2xl py-1">
+              <RowMenu anchor={menu} onClose={() => setMenu(false)}>
                   <button type="button" onClick={() => { setMenu(false); onEdit(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Pencil className="w-4 h-4" /> Modifier {cfg.units}, prix, délai</button>
                   <button type="button" onClick={() => { setMenu(false); onPrint(order, 'ticket'); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-200 hover:bg-white/5"><Printer className="w-4 h-4" /> Imprimer le ticket</button>
                   {cfg.labels && (
@@ -1013,8 +1063,7 @@ function OrderRow({ order, partnerOrder, onAdvance, onBack, onCancel, onPay, onE
                   {open && !order.paid && !(order.amountPaid > 0) && (
                     <button type="button" onClick={() => { setMenu(false); onCancel(order); }} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10"><Ban className="w-4 h-4" /> Annuler le dépôt</button>
                   )}
-                </div>
-              </>
+              </RowMenu>
             )}
           </div>
         </div>
@@ -1167,7 +1216,7 @@ export default function Carpets({ activity = 'tapis' }) {
           </h1>
           <p className="text-neutral-400 text-base sm:text-lg">{cfg.intro}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button type="button" onClick={() => setShowPrices(true)} className="inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 py-3 rounded-xl font-medium transition-colors">
             <Tags className="w-5 h-5" /> Tarifs{!hasPrices && <span className="w-2 h-2 rounded-full bg-amber-400" title="Aucun tarif enregistré" />}
           </button>
