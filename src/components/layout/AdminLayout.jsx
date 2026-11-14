@@ -13,6 +13,7 @@ import NewVersionBanner from './NewVersionBanner';
 import TrialBanner from './TrialBanner';
 import StationTransferBanner from './StationTransferBanner';
 import GroupStationBanners from './GroupStationBanners';
+import EstablishmentSwitch from './EstablishmentSwitch';
 import ClosurePendingScreen, { useMyClosure } from '../account/ClosurePendingScreen';
 import { exportStationData } from '../../lib/rgpdExport';
 import { supabase } from '../../lib/supabaseClient';
@@ -288,6 +289,7 @@ export default function AdminLayout() {
         </>
       )}
     >
+      <EstablishmentSwitch />
       <StationTransferBanner />
       <GroupStationBanners stationName={stationProfile?.name} />
       <TrialBanner billing={stationBilling} />

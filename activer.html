@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Activation du compte - Galsen Auto Cleaner</title>
+    <meta name="robots" content="noindex">
+    <meta name="referrer" content="no-referrer">
+    <meta name="theme-color" content="#f7f5f0">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="app.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:wght@700;800&display=swap">
+    <!-- Lien de l'e-mail d'activation d'un compte station ou pressing
+         (supabase/functions/send-activation-email, add_pressing_signup_activation.sql). -->
+    <link rel="stylesheet" href="auth.css">
+</head>
+<body class="auth">
+    <main class="auth-main" style="min-height:100vh;min-height:100dvh">
+        <header class="auth-top">
+            <a href="index.html" class="auth-logo" aria-label="Galsen Auto Cleaner, accueil">
+                <img src="/icons/icon-192.png" alt="" width="32" height="32">
+                <span><b>Galsen</b> Auto Cleaner</span>
+            </a>
+        </header>
+        <div class="auth-body">
+            <div class="auth-card" aria-live="polite">
+                <div id="state-wait">
+                    <h1 class="view-heading">Activation en cours…</h1>
+                    <p class="auth-activate__text">Un instant, nous vérifions votre lien.</p>
+                </div>
+                <div id="state-ok" hidden>
+                    <span class="auth-mail-icon" style="background:var(--a-green-soft);color:var(--a-green)" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                    <h1 class="view-heading">Compte activé</h1>
+                    <p class="auth-activate__text" id="ok-text">Votre espace est prêt. Connectez-vous pour commencer.</p>
+                    <div class="auth-activate__actions"><a class="btn-primary-green" href="login.html?mode=login&role=agence" style="text-decoration:none">Me connecter</a></div>
+                </div>
+                <div id="state-ko" hidden>
+                    <span class="auth-mail-icon" style="background:var(--a-amber-soft);color:var(--a-amber)" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></span>
+                    <h1 class="view-heading" id="ko-title">Lien expiré</h1>
+                    <p class="auth-activate__text" id="ko-text">Ce lien n'est plus valable. Connectez-vous : nous vous proposerons d'en recevoir un nouveau.</p>
+                    <div class="auth-activate__actions"><a class="btn-primary-blue" href="login.html?mode=login&role=agence" style="text-decoration:none">Me connecter</a></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script type="module">
+        import { supabase } from '/src/lib/supabaseClient.js';
+
+        const show = (id) => ['state-wait', 'state-ok', 'state-ko'].forEach((s) => { document.getElementById(s).hidden = s !== id; });
+        const token = new URLSearchParams(location.search).get('t') || '';
+        // Le jeton ne reste ni dans l'historique ni dans l'adresse affichée.
+        history.replaceState(null, '', location.pathname);
+
+        (async () => {
+            if (!/^[0-9a-f]{64}$/i.test(token)) {
+                document.getElementById('ko-title').textContent = 'Lien incomplet';
+                document.getElementById('ko-text').textContent = "Ouvrez le lien directement depuis l'e-mail, ou connectez-vous pour en recevoir un nouveau.";
+                show('state-ko');
+                return;
+            }
+            const { data, error } = await supabase.rpc('activate_account', { p_token: token });
+            if (!error && data?.ok) {
+                document.getElementById('ok-text').textContent = data.kind === 'pressing'
+                    ? 'Votre pressing est prêt. Connectez-vous pour saisir vos tarifs et enregistrer vos premiers dépôts.'
+                    : 'Votre station est prête. Connectez-vous pour ajouter vos laveurs et lancer vos premiers lavages.';
+                show('state-ok');
+                return;
+            }
+            if (data?.reason === 'utilise') {
+                document.getElementById('ko-title').textContent = 'Lien déjà utilisé';
+                document.getElementById('ko-text').textContent = 'Ce lien a déjà servi ou un lien plus récent a été envoyé. Utilisez le dernier e-mail reçu, ou connectez-vous pour en recevoir un nouveau.';
+            } else if (data?.reason === 'invalide' || error) {
+                document.getElementById('ko-title').textContent = 'Lien non reconnu';
+                document.getElementById('ko-text').textContent = "Ce lien n'est pas valable. Connectez-vous pour recevoir un nouveau lien d'activation.";
+            }
+            show('state-ko');
+        })();
+    </script>
+</body>
+</html>

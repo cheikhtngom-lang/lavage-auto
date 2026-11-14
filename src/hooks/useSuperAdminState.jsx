@@ -536,6 +536,12 @@ export function SuperAdminStateProvider({ children }) {
     const setStationStatus = async (id, status) => {
         const station = stations.find((s) => s.id === id);
         await supabase.from('stations').update({ status }).eq('id', id);
+        // Établissement en attente de l'e-mail d'activation : valider active aussi
+        // le compte du propriétaire (add_pressing_signup_activation.sql).
+        if (status === 'active' && station?.status === 'en_attente') {
+            const { error } = await supabase.rpc('superadmin_activate_station_owner', { p_station_id: id });
+            if (error) console.error('superadmin_activate_station_owner:', error);
+        }
         setStations((prev) => prev.map((s) => (s.id === id ? { ...s, status } : s)));
         const labels = { active: 'validée / activée', suspendue: 'suspendue', en_attente: 'remise en attente' };
         if (station) logAction(`Station ${labels[status] || status} : ${station.name}`);

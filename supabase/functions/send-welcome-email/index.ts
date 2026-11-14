@@ -81,6 +81,31 @@ function stationEmail(fullName: string | null) {
   };
 }
 
+// Compte pressing (offre Pressing, add_pressing_offer.sql) : pas de laveurs,
+// la première étape est la grille de tarifs.
+function pressingEmail(fullName: string | null) {
+  const first = (fullName || "").split(" ")[0] || "";
+  return {
+    subject: "Votre pressing est prêt — saisissez vos tarifs",
+    html: `
+      <div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:480px;margin:0 auto;color:#111;">
+        <h1 style="font-size:20px;color:#2563eb;">Bienvenue${first ? `, ${first}` : ""} !</h1>
+        <p style="font-size:15px;line-height:1.5;">
+          Votre pressing est actif sur Galsen Auto Cleaner. Première étape : saisissez vos
+          tarifs (par article ou au kilo), puis enregistrez votre premier dépôt.
+        </p>
+        <p style="margin:24px 0;">
+          <a href="${APP_BASE_URL}/admin/pressing?tarifs=1"
+             style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600;display:inline-block;">
+            Saisir mes tarifs
+          </a>
+        </p>
+        <p style="font-size:13px;color:#666;">— L'équipe Galsen Auto Cleaner</p>
+      </div>
+    `,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -102,14 +127,17 @@ Deno.serve(async (req) => {
 
     const { data: profile, error } = await supabase
       .from("profiles")
-      .select("id, role, full_name, email, welcome_email_sent_at")
+      .select("id, role, full_name, email, welcome_email_sent_at, stations!profiles_station_id_fkey(business_type)")
       .eq("id", profileId)
       .single();
     if (error || !profile) return json({ error: "Profil introuvable" }, 404);
     if (profile.welcome_email_sent_at) return json({ skipped: true }, 200);
     if (!profile.email) return json({ error: "Pas d'email sur ce profil" }, 400);
 
-    const { subject, html } = profile.role === "admin" ? stationEmail(profile.full_name) : clientEmail(profile.full_name);
+    // deno-lint-ignore no-explicit-any
+    const kind = (profile as any).stations?.business_type;
+    const { subject, html } = profile.role !== "admin" ? clientEmail(profile.full_name)
+      : kind === "pressing" ? pressingEmail(profile.full_name) : stationEmail(profile.full_name);
 
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",

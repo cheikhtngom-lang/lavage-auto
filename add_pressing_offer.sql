@@ -107,7 +107,7 @@ begin
   -- Jamais deux fois le même module (il serait facturé deux fois).
   new.active_modules := coalesce((select array_agg(distinct m) from unnest(coalesce(new.active_modules, '{}')) m), '{}');
   if new.plan = 'Pressing' and not ('mod_pressing' = any (coalesce(new.active_modules, '{}'))) then
-    new.active_modules := coalesce(new.active_modules, '{}') || 'mod_pressing';
+    new.active_modules := array_append(coalesce(new.active_modules, '{}'), 'mod_pressing');
   end if;
   -- Un module retiré n'est plus offert.
   new.free_modules := coalesce((select array_agg(m) from unnest(coalesce(new.free_modules, '{}')) m where m = any (coalesce(new.active_modules, '{}'))), '{}');

@@ -63,23 +63,33 @@ export async function createClientAccount({ firstName, lastName, email, phone, p
   return { id: data.user.id, name: fullName, email, phone: phone || '' };
 }
 
-export async function createStationAccount({ name, address, city, quartier, region, country, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat, lng }) {
+// Station de lavage (kind 'lavage') ou pressing (kind 'pressing', offre Pressing).
+// Le compte doit être activé par le lien reçu par e-mail avant la première
+// connexion (add_pressing_signup_activation.sql) : la session locale n'est pas
+// ouverte ici, login.html affiche « Vérifiez votre boîte mail ».
+// E-mail déjà inscrit : erreur `code = 'email_exists'` (login.html propose
+// alors d'ajouter l'établissement au compte existant, addEstablishmentToAccount).
+export async function createStationAccount({ name, address, city, quartier, region, country, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat, lng, kind = 'lavage' }) {
   const ownerName = `${ownerFirstName} ${ownerLastName}`.trim();
   const { data, error } = await supabase.auth.signUp({ email: loginEmail, password });
-  if (error) throw new Error(error.message === 'User already registered' ? 'Un compte station existe déjà avec cet email.' : error.message);
+  if (error) {
+    if (error.message === 'User already registered') {
+      const err = new Error('Un compte existe déjà avec cet e-mail.');
+      err.code = 'email_exists';
+      throw err;
+    }
+    throw new Error(error.message);
+  }
   if (!data.user) throw new Error('Compte créé mais session indisponible — vérifiez les paramètres Auth du projet (confirmation email désactivée ?).');
   await ensureSession(data, loginEmail, password);
 
+  // Créée « en_attente » par la base (stations_pending_until_activation) :
+  // cachée de l'annuaire jusqu'au clic sur le lien d'activation.
   const { data: station, error: stationError } = await supabase.from('stations').insert({
     created_by: data.user.id,
     name, owner_name: ownerName, owner_email: loginEmail, owner_phone: phone || '',
     address: address || '', city: city || '', quartier: quartier || '', region: region || '', country: country || 'SN',
     lat: typeof lat === 'number' ? lat : null, lng: typeof lng === 'number' ? lng : null,
-    // Visible immédiatement dans l'annuaire public — pas de validation manuelle
-    // préalable par le Super Admin (qui est aussi le seul développeur pour
-    // l'instant, ça créait une friction inutile en phase de lancement).
-    // Le Super Admin garde "Suspendre" pour retirer une station a posteriori.
-    status: 'active',
   }).select().single();
   if (stationError) throw new Error(stationError.message);
 
@@ -90,18 +100,101 @@ export async function createStationAccount({ name, address, city, quartier, regi
 
   // handle_new_station() crée la ligne station_billing en essai gratuit de
   // 7 jours, offre Starter par défaut (restore_station_trial.sql) : on
-  // enregistre l'offre choisie sur la page de tarifs / le formulaire, une fois
-  // le profil créé (la fonction s'appuie sur la station du compte connecté).
-  // Elle sera proposée par défaut sur l'écran de paiement à la fin de l'essai
-  // (/admin/renouveler).
-  if (plan) {
-    const { error: planError } = await supabase.rpc('set_pending_station_plan', { p_plan: plan });
+  // enregistre l'offre choisie (Pressing pour un pressing), une fois le profil
+  // créé. station_billing_plan_sync() en déduit business_type.
+  const chosenPlan = kind === 'pressing' ? 'Pressing' : plan;
+  if (chosenPlan) {
+    const { error: planError } = await supabase.rpc('set_pending_station_plan', { p_plan: chosenPlan });
     if (planError) console.error('set_pending_station_plan:', planError);
   }
 
-  triggerWelcomeEmail(data.user.id);
-  recordSignupSource('station');
-  return { id: station.id, name: station.name, ownerEmail: loginEmail };
+  recordSignupSource(kind === 'pressing' ? 'pressing' : 'station');
+  const mail = await requestActivationEmail();
+  return { id: station.id, name: station.name, ownerEmail: loginEmail, kind, needsActivation: true, mail };
+}
+
+// E-mail d'activation (Edge Function send-activation-email), avec la session
+// du compte à activer. Renvoie { sent } | { already } | { error, wait }.
+export async function requestActivationEmail() {
+  try {
+    const { data, error } = await supabase.functions.invoke('send-activation-email', { body: {} });
+    if (error) {
+      let body = null;
+      try { body = await error.context?.json?.(); } catch { /* corps illisible */ }
+      return { error: body?.error || "L'e-mail n'a pas pu partir. Réessayez dans un instant.", wait: body?.wait || 0 };
+    }
+    return data || { sent: true };
+  } catch {
+    return { error: "L'e-mail n'a pas pu partir. Réessayez dans un instant." };
+  }
+}
+
+// Compte inscrit comme station ou pressing qui n'a pas encore cliqué le lien
+// reçu par e-mail.
+export function needsActivation(profile) {
+  return !!(profile && profile.role === 'admin' && profile.activation_required && !profile.activated_at);
+}
+
+// Même e-mail pour une station et un pressing : on se connecte au compte
+// existant avec son mot de passe, puis on lui ajoute l'établissement
+// (add_establishment, qui l'ouvre). Erreur `code` : 'wrong_password' |
+// 'not_owner' ; le message est prêt à afficher.
+export async function addEstablishmentToAccount({ email, password, kind, name, address, quartier, region, country, phone, lat, lng, plan }) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    const what = kind === 'pressing' ? 'votre pressing' : 'votre station';
+    const err = new Error(`Cet e-mail a déjà un compte Galsen. Pour y ajouter ${what}, tapez le mot de passe de ce compte (ou « Mot de passe oublié » sur la page de connexion).`);
+    err.code = 'wrong_password';
+    throw err;
+  }
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+  if (!profile || profile.role !== 'admin' || profile.is_group_owner) {
+    await supabase.auth.signOut();
+    const err = new Error(profile?.role === 'automobiliste'
+      ? "Cet e-mail est celui d'un compte particulier. Utilisez une autre adresse e-mail pour votre établissement."
+      : 'Cet e-mail est déjà utilisé par un autre type de compte. Utilisez une autre adresse e-mail.');
+    err.code = 'not_owner';
+    throw err;
+  }
+  const { data: station, error: rpcError } = await supabase.rpc('add_establishment', {
+    p_kind: kind,
+    p_name: name,
+    p_address: address || '',
+    p_quartier: quartier || '',
+    p_region: region || '',
+    p_country: country || 'SN',
+    p_phone: phone || '',
+    p_lat: typeof lat === 'number' ? lat : null,
+    p_lng: typeof lng === 'number' ? lng : null,
+    p_plan: plan || null,
+  });
+  if (rpcError) {
+    await supabase.auth.signOut();
+    throw new Error(rpcError.message);
+  }
+  recordSignupSource(kind === 'pressing' ? 'pressing' : 'station');
+  return { station, profile: { ...profile, station_id: station.id }, activated: !needsActivation(profile) };
+}
+
+// Établissements du compte connecté (station de lavage et/ou pressing).
+export async function myEstablishments() {
+  const { data, error } = await supabase.rpc('my_establishments');
+  if (error) return [];
+  return data || [];
+}
+
+// Ouvre un autre établissement du compte (même session).
+export async function switchEstablishment(stationId) {
+  const { error } = await supabase.rpc('switch_establishment', { p_station_id: stationId });
+  if (error) throw new Error(error.message);
+  setActiveStationId(stationId);
+  clearPermsCache();
+}
+
+// E-mail de bienvenue d'un compte station / pressing : envoyé à sa première
+// connexion après activation (idempotent côté serveur).
+export function sendWelcomeEmailOnce(profile) {
+  if (profile && !profile.welcome_email_sent_at) triggerWelcomeEmail(profile.id);
 }
 
 // Transforme un compte automobiliste déjà connecté en compte station (voir

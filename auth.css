@@ -86,6 +86,42 @@ body.auth { margin: 0; min-height: 100vh; min-height: 100dvh; background: var(--
 .role-btn.active-auto { background: var(--a-surface); color: var(--a-accent); box-shadow: 0 1px 2px rgba(15, 27, 45, .08), 0 4px 12px -6px rgba(11, 99, 229, .4); }
 .role-btn.active-agence { background: var(--a-surface); color: var(--a-green); box-shadow: 0 1px 2px rgba(15, 27, 45, .08), 0 4px 12px -6px rgba(15, 138, 95, .4); }
 
+/* Trois choix à l'inscription (Particulier / Station de lavage / Pressing) */
+.role-bar--3 .role-btn span { line-height: 1.15; }
+@media (max-width: 520px) {
+  .role-bar--3 .role-btn { flex-direction: column; gap: 5px; padding: 9px 4px; font-size: 13px; text-align: center; }
+}
+/* Arrivée par « Ouvrir mon compte pressing » : le formulaire Pressing seul */
+.only-pressing .register-roles,
+.only-pressing #view-register > .back-link { display: none; }
+
+/* Offre Pressing fixe (pas de liste d'offres) */
+.auth-plan { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: baseline; padding: 14px 16px; border-radius: 14px; background: var(--a-green-soft); border: 1px solid #c9e7d8; }
+.auth-plan__name { font-weight: 700; color: #0b5c40; }
+.auth-plan__price { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 18px; color: var(--a-ink); white-space: nowrap; }
+.auth-plan__price small { font-family: 'Inter', sans-serif; font-weight: 500; font-size: 13px; color: var(--a-muted); }
+.auth-plan__note { grid-column: 1 / -1; font-size: 13px; line-height: 1.45; color: #2f5d4b; }
+
+/* E-mail d'activation et choix de l'espace */
+.auth-mail-icon { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 14px; background: var(--a-accent-soft); color: var(--a-accent); }
+.auth-mail-icon svg { width: 26px; height: 26px; }
+.auth-activate__text { font-size: 16px; line-height: 1.55; color: #2b3747; margin: 0 0 8px; overflow-wrap: anywhere; }
+.auth-activate__actions { display: grid; gap: 10px; margin-top: 18px; }
+.auth-alert--ok { color: var(--a-green); background: var(--a-green-soft); border: 1px solid #c9e7d8; }
+#activate-status { margin: 14px 0 0; }
+.auth-choose { display: grid; gap: 10px; }
+.auth-choose__item { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--a-line); background: var(--a-surface); text-align: left; font: inherit; color: inherit; cursor: pointer; transition: transform .18s var(--a-ease), border-color .2s, box-shadow .2s; }
+.auth-choose__item:hover { transform: translateY(-2px); border-color: rgba(11, 99, 229, .4); box-shadow: 0 14px 30px -18px rgba(15, 27, 45, .35); }
+.auth-choose__item:disabled { opacity: .6; cursor: progress; transform: none; }
+.auth-choose__item:focus-visible { outline: 2px solid var(--a-accent); outline-offset: 2px; }
+.auth-choose__icon { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; }
+.auth-choose__icon svg { width: 22px; height: 22px; }
+.auth-choose__icon--lavage { background: var(--a-accent-soft); color: var(--a-accent); }
+.auth-choose__icon--pressing { background: var(--a-green-soft); color: var(--a-green); }
+.auth-choose__text { display: flex; flex-direction: column; min-width: 0; }
+.auth-choose__text strong { font-size: 16px; color: var(--a-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-choose__text span { font-size: 13px; color: var(--a-muted); }
+
 /* Champs */
 .field-label { display: block; font-size: 14px; font-weight: 600; color: #2b3747; margin-bottom: 6px; }
 .input-field { width: 100%; min-height: 48px; background: var(--a-surface); border: 1px solid var(--a-field); border-radius: 12px; padding: 12px 14px; color: var(--a-ink); font: 16px/1.3 'Inter', sans-serif; outline: none; transition: border-color .2s, box-shadow .2s; }

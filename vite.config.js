@@ -81,6 +81,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         dashboard: resolve(__dirname, 'dashboard.html'),
         login: resolve(__dirname, 'login.html'),
+        activer: resolve(__dirname, 'activer.html'),
         resetPassword: resolve(__dirname, 'reset-password.html'),
         forgotPassword: resolve(__dirname, 'forgot-password.html'),
         acceptInvitation: resolve(__dirname, 'accept-invitation.html'),

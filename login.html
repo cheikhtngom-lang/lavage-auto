@@ -78,7 +78,7 @@
                     <button type="button" class="choice-card choice-card-register" onclick="goToRegister('automobiliste')">
                         <span class="choice-icon choice-icon-register"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg></span>
                         <span class="choice-title">Créer un compte</span>
-                        <span class="choice-desc">Automobiliste ou station, en 1 minute.</span>
+                        <span class="choice-desc">Particulier, station de lavage ou pressing, en 1 minute.</span>
                     </button>
                 </div>
             </div>
@@ -92,8 +92,8 @@
 
                 <!-- Onglets rôle connexion -->
                 <div class="role-bar">
-                    <button type="button" class="role-btn" id="login-btn-auto" onclick="setLoginRole('client')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.4 10.5 16 6.6c-.4-.4-1-.6-1.6-.6H8.3c-.6 0-1.1.3-1.5.7L4 10.5 2.9 11.1C2.4 11.4 2 12 2 12.6V16c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>Automobiliste</button>
-                    <button type="button" class="role-btn" id="login-btn-agence" onclick="setLoginRole('admin')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 7 4.4-4.4A2 2 0 0 1 7.8 2h8.4a2 2 0 0 1 1.4.6L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></svg>Station</button>
+                    <button type="button" class="role-btn" id="login-btn-auto" onclick="setLoginRole('client')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Particulier</button>
+                    <button type="button" class="role-btn" id="login-btn-agence" onclick="setLoginRole('admin')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 7 4.4-4.4A2 2 0 0 1 7.8 2h8.4a2 2 0 0 1 1.4.6L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></svg>Station ou pressing</button>
                 </div>
 
                 <form id="login-form" onsubmit="handleLogin(event)">
@@ -135,19 +135,20 @@
             <!-- ============================= -->
             <div id="view-register" class="view-section">
                 <button type="button" class="back-link" onclick="backToChoice()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg> Retour</button>
-                <h2 class="view-heading">Créer un compte</h2>
+                <h2 class="view-heading" id="register-heading">Créer un compte</h2>
 
                 <!-- Onglets rôle inscription -->
-                <div class="role-bar">
-                    <button type="button" class="role-btn" id="reg-btn-auto" onclick="setRegisterRole('automobiliste')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.4 10.5 16 6.6c-.4-.4-1-.6-1.6-.6H8.3c-.6 0-1.1.3-1.5.7L4 10.5 2.9 11.1C2.4 11.4 2 12 2 12.6V16c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>Automobiliste</button>
-                    <button type="button" class="role-btn" id="reg-btn-agence" onclick="setRegisterRole('agence')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 7 4.4-4.4A2 2 0 0 1 7.8 2h8.4a2 2 0 0 1 1.4.6L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/></svg>Station</button>
+                <div class="role-bar role-bar--3 register-roles">
+                    <button type="button" class="role-btn" id="reg-btn-auto" onclick="setRegisterRole('automobiliste')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Particulier</span></button>
+                    <button type="button" class="role-btn" id="reg-btn-agence" onclick="setRegisterRole('agence')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.4 10.5 16 6.6c-.4-.4-1-.6-1.6-.6H8.3c-.6 0-1.1.3-1.5.7L4 10.5 2.9 11.1C2.4 11.4 2 12 2 12.6V16c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg><span>Station de lavage</span></button>
+                    <button type="button" class="role-btn" id="reg-btn-pressing" onclick="setRegisterRole('pressing')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg><span>Pressing</span></button>
                 </div>
 
-                <!-- ---- Formulaire Automobiliste ---- -->
+                <!-- ---- Formulaire Particulier (role automobiliste en base) ---- -->
                 <div id="reg-form-auto" class="form-section">
                     <div class="badge-info">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-                        <span>Gratuit : réservez et suivez vos lavages en temps réel.</span>
+                        <span>Gratuit : réservez vos lavages et suivez vos dépôts (pressing, tapis) en temps réel.</span>
                     </div>
                     <form id="form-register-auto" onsubmit="handleRegisterAuto(event)">
                         <!-- Piège à robots (anti-spam) : champ invisible pour un humain, que
@@ -189,12 +190,12 @@
                         </div>
                         <p id="reg-auto-error" class="auth-alert auth-alert--error hidden" role="alert"></p>
                         <button type="submit" class="btn-primary-blue">
-                            Créer mon compte automobiliste
+                            Créer mon compte particulier
                         </button>
                     </form>
                 </div>
 
-                <!-- ---- Formulaire Agence / Station ---- -->
+                <!-- ---- Formulaire Station de lavage ---- -->
                 <div id="reg-form-agence" class="form-section">
                     <div class="badge-info-green">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
@@ -257,6 +258,7 @@
                             <div>
                                 <label class="field-label" for="reg-agence-email">Email professionnel</label>
                                 <input id="reg-agence-email" type="email" placeholder="contact@autocleandakar.sn" required class="input-field input-field-green" maxlength="100" autocomplete="email">
+                                <p class="auth-note">Vous avez déjà un pressing Galsen ? Mettez le même e-mail et le même mot de passe : la station s'ajoute à votre compte.</p>
                             </div>
                             <div>
                                 <label class="field-label" for="reg-agence-phone">Téléphone</label>
@@ -269,7 +271,6 @@
                                     <option value="Starter">Starter (lavage) — 10 000 FCFA/mois</option>
                                     <option value="Pro">Pro (lavage) — 20 000 FCFA/mois</option>
                                     <option value="Business">Station de service (lavage + carburant, boutique, vidange) — 35 000 FCFA/mois</option>
-                                    <option value="Pressing">Pressing (pressing seul, sans lavage auto) — 15 000 FCFA/mois</option>
                                 </select>
                                 <p class="auth-note">7 jours d'essai gratuit, sans engagement : vous payez votre offre seulement à la fin de l'essai.</p>
                             </div>
@@ -293,10 +294,131 @@
                     </form>
                 </div>
 
+                <!-- ---- Formulaire Pressing (offre Pressing, sans lavage auto) ---- -->
+                <div id="reg-form-pressing" class="form-section">
+                    <div class="badge-info-green">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                        <span>Tickets, étiquettes, tarifs au kilo ou à l'article : vos clients suivent leur linge en ligne.</span>
+                    </div>
+                    <form id="form-register-pressing" onsubmit="handleRegisterPressing(event)">
+                        <!-- Piège à robots (anti-spam), voir le formulaire Particulier. -->
+                        <input type="text" id="reg-pressing-hp" name="website" autocomplete="off" tabindex="-1"
+                               style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;" aria-hidden="true">
+                        <div class="space-y-4 mb-5">
+                            <div>
+                                <label class="field-label" for="reg-pressing-name">Nom du pressing</label>
+                                <input id="reg-pressing-name" type="text" placeholder="Pressing Teranga" required class="input-field input-field-green" maxlength="100" autocomplete="organization">
+                            </div>
+                            <div>
+                                <label class="field-label" for="reg-pressing-address">Adresse du pressing</label>
+                                <input id="reg-pressing-address" type="text" placeholder="Liberté 6, Dakar" required class="input-field input-field-green" maxlength="150" autocomplete="street-address">
+                            </div>
+                            <div>
+                                <label class="field-label" for="reg-pressing-country">Pays</label>
+                                <select id="reg-pressing-country" required class="input-field input-field-green"></select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="field-label" for="reg-pressing-quartier">Quartier</label>
+                                    <input id="reg-pressing-quartier" type="text" placeholder="Liberté 6" required class="input-field input-field-green" maxlength="100">
+                                </div>
+                                <div>
+                                    <label class="field-label" for="reg-pressing-region">Région</label>
+                                    <select id="reg-pressing-region" required class="input-field input-field-green">
+                                        <option value="">Sélectionner…</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <button type="button" id="reg-pressing-geoloc-btn" onclick="captureStationLocation('reg-pressing')" class="auth-btn-secondary">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg>
+                                        Ma position actuelle
+                                    </button>
+                                    <button type="button" id="reg-pressing-geoquartier-btn" onclick="locateFromQuartier('reg-pressing')" class="auth-btn-secondary">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+                                        Localiser mon quartier
+                                    </button>
+                                </div>
+                                <p class="auth-note">Facultatif : la position aide vos clients à vous trouver.</p>
+                                <p id="reg-pressing-geoloc-status" class="auth-note"></p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="field-label" for="reg-pressing-owner-firstname">Prénom du gérant</label>
+                                    <input id="reg-pressing-owner-firstname" type="text" placeholder="Aïssatou" required class="input-field input-field-green" maxlength="50" autocomplete="given-name">
+                                </div>
+                                <div>
+                                    <label class="field-label" for="reg-pressing-owner-lastname">Nom</label>
+                                    <input id="reg-pressing-owner-lastname" type="text" placeholder="Fall" required class="input-field input-field-green" maxlength="50" autocomplete="family-name">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="field-label" for="reg-pressing-email">E-mail</label>
+                                <input id="reg-pressing-email" type="email" placeholder="contact@monpressing.sn" required class="input-field input-field-green" maxlength="100" autocomplete="email">
+                                <p class="auth-note">Vous avez déjà une station Galsen ? Mettez le même e-mail et le même mot de passe : le pressing s'ajoute à votre compte.</p>
+                            </div>
+                            <div>
+                                <label class="field-label" for="reg-pressing-phone">Téléphone</label>
+                                <input id="reg-pressing-phone" type="tel" placeholder="+221 77 000 00 00" class="input-field input-field-green" maxlength="20" autocomplete="tel">
+                            </div>
+                            <div class="auth-plan">
+                                <span class="auth-plan__name">Offre Pressing</span>
+                                <span class="auth-plan__price">15 000 F <small>/ mois</small></span>
+                                <span class="auth-plan__note">7 jours d'essai gratuit, sans engagement : vous payez seulement à la fin de l'essai.</span>
+                            </div>
+                            <div>
+                                <label class="field-label" for="reg-pressing-password">Mot de passe</label>
+                                <input id="reg-pressing-password" type="password" placeholder="8 caractères au moins" required class="input-field input-field-green" minlength="8" maxlength="100" autocomplete="new-password">
+                            </div>
+                            <div>
+                                <label class="field-label" for="reg-pressing-password-confirm">Confirmer le mot de passe</label>
+                                <input id="reg-pressing-password-confirm" type="password" placeholder="Répétez le mot de passe" required class="input-field input-field-green" maxlength="100" autocomplete="new-password">
+                            </div>
+                        </div>
+                        <div class="auth-check">
+                            <input type="checkbox" id="terms-pressing" required style="accent-color: #0f8a5f;">
+                            <label for="terms-pressing">J'accepte les <a href="/conditions-generales.html" target="_blank" class="auth-link-green">conditions d'utilisation</a> et je certifie que les informations fournies sont exactes.</label>
+                        </div>
+                        <p id="reg-pressing-error" class="auth-alert auth-alert--error hidden" role="alert"></p>
+                        <button type="submit" class="btn-primary-green">
+                            Créer mon compte pressing
+                        </button>
+                    </form>
+                </div>
+
                 <div class="switch-mode-text">
                     Déjà un compte ? <button type="button" class="switch-mode-link" onclick="goToLoginDefault()">Se connecter</button>
                 </div>
             </div>
+
+            <!-- ============================= -->
+            <!-- VUE : ACTIVATION PAR E-MAIL   -->
+            <!-- ============================= -->
+            <!-- Station ou pressing tout juste inscrit (ou qui se connecte sans
+                 avoir cliqué le lien) : add_pressing_signup_activation.sql. -->
+            <div id="view-activate" class="view-section">
+                <span class="auth-mail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
+                <h2 class="view-heading">Vérifiez votre boîte mail</h2>
+                <p class="auth-activate__text">Nous avons envoyé un lien d'activation à <strong id="activate-email"></strong>. Cliquez dessus pour ouvrir <span id="activate-what">votre espace</span>.</p>
+                <p class="auth-note">Rien reçu ? Regardez dans les spams ou « Promotions ». Le lien est valable 48 heures.</p>
+                <p id="activate-status" class="auth-alert hidden" role="status"></p>
+                <div class="auth-activate__actions">
+                    <button type="button" id="activate-resend" class="auth-btn-secondary" onclick="resendActivation()">Renvoyer l'e-mail</button>
+                    <button type="button" class="btn-primary-blue" onclick="activationDone()">J'ai activé mon compte, me connecter</button>
+                </div>
+            </div>
+
+            <!-- ============================= -->
+            <!-- VUE : CHOIX DE L'ESPACE       -->
+            <!-- ============================= -->
+            <!-- Compte avec une station ET un pressing (même e-mail). -->
+            <div id="view-choose" class="view-section">
+                <h2 class="view-heading">Quel espace ouvrir ?</h2>
+                <div id="choose-list" class="auth-choose"></div>
+                <p id="choose-error" class="auth-alert auth-alert--error hidden" role="alert"></p>
+            </div>
+
 
         </div>
 
@@ -327,6 +449,8 @@
     <script type="module">
         import {
             createClientAccount, createStationAccount, signIn, setSession,
+            requestActivationEmail, needsActivation, addEstablishmentToAccount,
+            myEstablishments, switchEstablishment, sendWelcomeEmailOnce,
         } from '/src/lib/accounts.js';
         import { geocodeQuartierRegion } from '/src/lib/geocoding.js';
         import { prefetchStationForLogin } from '/src/lib/stationCache.js';
@@ -334,104 +458,89 @@
         import { detectCountry } from '/src/lib/userCountry.js';
 
         const ROLE_REDIRECT = { super_admin: '/superadmin', admin: '/admin/queue', staff: '/admin/queue', automobiliste: '/dashboard' };
+        // Libellés des deux sortes d'établissement (stations.business_type).
+        const KIND_LABEL = { lavage: 'Station de lavage', pressing: 'Pressing' };
 
         // ============ ÉTAT ============
-        let currentView = 'choice';        // 'choice' | 'login' | 'register'
+        let currentView = 'choice';        // 'choice' | 'login' | 'register' | 'activate' | 'choose'
         let currentLoginRole = 'client';   // 'client' | 'admin'
-        let currentRegRole = 'automobiliste'; // 'automobiliste' | 'agence'
-        let stationLat = null;
-        let stationLng = null;
+        let currentRegRole = 'automobiliste'; // 'automobiliste' | 'agence' | 'pressing'
+        let onlyPressing = false;          // arrivée par « Ouvrir mon compte pressing » (accueil)
+        const geo = { 'reg-agence': { lat: null, lng: null }, 'reg-pressing': { lat: null, lng: null } };
 
-        // ============ PAYS ET RÉGIONS DE LA STATION (inscription agence) ============
-        // La station choisit son pays explicitement (elle est où elle est : pas de détection
-        // imposée) ; la détection ne fait que présélectionner. Les régions suivent le pays.
-        // Tous les pays déclarés sont proposés, même pas encore ouverts aux clients : c'est
-        // ce qui permet de recruter des stations pilotes avant l'ouverture d'un pays.
-        function fillAgenceRegions() {
-            const country = document.getElementById('reg-agence-country').value;
-            document.getElementById('reg-agence-region').innerHTML =
+        // ============ PAYS ET RÉGIONS (inscription station et pressing) ============
+        // L'établissement choisit son pays explicitement ; la détection ne fait que
+        // présélectionner. Tous les pays déclarés sont proposés, même pas encore
+        // ouverts aux clients (stations pilotes avant l'ouverture d'un pays).
+        function fillRegions(prefix) {
+            const country = document.getElementById(prefix + '-country').value;
+            document.getElementById(prefix + '-region').innerHTML =
                 '<option value="">Sélectionner…</option>' +
                 regionsOf(country).map((r) => '<option value="' + r.value + '">' + r.label + '</option>').join('');
         }
-        (function initAgenceCountry() {
-            const select = document.getElementById('reg-agence-country');
+        function initCountry(prefix) {
+            const select = document.getElementById(prefix + '-country');
             select.innerHTML = COUNTRIES.map((c) => '<option value="' + c.code + '">' + c.name + '</option>').join('');
             select.value = DEFAULT_COUNTRY;
-            fillAgenceRegions();
+            fillRegions(prefix);
             let touched = false;
-            select.addEventListener('change', () => { touched = true; fillAgenceRegions(); });
-            detectCountry().then((code) => {
-                if (!touched && code && isKnownCountry(code)) { select.value = code; fillAgenceRegions(); }
-            });
+            select.addEventListener('change', () => { touched = true; fillRegions(prefix); });
+            return (code) => { if (!touched && code && isKnownCountry(code)) { select.value = code; fillRegions(prefix); } };
+        }
+        (function initCountries() {
+            const apply = ['reg-agence', 'reg-pressing'].map(initCountry);
+            detectCountry().then((code) => apply.forEach((fn) => fn(code)));
         })();
 
-        // ============ GÉOLOCALISATION DE LA STATION (inscription agence) ============
-        function captureStationLocation() {
-            const btn = document.getElementById('reg-agence-geoloc-btn');
-            const status = document.getElementById('reg-agence-geoloc-status');
-            if (!navigator.geolocation) {
-                status.textContent = "La géolocalisation n'est pas disponible sur cet appareil.";
-                status.className = 'auth-note auth-err';
-                return;
-            }
+        // ============ GÉOLOCALISATION (inscription station et pressing) ============
+        function setGeoStatus(prefix, text, tone) {
+            const status = document.getElementById(prefix + '-geoloc-status');
+            status.textContent = text;
+            status.className = 'auth-note' + (tone ? ' auth-' + tone : '');
+        }
+        function captureStationLocation(prefix = 'reg-agence') {
+            const btn = document.getElementById(prefix + '-geoloc-btn');
+            if (!navigator.geolocation) { setGeoStatus(prefix, "La géolocalisation n'est pas disponible sur cet appareil.", 'err'); return; }
             btn.disabled = true;
-            status.textContent = 'Localisation en cours...';
-            status.className = 'auth-note auth-info';
-
+            setGeoStatus(prefix, 'Localisation en cours…', 'info');
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    stationLat = pos.coords.latitude;
-                    stationLng = pos.coords.longitude;
+                    geo[prefix] = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     btn.disabled = false;
-                    status.textContent = `Position enregistrée ✓ (précision ~${Math.round(pos.coords.accuracy)} m)`;
-                    status.className = 'auth-note auth-ok';
+                    setGeoStatus(prefix, `Position enregistrée (précision ~${Math.round(pos.coords.accuracy)} m)`, 'ok');
                 },
                 (err) => {
                     btn.disabled = false;
                     const messages = {
-                        1: 'Permission refusée — activez la localisation dans votre navigateur pour apparaître dans "Ma position" côté client.',
+                        1: 'Permission refusée : activez la localisation dans votre navigateur, ou utilisez « Localiser mon quartier ».',
                         2: 'Position indisponible pour le moment.',
-                        3: "Délai dépassé, réessayez.",
+                        3: 'Délai dépassé, réessayez.',
                     };
-                    status.textContent = messages[err.code] || 'Impossible de récupérer votre position.';
-                    status.className = 'auth-note auth-err';
+                    setGeoStatus(prefix, messages[err.code] || 'Impossible de récupérer votre position.', 'err');
                 },
                 { enableHighAccuracy: true, timeout: 10000 }
             );
         }
         window.captureStationLocation = captureStationLocation;
 
-        // Alternative au GPS : localise la station à partir du quartier/région saisis,
-        // pour le gérant qui inscrit sa station depuis un autre endroit (ex: il est à
-        // Saint-Louis mais sa station est à Ziguinchor — "ma position actuelle" serait fausse).
-        async function locateFromQuartier() {
-            const quartier = document.getElementById('reg-agence-quartier').value.trim();
-            const region = document.getElementById('reg-agence-region').value;
-            const country = document.getElementById('reg-agence-country').value;
-            const btn = document.getElementById('reg-agence-geoquartier-btn');
-            const status = document.getElementById('reg-agence-geoloc-status');
-
-            if (!quartier || !region) {
-                status.textContent = "Renseignez d'abord le quartier et la région ci-dessus.";
-                status.className = 'auth-note auth-err';
-                return;
-            }
-
+        // Alternative au GPS pour le gérant qui s'inscrit depuis un autre endroit :
+        // position à partir du quartier et de la région saisis.
+        async function locateFromQuartier(prefix = 'reg-agence') {
+            const quartier = document.getElementById(prefix + '-quartier').value.trim();
+            const region = document.getElementById(prefix + '-region').value;
+            const country = document.getElementById(prefix + '-country').value;
+            const btn = document.getElementById(prefix + '-geoquartier-btn');
+            if (!quartier || !region) { setGeoStatus(prefix, "Renseignez d'abord le quartier et la région ci-dessus.", 'err'); return; }
             btn.disabled = true;
-            status.textContent = 'Recherche du quartier...';
-            status.className = 'auth-note auth-info';
-
+            setGeoStatus(prefix, 'Recherche du quartier…', 'info');
             try {
                 const result = await geocodeQuartierRegion(quartier, region, country);
-                stationLat = result.lat;
-                stationLng = result.lng;
-                status.textContent = result.precision === 'quartier'
-                    ? 'Quartier localisé ✓ (position approximative)'
-                    : 'Quartier introuvable — position centrée sur la région ✓ (approximative)';
-                status.className = 'auth-note auth-ok';
+                geo[prefix] = { lat: result.lat, lng: result.lng };
+                setGeoStatus(prefix, result.precision === 'quartier'
+                    ? 'Quartier localisé (position approximative)'
+                    : 'Quartier introuvable : position centrée sur la région (approximative)', 'ok');
             } catch (err) {
-                status.textContent = err.message || 'Impossible de localiser ce quartier.';
-                status.className = 'auth-note auth-err';
+                setGeoStatus(prefix, err.message || 'Impossible de localiser ce quartier.', 'err');
             } finally {
                 btn.disabled = false;
             }
@@ -440,16 +549,11 @@
 
         // ============ SE SOUVENIR DE MOI ============
         function getRememberedLogin() {
-            try {
-                return JSON.parse(localStorage.getItem('rememberedLogin') || 'null');
-            } catch {
-                return null;
-            }
+            try { return JSON.parse(localStorage.getItem('rememberedLogin') || 'null'); } catch { return null; }
         }
-
         function goToLoginDefault() {
             const remembered = getRememberedLogin();
-            goToLogin(remembered ? remembered.role : 'client');
+            goToLogin(remembered ? remembered.role : (onlyPressing ? 'admin' : 'client'));
         }
         window.goToLoginDefault = goToLoginDefault;
 
@@ -462,7 +566,7 @@
         function init() {
             const params = new URLSearchParams(window.location.search);
             const mode = params.get('mode');
-            const role = params.get('role'); // 'agence' ou 'automobiliste'
+            const role = params.get('role'); // 'agence' | 'pressing' | 'automobiliste' | 'particulier'
             returnToReserve = params.get('returnTo') === 'reserve';
             const carpetToken = params.get('tapis');
             if (carpetToken && /^[0-9a-f-]{36}$/i.test(carpetToken)) {
@@ -471,12 +575,10 @@
             }
             const sessionExpired = params.get('expired') === '1';
 
-            // Pré-sélectionne l'offre si on arrive depuis un bouton de la page
-            // de tarifs (#tarifs sur index.html, ?plan=starter/pro/business) —
-            // reste modifiable, ce n'est qu'un pré-remplissage.
+            // Offre venue de la page de tarifs (#tarifs sur index.html) : simple
+            // pré-remplissage, modifiable. « business » : anciens liens.
             const planParam = params.get('plan');
-            // « business » : anciens liens ; l'offre s'appelle désormais Station de service (clé interne Business).
-            const PLAN_PARAM_TO_KEY = { starter: 'Starter', pro: 'Pro', business: 'Business', 'station-service': 'Business', pressing: 'Pressing' };
+            const PLAN_PARAM_TO_KEY = { starter: 'Starter', pro: 'Pro', business: 'Business', 'station-service': 'Business' };
             if (planParam && PLAN_PARAM_TO_KEY[planParam]) {
                 const planSelect = document.getElementById('reg-agence-plan');
                 if (planSelect) planSelect.value = PLAN_PARAM_TO_KEY[planParam];
@@ -488,14 +590,22 @@
                 document.getElementById('remember-me').checked = true;
             }
 
+            // « Ouvrir mon compte pressing » sur l'accueil : le formulaire Pressing
+            // seul, sans les choix Particulier / Station de lavage.
+            if (mode === 'register' && role === 'pressing') {
+                onlyPressing = true;
+                document.body.classList.add('only-pressing');
+                document.title = 'Créer mon compte pressing - Galsen Auto Cleaner';
+            }
+
             if (sessionExpired) {
                 // Retour forcé depuis l'app : inactivité (3 h par défaut) ou session perdue.
                 goToLogin(remembered ? remembered.role : (role === 'agence' ? 'admin' : 'client'));
                 document.getElementById('login-expired').classList.remove('hidden');
             } else if (mode === 'register') {
-                goToRegister(role === 'agence' ? 'agence' : 'automobiliste');
+                goToRegister(role === 'agence' ? 'agence' : (role === 'pressing' || planParam === 'pressing') ? 'pressing' : 'automobiliste');
             } else if (mode === 'login') {
-                goToLogin(role === 'agence' ? 'admin' : (role === 'automobiliste' ? 'client' : (remembered ? remembered.role : 'client')));
+                goToLogin(role === 'agence' || role === 'pressing' ? 'admin' : (role === 'automobiliste' || role === 'particulier' ? 'client' : (remembered ? remembered.role : 'client')));
             } else {
                 showView('choice');
             }
@@ -504,24 +614,31 @@
                 const subtitle = document.getElementById('page-subtitle');
                 if (subtitle) subtitle.textContent = 'Créez votre compte pour finaliser votre réservation.';
             }
-
         }
 
         // ============ NAVIGATION ENTRE VUES ============
+        function setIntro(title, text) {
+            const h = document.querySelector('.auth-intro h1');
+            const p = document.getElementById('page-subtitle');
+            if (h) h.textContent = title;
+            if (p) p.textContent = text;
+        }
+
         function showView(view) {
             currentView = view;
-
-            document.getElementById('view-choice').classList.toggle('visible', view === 'choice');
-            document.getElementById('view-login').classList.toggle('visible', view === 'login');
-            document.getElementById('view-register').classList.toggle('visible', view === 'register');
-
-            const subtitle = document.getElementById('page-subtitle');
-            if (!subtitle) return;
-            if (returnToCarpets && view === 'login') { subtitle.textContent = 'Connectez-vous pour suivre vos tapis dans votre espace.'; return; }
-            if (returnToCarpets && view === 'register') { subtitle.textContent = 'Créez votre compte gratuit pour suivre vos tapis.'; return; }
-            if (view === 'choice') subtitle.textContent = 'Que voulez-vous faire ?';
-            else if (view === 'login') subtitle.textContent = 'Connectez-vous à votre espace Galsen.';
-            else if (view === 'register') subtitle.textContent = 'Rejoignez Galsen gratuitement.';
+            ['choice', 'login', 'register', 'activate', 'choose'].forEach((v) => {
+                document.getElementById('view-' + v).classList.toggle('visible', view === v);
+            });
+            if (returnToCarpets && view === 'login') { setIntro('Bienvenue', 'Connectez-vous pour suivre vos dépôts dans votre espace.'); return; }
+            if (returnToCarpets && view === 'register') { setIntro('Bienvenue', 'Créez votre compte gratuit pour suivre vos dépôts.'); return; }
+            if (view === 'choice') setIntro('Bienvenue', 'Que voulez-vous faire ?');
+            else if (view === 'login') setIntro('Bienvenue', 'Connectez-vous à votre espace Galsen.');
+            else if (view === 'register') {
+                if (onlyPressing) setIntro('Votre pressing en ligne', '7 jours gratuits, sans engagement. Vos clients suivent leur linge depuis leur téléphone.');
+                else setIntro('Bienvenue', 'Rejoignez Galsen gratuitement.');
+            } else if (view === 'activate') setIntro('Presque fini', 'Un dernier clic pour ouvrir votre espace.');
+            else if (view === 'choose') setIntro('Bon retour', 'Votre compte a plusieurs espaces.');
+            window.scrollTo({ top: 0 });
         }
 
         function backToChoice() { showView('choice'); }
@@ -535,7 +652,7 @@
 
         function goToRegister(role) {
             showView('register');
-            setRegisterRole(role || 'automobiliste');
+            setRegisterRole(onlyPressing ? 'pressing' : (role || 'automobiliste'));
         }
         window.goToRegister = goToRegister;
 
@@ -545,7 +662,6 @@
             const btnAuto = document.getElementById('login-btn-auto');
             const btnAgence = document.getElementById('login-btn-agence');
             const submitBtn = document.getElementById('login-submit-btn');
-
             if (role === 'client') {
                 btnAuto.className = 'role-btn active-auto';
                 btnAgence.className = 'role-btn';
@@ -555,29 +671,128 @@
                 btnAuto.className = 'role-btn';
                 btnAgence.className = 'role-btn active-agence';
                 submitBtn.className = 'btn-primary-green';
-                submitBtn.textContent = 'Accéder à mon espace Station';
+                submitBtn.textContent = 'Accéder à mon espace';
             }
         }
 
         // ============ RÔLE INSCRIPTION ============
         function setRegisterRole(role) {
             currentRegRole = role;
-            const btnAuto = document.getElementById('reg-btn-auto');
-            const btnAgence = document.getElementById('reg-btn-agence');
-            const formAuto = document.getElementById('reg-form-auto');
-            const formAgence = document.getElementById('reg-form-agence');
+            const parts = { automobiliste: ['reg-btn-auto', 'reg-form-auto', 'active-auto'], agence: ['reg-btn-agence', 'reg-form-agence', 'active-agence'], pressing: ['reg-btn-pressing', 'reg-form-pressing', 'active-agence'] };
+            Object.entries(parts).forEach(([key, [btnId, formId, activeCls]]) => {
+                const on = key === role;
+                document.getElementById(btnId).className = 'role-btn' + (on ? ' ' + activeCls : '');
+                document.getElementById(btnId).setAttribute('aria-pressed', String(on));
+                document.getElementById(formId).classList.toggle('visible', on);
+            });
+            const heading = document.getElementById('register-heading');
+            if (heading) heading.textContent = onlyPressing ? 'Créer mon compte pressing' : 'Créer un compte';
+        }
 
-            if (role === 'automobiliste') {
-                btnAuto.className = 'role-btn active-auto';
-                btnAgence.className = 'role-btn';
-                formAuto.classList.add('visible');
-                formAgence.classList.remove('visible');
+        // ============ ACTIVATION PAR E-MAIL ============
+        let activationKind = 'lavage';
+        let resendTimer = null;
+        function showActivation(email, kind, mail) {
+            activationKind = kind || 'lavage';
+            document.getElementById('activate-email').textContent = email;
+            document.getElementById('activate-what').textContent = activationKind === 'pressing' ? 'votre espace pressing' : 'votre espace station';
+            showView('activate');
+            renderActivationMail(mail);
+        }
+        function renderActivationMail(mail) {
+            const status = document.getElementById('activate-status');
+            const btn = document.getElementById('activate-resend');
+            clearInterval(resendTimer);
+            if (!mail) { status.classList.add('hidden'); return; }
+            status.classList.remove('hidden');
+            if (mail.error) {
+                status.className = 'auth-alert auth-alert--warn';
+                status.textContent = mail.error;
+            } else if (mail.already) {
+                status.className = 'auth-alert auth-alert--ok';
+                status.textContent = 'Votre compte est déjà activé : connectez-vous.';
             } else {
-                btnAuto.className = 'role-btn';
-                btnAgence.className = 'role-btn active-agence';
-                formAuto.classList.remove('visible');
-                formAgence.classList.add('visible');
+                status.className = 'auth-alert auth-alert--ok';
+                status.textContent = 'E-mail envoyé.';
             }
+            // Un envoi par minute au plus (send-activation-email).
+            let left = mail.wait || (mail.sent ? 60 : 0);
+            const tick = () => {
+                btn.disabled = left > 0;
+                btn.textContent = left > 0 ? `Renvoyer l'e-mail (${left} s)` : "Renvoyer l'e-mail";
+                left -= 1;
+                if (left < 0) clearInterval(resendTimer);
+            };
+            tick();
+            if (left > 0) resendTimer = setInterval(tick, 1000);
+        }
+        async function resendActivation() {
+            const btn = document.getElementById('activate-resend');
+            btn.disabled = true;
+            btn.textContent = 'Envoi…';
+            renderActivationMail(await requestActivationEmail());
+        }
+        window.resendActivation = resendActivation;
+        function activationDone() { goToLogin('admin'); }
+        window.activationDone = activationDone;
+
+        // ============ OUVERTURE DE L'ESPACE APRÈS CONNEXION ============
+        async function finishLogin(profile, rememberMe) {
+            setSession({
+                role: profile.role,
+                remember: rememberMe,
+                clientId: profile.role === 'automobiliste' ? profile.id : undefined,
+                // Chef d'entreprise (Sur mesure) : aucune station ouverte à la connexion, il arrive sur /groupe.
+                stationId: (profile.role === 'admin' || profile.role === 'staff') && !profile.is_group_owner ? profile.station_id : undefined,
+                groupOwner: !!profile.is_group_owner,
+            });
+            if (profile.role === 'admin') sendWelcomeEmailOnce(profile);
+            // Station : copie de l'offre et du menu prête avant l'ouverture du
+            // tableau de bord (lib/stationCache.js), 1,5 s au plus.
+            await prefetchStationForLogin(profile);
+            const dest = profile.is_group_owner ? '/groupe'
+                : profile.role === 'automobiliste' && returnToCarpets ? '/dashboard/tapis'
+                : (profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role]);
+            window.location.href = dest || '/dashboard';
+        }
+
+        // Compte avec une station ET un pressing : l'utilisateur choisit l'espace.
+        function showChooser(list, profile, rememberMe) {
+            const box = document.getElementById('choose-list');
+            box.textContent = '';
+            list.forEach((e) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'auth-choose__item';
+                const icon = document.createElement('span');
+                icon.className = 'auth-choose__icon auth-choose__icon--' + (e.business_type === 'pressing' ? 'pressing' : 'lavage');
+                icon.innerHTML = e.business_type === 'pressing'
+                    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>'
+                    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.4 10.5 16 6.6c-.4-.4-1-.6-1.6-.6H8.3c-.6 0-1.1.3-1.5.7L4 10.5 2.9 11.1C2.4 11.4 2 12 2 12.6V16c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>';
+                const text = document.createElement('span');
+                text.className = 'auth-choose__text';
+                const name = document.createElement('strong');
+                name.textContent = e.name || KIND_LABEL[e.business_type] || 'Mon espace';
+                const kind = document.createElement('span');
+                kind.textContent = KIND_LABEL[e.business_type] || 'Établissement';
+                text.append(name, kind);
+                b.append(icon, text);
+                b.addEventListener('click', async () => {
+                    const err = document.getElementById('choose-error');
+                    err.classList.add('hidden');
+                    box.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+                    try {
+                        if (!e.is_current) await switchEstablishment(e.id);
+                        await finishLogin({ ...profile, station_id: e.id }, rememberMe);
+                    } catch (ex) {
+                        err.textContent = ex.message || "Impossible d'ouvrir cet espace.";
+                        err.classList.remove('hidden');
+                        box.querySelectorAll('button').forEach((x) => { x.disabled = false; });
+                    }
+                });
+                box.appendChild(b);
+            });
+            showView('choose');
         }
 
         // ============ CONNEXION ============
@@ -585,48 +800,39 @@
         // pas de l'onglet cliqué — currentLoginRole ne sert qu'à l'habillage visuel.
         async function handleLogin(e) {
             e.preventDefault();
-
             const rememberMe = document.getElementById('remember-me').checked;
             const identifier = document.getElementById('login-identifier').value.trim();
             const password = document.getElementById('login-password').value;
             const errorEl = document.getElementById('login-error');
             const submitBtn = document.getElementById('login-submit-btn');
             errorEl.classList.add('hidden');
-
-            if (rememberMe) {
-                localStorage.setItem('rememberedLogin', JSON.stringify({ identifier, role: currentLoginRole }));
-            } else {
-                localStorage.removeItem('rememberedLogin');
-            }
+            if (rememberMe) localStorage.setItem('rememberedLogin', JSON.stringify({ identifier, role: currentLoginRole }));
+            else localStorage.removeItem('rememberedLogin');
 
             submitBtn.disabled = true;
             try {
                 const { profile } = await signIn(identifier, password);
-                setSession({
-                    role: profile.role,
-                    remember: rememberMe,
-                    clientId: profile.role === 'automobiliste' ? profile.id : undefined,
-                    // Chef d'entreprise (Sur mesure) : aucune station ouverte à la connexion, il arrive sur /groupe.
-                    stationId: (profile.role === 'admin' || profile.role === 'staff') && !profile.is_group_owner ? profile.station_id : undefined,
-                    groupOwner: !!profile.is_group_owner,
-                });
-                // Station : copie de l'offre et du menu prête avant l'ouverture du
-                // tableau de bord (lib/stationCache.js), 1,5 s au plus.
-                await prefetchStationForLogin(profile);
-                const dest = profile.is_group_owner ? '/groupe'
-                    : profile.role === 'automobiliste' && returnToCarpets ? '/dashboard/tapis'
-                    : (profile.role === 'automobiliste' && returnToReserve ? '/stations' : ROLE_REDIRECT[profile.role]);
-                window.location.href = dest || '/dashboard';
+                // Station ou pressing pas encore activé : l'e-mail d'abord.
+                if (needsActivation(profile)) {
+                    const kind = (await myEstablishments())[0]?.business_type;
+                    showActivation(profile.email || identifier, kind, null);
+                    return;
+                }
+                if (profile.role === 'admin' && !profile.is_group_owner) {
+                    const list = await myEstablishments();
+                    if (list.length > 1) { showChooser(list, profile, rememberMe); return; }
+                }
+                await finishLogin(profile, rememberMe);
             } catch (err) {
                 console.error('signIn failed:', err);
-                errorEl.textContent = err.message || "Identifiants invalides. Veuillez réessayer.";
+                errorEl.textContent = err.message || 'Identifiants invalides. Veuillez réessayer.';
                 errorEl.classList.remove('hidden');
             } finally {
                 submitBtn.disabled = false;
             }
         }
 
-        // ============ INSCRIPTION AUTOMOBILISTE ============
+        // ============ INSCRIPTION PARTICULIER ============
         async function handleRegisterAuto(e) {
             e.preventDefault();
             // Piège à robots rempli => très probablement un bot, on abandonne
@@ -634,77 +840,93 @@
             if (document.getElementById('reg-auto-hp').value) return;
             const errorEl = document.getElementById('reg-auto-error');
             errorEl.classList.add('hidden');
-
             const firstName = document.getElementById('reg-auto-firstname').value.trim();
             const lastName = document.getElementById('reg-auto-lastname').value.trim();
             const email = document.getElementById('reg-auto-email').value.trim();
             const phone = document.getElementById('reg-auto-phone').value.trim();
             const password = document.getElementById('reg-auto-password').value;
             const passwordConfirm = document.getElementById('reg-auto-password-confirm').value;
-
             if (password !== passwordConfirm) {
                 errorEl.textContent = 'Les mots de passe ne correspondent pas.';
                 errorEl.classList.remove('hidden');
                 return;
             }
-
+            const submit = e.submitter || e.target.querySelector('[type=submit]');
+            if (submit) submit.disabled = true;
             try {
+                // Particulier : compte ouvert tout de suite, sans e-mail d'activation.
                 const account = await createClientAccount({ firstName, lastName, email, phone, password });
                 setSession({ role: 'automobiliste', remember: true, clientId: account.id });
                 window.location.href = returnToCarpets ? '/dashboard/tapis' : (returnToReserve ? '/stations' : '/dashboard');
             } catch (err) {
                 console.error('createClientAccount failed:', err);
-                errorEl.textContent = err.message || "Erreur lors de la création du compte. Vérifiez vos informations.";
+                errorEl.textContent = err.message || 'Erreur lors de la création du compte. Vérifiez vos informations.';
                 errorEl.classList.remove('hidden');
+                if (submit) submit.disabled = false;
             }
         }
 
-        // ============ INSCRIPTION AGENCE ============
-        async function handleRegisterAgence(e) {
+        // ============ INSCRIPTION STATION DE LAVAGE OU PRESSING ============
+        async function registerEstablishment(e, kind) {
             e.preventDefault();
-            // Piège à robots rempli => très probablement un bot, on abandonne
-            // silencieusement (pas de message d'erreur qui l'aiderait à s'adapter).
-            if (document.getElementById('reg-agence-hp').value) return;
-            const errorEl = document.getElementById('reg-agence-error');
+            const prefix = kind === 'pressing' ? 'reg-pressing' : 'reg-agence';
+            const val = (id) => document.getElementById(prefix + '-' + id).value;
+            if (val('hp')) return; // piège à robots
+            const errorEl = document.getElementById(prefix + '-error');
             errorEl.classList.add('hidden');
+            const showError = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); errorEl.scrollIntoView({ block: 'center', behavior: 'smooth' }); };
 
-            const name = document.getElementById('reg-agence-name').value.trim();
-            const address = document.getElementById('reg-agence-address').value.trim();
-            const quartier = document.getElementById('reg-agence-quartier').value.trim();
-            const region = document.getElementById('reg-agence-region').value;
-            const country = document.getElementById('reg-agence-country').value;
-            const ownerFirstName = document.getElementById('reg-agence-owner-firstname').value.trim();
-            const ownerLastName = document.getElementById('reg-agence-owner-lastname').value.trim();
-            const loginEmail = document.getElementById('reg-agence-email').value.trim();
-            const phone = document.getElementById('reg-agence-phone').value.trim();
-            const plan = document.getElementById('reg-agence-plan').value;
-            const password = document.getElementById('reg-agence-password').value;
-            const passwordConfirm = document.getElementById('reg-agence-password-confirm').value;
+            const fields = {
+                kind,
+                name: val('name').trim(),
+                address: val('address').trim(),
+                quartier: val('quartier').trim(),
+                region: val('region'),
+                country: val('country'),
+                ownerFirstName: val('owner-firstname').trim(),
+                ownerLastName: val('owner-lastname').trim(),
+                loginEmail: val('email').trim(),
+                phone: val('phone').trim(),
+                plan: kind === 'pressing' ? 'Pressing' : val('plan'),
+                password: val('password'),
+                lat: geo[prefix].lat,
+                lng: geo[prefix].lng,
+            };
+            if (!fields.plan) { showError('Veuillez sélectionner une offre.'); return; }
+            if (fields.password !== val('password-confirm')) { showError('Les mots de passe ne correspondent pas.'); return; }
 
-            if (!plan) {
-                errorEl.textContent = 'Veuillez sélectionner une offre.';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-            if (password !== passwordConfirm) {
-                errorEl.textContent = 'Les mots de passe ne correspondent pas.';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
+            const submit = e.submitter || e.target.querySelector('[type=submit]');
+            if (submit) submit.disabled = true;
             try {
-                const station = await createStationAccount({ name, address, quartier, region, country, ownerFirstName, ownerLastName, loginEmail, phone, plan, password, lat: stationLat, lng: stationLng });
-                setSession({ role: 'admin', remember: true, stationId: station.id });
-                window.location.href = '/merci.html';
+                const res = await createStationAccount(fields);
+                showActivation(fields.loginEmail, kind, res.mail);
             } catch (err) {
-                console.error('createStationAccount failed:', err);
-                errorEl.textContent = err.message || "Erreur lors de la création du compte. Vérifiez vos informations.";
-                errorEl.classList.remove('hidden');
+                if (err.code !== 'email_exists') {
+                    console.error('createStationAccount failed:', err);
+                    showError(err.message || 'Erreur lors de la création du compte. Vérifiez vos informations.');
+                    if (submit) submit.disabled = false;
+                    return;
+                }
+                // Même e-mail qu'un compte existant : on ajoute l'établissement à ce
+                // compte s'il en est le propriétaire et que le mot de passe est le sien.
+                try {
+                    const added = await addEstablishmentToAccount({ ...fields, email: fields.loginEmail });
+                    if (!added.activated) {
+                        showActivation(fields.loginEmail, kind, await requestActivationEmail());
+                        return;
+                    }
+                    await finishLogin(added.profile, true);
+                } catch (err2) {
+                    showError(err2.message);
+                    if (submit) submit.disabled = false;
+                }
             }
         }
+        const handleRegisterAgence = (e) => registerEstablishment(e, 'lavage');
+        const handleRegisterPressing = (e) => registerEstablishment(e, 'pressing');
 
         // Expose au HTML (onclick/onsubmit) — nécessaire car le script est un module
-        Object.assign(window, { setLoginRole, setRegisterRole, handleLogin, handleRegisterAuto, handleRegisterAgence });
+        Object.assign(window, { setLoginRole, setRegisterRole, handleLogin, handleRegisterAuto, handleRegisterAgence, handleRegisterPressing });
 
         // Lance l'init
         init();
