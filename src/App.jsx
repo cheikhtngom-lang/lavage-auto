@@ -111,6 +111,7 @@ const SuperAdminBilling = lazyPage(() => import('./pages/SuperAdmin/Billing'));
 const SuperAdminPayouts = lazyPage(() => import('./pages/SuperAdmin/Payouts'));
 const SuperAdminReminders = lazyPage(() => import('./pages/SuperAdmin/Reminders'));
 const SuperAdminTicker = lazyPage(() => import('./pages/SuperAdmin/Ticker'));
+const SuperAdminSiteVideos = lazyPage(() => import('./pages/SuperAdmin/SiteVideos'));
 const SuperAdminBilan = lazyPage(() => import('./pages/SuperAdmin/Bilan'));
 const SuperAdminFuel = lazyPage(() => import('./pages/SuperAdmin/Fuel'));
 const SuperAdminCarpets = lazyPage(() => import('./pages/SuperAdmin/Carpets'));
@@ -121,7 +122,7 @@ const SuperAdminSettings = lazyPage(() => import('./pages/SuperAdmin/Settings'))
 const CLIENT_PAGES = [ClientOverview, Stations, MyStations, ClientLoyalty, ClientShop, ClientCarpets, ClientGarage, ClientSettings];
 const ADMIN_PAGES = [StationDashboard, AdminTransactions, Subscriptions, Washers, Settings, Analytics, Accounting, AdminPayouts, AdminReminders, Team, Pompistes, Vidange, Carpets, AdminModules, Bilan, Shop, AdminAnnouncements];
 const GROUP_PAGES = [GroupDashboard, GroupStations, GroupAccounting, GroupAnalysis, GroupOrder, GroupBilling, GroupSettings];
-const SUPER_ADMIN_PAGES = [SuperAdminDashboard, SuperAdminStations, SuperAdminBilling, SuperAdminMotorists, SuperAdminSuperUsers, SuperAdminAnalytics, SuperAdminPayouts, SuperAdminReminders, SuperAdminGroups, SuperAdminModules, SuperAdminAds, SuperAdminAnnouncements, SuperAdminTicker, SuperAdminFuel, SuperAdminCarpets, SuperAdminBilan, SuperAdminSupport, SuperAdminAffiliates, SuperAdminSettings];
+const SUPER_ADMIN_PAGES = [SuperAdminDashboard, SuperAdminStations, SuperAdminBilling, SuperAdminMotorists, SuperAdminSuperUsers, SuperAdminAnalytics, SuperAdminPayouts, SuperAdminReminders, SuperAdminGroups, SuperAdminModules, SuperAdminAds, SuperAdminAnnouncements, SuperAdminTicker, SuperAdminSiteVideos, SuperAdminFuel, SuperAdminCarpets, SuperAdminBilan, SuperAdminSupport, SuperAdminAffiliates, SuperAdminSettings];
 
 // Mock Home/Login Pages
 const Home = () => (
@@ -304,6 +305,7 @@ function App() {
                 <Route path="reversements" element={<SuperAdminPayouts />} />
                 <Route path="relances" element={<SuperAdminReminders />} />
                 <Route path="bandeau" element={<SuperAdminTicker />} />
+                <Route path="videos" element={<SuperAdminSiteVideos />} />
                 <Route path="carburant" element={<SuperAdminFuel />} />
                 <Route path="tapis" element={<SuperAdminCarpets />} />
                 <Route path="bilan" element={<SuperAdminBilan />} />

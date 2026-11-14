@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import PageSuspense from '../ui/PageSuspense';
-import { LayoutDashboard, Building2, CreditCard, LifeBuoy, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes, Briefcase, Fuel, Wallet, BellRing, Newspaper, Share2, Layers } from 'lucide-react';
+import { LayoutDashboard, Building2, CreditCard, LifeBuoy, BarChart3, Users, Settings as SettingsIcon, Crown, Megaphone, Send, FileBarChart, Boxes, Briefcase, Fuel, Wallet, BellRing, Newspaper, Share2, Layers, Clapperboard } from 'lucide-react';
 import { getCurrentRole, clearSession } from '../../lib/accounts';
 import { supabase } from '../../lib/supabaseClient';
 import { useSuperAdminState } from '../../hooks/useSuperAdminState';
@@ -82,6 +82,8 @@ export default function SuperAdminLayout() {
     { name: 'Publicités', href: '/superadmin/ads', icon: Megaphone, badges: amber(pendingAdsCount, 'publicité à valider', 'publicités à valider'), section: MARKETING },
     { name: 'Annonces', href: '/superadmin/annonces', icon: Send, section: MARKETING },
     { name: "Bandeau d'accueil", href: '/superadmin/bandeau', icon: Newspaper, section: MARKETING },
+    // Vidéos de la page de connexion / inscription (add_site_videos.sql).
+    { name: 'Vidéos de connexion', href: '/superadmin/videos', icon: Clapperboard, section: MARKETING },
     // ─── Finances ───
     { name: 'Facturation', href: '/superadmin/billing', icon: CreditCard, section: FINANCES },
     { name: 'Reversements', href: '/superadmin/reversements', icon: Wallet, badges: amber(stationsToPayCount, 'station à payer', 'stations à payer'), section: FINANCES },
